@@ -1,0 +1,67 @@
+@import url("https://fonts.googleapis.com/css2?family=Archivo+Black&family=Archivo:wght@400;600;700&display=swap");
+
+:root {
+  --ink: #17203a;
+  --paper: #f7e3d0;
+  --card: #fdf4e9;
+  --red: #bf5527;
+  --orange: #d97757;
+  --rule: #17203a33;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: Georgia, "Times New Roman", serif;
+  min-height: 100vh;
+}
+
+.disp { font-family: "Archivo Black", sans-serif; letter-spacing: -0.02em; }
+.ui { font-family: "Archivo", sans-serif; }
+
+.statin {
+  background: var(--card); border: 1.5px solid var(--ink); padding: 9px 11px;
+  width: 100%; font-family: "Archivo", sans-serif; font-weight: 600; font-size: 15px;
+}
+.statin:focus { outline: 2px solid var(--orange); outline-offset: 1px; }
+
+.scorein {
+  width: 58px; text-align: center; background: var(--card); border: 1.5px solid var(--ink);
+  padding: 7px 4px; font-family: "Archivo Black", sans-serif; font-size: 16px;
+}
+.cellin {
+  width: 46px; text-align: center; background: var(--card); border: 1px solid var(--rule);
+  padding: 5px 2px; font-family: "Archivo", sans-serif; font-weight: 700; font-size: 13px;
+}
+.cellin:focus { outline: 2px solid var(--orange); outline-offset: -1px; }
+
+.blackbtn { padding: 12px 22px; background: var(--ink); color: var(--paper); border: none; cursor: pointer; font-family: "Archivo", sans-serif; font-weight: 700; font-size: 14px; }
+.redbtn { padding: 12px 22px; background: var(--orange); color: #fff; border: none; cursor: pointer; font-family: "Archivo", sans-serif; font-weight: 700; font-size: 14px; }
+.linkbtn { background: none; border: none; color: var(--red); font-weight: 700; cursor: pointer; font-family: "Archivo", sans-serif; font-size: 13px; padding: 0; }
+.navbtn { padding: 10px 18px; border: 1.5px solid var(--ink); cursor: pointer; font-family: "Archivo Black", sans-serif; font-size: 13px; text-transform: uppercase; background: var(--card); color: var(--ink); }
+.navbtn.active { background: var(--ink); color: var(--paper); }
+
+.tapparow { width: 100%; text-align: left; border: none; border-bottom: 1px solid var(--rule); background: transparent; padding: 14px 4px; cursor: pointer; display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.tapparow:hover { background: var(--card); }
+
+.standtable { border-collapse: collapse; width: 100%; font-family: "Archivo", sans-serif; font-size: 13px; }
+.standtable th { border: 1px solid var(--rule); padding: 6px 8px; background: var(--paper); text-align: center; font-size: 10.5px; letter-spacing: 0.06em; }
+.standtable td { border: 1px solid var(--rule); padding: 7px 8px; text-align: center; font-weight: 600; }
+.standtable td.tname { text-align: left; font-weight: 700; }
+
+.statstable { border-collapse: collapse; width: 100%; font-family: "Archivo", sans-serif; font-size: 12px; }
+.statstable th { border: 1px solid var(--rule); padding: 4px 6px; background: var(--paper); text-align: center; font-size: 9.5px; letter-spacing: 0.05em; }
+.statstable td { border: 1px solid var(--rule); padding: 3px; text-align: center; }
+.statstable td.tname { text-align: left; font-weight: 700; padding: 4px 6px; white-space: nowrap; font-size: 12.5px; }
+
+.chatfab { position: fixed; right: 18px; bottom: 18px; width: 62px; height: 62px; border-radius: 18px; border: none; cursor: pointer; background: var(--ink); padding: 7px; box-shadow: 0 6px 18px rgba(23, 32, 58, 0.35); z-index: 50; }
+.chatfab img { width: 100%; height: 100%; object-fit: contain; }
+.chatpanel { position: fixed; right: 18px; bottom: 90px; width: min(370px, calc(100vw - 36px)); height: min(480px, 70vh); background: var(--card); border: 2px solid var(--ink); display: flex; flex-direction: column; z-index: 50; box-shadow: 0 10px 30px rgba(23, 32, 58, 0.3); }
+.bubble-u { align-self: flex-end; background: var(--ink); color: var(--paper); padding: 8px 12px; max-width: 85%; font-size: 14px; font-family: "Archivo", sans-serif; }
+.bubble-a { align-self: flex-start; background: var(--paper); border: 1px solid var(--rule); padding: 8px 12px; max-width: 85%; font-size: 14.5px; font-family: Georgia, serif; line-height: 1.45; }
+
+.pulse { animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
