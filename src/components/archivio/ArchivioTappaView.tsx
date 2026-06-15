@@ -7,12 +7,14 @@ import { EventLog } from "../partita/EventLog";
 import { LeaderboardSection } from "../leaderboard/LeaderboardSection";
 import { VideoGrid } from "../video/VideoGrid";
 import { GiocatoreAnalisi } from "./GiocatoreAnalisi";
-import type { Tappa } from "../../types";
+import { SquadraModal } from "./SquadraModal";
+import type { Tappa, SquadraTappa } from "../../types";
 
 /** Vista in sola lettura di una tappa: tappe concluse e archivio del circuito */
 export function ArchivioTappaView({ t, lega, autore }: { t: Tappa; lega?: string; autore?: string }) {
   const [open, setOpen] = useState<string | null>(null);
   const [selPid, setSelPid] = useState<string | null>(null);
+  const [selSquadra, setSelSquadra] = useState<SquadraTappa | null>(null);
   const hasStats = t.partite.some((m) => m.done && (Object.keys(m.pa || {}).length > 0 || Object.keys(m.pb || {}).length > 0));
   const nameOf = (id: string) => t.squadre.find((s) => s.id === id)?.nome || "?";
   const playersOf = (teamId: string) =>
@@ -36,38 +38,51 @@ export function ArchivioTappaView({ t, lega, autore }: { t: Tappa; lega?: string
       </div>
 
       <h3 className="disp" style={{ fontSize: 16, margin: "0 0 2px", textTransform: "uppercase" }}>Squadre e roster</h3>
-      {hasStats && (
-        <p className="ui" style={{ fontSize: 12, fontWeight: 600, opacity: 0.75, margin: "0 0 8px" }}>
-          Clicca un giocatore per vedere su cosa deve migliorare e gli esercizi consigliati.
-        </p>
-      )}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10, marginBottom: 18 }}>
+      <p className="ui" style={{ fontSize: 12, fontWeight: 600, opacity: 0.75, margin: "0 0 8px" }}>
+        Clicca una squadra per vedere il roster{hasStats ? " e l'analisi dei giocatori" : ""}.
+      </p>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10, marginBottom: 18 }}>
         {t.squadre.map((s) => (
-          <div key={s.id} style={{ background: "var(--card)", border: `1.5px solid ${INK}`, padding: 10 }}>
-            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4 }}>
-              {s.logo && (
+          <button
+            key={s.id}
+            onClick={() => setSelSquadra(s)}
+            style={{
+              background: "var(--card)",
+              border: `1.5px solid ${INK}`,
+              padding: 12,
+              cursor: "pointer",
+              textAlign: "left",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 8,
+              transition: "box-shadow 0.15s",
+            }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 0 0 2px ${ORANGE}`; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.boxShadow = "none"; }}
+          >
+            {s.logo
+              ? (
                 <img src={s.logo} alt={`Logo ${s.nome}`}
-                  style={{ width: 36, height: 36, objectFit: "contain", flexShrink: 0 }}
+                  style={{ width: 56, height: 56, objectFit: "contain" }}
                   onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+              )
+              : <div style={{ width: 56, height: 56, background: INK, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <span style={{ color: "var(--card)", fontSize: 22, fontFamily: "var(--disp)" }}>3×3</span>
+                </div>
+            }
+            <div style={{ textAlign: "center" }}>
+              <div className="disp" style={{ fontSize: 13, textTransform: "uppercase", lineHeight: 1.25 }}>{s.nome}</div>
+              {Number(s.rank) > 0 && (
+                <div className="ui" style={{ fontSize: 10.5, fontWeight: 700, color: ORANGE, marginTop: 3 }}>
+                  {s.rank} pt ranking
+                </div>
               )}
-              <div className="disp" style={{ fontSize: 13.5, textTransform: "uppercase" }}>{s.nome}</div>
+              <div className="ui" style={{ fontSize: 11, opacity: 0.6, marginTop: 4 }}>
+                {(s.giocatori || []).filter((p) => p.nome.trim()).length} giocatori
+              </div>
             </div>
-            {Number(s.rank) > 0 && (
-              <div className="ui" style={{ fontSize: 10.5, fontWeight: 700, color: ORANGE }}>Ranking circuito: {s.rank}</div>
-            )}
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
-              {(s.giocatori || []).filter((p) => p.nome.trim()).map((p) => (
-                <button key={p.id} onClick={() => setSelPid(p.id)} className="ui"
-                  title={`Analisi di ${p.nome}`}
-                  style={{ background: "transparent", border: `1px solid ${INK}`, padding: "4px 9px", fontSize: 12, fontWeight: 700, cursor: "pointer", color: INK }}>
-                  {p.nome} <span style={{ color: ORANGE }}>▸</span>
-                </button>
-              ))}
-              {(s.giocatori || []).filter((p) => p.nome.trim()).length === 0 && (
-                <span className="ui" style={{ fontSize: 12.5 }}>—</span>
-              )}
-            </div>
-          </div>
+          </button>
         ))}
       </div>
 
@@ -129,6 +144,14 @@ export function ArchivioTappaView({ t, lega, autore }: { t: Tappa; lega?: string
         <VideoGrid videos={t.video || []} />
       </section>
 
+      {selSquadra && (
+        <SquadraModal
+          squadra={selSquadra}
+          hasStats={hasStats}
+          onClose={() => setSelSquadra(null)}
+          onSelectPlayer={(pid) => { setSelSquadra(null); setSelPid(pid); }}
+        />
+      )}
       {selPid && <GiocatoreAnalisi tappa={t} pid={selPid} onClose={() => setSelPid(null)} />}
     </div>
   );

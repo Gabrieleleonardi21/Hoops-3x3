@@ -6,8 +6,10 @@ import { GiocatoreForm } from "../components/anagrafe/GiocatoreForm";
 import { GiocatoreCard } from "../components/anagrafe/GiocatoreCard";
 import { SquadraAnagrafeForm } from "../components/anagrafe/SquadraAnagrafeForm";
 import { SquadraAnagrafeCard } from "../components/anagrafe/SquadraAnagrafeCard";
+import { SquadraAnagrafeModal } from "../components/anagrafe/SquadraAnagrafeModal";
 import { Loading } from "../components/ui/Loading";
 import { RED } from "../constants/colors";
+import type { RegSquadra } from "../types";
 
 export function AnagrafePage() {
   const user = useAppStore((s) => s.user);
@@ -15,6 +17,7 @@ export function AnagrafePage() {
   const [query, setQuery] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [selSquadra, setSelSquadra] = useState<RegSquadra | null>(null);
   const anagrafe = useAnagrafe(user ?? { name: "Ospite", guest: true });
   if (!user) return <Navigate to="/" replace />;
   const { giocatori, squadre, saveGiocatore, saveSquadra, removeGiocatore, removeSquadra } = anagrafe;
@@ -83,10 +86,21 @@ export function AnagrafePage() {
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))", gap: 12 }}>
             {sList.map((s) => (
-              <SquadraAnagrafeCard key={s.id} s={s} giocatori={giocatori || []} user={user} onRemove={() => removeSquadra(s.id)} />
+              <SquadraAnagrafeCard key={s.id} s={s} giocatori={giocatori || []} user={user}
+                onOpen={() => setSelSquadra(s)}
+                onRemove={() => removeSquadra(s.id)} />
             ))}
           </div>
         )
+      )}
+      {selSquadra && (
+        <SquadraAnagrafeModal
+          s={selSquadra}
+          giocatori={giocatori || []}
+          user={user}
+          onClose={() => setSelSquadra(null)}
+          onRemove={() => { removeSquadra(selSquadra.id); setSelSquadra(null); }}
+        />
       )}
     </div>
   );

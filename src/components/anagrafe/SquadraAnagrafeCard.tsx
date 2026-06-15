@@ -1,15 +1,20 @@
 import { INK, ORANGE } from "../../constants/colors";
 import type { RegGiocatore, RegSquadra, User } from "../../types";
 
-export function SquadraAnagrafeCard({ s, giocatori, user, onRemove }: {
-  s: RegSquadra; giocatori: RegGiocatore[]; user: User; onRemove: () => void;
+export function SquadraAnagrafeCard({ s, giocatori, user, onRemove, onOpen }: {
+  s: RegSquadra; giocatori: RegGiocatore[]; user: User; onRemove: () => void; onOpen: () => void;
 }) {
   const gName = (id: string) => {
     const g = giocatori.find((x) => x.id === id);
     return g ? `${g.nome} ${g.cognome}` : "?";
   };
   return (
-    <div style={{ background: "var(--card)", border: `1.5px solid ${INK}`, padding: 12 }}>
+    <button
+      onClick={onOpen}
+      style={{ background: "var(--card)", border: `1.5px solid ${INK}`, padding: 12, cursor: "pointer", textAlign: "left", width: "100%", display: "block" }}
+      onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 0 0 2px ${ORANGE}`; }}
+      onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.boxShadow = "none"; }}
+    >
       <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start" }}>
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           {s.logo && (
@@ -19,8 +24,9 @@ export function SquadraAnagrafeCard({ s, giocatori, user, onRemove }: {
           )}
           <div className="disp" style={{ fontSize: 15, textTransform: "uppercase" }}>{s.nome}</div>
         </div>
+        {/* Il × stoppa il click sulla card per non aprire la modale */}
         {!user.guest && s.autore === user.name && (
-          <button onClick={onRemove} className="linkbtn" style={{ color: INK, opacity: 0.5 }}>×</button>
+          <button onClick={(e) => { e.stopPropagation(); onRemove(); }} className="linkbtn" style={{ color: INK, opacity: 0.5 }}>×</button>
         )}
       </div>
       {Number(s.rank) > 0 && <div className="ui" style={{ fontSize: 11.5, fontWeight: 700, color: ORANGE }}>Ranking circuito: {s.rank}</div>}
@@ -32,6 +38,6 @@ export function SquadraAnagrafeCard({ s, giocatori, user, onRemove }: {
       </div>
       {s.note && <p style={{ fontSize: 13, fontStyle: "italic", margin: "6px 0 0" }}>{s.note}</p>}
       <div className="ui" style={{ fontSize: 10, opacity: 0.5, marginTop: 6 }}>Registrata da {s.autore}</div>
-    </div>
+    </button>
   );
 }
