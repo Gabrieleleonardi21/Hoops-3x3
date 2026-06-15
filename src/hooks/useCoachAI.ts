@@ -15,7 +15,7 @@ export function useCoachAI() {
     if (!aiAvailable) {
       setMsgs([...history, {
         role: "assistant",
-        content: "Coach AI non è configurato: imposta VITE_ANTHROPIC_API_KEY nel file .env (in produzione usa un backend proxy). Il resto dell'app funziona senza.",
+        content: "Coach AI non è configurato: imposta VITE_GROQ_API_KEY nel file .env — ottieni la chiave gratis su console.groq.com. Il resto dell'app funziona senza.",
       }]);
       return;
     }

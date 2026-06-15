@@ -1,42 +1,38 @@
-/** Chiamata al modello per Coach AI.
- *  In sviluppo usa VITE_ANTHROPIC_API_KEY dal file .env (mai committarla).
- *  IN PRODUZIONE: instradare la richiesta verso un proprio backend proxy,
- *  la chiave non deve mai arrivare nel bundle client. */
+/** Chiamata al modello per Coach AI via Groq (gratuito).
+ *  Imposta VITE_GROQ_API_KEY nel file .env — ottieni la chiave gratis su console.groq.com.
+ *  IN PRODUZIONE: non esporre mai la chiave nel client, usa un backend proxy. */
 export interface ChatMsg {
   role: "user" | "assistant";
   content: string;
 }
 
-const API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY as string | undefined;
+const GROQ_KEY = import.meta.env.VITE_GROQ_API_KEY as string | undefined;
 
-export const aiAvailable = Boolean(API_KEY);
+export const aiAvailable = Boolean(GROQ_KEY);
 
 export async function askCoach(preamble: string, history: ChatMsg[]): Promise<string> {
-  if (!API_KEY) throw new Error("Chiave API non configurata: imposta VITE_ANTHROPIC_API_KEY nel file .env");
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
+  if (!GROQ_KEY) throw new Error("Chiave API non configurata: imposta VITE_GROQ_API_KEY nel file .env (ottienila gratis su console.groq.com)");
+
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "x-api-key": API_KEY,
-      "anthropic-version": "2023-06-01",
-      "anthropic-dangerous-direct-browser-access": "true",
+      "Authorization": `Bearer ${GROQ_KEY}`,
     },
     body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 1000,
+      // llama-3.3-70b-versatile: ottimo equilibrio qualità/velocità, gratuito su Groq
+      model: "llama-3.3-70b-versatile",
+      max_tokens: 400,
       messages: [
-        { role: "user", content: preamble },
-        { role: "assistant", content: "Capito, sono pronto." },
+        { role: "system", content: preamble },
         ...history,
       ],
-      tools: [{ type: "web_search_20250305", name: "web_search" }],
     }),
   });
+
   const data = await res.json();
-  if (data.error) throw new Error(data.error.message || "errore API");
-  const reply = (data.content || [])
-    .map((i: { type: string; text?: string }) => (i.type === "text" ? i.text : ""))
-    .join("")
-    .trim();
+  if (data.error) throw new Error(data.error.message || "errore API Groq");
+
+  const reply = data.choices?.[0]?.message?.content?.trim();
   return reply || "Non ho una risposta ora, riprova.";
 }
