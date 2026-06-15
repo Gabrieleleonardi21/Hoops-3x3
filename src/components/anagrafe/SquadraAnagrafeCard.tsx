@@ -10,8 +10,15 @@ export function SquadraAnagrafeCard({ s, giocatori, user, onRemove }: {
   };
   return (
     <div style={{ background: "var(--card)", border: `1.5px solid ${INK}`, padding: 12 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "baseline" }}>
-        <div className="disp" style={{ fontSize: 15, textTransform: "uppercase" }}>{s.nome}</div>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start" }}>
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          {s.logo && (
+            <img src={s.logo} alt={`Logo ${s.nome}`}
+              style={{ width: 44, height: 44, objectFit: "contain", flexShrink: 0 }}
+              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+          )}
+          <div className="disp" style={{ fontSize: 15, textTransform: "uppercase" }}>{s.nome}</div>
+        </div>
         {!user.guest && s.autore === user.name && (
           <button onClick={onRemove} className="linkbtn" style={{ color: INK, opacity: 0.5 }}>×</button>
         )}

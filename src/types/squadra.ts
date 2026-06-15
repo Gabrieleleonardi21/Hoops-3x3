@@ -7,4 +7,6 @@ export interface SquadraTappa {
   giocatori: GiocatoreRoster[];
   /** punti ranking del circuito (per il sorteggio per ranking) */
   rank: string | number;
+  /** URL o path del logo squadra (opzionale) */
+  logo?: string;
 }

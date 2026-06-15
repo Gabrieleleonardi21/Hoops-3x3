@@ -44,7 +44,14 @@ export function ArchivioTappaView({ t, lega, autore }: { t: Tappa; lega?: string
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10, marginBottom: 18 }}>
         {t.squadre.map((s) => (
           <div key={s.id} style={{ background: "var(--card)", border: `1.5px solid ${INK}`, padding: 10 }}>
-            <div className="disp" style={{ fontSize: 13.5, textTransform: "uppercase" }}>{s.nome}</div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4 }}>
+              {s.logo && (
+                <img src={s.logo} alt={`Logo ${s.nome}`}
+                  style={{ width: 36, height: 36, objectFit: "contain", flexShrink: 0 }}
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+              )}
+              <div className="disp" style={{ fontSize: 13.5, textTransform: "uppercase" }}>{s.nome}</div>
+            </div>
             {Number(s.rank) > 0 && (
               <div className="ui" style={{ fontSize: 10.5, fontWeight: 700, color: ORANGE }}>Ranking circuito: {s.rank}</div>
             )}

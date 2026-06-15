@@ -29,6 +29,7 @@ export interface RegSquadra {
   rank: string;
   referente: string;
   roster: string[]; // id di RegGiocatore
+  logo: string;     // URL o path /logos/*.svg
   note: string;
   autore: string;
   ts: number;
