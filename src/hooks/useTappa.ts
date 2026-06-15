@@ -65,6 +65,8 @@ export function useTappa(id: string | undefined) {
     tappa && patch({ squadre: tappa.squadre.map((s) => (s.id === teamId ? { ...s, nome } : s)) });
   const setTeamRank = (teamId: string, rank: string) =>
     tappa && patch({ squadre: tappa.squadre.map((s) => (s.id === teamId ? { ...s, rank } : s)) });
+  const setTeamWebsite = (teamId: string, website: string) =>
+    tappa && patch({ squadre: tappa.squadre.map((s) => (s.id === teamId ? { ...s, website } : s)) });
 
   /* ── roster ── */
   const addPlayer = (teamId: string) =>
@@ -204,7 +206,7 @@ export function useTappa(id: string | undefined) {
   return {
     user, legaName, tappa,
     nameOf, playersOf, playerNameById, teamComplete,
-    setInfo, setNGironi, setRule, addTeam, removeTeam, renameTeam, setTeamRank,
+    setInfo, setNGironi, setRule, addTeam, removeTeam, renameTeam, setTeamRank, setTeamWebsite,
     addPlayer, renamePlayer, removePlayer,
     sorteggia, saveScore, reopenScore,
     addEvent, removeEvent,

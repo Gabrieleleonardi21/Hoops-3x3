@@ -1,5 +1,6 @@
 import { INK, ORANGE, PAPER, RED, RULE } from "../../constants/colors";
 import type { RegGiocatore, RegSquadra, User } from "../../types";
+import { useScrollLock } from "../../hooks/useScrollLock";
 
 /** Modale con tutte le informazioni di una squadra dell'anagrafe */
 export function SquadraAnagrafeModal({
@@ -15,6 +16,8 @@ export function SquadraAnagrafeModal({
   onClose: () => void;
   onRemove: () => void;
 }) {
+  useScrollLock();
+
   const gName = (id: string) => {
     const g = giocatori.find((x) => x.id === id);
     return g ? `${g.nome} ${g.cognome}` : "?";
@@ -42,26 +45,32 @@ export function SquadraAnagrafeModal({
           <button onClick={onClose} className="linkbtn" style={{ color: INK, fontSize: 22 }} aria-label="Chiudi">×</button>
         </div>
 
-        {/* Logo centrato */}
-        {s.logo
-          ? (
-            <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+        {/* Logo centrato — cliccabile se la squadra ha un sito web */}
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+          {s.logo ? (
+            s.website ? (
+              <a href={s.website} target="_blank" rel="noopener noreferrer" title={`Vai al sito di ${s.nome}`}>
+                <img
+                  src={s.logo}
+                  alt={`Logo ${s.nome}`}
+                  style={{ width: 130, height: 130, objectFit: "contain", cursor: "pointer" }}
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                />
+              </a>
+            ) : (
               <img
                 src={s.logo}
                 alt={`Logo ${s.nome}`}
                 style={{ width: 130, height: 130, objectFit: "contain" }}
                 onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
               />
+            )
+          ) : (
+            <div style={{ width: 100, height: 100, background: INK, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <span style={{ color: "var(--card)", fontSize: 28, fontFamily: "var(--disp)" }}>3×3</span>
             </div>
-          )
-          : (
-            <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
-              <div style={{ width: 100, height: 100, background: INK, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <span style={{ color: "var(--card)", fontSize: 28, fontFamily: "var(--disp)" }}>3×3</span>
-              </div>
-            </div>
-          )
-        }
+          )}
+        </div>
 
         {/* Nome */}
         <div className="disp" style={{ fontSize: 26, textTransform: "uppercase", textAlign: "center", borderBottom: `3px solid ${INK}`, paddingBottom: 10, marginBottom: 14 }}>
@@ -81,6 +90,14 @@ export function SquadraAnagrafeModal({
           )}
           {!s.citta && s.anno && <div>Fondata nel <strong>{s.anno}</strong></div>}
           {s.referente && <div>Referente / capitano: <strong>{s.referente}</strong></div>}
+          {s.website && (
+            <div>
+              Sito web:{" "}
+              <a href={s.website} target="_blank" rel="noopener noreferrer" style={{ color: ORANGE, fontWeight: 700 }}>
+                {s.website.replace(/^https?:\/\//, "")}
+              </a>
+            </div>
+          )}
         </div>
 
         {/* Roster */}

@@ -15,6 +15,9 @@ export function SquadraCard({ s, index, h }: { s: SquadraTappa; index: number; h
       <Input label="Ranking circuito (punti)" labelStyle={{ fontSize: 10, marginTop: 6 }}
         style={{ padding: "5px 8px", fontSize: 13 }} type="number" min={0}
         value={s.rank ?? ""} onChange={(e) => h.setTeamRank(s.id, e.target.value)} placeholder="0" />
+      <Input label="Sito web (opzionale)" labelStyle={{ fontSize: 10, marginTop: 6 }}
+        style={{ padding: "5px 8px", fontSize: 13 }}
+        value={s.website ?? ""} onChange={(e) => h.setTeamWebsite(s.id, e.target.value)} placeholder="https://squadra.it" />
       <div className="ui" style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", margin: "8px 0 5px", color: ok ? INK : RED }}>
         {ok ? "Roster completo ✓" : "Giocatori obbligatori (min. 3)"}
       </div>

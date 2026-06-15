@@ -1,5 +1,6 @@
 import { INK, ORANGE, PAPER, RULE } from "../../constants/colors";
 import type { SquadraTappa } from "../../types";
+import { useScrollLock } from "../../hooks/useScrollLock";
 
 /** Modale con le info ingrandite di una squadra: logo, roster cliccabile per analisi */
 export function SquadraModal({
@@ -13,6 +14,7 @@ export function SquadraModal({
   onSelectPlayer: (pid: string) => void;
   hasStats: boolean;
 }) {
+  useScrollLock();
   const giocatori = (squadra.giocatori || []).filter((p) => p.nome.trim());
 
   return (
@@ -31,15 +33,26 @@ export function SquadraModal({
           <button onClick={onClose} className="linkbtn" style={{ color: INK, fontSize: 22 }} aria-label="Chiudi">×</button>
         </div>
 
-        {/* Logo centrato */}
+        {/* Logo centrato — cliccabile se la squadra ha un sito web */}
         {squadra.logo && (
           <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
-            <img
-              src={squadra.logo}
-              alt={`Logo ${squadra.nome}`}
-              style={{ width: 120, height: 120, objectFit: "contain" }}
-              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-            />
+            {squadra.website ? (
+              <a href={squadra.website} target="_blank" rel="noopener noreferrer" title={`Vai al sito di ${squadra.nome}`}>
+                <img
+                  src={squadra.logo}
+                  alt={`Logo ${squadra.nome}`}
+                  style={{ width: 120, height: 120, objectFit: "contain", cursor: "pointer" }}
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                />
+              </a>
+            ) : (
+              <img
+                src={squadra.logo}
+                alt={`Logo ${squadra.nome}`}
+                style={{ width: 120, height: 120, objectFit: "contain" }}
+                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+              />
+            )}
           </div>
         )}
 

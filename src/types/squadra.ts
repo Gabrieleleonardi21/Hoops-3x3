@@ -9,4 +9,6 @@ export interface SquadraTappa {
   rank: string | number;
   /** URL o path del logo squadra (opzionale) */
   logo?: string;
+  /** URL sito web ufficiale della squadra (opzionale) */
+  website?: string;
 }
