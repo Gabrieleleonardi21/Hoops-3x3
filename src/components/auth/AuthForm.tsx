@@ -87,11 +87,11 @@ export function AuthForm() {
       {authError && <p className="ui" style={{ color: RED, fontWeight: 700, fontSize: 13.5, marginTop: 10 }}>{authError}</p>}
 
       <div style={{ borderTop: `1px solid ${RULE}`, marginTop: 18, paddingTop: 14 }}>
-        <button onClick={() => { enterGuest(); navigate("/lega"); }} className="redbtn" style={{ width: "100%" }}>
+        <button onClick={() => { enterGuest().then(() => navigate("/lega")); }} className="redbtn" style={{ width: "100%" }}>
           Continua come Ospite
         </button>
         <p style={{ fontSize: 12.5, fontStyle: "italic", margin: "8px 0 0" }}>
-          L'Ospite usa tutto in modalità prova: niente salvataggi e controlli obbligatori disattivati.
+          I dati dell'Ospite vengono salvati solo su questo browser. I controlli obbligatori su roster e punti sono disattivati.
         </p>
       </div>
     </section>

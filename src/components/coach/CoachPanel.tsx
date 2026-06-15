@@ -3,7 +3,7 @@ import { INK, PAPER, RULE } from "../../constants/colors";
 import { useCoachAI } from "../../hooks/useCoachAI";
 
 export function CoachPanel({ onClose }: { onClose: () => void }) {
-  const { msgs, loading, send } = useCoachAI();
+  const { msgs, loading, send, clearChat } = useCoachAI();
   const [input, setInput] = useState("");
 
   const submit = () => {
@@ -16,7 +16,12 @@ export function CoachPanel({ onClose }: { onClose: () => void }) {
     <div className="chatpanel" role="dialog" aria-label="Coach AI">
       <div className="ui" style={{ background: INK, color: PAPER, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span style={{ fontFamily: "'Archivo Black', sans-serif", textTransform: "uppercase", fontSize: 14 }}>Coach AI · 3x3</span>
-        <button onClick={onClose} style={{ background: "none", border: "none", color: PAPER, cursor: "pointer", fontSize: 18, lineHeight: 1 }} aria-label="Chiudi">×</button>
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          {msgs.length > 0 && (
+            <button onClick={clearChat} style={{ background: "none", border: "none", color: PAPER, cursor: "pointer", fontSize: 12, opacity: 0.7 }} aria-label="Cancella chat">✕ Cancella</button>
+          )}
+          <button onClick={onClose} style={{ background: "none", border: "none", color: PAPER, cursor: "pointer", fontSize: 18, lineHeight: 1 }} aria-label="Chiudi">×</button>
+        </div>
       </div>
       <div style={{ flex: 1, overflowY: "auto", padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
         {msgs.length === 0 && (

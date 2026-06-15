@@ -13,7 +13,7 @@ export function LegaPage() {
 
   return (
     <>
-      <GuestBanner text="Modalità Ospite (prova): la lega non viene salvata e i controlli obbligatori su roster e punti dei giocatori sono disattivati. Registrati per la gestione completa." />
+      <GuestBanner text="Modalità Ospite: i dati sono salvati solo su questo browser, non sincronizzati tra dispositivi. I controlli obbligatori su roster e punti sono disattivati. Registrati per la gestione completa." />
 
       <div style={{ maxWidth: 420, marginBottom: 22 }}>
         <Input label="La tua lega — circuito italiano 3x3"
