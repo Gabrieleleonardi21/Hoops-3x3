@@ -4,8 +4,7 @@
 import { useEffect, useState } from "react";
 import { useAppStore, SESSION_KEY } from "../stores/useAppStore";
 import * as authService from "../services/authService";
-import { storage } from "../services/storage";
-import type { Account, Lega, User } from "../types";
+import type { Account, User } from "../types";
 
 function saveSession(u: User) {
   try { localStorage.setItem(SESSION_KEY, JSON.stringify(u)); } catch { /* quota exceeded */ }
@@ -16,27 +15,19 @@ function clearSession() {
 }
 
 export function useAuth() {
-  const { user, setUser, setLega, reset } = useAppStore();
+  const { user, setUser, reset, rehydrate } = useAppStore();
   const [account, setAccount] = useState<Account | null | undefined>(undefined);
 
   useEffect(() => {
     authService.loadAccount().then(setAccount);
   }, []);
 
-  const loadLega = async () => {
-    try {
-      const s = await storage.get("lega3x3");
-      const l = JSON.parse(s.value) as Lega;
-      setLega(l.nome || "", l.tappe || []);
-    } catch { /* nessuna lega salvata */ }
-  };
-
   const register = async (name: string, email: string, pass: string) => {
     const u = await authService.register(name, email, pass);
     setAccount({ name: u.name, email: u.email!, hash: "" });
     setUser(u);
     saveSession(u);
-    await loadLega();
+    rehydrate(); // ripristina leghe e lega attiva da localStorage
   };
 
   const login = async (email: string, pass: string): Promise<boolean> => {
@@ -45,7 +36,7 @@ export function useAuth() {
     if (!u) return false;
     setUser(u);
     saveSession(u);
-    await loadLega();
+    rehydrate(); // ripristina leghe e lega attiva da localStorage
     return true;
   };
 
@@ -53,13 +44,7 @@ export function useAuth() {
     const u: User = { name: "Ospite", guest: true };
     setUser(u);
     saveSession(u);
-    try {
-      const s = await storage.get("lega3x3_guest");
-      const l = JSON.parse(s.value) as Lega;
-      setLega(l.nome || "", l.tappe || []);
-    } catch {
-      setLega("", []);
-    }
+    rehydrate(); // ripristina eventuale sessione ospite precedente
   };
 
   const logout = () => {

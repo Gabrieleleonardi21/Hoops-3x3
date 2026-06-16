@@ -19,6 +19,8 @@ interface AppState {
   replaceTappa: (t: Tappa) => void;
   removeTappa: (id: string) => void;
   reset: () => void;
+  /** Ricarica leghe e lega attiva da localStorage (usato dopo login/logout) */
+  rehydrate: () => void;
 }
 
 export const SESSION_KEY = "hoop3x3_session";
@@ -167,6 +169,17 @@ export const useAppStore = create<AppState>((set, get) => {
     reset: () => {
       localStorage.removeItem(ACTIVE_KEY);
       set({ user: null, legaId: null, leghe: [], legaName: "", tappe: [] });
+    },
+
+    // Rilege l'indice delle leghe e la lega attiva da localStorage.
+    // Usato dopo login/logout per ripristinare lo stato senza ricaricare la pagina.
+    rehydrate: () => {
+      const leghe = readIndex();
+      const activeId = localStorage.getItem(ACTIVE_KEY);
+      if (!activeId) { set({ leghe }); return; }
+      const lega = readLegaData(activeId);
+      if (!lega) { set({ leghe }); return; }
+      set({ leghe, legaId: activeId, legaName: lega.nome || "", tappe: lega.tappe || [] });
     },
   };
 });
