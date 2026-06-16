@@ -25,7 +25,7 @@ export function Header() {
           )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-          <img src="/logo.png" alt="Logo HOOP 3X3" onClick={() => navigate("/")}
+          <img src="/logo.png" alt="Logo HOOP 3X3" onClick={() => navigate(user ? "/leghe" : "/")}
             style={{ width: "clamp(58px, 11vw, 88px)", height: "auto", cursor: "pointer" }} />
           <div>
             <h1 className="disp" style={{ fontSize: "clamp(36px, 8vw, 64px)", lineHeight: 0.95, margin: 0 }}>
