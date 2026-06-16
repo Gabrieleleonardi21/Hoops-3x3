@@ -77,7 +77,7 @@ export function AnagrafePage() {
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))", gap: 12 }}>
             {gList.map((g) => (
-              <GiocatoreCard key={g.id} g={g} user={user}
+              <GiocatoreCard key={g.id} g={g} user={user} squadre={squadre || []}
                 onOpen={() => setSelGiocatore(g)}
                 onRemove={() => removeGiocatore(g.id)} />
             ))}
@@ -105,6 +105,7 @@ export function AnagrafePage() {
         <GiocatoreModal
           g={selGiocatore}
           user={user}
+          squadre={squadre || []}
           onClose={() => setSelGiocatore(null)}
           onRemove={() => { removeGiocatore(selGiocatore.id); setSelGiocatore(null); }}
           onUpdate={(updated) => { updateGiocatore(updated); setSelGiocatore(updated); }}

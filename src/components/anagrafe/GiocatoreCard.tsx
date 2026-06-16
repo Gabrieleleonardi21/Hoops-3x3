@@ -2,11 +2,13 @@
  *  Solo l'autore può eliminarlo; il × stoppa il click sulla card. */
 import { INK, ORANGE } from "../../constants/colors";
 import { eta } from "../../utils/eta";
-import type { RegGiocatore, User } from "../../types";
+import type { RegGiocatore, RegSquadra, User } from "../../types";
 
-export function GiocatoreCard({ g, user, onRemove, onOpen }: {
-  g: RegGiocatore; user: User; onRemove: () => void; onOpen: () => void;
+export function GiocatoreCard({ g, user, squadre, onRemove, onOpen }: {
+  g: RegGiocatore; user: User; squadre?: RegSquadra[]; onRemove: () => void; onOpen: () => void;
 }) {
+  // Cerca il logo della squadra abbinando il nome del giocatore con la lista squadre
+  const squadraLogo = squadre?.find((s) => s.nome === g.squadra)?.logo ?? null;
   const age = eta(g.nascita);
   return (
     /* div + role="button" per evitare <button> annidati (il × interno è già un button) */
@@ -19,9 +21,16 @@ export function GiocatoreCard({ g, user, onRemove, onOpen }: {
       onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = `0 0 0 2px ${ORANGE}`; }}
       onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = "none"; }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "baseline" }}>
-        <div className="disp" style={{ fontSize: 15, textTransform: "uppercase" }}>
-          {g.nome} {g.cognome}{g.numero ? <span style={{ color: ORANGE }}> #{g.numero}</span> : null}
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+          {squadraLogo && (
+            <img src={squadraLogo} alt="" aria-hidden
+              style={{ width: 22, height: 22, objectFit: "contain", flexShrink: 0 }}
+              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+          )}
+          <div className="disp" style={{ fontSize: 15, textTransform: "uppercase" }}>
+            {g.nome} {g.cognome}{g.numero ? <span style={{ color: ORANGE }}> #{g.numero}</span> : null}
+          </div>
         </div>
         {/* Il × stoppa il click sulla card per non aprire la modale */}
         {!user.guest && g.autore === user.name && (

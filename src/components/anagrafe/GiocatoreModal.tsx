@@ -4,7 +4,7 @@ import { Input } from "../ui/Input";
 import { REG_ROLES } from "../../constants/roles";
 import { eta } from "../../utils/eta";
 import { useScrollLock } from "../../hooks/useScrollLock";
-import type { RegGiocatore, User } from "../../types";
+import type { RegGiocatore, RegSquadra, User } from "../../types";
 
 type EditDraft = Omit<RegGiocatore, "id" | "autore" | "ts">;
 
@@ -13,12 +13,14 @@ type EditDraft = Omit<RegGiocatore, "id" | "autore" | "ts">;
 export function GiocatoreModal({
   g,
   user,
+  squadre,
   onClose,
   onRemove,
   onUpdate,
 }: {
   g: RegGiocatore;
   user: User;
+  squadre?: RegSquadra[];
   onClose: () => void;
   onRemove: () => void;
   onUpdate: (updated: RegGiocatore) => void;
@@ -40,6 +42,8 @@ export function GiocatoreModal({
   const handleRemove = () => { onRemove(); onClose(); };
   const canEdit = !user.guest && g.autore === user.name;
   const age = eta(g.nascita);
+  // Cerca il logo della squadra abbinando il nome del giocatore con la lista squadre
+  const squadraLogo = squadre?.find((s) => s.nome === g.squadra)?.logo ?? null;
 
   return (
     <div
@@ -57,8 +61,13 @@ export function GiocatoreModal({
           <button onClick={onClose} className="linkbtn" style={{ color: INK, fontSize: 22 }} aria-label="Chiudi">×</button>
         </div>
 
-        {/* Intestazione: nome + numero */}
+        {/* Intestazione: logo squadra + nome + numero */}
         <div style={{ textAlign: "center", borderBottom: `3px solid ${INK}`, paddingBottom: 10, marginBottom: 14 }}>
+          {squadraLogo && (
+            <img src={squadraLogo} alt="" aria-hidden
+              style={{ width: 80, height: 80, objectFit: "contain", display: "block", margin: "0 auto 8px" }}
+              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+          )}
           <div className="disp" style={{ fontSize: 28, textTransform: "uppercase" }}>
             {g.nome} {g.cognome}
             {g.numero && <span style={{ color: ORANGE }}> #{g.numero}</span>}
