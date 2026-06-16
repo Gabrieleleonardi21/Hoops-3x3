@@ -11,4 +11,6 @@ export interface SquadraTappa {
   logo?: string;
   /** URL sito web ufficiale della squadra (opzionale) */
   website?: string;
+  /** URL profilo Instagram della squadra (opzionale) */
+  instagram?: string;
 }

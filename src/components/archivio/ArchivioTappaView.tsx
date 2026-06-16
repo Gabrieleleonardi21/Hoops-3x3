@@ -66,20 +66,10 @@ export function ArchivioTappaView({ t, lega, autore }: { t: Tappa; lega?: string
             onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = "none"; }}
           >
             {s.logo ? (
-              /* Logo cliccabile verso il sito; stopPropagation evita di aprire la modale */
-              s.website ? (
-                <a href={s.website} target="_blank" rel="noopener noreferrer"
-                   title={`Vai al sito di ${s.nome}`}
-                   onClick={(e) => e.stopPropagation()}>
-                  <img src={s.logo} alt={`Logo ${s.nome}`}
-                    style={{ width: 56, height: 56, objectFit: "contain" }}
-                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-                </a>
-              ) : (
-                <img src={s.logo} alt={`Logo ${s.nome}`}
-                  style={{ width: 56, height: 56, objectFit: "contain" }}
-                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-              )
+              /* Logo: il link al sito è nella modale, non qui */
+              <img src={s.logo} alt={`Logo ${s.nome}`}
+                style={{ width: 56, height: 56, objectFit: "contain" }}
+                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
             ) : (
               <div style={{ width: 56, height: 56, background: INK, display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <span style={{ color: "var(--card)", fontSize: 22, fontFamily: "var(--disp)" }}>3×3</span>

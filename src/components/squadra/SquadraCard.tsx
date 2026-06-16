@@ -8,20 +8,12 @@ export function SquadraCard({ s, index, h }: { s: SquadraTappa; index: number; h
   const ok = h.teamComplete(s.id);
   return (
     <div style={{ background: "var(--card)", border: `1.5px solid ${ok ? INK : RED}`, padding: 10 }}>
-      {/* Logo squadra: cliccabile verso il sito web se disponibile */}
+      {/* Logo squadra (cliccabile solo nella modale, non qui) */}
       {s.logo && (
         <div style={{ marginBottom: 8 }}>
-          {s.website ? (
-            <a href={s.website} target="_blank" rel="noopener noreferrer" title={`Vai al sito di ${s.nome}`}>
-              <img src={s.logo} alt={`Logo ${s.nome}`}
-                style={{ width: 48, height: 48, objectFit: "contain", display: "block" }}
-                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-            </a>
-          ) : (
-            <img src={s.logo} alt={`Logo ${s.nome}`}
-              style={{ width: 48, height: 48, objectFit: "contain", display: "block" }}
-              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-          )}
+          <img src={s.logo} alt={`Logo ${s.nome}`}
+            style={{ width: 48, height: 48, objectFit: "contain", display: "block" }}
+            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
         </div>
       )}
       <label className="ui" style={{ fontSize: 11, fontWeight: 700 }}>

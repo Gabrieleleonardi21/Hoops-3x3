@@ -11,11 +11,15 @@ export function SquadraAnagrafeCard({ s, giocatori, user, onRemove, onOpen }: {
     return g ? `${g.nome} ${g.cognome}` : "?";
   };
   return (
-    <button
+    /* div invece di button: permette il <button> del × interno senza violare HTML */
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onOpen}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onOpen(); }}
       style={{ background: "var(--card)", border: `1.5px solid ${INK}`, padding: 12, cursor: "pointer", textAlign: "left", width: "100%", display: "block" }}
-      onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 0 0 2px ${ORANGE}`; }}
-      onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.boxShadow = "none"; }}
+      onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = `0 0 0 2px ${ORANGE}`; }}
+      onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = "none"; }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start" }}>
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -40,6 +44,6 @@ export function SquadraAnagrafeCard({ s, giocatori, user, onRemove, onOpen }: {
       </div>
       {s.note && <p style={{ fontSize: 13, fontStyle: "italic", margin: "6px 0 0" }}>{s.note}</p>}
       <div className="ui" style={{ fontSize: 10, opacity: 0.5, marginTop: 6 }}>Registrata da {s.autore}</div>
-    </button>
+    </div>
   );
 }

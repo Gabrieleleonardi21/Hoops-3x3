@@ -68,6 +68,16 @@ export function SquadraModal({
           </div>
         )}
 
+        {/* Link Instagram se disponibile */}
+        {squadra.instagram && (
+          <div style={{ textAlign: "center", marginBottom: 14 }}>
+            <a href={squadra.instagram} target="_blank" rel="noopener noreferrer"
+               className="ui" style={{ fontSize: 13, fontWeight: 700, color: INK, textDecoration: "none" }}>
+              Instagram ↗
+            </a>
+          </div>
+        )}
+
         {/* Roster */}
         <div style={{ background: PAPER, border: `1px solid ${RULE}`, padding: 14 }}>
           <div className="ui" style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>
