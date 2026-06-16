@@ -27,3 +27,11 @@ export interface Lega {
   nome: string;
   tappe: Tappa[];
 }
+
+/** Metadati di una lega salvati nell'indice (senza caricare tutte le tappe) */
+export interface LegaMeta {
+  id: string;
+  nome: string;
+  ts: number;      // timestamp ultima modifica
+  nTappe: number;  // numero tappe (denormalizzato per la visualizzazione nella lista)
+}

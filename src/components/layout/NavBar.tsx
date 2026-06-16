@@ -2,7 +2,7 @@
 import { NavLink } from "react-router-dom";
 
 const links = [
-  ["/lega", "La mia lega"],
+  ["/leghe", "Le mie leghe"],
   ["/anagrafe", "Anagrafe"],
   ["/archivio", "Archivio circuito"],
 ] as const;

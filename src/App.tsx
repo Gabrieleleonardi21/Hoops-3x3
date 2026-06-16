@@ -8,6 +8,7 @@ import { CoachFAB } from "./components/coach/CoachFAB";
 import { CoachPanel } from "./components/coach/CoachPanel";
 import { useAppStore } from "./stores/useAppStore";
 import { HomePage } from "./pages/HomePage";
+import { LegheListPage } from "./pages/LegheListPage";
 import { LegaPage } from "./pages/LegaPage";
 import { TappaPage } from "./pages/TappaPage";
 import { TappaViewPage } from "./pages/TappaViewPage";
@@ -26,6 +27,7 @@ export default function App() {
         {user && <NavBar />}
         <Routes>
           <Route path="/" element={<HomePage />} />
+          <Route path="/leghe" element={<LegheListPage />} />
           <Route path="/lega" element={<LegaPage />} />
           <Route path="/lega/tappa/:id" element={<TappaPage />} />
           <Route path="/tappa/:id" element={<TappaViewPage />} /> {/* pubblica */}

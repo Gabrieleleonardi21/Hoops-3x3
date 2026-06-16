@@ -8,6 +8,22 @@ export function SquadraCard({ s, index, h }: { s: SquadraTappa; index: number; h
   const ok = h.teamComplete(s.id);
   return (
     <div style={{ background: "var(--card)", border: `1.5px solid ${ok ? INK : RED}`, padding: 10 }}>
+      {/* Logo squadra: cliccabile verso il sito web se disponibile */}
+      {s.logo && (
+        <div style={{ marginBottom: 8 }}>
+          {s.website ? (
+            <a href={s.website} target="_blank" rel="noopener noreferrer" title={`Vai al sito di ${s.nome}`}>
+              <img src={s.logo} alt={`Logo ${s.nome}`}
+                style={{ width: 48, height: 48, objectFit: "contain", display: "block" }}
+                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+            </a>
+          ) : (
+            <img src={s.logo} alt={`Logo ${s.nome}`}
+              style={{ width: 48, height: 48, objectFit: "contain", display: "block" }}
+              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+          )}
+        </div>
+      )}
       <label className="ui" style={{ fontSize: 11, fontWeight: 700 }}>
         <span style={{ opacity: 0.6 }}>#{index + 1}</span>
         <input className="statin" style={{ marginTop: 3 }} value={s.nome} onChange={(e) => h.renameTeam(s.id, e.target.value)} />

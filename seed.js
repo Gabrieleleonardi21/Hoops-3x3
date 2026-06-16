@@ -28,10 +28,14 @@
   const set = (key, val, shared = false) =>
     localStorage.setItem((shared ? NSS : NS) + key, JSON.stringify(val));
 
+  // ID fisso per la lega seed: consente di aggiornare i dati senza crearne una nuova ogni volta
+  const SEED_LEGA_ID = "estathe25";
+  const SEED_LEGA_KEY = NS + `lega_${SEED_LEGA_ID}`;
+
   // Preserva i video già caricati dall'app: evita di cancellarli ad ogni seed
   const existingVideos = {};
   try {
-    const raw = localStorage.getItem(NS + "lega3x3");
+    const raw = localStorage.getItem(SEED_LEGA_KEY);
     if (raw) {
       (JSON.parse(raw).tappe || []).forEach((t) => {
         if (t.video && t.video.length > 0) existingVideos[t.id] = t.video;
@@ -2004,14 +2008,29 @@
   };
 
   // ─── LEGA + ARCHIVIO ───────────────────────────────────────────────────────
+  const LEGA_NOME = "Estathé 3x3 Italia Streetbasket Circuit 2025";
+
   // Reintegra i video salvati dall'app prima di sovrascrivere la lega
   const tappeFinali = [tappa1, tappa2, tappa3, tappa4].map((t) =>
     existingVideos[t.id] ? { ...t, video: existingVideos[t.id] } : t,
   );
-  set("lega3x3", {
-    nome: "Estathé 3x3 Italia Streetbasket Circuit 2025",
-    tappe: tappeFinali,
-  });
+
+  // Scrivi i dati della lega nel nuovo formato multi-lega
+  localStorage.setItem(SEED_LEGA_KEY, JSON.stringify({ nome: LEGA_NOME, tappe: tappeFinali }));
+
+  // Aggiorna l'indice delle leghe: inserisce o aggiorna la voce per questa lega
+  const INDEX_KEY = NS + "leghe_index";
+  const ACTIVE_KEY = NS + "active_lega_id";
+  let legheIndex = [];
+  try { legheIndex = JSON.parse(localStorage.getItem(INDEX_KEY) || "[]"); } catch {}
+  const legaMeta = { id: SEED_LEGA_ID, nome: LEGA_NOME, ts: now, nTappe: 4 };
+  const alreadyInIndex = legheIndex.some((m) => m.id === SEED_LEGA_ID);
+  legheIndex = alreadyInIndex
+    ? legheIndex.map((m) => (m.id === SEED_LEGA_ID ? legaMeta : m))
+    : [...legheIndex, legaMeta];
+  localStorage.setItem(INDEX_KEY, JSON.stringify(legheIndex));
+  // Imposta questa lega come attiva così l'app la apre subito al reload
+  localStorage.setItem(ACTIVE_KEY, SEED_LEGA_ID);
   set(
     "pub_t01",
     {

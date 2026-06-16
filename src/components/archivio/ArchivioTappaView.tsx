@@ -43,9 +43,13 @@ export function ArchivioTappaView({ t, lega, autore }: { t: Tappa; lega?: string
       </p>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10, marginBottom: 18 }}>
         {t.squadre.map((s) => (
-          <button
+          /* div invece di button per poter inserire <a> del logo all'interno */
+          <div
             key={s.id}
+            role="button"
+            tabIndex={0}
             onClick={() => setSelSquadra(s)}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setSelSquadra(s); }}
             style={{
               background: "var(--card)",
               border: `1.5px solid ${INK}`,
@@ -58,19 +62,29 @@ export function ArchivioTappaView({ t, lega, autore }: { t: Tappa; lega?: string
               gap: 8,
               transition: "box-shadow 0.15s",
             }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.boxShadow = `0 0 0 2px ${ORANGE}`; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.boxShadow = "none"; }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = `0 0 0 2px ${ORANGE}`; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = "none"; }}
           >
-            {s.logo
-              ? (
+            {s.logo ? (
+              /* Logo cliccabile verso il sito; stopPropagation evita di aprire la modale */
+              s.website ? (
+                <a href={s.website} target="_blank" rel="noopener noreferrer"
+                   title={`Vai al sito di ${s.nome}`}
+                   onClick={(e) => e.stopPropagation()}>
+                  <img src={s.logo} alt={`Logo ${s.nome}`}
+                    style={{ width: 56, height: 56, objectFit: "contain" }}
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                </a>
+              ) : (
                 <img src={s.logo} alt={`Logo ${s.nome}`}
                   style={{ width: 56, height: 56, objectFit: "contain" }}
                   onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
               )
-              : <div style={{ width: 56, height: 56, background: INK, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <span style={{ color: "var(--card)", fontSize: 22, fontFamily: "var(--disp)" }}>3×3</span>
-                </div>
-            }
+            ) : (
+              <div style={{ width: 56, height: 56, background: INK, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <span style={{ color: "var(--card)", fontSize: 22, fontFamily: "var(--disp)" }}>3×3</span>
+              </div>
+            )}
             <div style={{ textAlign: "center" }}>
               <div className="disp" style={{ fontSize: 13, textTransform: "uppercase", lineHeight: 1.25 }}>{s.nome}</div>
               {Number(s.rank) > 0 && (
@@ -82,7 +96,7 @@ export function ArchivioTappaView({ t, lega, autore }: { t: Tappa; lega?: string
                 {(s.giocatori || []).filter((p) => p.nome.trim()).length} giocatori
               </div>
             </div>
-          </button>
+          </div>
         ))}
       </div>
 
