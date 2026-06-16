@@ -8,11 +8,12 @@ App web per la gestione di un circuito italiano di basket 3x3: tornei, gironi, s
 - **Tappe** — organizza tornei con sorteggio gironi (casuale o con teste di serie), calendario partite e avanzamento automatico
 - **Live scoring** — inserisci i punteggi in tempo reale con log eventi (canestro da 1, canestro da 2, fallo, timeout)
 - **Statistiche** — traccia punti, rimbalzi, assist, palle rubate e stoppate per ogni giocatore
-- **Anagrafe** — archivio centralizzato di giocatori e squadre riutilizzabile tra le tappe
+- **Anagrafe** — archivio centralizzato di giocatori e squadre (con logo e sito web cliccabile) riutilizzabile tra le tappe
 - **Archivio** — storico di tutte le tappe concluse con classifiche finali
 - **Leaderboard** — classifiche individuali per categoria statistica su tutta la stagione
 - **Video** — galleria di highlight e partite (link YouTube)
-- **Coach AI** — assistente virtuale che conosce le regole FIBA 3x3 (richiede API key Anthropic)
+- **Coach AI** — assistente virtuale che conosce le regole FIBA 3x3 e i dati della lega corrente (gratuito via Groq API)
+- **Sessione persistente** — login e dati salvati nel browser; gli ospiti hanno dati locali separati
 
 ### Regole FIBA 3x3 (default)
 | Parametro | Valore |
@@ -53,13 +54,14 @@ L'app è disponibile su `http://localhost:5173`.
 
 ## Coach AI (opzionale)
 
-Per abilitare l'assistente AI crea un file `.env` nella root del progetto:
+Il Coach AI usa [Groq](https://console.groq.com/) (tier gratuito, modello `llama-3.3-70b-versatile`).  
+Crea un file `.env` nella root del progetto con la tua chiave:
 
 ```env
-VITE_ANTHROPIC_API_KEY=sk-ant-...
+VITE_GROQ_API_KEY=gsk_...
 ```
 
-> **Attenzione:** in produzione non esporre mai la chiave direttamente nel frontend. Usa un backend proxy che gestisca le chiamate all'API Anthropic.
+Vedi `.env.example` per riferimento. La chiave Groq free non ha costi per utilizzo personale.
 
 ## Struttura del progetto
 
