@@ -1,9 +1,10 @@
 /** Pagina di gestione di una tappa: mostra due viste distinte —
  *  in modifica (squadre, sorteggio, gironi, statistiche, video)
  *  oppure sola-lettura se la tappa è già conclusa e pubblicata. */
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { useTappa } from "../hooks/useTappa";
+import { useAnagrafe } from "../hooks/useAnagrafe";
 import { TappaEditPanel } from "../components/tappa/TappaEditPanel";
 import { TappaRules } from "../components/tappa/TappaRules";
 import { TappaConclusion } from "../components/tappa/TappaConclusion";
@@ -15,6 +16,7 @@ import { VideoGrid } from "../components/video/VideoGrid";
 import { VideoForm } from "../components/video/VideoForm";
 import { ArchivioTappaView } from "../components/archivio/ArchivioTappaView";
 import { INK, RED } from "../constants/colors";
+import type { User } from "../types";
 
 export function TappaPage() {
   const { id } = useParams();
@@ -22,9 +24,43 @@ export function TappaPage() {
   const navigate = useNavigate();
   const [editOpen, setEditOpen] = useState(false);
 
+  // useAnagrafe deve stare prima degli early return (regole degli hook)
+  const dummyUser: User = { name: "", guest: true };
+  const { squadre: squadreAnagrafe, saveSquadra } = useAnagrafe(h.user ?? dummyUser);
+
+  // Quando l'anagrafe carica, sincronizza le squadre della tappa (per nome o regId)
+  useEffect(() => {
+    if (!squadreAnagrafe) return;
+    h.syncFromAnagrafe(squadreAnagrafe);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [squadreAnagrafe]);
+
   if (!h.user) return <Navigate to="/" replace />;
   if (!h.tappa) return <Navigate to="/lega" replace />;
   const t = h.tappa;
+
+  /** Chiamato dall'input nome della squadra onBlur.
+   *  Se il nome è reale (non placeholder), cerca o crea la RegSquadra nell'anagrafe e collega. */
+  const handleTeamNameCommit = async (teamId: string, nome: string) => {
+    const trimmed = nome.trim();
+    if (!h.user || h.user.guest || !trimmed || /^Squadra \d+$/.test(trimmed)) return;
+    if (!squadreAnagrafe) return;
+    const s = h.tappa?.squadre.find((x) => x.id === teamId);
+    if (!s || s.regId) return; // già collegata, niente da fare
+
+    const existing = squadreAnagrafe.find((r) => r.nome.toLowerCase() === trimmed.toLowerCase());
+    if (existing) {
+      h.applyReg(teamId, existing);
+    } else {
+      // Crea una nuova RegSquadra nell'anagrafe e collega subito
+      const newReg = await saveSquadra({
+        nome: trimmed, citta: "", anno: "", rank: String(s.rank || ""),
+        referente: "", roster: [], logo: s.logo || "", website: s.website || "",
+        instagram: "", note: "",
+      });
+      h.applyReg(teamId, newReg);
+    }
+  };
 
   /* tappa conclusa: vista pubblica + aggiunta video + riapertura */
   if (t.conclusa) {
@@ -79,7 +115,10 @@ export function TappaPage() {
         {h.user.guest ? " In modalità Ospite il controllo è disattivato per le prove." : ""}
       </p>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 10, marginBottom: 16 }}>
-        {t.squadre.map((s, i) => <SquadraCard key={s.id} s={s} index={i} h={h} />)}
+        {t.squadre.map((s, i) => (
+          <SquadraCard key={s.id} s={s} index={i} h={h}
+            onNameCommit={(nome) => handleTeamNameCommit(s.id, nome)} />
+        ))}
       </div>
 
       <SorteggioControls hasGironi={!!t.gironi} onSorteggia={h.sorteggia} />

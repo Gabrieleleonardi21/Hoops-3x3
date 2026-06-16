@@ -36,7 +36,7 @@ export function AnagrafePage() {
   const sList = filtered(squadre, ["nome", "citta", "referente"]);
 
   // Blocca le scritture per gli ospiti: possono solo consultare l'anagrafe
-  const guard = async (fn: () => Promise<void>) => {
+  const guard = async (fn: () => Promise<unknown>) => {
     if (user.guest) { setMsg("La registrazione nell'anagrafe richiede un account: l'Ospite può solo consultare."); return; }
     setMsg(null);
     try { await fn(); setShowForm(false); } catch { setMsg("Salvataggio non riuscito, riprova."); }

@@ -37,10 +37,11 @@ export function useAnagrafe(user: User) {
     setGiocatori((l) => [rec, ...(l || [])]);
   };
 
-  const saveSquadra = async (data: Omit<RegSquadra, "id" | "autore" | "ts">) => {
+  const saveSquadra = async (data: Omit<RegSquadra, "id" | "autore" | "ts">): Promise<RegSquadra> => {
     const rec: RegSquadra = { ...data, id: uid(), autore: user.name, ts: Date.now() };
     await storage.set(`reg_s_${rec.id}`, JSON.stringify(rec), true);
     setSquadre((l) => [rec, ...(l || [])]);
+    return rec;
   };
 
   const removeGiocatore = async (id: string) => {

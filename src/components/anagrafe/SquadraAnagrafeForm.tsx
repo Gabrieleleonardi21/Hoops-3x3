@@ -17,7 +17,7 @@ export function SquadraAnagrafeForm({ giocatori, onSave }: { giocatori: RegGioca
   };
 
   const addToRoster = () => {
-    if (!pick || d.roster.length >= 6 || d.roster.includes(pick)) return;
+    if (!pick || d.roster.includes(pick)) return;
     setD({ ...d, roster: [...d.roster, pick] });
     setPick("");
   };

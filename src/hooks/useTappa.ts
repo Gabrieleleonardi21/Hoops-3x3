@@ -4,7 +4,7 @@ import { uid } from "../utils/uid";
 import { buildGironi } from "../utils/buildGironi";
 import { buildGironiSeeded } from "../utils/buildGironiSeeded";
 import { buildMatches } from "../utils/buildMatches";
-import type { EventoGara, Partita, StatLine, StatSheet, Tappa } from "../types";
+import type { EventoGara, Partita, RegSquadra, StatLine, StatSheet, Tappa } from "../types";
 
 export interface MatchDraft {
   sa: string;
@@ -67,6 +67,36 @@ export function useTappa(id: string | undefined) {
     tappa && patch({ squadre: tappa.squadre.map((s) => (s.id === teamId ? { ...s, rank } : s)) });
   const setTeamWebsite = (teamId: string, website: string) =>
     tappa && patch({ squadre: tappa.squadre.map((s) => (s.id === teamId ? { ...s, website } : s)) });
+  const setTeamLogo = (teamId: string, logo: string) =>
+    tappa && patch({ squadre: tappa.squadre.map((s) => (s.id === teamId ? { ...s, logo } : s)) });
+
+  /** Collega una squadra tappa alla RegSquadra e ne copia nome, logo, rank, website */
+  const applyReg = (teamId: string, reg: RegSquadra) =>
+    tappa && patch({
+      squadre: tappa.squadre.map((s) =>
+        s.id === teamId ? { ...s, regId: reg.id, nome: reg.nome, logo: reg.logo, rank: reg.rank, website: reg.website } : s
+      ),
+    });
+
+  /** Sincronizza tutte le squadre della tappa con l'anagrafe (usato all'apertura della pagina).
+   *  Cerca prima per regId, poi per nome case-insensitive.
+   *  Non tocca le squadre con nome placeholder ("Squadra N"). */
+  const syncFromAnagrafe = (regs: RegSquadra[]) => {
+    if (!tappa) return;
+    let changed = false;
+    const updated = tappa.squadre.map((s) => {
+      if (/^Squadra \d+$/.test(s.nome.trim())) return s; // placeholder, skip
+      const reg = (s.regId ? regs.find((r) => r.id === s.regId) : null)
+        ?? regs.find((r) => r.nome.toLowerCase() === s.nome.trim().toLowerCase());
+      if (!reg) return s;
+      // Aggiorna solo se qualcosa è cambiato
+      if (s.regId === reg.id && s.logo === reg.logo && s.nome === reg.nome
+        && String(s.rank) === String(reg.rank) && s.website === reg.website) return s;
+      changed = true;
+      return { ...s, regId: reg.id, nome: reg.nome, logo: reg.logo, rank: reg.rank, website: reg.website };
+    });
+    if (changed) patch({ squadre: updated });
+  };
 
   /* ── roster ── */
   const addPlayer = (teamId: string) =>
@@ -206,7 +236,7 @@ export function useTappa(id: string | undefined) {
   return {
     user, legaName, tappa,
     nameOf, playersOf, playerNameById, teamComplete,
-    setInfo, setNGironi, setRule, addTeam, removeTeam, renameTeam, setTeamRank, setTeamWebsite,
+    setInfo, setNGironi, setRule, addTeam, removeTeam, renameTeam, setTeamRank, setTeamWebsite, setTeamLogo, applyReg, syncFromAnagrafe,
     addPlayer, renamePlayer, removePlayer,
     sorteggia, saveScore, reopenScore,
     addEvent, removeEvent,
