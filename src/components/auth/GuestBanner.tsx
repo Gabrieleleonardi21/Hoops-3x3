@@ -1,3 +1,4 @@
+/** Banner informativo mostrato solo agli ospiti (user.guest === true) */
 import { RED } from "../../constants/colors";
 import { useAppStore } from "../../stores/useAppStore";
 

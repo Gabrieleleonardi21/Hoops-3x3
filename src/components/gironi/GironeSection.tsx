@@ -1,3 +1,5 @@
+/** Sezione di un singolo girone: lista delle partite + classifica. Lettera del girone
+ *  calcolata dal suo indice (0→A, 1→B…) tramite charCodeAt. */
 import { INK } from "../../constants/colors";
 import { standings } from "../../utils/standings";
 import { MatchCard } from "../partita/MatchCard";

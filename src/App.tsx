@@ -1,3 +1,5 @@
+/** Radice dell'applicazione: configura il router e inserisce Coach AI (FAB + pannello)
+ *  fuori dal flusso di pagine così resta visibile su tutte le rotte. */
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { useState } from "react";
 import { Header } from "./components/layout/Header";
@@ -15,7 +17,7 @@ import { NotFoundPage } from "./pages/NotFoundPage";
 
 export default function App() {
   const user = useAppStore((s) => s.user);
-  const [coachOpen, setCoachOpen] = useState(false);
+  const [coachOpen, setCoachOpen] = useState(false); // stato del pannello Coach AI
 
   return (
     <BrowserRouter>

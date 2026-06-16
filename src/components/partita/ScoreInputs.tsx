@@ -1,3 +1,5 @@
+/** Coppia di input numerici per il punteggio di una partita (squadra A vs squadra B).
+ *  inputMode="numeric" attiva la tastiera numerica su mobile. */
 export function ScoreInputs({ sa, sb, onSa, onSb, labelA, labelB }: {
   sa: string; sb: string;
   onSa: (v: string) => void; onSb: (v: string) => void;

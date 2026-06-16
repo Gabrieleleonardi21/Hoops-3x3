@@ -1,3 +1,4 @@
+/** Form per aggiungere un evento di gara: tipo, squadra, giocatore (opzionale), minuto e nota. */
 import { useState } from "react";
 import { EVENT_TYPES } from "../../constants/eventTypes";
 import { Input } from "../ui/Input";

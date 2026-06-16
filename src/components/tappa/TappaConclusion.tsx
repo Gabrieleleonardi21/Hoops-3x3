@@ -1,3 +1,5 @@
+/** Sezione "Concludi tappa": pubblica i risultati nell'archivio condiviso del circuito.
+ *  Mostra eventuali errori di validazione (partite mancanti, roster incompleti…). */
 import { useState } from "react";
 import { INK, RED } from "../../constants/colors";
 

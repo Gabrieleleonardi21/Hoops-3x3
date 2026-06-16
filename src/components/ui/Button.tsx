@@ -1,3 +1,5 @@
+/** Componente button riutilizzabile con varianti di stile (black, red, link, nav).
+ *  In alternativa si possono usare direttamente le classi CSS (blackbtn, redbtn…). */
 import type { ButtonHTMLAttributes } from "react";
 
 type Variant = "black" | "red" | "link" | "nav";

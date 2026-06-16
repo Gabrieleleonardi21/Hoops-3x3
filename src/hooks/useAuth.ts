@@ -1,3 +1,6 @@
+/** Hook di autenticazione: gestisce login, registrazione e modalità ospite.
+ *  La sessione viene persistita in localStorage così il ricaricamento della pagina
+ *  non obbliga l'utente a fare il login di nuovo. */
 import { useEffect, useState } from "react";
 import { useAppStore, SESSION_KEY } from "../stores/useAppStore";
 import * as authService from "../services/authService";

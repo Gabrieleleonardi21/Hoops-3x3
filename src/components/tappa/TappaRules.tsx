@@ -1,3 +1,4 @@
+/** Pannello di configurazione delle regole FIBA 3x3 per la tappa (punteggio, durata, ecc.) */
 import { INK } from "../../constants/colors";
 import { Input } from "../ui/Input";
 import type { Regole } from "../../types";

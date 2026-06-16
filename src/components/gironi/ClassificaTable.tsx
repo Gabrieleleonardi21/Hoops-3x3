@@ -1,3 +1,4 @@
+/** Tabella classifica di un girone: G=gare, V=vinte, P=perse, PF=punti fatti, PS=punti subiti */
 import type { StandingRow } from "../../utils/standings";
 import { INK, ORANGE, RED, PAPER } from "../../constants/colors";
 

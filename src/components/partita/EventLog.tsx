@@ -1,3 +1,4 @@
+/** Lista degli eventi di gara in sola lettura (con × per rimuovere se onRemove è fornito) */
 import type { EventoGara } from "../../types";
 import { INK, RULE } from "../../constants/colors";
 

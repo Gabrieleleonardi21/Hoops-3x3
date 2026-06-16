@@ -1,3 +1,4 @@
+/** Pagina principale della lega: gestisce nome della lega, creazione e lista delle tappe. */
 import { Navigate, useNavigate } from "react-router-dom";
 import { useLega } from "../hooks/useLega";
 import { TappaForm } from "../components/tappa/TappaForm";

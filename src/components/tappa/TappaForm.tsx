@@ -1,3 +1,4 @@
+/** Form per creare una nuova tappa: raccoglie nome, luogo, data, numero squadre e gironi. */
 import { useState } from "react";
 import { INK } from "../../constants/colors";
 import { Input } from "../ui/Input";

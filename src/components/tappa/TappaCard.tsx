@@ -1,3 +1,4 @@
+/** Card cliccabile che mostra il riepilogo di una tappa nella lista della lega */
 import type { Tappa } from "../../types";
 import { INK, ORANGE, RED } from "../../constants/colors";
 

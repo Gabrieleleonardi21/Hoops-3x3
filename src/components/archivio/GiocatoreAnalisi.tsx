@@ -1,3 +1,5 @@
+/** Modale di analisi individuale: mostra medie statistiche, punti di forza, aree di
+ *  miglioramento con esercizi specifici per il 3x3 e (opzionalmente) i consigli del Coach AI. */
 import { useState } from "react";
 import { INK, ORANGE, PAPER, RED, RULE } from "../../constants/colors";
 import { analyzePlayer3x3 } from "../../utils/analyzePlayer3x3";

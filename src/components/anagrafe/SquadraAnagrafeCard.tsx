@@ -1,3 +1,5 @@
+/** Card cliccabile per una squadra dell'anagrafe: apre la modale di dettaglio.
+ *  Il × per eliminare stoppa la propagazione del click così non apre la modale. */
 import { INK, ORANGE } from "../../constants/colors";
 import type { RegGiocatore, RegSquadra, User } from "../../types";
 

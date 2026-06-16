@@ -1,3 +1,5 @@
+/** Form per aggiungere un video alla tappa: titolo (opzionale) + URL.
+ *  La prop compact riduce l'etichetta per uso nell'header della tappa conclusa. */
 import { useState } from "react";
 import { Input } from "../ui/Input";
 

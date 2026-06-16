@@ -1,3 +1,4 @@
+/** Lista delle tappe concluse e pubblicate nell'archivio del circuito (storage condiviso). */
 import { Loading } from "../ui/Loading";
 import type { PubTappa } from "../../types";
 import { INK } from "../../constants/colors";

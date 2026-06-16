@@ -1,3 +1,4 @@
+/** Editor del roster di una squadra in una tappa: max 4 giocatori, min 3 per poter sorteggiare. */
 import type { GiocatoreRoster } from "../../types";
 import { INK } from "../../constants/colors";
 

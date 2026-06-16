@@ -1,3 +1,4 @@
+/** Hook per la gestione della lega: crea nuove tappe con squadre e gironi pre-configurati. */
 import { useAppStore } from "../stores/useAppStore";
 import { uid } from "../utils/uid";
 import { DEFAULT_RULES } from "../constants/rules";
@@ -15,6 +16,7 @@ export function useLega() {
   const { user, legaName, tappe, setLegaName, addTappa } = useAppStore();
 
   const createTappa = (input: NuovaTappaInput): Tappa => {
+    // Clamp: min 2 squadre, max 64; gironi non possono superare metà delle squadre
     const n = Math.max(2, Math.min(64, Number(input.nTeams) || 8));
     const nG = Math.max(1, Math.min(Math.floor(n / 2) || 1, Number(input.nGironi) || 1));
     const t: Tappa = {

@@ -1,3 +1,4 @@
+/** Form per registrare un nuovo giocatore nell'anagrafe condivisa del circuito. */
 import { useState } from "react";
 import { INK, RED } from "../../constants/colors";
 import { REG_ROLES } from "../../constants/roles";

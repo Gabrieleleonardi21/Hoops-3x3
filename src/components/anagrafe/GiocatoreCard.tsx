@@ -1,3 +1,4 @@
+/** Card informativa di un giocatore registrato nell'anagrafe. Solo l'autore può eliminarlo. */
 import { INK, ORANGE } from "../../constants/colors";
 import { eta } from "../../utils/eta";
 import type { RegGiocatore, User } from "../../types";

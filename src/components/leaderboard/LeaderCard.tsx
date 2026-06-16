@@ -1,3 +1,5 @@
+/** Card con la top 5 di una categoria statistica (punti, rimbalzi, assist…).
+ *  Mostra il totale e la media a partita tra parentesi. */
 import { INK, ORANGE } from "../../constants/colors";
 import type { LeaderRow } from "../../utils/tappaLeaders";
 import type { StatLine } from "../../types";

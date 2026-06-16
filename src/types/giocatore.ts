@@ -1,4 +1,4 @@
-/** Giocatore nel roster di una squadra iscritta a una tappa */
+/** Tipo minimo usato nei roster di tappa: solo id e nome visibile in campo */
 export interface GiocatoreRoster {
   id: string;
   nome: string;

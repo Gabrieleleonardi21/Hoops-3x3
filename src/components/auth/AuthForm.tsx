@@ -1,3 +1,5 @@
+/** Form di autenticazione: usa react-hook-form + Zod per la validazione dei campi.
+ *  L'autenticazione è dimostrativa (client-side SHA-256 + localStorage), non adatta alla produzione. */
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";

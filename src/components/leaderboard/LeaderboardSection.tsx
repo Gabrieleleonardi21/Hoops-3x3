@@ -1,3 +1,5 @@
+/** Sezione leader della tappa: raggruppa una LeaderCard per ciascuna categoria definita in LEADER_CATS.
+ *  Non mostra nulla se non ci sono ancora statistiche registrate. */
 import { INK, ORANGE } from "../../constants/colors";
 import { LEADER_CATS } from "../../constants/rules";
 import { tappaLeaders } from "../../utils/tappaLeaders";

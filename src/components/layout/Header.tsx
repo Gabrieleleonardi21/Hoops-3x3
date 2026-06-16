@@ -1,3 +1,4 @@
+/** Header globale: mostra logo (cliccabile → home), titolo, utente e pulsante logout. */
 import { ORANGE, INK, RULE } from "../../constants/colors";
 import { useAuth } from "../../hooks/useAuth";
 import { useNavigate } from "react-router-dom";

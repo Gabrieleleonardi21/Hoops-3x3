@@ -1,3 +1,5 @@
+/** Pagina dell'anagrafe condivisa del circuito: due tab (giocatori / squadre) con
+ *  ricerca testuale, form di registrazione e modale di dettaglio squadra. */
 import { useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useAppStore } from "../stores/useAppStore";
@@ -22,6 +24,7 @@ export function AnagrafePage() {
   if (!user) return <Navigate to="/" replace />;
   const { giocatori, squadre, saveGiocatore, saveSquadra, removeGiocatore, removeSquadra } = anagrafe;
 
+  // Filtra un array su più campi testuali con la query di ricerca
   const filtered = <T,>(arr: T[] | null, fields: (keyof T)[]): T[] => {
     const q = query.trim().toLowerCase();
     if (!q) return arr || [];
@@ -30,6 +33,7 @@ export function AnagrafePage() {
   const gList = filtered(giocatori, ["nome", "cognome", "soprannome", "citta", "squadra", "ruolo"]);
   const sList = filtered(squadre, ["nome", "citta", "referente"]);
 
+  // Blocca le scritture per gli ospiti: possono solo consultare l'anagrafe
   const guard = async (fn: () => Promise<void>) => {
     if (user.guest) { setMsg("La registrazione nell'anagrafe richiede un account: l'Ospite può solo consultare."); return; }
     setMsg(null);

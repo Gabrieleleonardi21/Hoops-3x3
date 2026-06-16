@@ -1,8 +1,11 @@
+/** Hook per la gestione dell'anagrafe condivisa: giocatori (reg_g_*) e squadre (reg_s_*)
+ *  sono salvati nello storage "shared" (namespace hoop3x3_shared_) e visibili a tutti. */
 import { useEffect, useState } from "react";
 import { storage } from "../services/storage";
 import { uid } from "../utils/uid";
 import type { RegGiocatore, RegSquadra, User } from "../types";
 
+/** Carica tutte le voci con un dato prefisso dallo storage condiviso, più recenti prima */
 async function fetchList<T>(prefix: string): Promise<T[]> {
   try {
     const r = await storage.list(prefix, true);

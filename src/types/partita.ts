@@ -1,3 +1,4 @@
+/** Statistiche individuali di un giocatore in una partita */
 export interface StatLine {
   pt?: number; // punti
   rb?: number; // rimbalzi
@@ -11,6 +12,7 @@ export interface StatLine {
 /** pid -> statistiche (number = formato legacy: soli punti) */
 export type StatSheet = Record<string, StatLine | number>;
 
+/** Evento registrato durante una partita (fallo, sostituzione, timeout…) */
 export interface EventoGara {
   id: string;
   tipo: string;

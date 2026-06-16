@@ -1,3 +1,5 @@
+/** Card di una partita: gestisce tre stati — inserimento punteggi, vista risultato e
+ *  log eventi. In modalità guest i controlli sui roster e la somma dei punti sono disattivati. */
 import { useState } from "react";
 import { INK, RED, RULE } from "../../constants/colors";
 import { ScoreInputs } from "./ScoreInputs";
@@ -39,6 +41,7 @@ export function MatchCard({ m, h }: { m: Partita; h: ReturnType<typeof useTappa>
   const eventi = m.eventi || [];
   const hasSheets = Object.keys(m.pa || {}).length > 0 || Object.keys(m.pb || {}).length > 0;
 
+  // Compatibilità con il formato legacy (solo punti come numero anziché oggetto StatLine)
   const ptOf = (raw: StatLine | number | undefined) =>
     raw === undefined ? 0 : typeof raw === "object" ? raw.pt ?? 0 : raw;
 

@@ -1,3 +1,4 @@
+/** Barra di navigazione principale: la classe "active" è gestita automaticamente da NavLink. */
 import { NavLink } from "react-router-dom";
 
 const links = [

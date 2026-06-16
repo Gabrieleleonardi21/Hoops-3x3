@@ -1,3 +1,5 @@
+/** Pannello chat del Coach AI: input utente, lista messaggi, bottone "Cancella chat".
+ *  La cronologia viene persistita in sessionStorage (si azzera alla chiusura della scheda). */
 import { useState } from "react";
 import { INK, PAPER, RULE } from "../../constants/colors";
 import { useCoachAI } from "../../hooks/useCoachAI";

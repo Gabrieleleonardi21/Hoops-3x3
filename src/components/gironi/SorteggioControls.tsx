@@ -1,3 +1,5 @@
+/** Controlli del sorteggio: casuale (Fisher-Yates) o per ranking (teste di serie a serpentina).
+ *  Avvisa che un nuovo sorteggio azzera i punteggi già registrati. */
 import { useState } from "react";
 import { RED } from "../../constants/colors";
 

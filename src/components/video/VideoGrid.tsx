@@ -1,3 +1,4 @@
+/** Griglia responsiva di VideoCard. onRemove è opzionale: assente nelle viste in sola lettura. */
 import { VideoCard } from "./VideoCard";
 import type { VideoItem } from "../../types";
 

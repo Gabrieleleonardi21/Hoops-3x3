@@ -1,3 +1,6 @@
+/** Pagina di gestione di una tappa: mostra due viste distinte —
+ *  in modifica (squadre, sorteggio, gironi, statistiche, video)
+ *  oppure sola-lettura se la tappa è già conclusa e pubblicata. */
 import { useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { useTappa } from "../hooks/useTappa";

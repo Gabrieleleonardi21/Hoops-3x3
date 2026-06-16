@@ -1,3 +1,5 @@
+/** Pannello di modifica in-page: permette di cambiare nome, luogo, data, numero gironi
+ *  e aggiungere squadre. Aggiungere squadre o cambiare i gironi azzera il sorteggio. */
 import { INK, RED } from "../../constants/colors";
 import { Input } from "../ui/Input";
 import type { useTappa } from "../../hooks/useTappa";
