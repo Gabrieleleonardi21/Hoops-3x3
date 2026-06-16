@@ -9,9 +9,10 @@ import { GiocatoreCard } from "../components/anagrafe/GiocatoreCard";
 import { SquadraAnagrafeForm } from "../components/anagrafe/SquadraAnagrafeForm";
 import { SquadraAnagrafeCard } from "../components/anagrafe/SquadraAnagrafeCard";
 import { SquadraAnagrafeModal } from "../components/anagrafe/SquadraAnagrafeModal";
+import { GiocatoreModal } from "../components/anagrafe/GiocatoreModal";
 import { Loading } from "../components/ui/Loading";
 import { RED } from "../constants/colors";
-import type { RegSquadra } from "../types";
+import type { RegGiocatore, RegSquadra } from "../types";
 
 export function AnagrafePage() {
   const user = useAppStore((s) => s.user);
@@ -20,9 +21,10 @@ export function AnagrafePage() {
   const [showForm, setShowForm] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [selSquadra, setSelSquadra] = useState<RegSquadra | null>(null);
+  const [selGiocatore, setSelGiocatore] = useState<RegGiocatore | null>(null);
   const anagrafe = useAnagrafe(user ?? { name: "Ospite", guest: true });
   if (!user) return <Navigate to="/" replace />;
-  const { giocatori, squadre, saveGiocatore, saveSquadra, removeGiocatore, removeSquadra, updateSquadra } = anagrafe;
+  const { giocatori, squadre, saveGiocatore, saveSquadra, removeGiocatore, removeSquadra, updateSquadra, updateGiocatore } = anagrafe;
 
   // Filtra un array su più campi testuali con la query di ricerca
   const filtered = <T,>(arr: T[] | null, fields: (keyof T)[]): T[] => {
@@ -75,7 +77,9 @@ export function AnagrafePage() {
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))", gap: 12 }}>
             {gList.map((g) => (
-              <GiocatoreCard key={g.id} g={g} user={user} onRemove={() => removeGiocatore(g.id)} />
+              <GiocatoreCard key={g.id} g={g} user={user}
+                onOpen={() => setSelGiocatore(g)}
+                onRemove={() => removeGiocatore(g.id)} />
             ))}
           </div>
         )
@@ -96,6 +100,15 @@ export function AnagrafePage() {
             ))}
           </div>
         )
+      )}
+      {selGiocatore && (
+        <GiocatoreModal
+          g={selGiocatore}
+          user={user}
+          onClose={() => setSelGiocatore(null)}
+          onRemove={() => { removeGiocatore(selGiocatore.id); setSelGiocatore(null); }}
+          onUpdate={(updated) => { updateGiocatore(updated); setSelGiocatore(updated); }}
+        />
       )}
       {selSquadra && (
         <SquadraAnagrafeModal

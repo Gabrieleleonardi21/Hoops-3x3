@@ -48,6 +48,13 @@ export function useAnagrafe(user: User) {
     setGiocatori((l) => (l || []).filter((x) => x.id !== id));
   };
 
+  /** Sovrascrive un giocatore esistente mantenendo id e autore, aggiornando il timestamp */
+  const updateGiocatore = async (updated: RegGiocatore) => {
+    const rec = { ...updated, ts: Date.now() };
+    await storage.set(`reg_g_${rec.id}`, JSON.stringify(rec), true);
+    setGiocatori((l) => (l || []).map((x) => (x.id === rec.id ? rec : x)));
+  };
+
   const removeSquadra = async (id: string) => {
     await storage.delete(`reg_s_${id}`, true).catch(() => {});
     setSquadre((l) => (l || []).filter((x) => x.id !== id));
@@ -60,5 +67,5 @@ export function useAnagrafe(user: User) {
     setSquadre((l) => (l || []).map((x) => (x.id === rec.id ? rec : x)));
   };
 
-  return { giocatori, squadre, saveGiocatore, saveSquadra, removeGiocatore, removeSquadra, updateSquadra };
+  return { giocatori, squadre, saveGiocatore, saveSquadra, removeGiocatore, removeSquadra, updateSquadra, updateGiocatore };
 }
