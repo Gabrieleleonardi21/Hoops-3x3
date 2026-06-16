@@ -4,7 +4,7 @@ import { Input } from "../ui/Input";
 import type { RegGiocatore, RegSquadra } from "../../types";
 
 type Draft = Omit<RegSquadra, "id" | "autore" | "ts">;
-const EMPTY: Draft = { nome: "", citta: "", anno: "", rank: "", referente: "", roster: [], logo: "", website: "", note: "" };
+const EMPTY: Draft = { nome: "", citta: "", anno: "", rank: "", referente: "", roster: [], logo: "", website: "", instagram: "", note: "" };
 
 export function SquadraAnagrafeForm({ giocatori, onSave }: { giocatori: RegGiocatore[]; onSave: (d: Draft) => Promise<void> }) {
   const [d, setD] = useState<Draft>(EMPTY);
@@ -40,6 +40,7 @@ export function SquadraAnagrafeForm({ giocatori, onSave }: { giocatori: RegGioca
         <Input label="Referente / capitano" value={d.referente} onChange={set("referente")} />
         <Input label="Logo (URL o /logos/nome.svg)" value={d.logo} onChange={set("logo")} placeholder="/logos/squadra.svg" />
         <Input label="Sito web (opzionale)" value={d.website} onChange={set("website")} placeholder="https://squadra.it" />
+        <Input label="Instagram (opzionale)" value={d.instagram} onChange={set("instagram")} placeholder="https://instagram.com/squadra" />
       </div>
       <div className="ui" style={{ fontSize: 11, fontWeight: 700, marginTop: 10 }}>Roster (dai giocatori registrati, max 6)</div>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginTop: 4 }}>

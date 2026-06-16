@@ -22,7 +22,7 @@ export function AnagrafePage() {
   const [selSquadra, setSelSquadra] = useState<RegSquadra | null>(null);
   const anagrafe = useAnagrafe(user ?? { name: "Ospite", guest: true });
   if (!user) return <Navigate to="/" replace />;
-  const { giocatori, squadre, saveGiocatore, saveSquadra, removeGiocatore, removeSquadra } = anagrafe;
+  const { giocatori, squadre, saveGiocatore, saveSquadra, removeGiocatore, removeSquadra, updateSquadra } = anagrafe;
 
   // Filtra un array su più campi testuali con la query di ricerca
   const filtered = <T,>(arr: T[] | null, fields: (keyof T)[]): T[] => {
@@ -104,6 +104,7 @@ export function AnagrafePage() {
           user={user}
           onClose={() => setSelSquadra(null)}
           onRemove={() => { removeSquadra(selSquadra.id); setSelSquadra(null); }}
+          onUpdate={(updated) => { updateSquadra(updated); setSelSquadra(updated); }}
         />
       )}
     </div>

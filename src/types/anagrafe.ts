@@ -29,8 +29,9 @@ export interface RegSquadra {
   rank: string;
   referente: string;
   roster: string[]; // id di RegGiocatore
-  logo: string;     // URL o path /logos/*.svg
-  website: string;  // URL sito web ufficiale (opzionale)
+  logo: string;      // URL o path /logos/*.svg
+  website: string;   // URL sito web ufficiale (opzionale)
+  instagram: string; // URL pagina Instagram (usato come link del logo se manca il sito)
   note: string;
   autore: string;
   ts: number;

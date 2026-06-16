@@ -53,5 +53,12 @@ export function useAnagrafe(user: User) {
     setSquadre((l) => (l || []).filter((x) => x.id !== id));
   };
 
-  return { giocatori, squadre, saveGiocatore, saveSquadra, removeGiocatore, removeSquadra };
+  /** Sovrascrive una squadra esistente mantenendo id e autore, aggiornando il timestamp */
+  const updateSquadra = async (updated: RegSquadra) => {
+    const rec = { ...updated, ts: Date.now() };
+    await storage.set(`reg_s_${rec.id}`, JSON.stringify(rec), true);
+    setSquadre((l) => (l || []).map((x) => (x.id === rec.id ? rec : x)));
+  };
+
+  return { giocatori, squadre, saveGiocatore, saveSquadra, removeGiocatore, removeSquadra, updateSquadra };
 }
