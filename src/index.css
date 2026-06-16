@@ -46,15 +46,17 @@ body {
 .tapparow { width: 100%; text-align: left; border: none; border-bottom: 1px solid var(--rule); background: transparent; padding: 14px 4px; cursor: pointer; display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .tapparow:hover { background: var(--card); }
 
-.standtable { border-collapse: collapse; width: 100%; font-family: "Archivo", sans-serif; font-size: 13px; }
-.standtable th { border: 1px solid var(--rule); padding: 6px 8px; background: var(--paper); text-align: center; font-size: 10.5px; letter-spacing: 0.06em; }
+.standtable { border-collapse: collapse; width: 100%; font-family: "Archivo", sans-serif; font-size: 13px; table-layout: fixed; }
+.standtable th { border: 1px solid var(--rule); padding: 6px 8px; background: var(--paper); text-align: center; font-size: 10.5px; letter-spacing: 0.06em; white-space: nowrap; overflow: hidden; }
 .standtable td { border: 1px solid var(--rule); padding: 7px 8px; text-align: center; font-weight: 600; }
-.standtable td.tname { text-align: left; font-weight: 700; }
+/* la colonna del nome occupa lo spazio rimanente e tronca se troppo lungo */
+.standtable td.tname { text-align: left; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 0; }
 
-.statstable { border-collapse: collapse; width: 100%; font-family: "Archivo", sans-serif; font-size: 12px; }
-.statstable th { border: 1px solid var(--rule); padding: 4px 6px; background: var(--paper); text-align: center; font-size: 9.5px; letter-spacing: 0.05em; }
+.statstable { border-collapse: collapse; width: 100%; font-family: "Archivo", sans-serif; font-size: 12px; table-layout: fixed; }
+.statstable th { border: 1px solid var(--rule); padding: 4px 6px; background: var(--paper); text-align: center; font-size: 9.5px; letter-spacing: 0.05em; white-space: nowrap; overflow: hidden; }
 .statstable td { border: 1px solid var(--rule); padding: 3px; text-align: center; }
-.statstable td.tname { text-align: left; font-weight: 700; padding: 4px 6px; white-space: nowrap; font-size: 12.5px; }
+/* la colonna del nome si allarga e tronca, le colonne stat hanno larghezza fissa via <col> */
+.statstable td.tname { text-align: left; font-weight: 700; padding: 4px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 0; font-size: 12.5px; }
 
 .chatfab { position: fixed; right: 18px; bottom: 18px; width: 62px; height: 62px; border-radius: 18px; border: none; cursor: pointer; background: var(--ink); padding: 7px; box-shadow: 0 6px 18px rgba(23, 32, 58, 0.35); z-index: 50; }
 .chatfab img { width: 100%; height: 100%; object-fit: contain; }

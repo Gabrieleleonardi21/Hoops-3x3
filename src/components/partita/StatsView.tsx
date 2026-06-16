@@ -11,6 +11,11 @@ export function StatsView({ teamName, players, sheet }: {
         {teamName}
       </div>
       <table className="statstable">
+        {/* colonne stat a larghezza fissa (44px); GIOCATORE occupa il resto */}
+        <colgroup>
+          <col />
+          {STAT_KEYS.map(([k]) => <col key={k} style={{ width: 44 }} />)}
+        </colgroup>
         <thead>
           <tr>
             <th style={{ textAlign: "left" }}>GIOCATORE</th>

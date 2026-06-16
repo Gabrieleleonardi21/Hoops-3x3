@@ -6,6 +6,17 @@ export function ClassificaTable({ rows }: { rows: StandingRow[] }) {
   return (
     <div style={{ marginTop: 10, overflowX: "auto" }}>
       <table className="standtable">
+        {/* larghezze fisse per le colonne numeriche; SQUADRA si allarga automaticamente */}
+        <colgroup>
+          <col style={{ width: 28 }} />
+          <col />
+          <col style={{ width: 34 }} />
+          <col style={{ width: 34 }} />
+          <col style={{ width: 34 }} />
+          <col style={{ width: 40 }} />
+          <col style={{ width: 40 }} />
+          <col style={{ width: 50 }} />
+        </colgroup>
         <thead>
           <tr><th></th><th style={{ textAlign: "left" }}>SQUADRA</th><th>G</th><th>V</th><th>P</th><th>PF</th><th>PS</th><th>DIFF</th></tr>
         </thead>
