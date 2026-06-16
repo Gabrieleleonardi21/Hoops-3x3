@@ -28,6 +28,17 @@
   const set = (key, val, shared = false) =>
     localStorage.setItem((shared ? NSS : NS) + key, JSON.stringify(val));
 
+  // Preserva i video già caricati dall'app: evita di cancellarli ad ogni seed
+  const existingVideos = {};
+  try {
+    const raw = localStorage.getItem(NS + "lega3x3");
+    if (raw) {
+      (JSON.parse(raw).tappe || []).forEach((t) => {
+        if (t.video && t.video.length > 0) existingVideos[t.id] = t.video;
+      });
+    }
+  } catch {}
+
   const accountExists = !!localStorage.getItem(NS + "account");
   if (!accountExists) {
     const hash = await sha256("admin123");
@@ -1993,9 +2004,13 @@
   };
 
   // ─── LEGA + ARCHIVIO ───────────────────────────────────────────────────────
+  // Reintegra i video salvati dall'app prima di sovrascrivere la lega
+  const tappeFinali = [tappa1, tappa2, tappa3, tappa4].map((t) =>
+    existingVideos[t.id] ? { ...t, video: existingVideos[t.id] } : t,
+  );
   set("lega3x3", {
     nome: "Estathé 3x3 Italia Streetbasket Circuit 2025",
-    tappe: [tappa1, tappa2, tappa3, tappa4],
+    tappe: tappeFinali,
   });
   set(
     "pub_t01",
