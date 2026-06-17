@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Lega, LegaMeta, Partita, Tappa, User } from "../types";
+import type { BracketMatch, Lega, LegaMeta, Partita, Tappa, User } from "../types";
 import { uid } from "../utils/uid";
 
 interface AppState {
@@ -18,6 +18,10 @@ interface AppState {
   updateTappa: (id: string, patch: Partial<Tappa>) => void;
   /** Aggiorna una singola partita in modo atomico, evita race condition in chiamate parallele. */
   updateTappaPartita: (tappaId: string, partitaId: string, patch: Partial<Partita>) => void;
+  /** Aggiorna un singolo match del bracket in modo atomico. */
+  updateBracketMatch: (tappaId: string, matchId: string, patch: Partial<BracketMatch>) => void;
+  /** Crea una nuova lega importando dati JSON (nome + tappe). */
+  importLega: (nome: string, tappe: Tappa[]) => void;
   replaceTappa: (t: Tappa) => void;
   removeTappa: (id: string) => void;
   reset: () => void;
@@ -171,6 +175,29 @@ export const useAppStore = create<AppState>((set, get) => {
         ),
       }));
       persistActive();
+    },
+
+    updateBracketMatch: (tappaId, matchId, patch) => {
+      set((s) => ({
+        tappe: s.tappe.map((t) =>
+          t.id !== tappaId ? t : {
+            ...t,
+            bracket: (t.bracket ?? []).map((m) => m.id === matchId ? { ...m, ...patch } : m),
+          }
+        ),
+      }));
+      persistActive();
+    },
+
+    importLega: (nome, tappe) => {
+      const id = uid();
+      const trimmed = nome.trim() || "Lega importata";
+      const meta: LegaMeta = { id, nome: trimmed, ts: Date.now(), nTappe: tappe.length };
+      const leghe = [...get().leghe, meta];
+      localStorage.setItem(legaStorageKey(id), JSON.stringify({ nome: trimmed, tappe }));
+      localStorage.setItem(ACTIVE_KEY, id);
+      writeIndex(leghe);
+      set({ legaId: id, leghe, legaName: trimmed, tappe });
     },
 
     replaceTappa: (t) => {

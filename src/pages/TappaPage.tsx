@@ -11,18 +11,23 @@ import { TappaConclusion } from "../components/tappa/TappaConclusion";
 import { SquadraCard } from "../components/squadra/SquadraCard";
 import { SorteggioControls } from "../components/gironi/SorteggioControls";
 import { GironeSection } from "../components/gironi/GironeSection";
+import { BracketSection } from "../components/gironi/BracketSection";
 import { LeaderboardSection } from "../components/leaderboard/LeaderboardSection";
 import { VideoGrid } from "../components/video/VideoGrid";
 import { VideoForm } from "../components/video/VideoForm";
 import { ArchivioTappaView } from "../components/archivio/ArchivioTappaView";
-import { INK, RED } from "../constants/colors";
+import { MatchTimer } from "../components/partita/MatchTimer";
+import { INK, RED, RULE } from "../constants/colors";
 import type { User } from "../types";
 
 export function TappaPage() {
   const { id } = useParams();
   const h = useTappa(id);
   const navigate = useNavigate();
-  const [editOpen, setEditOpen] = useState(false);
+  const [editOpen,    setEditOpen]    = useState(false);
+  const [timerOpen,   setTimerOpen]   = useState(false);
+  const [shareOpen,   setShareOpen]   = useState(false);
+  const [copied,      setCopied]      = useState(false);
 
   // useAnagrafe deve stare prima degli early return (regole degli hook)
   const dummyUser: User = { name: "", guest: true };
@@ -62,20 +67,47 @@ export function TappaPage() {
     }
   };
 
+  /* URL pubblico della tappa (navigabile anche senza login) */
+  const publicUrl = `${window.location.origin}/tappa/${t.id}`;
+  const copyLink  = () => {
+    navigator.clipboard.writeText(publicUrl).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
   /* tappa conclusa: vista pubblica + aggiunta video + riapertura */
   if (t.conclusa) {
     return (
       <div>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "baseline", marginBottom: 12 }}>
           <span className="ui" style={{ background: "var(--card)", border: `1.5px solid ${INK}`, padding: "8px 12px", fontWeight: 700, fontSize: 13 }}>
-            🏁 Tappa conclusa e pubblicata nell'Archivio circuito: tutti gli utenti possono consultarla.
+            Tappa conclusa e pubblicata nell'Archivio circuito.
           </span>
-          <span>
+          <span style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button onClick={() => navigate("/lega")} className="linkbtn">← Tutte le tappe</button>
-            {" · "}
-            <button onClick={() => h.riapri()} className="linkbtn" style={{ color: INK, opacity: 0.6 }}>Riapri per modifiche</button>
+            <button onClick={() => setShareOpen((o) => !o)} className="linkbtn">Condividi</button>
+            <button onClick={() => h.riapri()} className="linkbtn" style={{ color: INK, opacity: 0.6 }}>Riapri</button>
           </span>
         </div>
+
+        {/* Pannello condivisione link pubblico */}
+        {shareOpen && (
+          <div style={{ background: "var(--card)", border: `1.5px solid ${INK}`, padding: 12, marginBottom: 12 }}>
+            <div className="ui" style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
+              Link pubblico — chiunque può consultare questa tappa
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <code style={{ fontSize: 13, background: "var(--paper)", padding: "6px 10px", border: `1px solid ${RULE}`, flex: "1 1 200px", wordBreak: "break-all" }}>
+                {publicUrl}
+              </code>
+              <button onClick={copyLink} className="blackbtn" style={{ padding: "8px 14px", fontSize: 12 }}>
+                {copied ? "Copiato!" : "Copia link"}
+              </button>
+            </div>
+          </div>
+        )}
+
         <div style={{ background: "var(--card)", border: `1.5px solid ${INK}`, padding: 12, margin: "0 0 18px" }}>
           <VideoForm compact onAdd={h.addVideo} />
         </div>
@@ -94,13 +126,15 @@ export function TappaPage() {
             {[t.luogo, t.data].filter(Boolean).join(" · ")} · {t.squadre.length} squadre · {t.nGironi} gironi
           </span>
         </div>
-        <span>
+        <span style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           <button onClick={() => navigate("/lega")} className="linkbtn">← Tutte le tappe</button>
           {" · "}
-          <button onClick={() => setEditOpen(!editOpen)} className="linkbtn">{editOpen ? "Chiudi modifica" : "⚙ Modifica tappa"}</button>
+          <button onClick={() => setEditOpen(!editOpen)} className="linkbtn">{editOpen ? "Chiudi modifica" : "⚙ Modifica"}</button>
+          {" · "}
+          <button onClick={() => setTimerOpen(true)} className="linkbtn">Timer</button>
           {" · "}
           <button onClick={() => { h.removeTappa(t.id); navigate("/lega"); }} className="linkbtn" style={{ color: INK, opacity: 0.55 }}>
-            Elimina tappa
+            Elimina
           </button>
         </span>
       </div>
@@ -125,6 +159,9 @@ export function TappaPage() {
 
       {t.gironi && t.gironi.map((g, gi) => <GironeSection key={gi} gi={gi} girone={g} h={h} />)}
 
+      {/* Fase a eliminazione diretta: compare quando tutti i gironi sono conclusi */}
+      {t.gironi && <BracketSection tappa={t} />}
+
       <LeaderboardSection tappa={t} />
 
       <section style={{ borderTop: `4px solid ${INK}`, marginBottom: 26 }}>
@@ -137,6 +174,8 @@ export function TappaPage() {
       </section>
 
       <TappaConclusion onConcludi={h.concludi} />
+
+      {timerOpen && <MatchTimer onClose={() => setTimerOpen(false)} />}
     </div>
   );
 }

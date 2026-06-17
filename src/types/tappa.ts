@@ -8,6 +8,17 @@ export interface VideoItem {
   url: string;
 }
 
+/** Singola sfida nella fase a eliminazione diretta */
+export interface BracketMatch {
+  id: string;
+  label: string;            // "SF 1", "SF 2", "Finale"
+  squadraA: string | null;  // id squadra, null = da determinare
+  squadraB: string | null;
+  pA: number;
+  pB: number;
+  done: boolean;
+}
+
 export interface Tappa {
   id: string;
   nome: string;
@@ -21,6 +32,8 @@ export interface Tappa {
   partite: Partita[];
   video: VideoItem[];
   conclusa?: boolean;
+  /** Fase a eliminazione diretta, generata dopo i gironi */
+  bracket?: BracketMatch[];
 }
 
 export interface Lega {

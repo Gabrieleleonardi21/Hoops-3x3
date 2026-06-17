@@ -6,6 +6,7 @@ import { StatsView } from "../partita/StatsView";
 import { EventLog } from "../partita/EventLog";
 import { LeaderboardSection } from "../leaderboard/LeaderboardSection";
 import { VideoGrid } from "../video/VideoGrid";
+import { BracketSection } from "../gironi/BracketSection";
 import { GiocatoreAnalisi } from "./GiocatoreAnalisi";
 import { SquadraModal } from "./SquadraModal";
 import type { Tappa, SquadraTappa } from "../../types";
@@ -30,11 +31,18 @@ export function ArchivioTappaView({ t, lega, autore }: { t: Tappa; lega?: string
   return (
     <div>
       <div style={{ borderBottom: `4px solid ${INK}`, paddingBottom: 10, marginBottom: 14 }}>
-        <h2 className="disp" style={{ fontSize: "clamp(20px, 5vw, 28px)", margin: 0, textTransform: "uppercase" }}>{t.nome}</h2>
-        <span className="ui" style={{ fontSize: 13, fontWeight: 600 }}>
-          {[lega, t.luogo, t.data].filter(Boolean).join(" · ")} · {t.squadre.length} squadre
-          {autore ? ` · organizzata da ${autore}` : ""}
-        </span>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8 }}>
+          <div>
+            <h2 className="disp" style={{ fontSize: "clamp(20px, 5vw, 28px)", margin: 0, textTransform: "uppercase" }}>{t.nome}</h2>
+            <span className="ui" style={{ fontSize: 13, fontWeight: 600 }}>
+              {[lega, t.luogo, t.data].filter(Boolean).join(" · ")} · {t.squadre.length} squadre
+              {autore ? ` · organizzata da ${autore}` : ""}
+            </span>
+          </div>
+          <button onClick={() => window.print()} className="blackbtn no-print" style={{ padding: "8px 16px", fontSize: 13 }}>
+            Stampa / PDF
+          </button>
+        </div>
       </div>
 
       <h3 className="disp" style={{ fontSize: 16, margin: "0 0 2px", textTransform: "uppercase" }}>Squadre e roster</h3>
@@ -140,6 +148,9 @@ export function ArchivioTappaView({ t, lega, autore }: { t: Tappa; lega?: string
           </section>
         );
       })}
+
+      {/* Fase finale in sola lettura (se presente) */}
+      {t.bracket?.length ? <BracketSection tappa={t} readOnly /> : null}
 
       <LeaderboardSection tappa={t} />
 

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useAppStore } from "../stores/useAppStore";
 import { useAnagrafe } from "../hooks/useAnagrafe";
+import { StatsCircuito } from "../components/anagrafe/StatsCircuito";
 import { GiocatoreForm } from "../components/anagrafe/GiocatoreForm";
 import { GiocatoreCard } from "../components/anagrafe/GiocatoreCard";
 import { SquadraAnagrafeForm } from "../components/anagrafe/SquadraAnagrafeForm";
@@ -15,8 +16,9 @@ import { RED } from "../constants/colors";
 import type { RegGiocatore, RegSquadra } from "../types";
 
 export function AnagrafePage() {
-  const user = useAppStore((s) => s.user);
-  const [tab, setTab] = useState<"g" | "s">("g");
+  const user  = useAppStore((s) => s.user);
+  const tappe = useAppStore((s) => s.tappe);
+  const [tab, setTab] = useState<"g" | "s" | "stats">("g");
   const [query, setQuery] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -45,17 +47,21 @@ export function AnagrafePage() {
   return (
     <div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
-        {([["g", `Giocatori (${(giocatori || []).length})`], ["s", `Squadre (${(squadre || []).length})`]] as const).map(([id, label]) => (
+        {([["g", `Giocatori (${(giocatori || []).length})`], ["s", `Squadre (${(squadre || []).length})`], ["stats", "Statistiche stagione"]] as const).map(([id, label]) => (
           <button key={id} onClick={() => { setTab(id); setShowForm(false); setMsg(null); }}
             className={`navbtn${tab === id ? " active" : ""}`} style={{ fontFamily: "'Archivo', sans-serif", textTransform: "none", fontSize: 13.5 }}>
             {label}
           </button>
         ))}
-        <input className="statin" style={{ flex: "1 1 180px", maxWidth: 280 }} value={query}
-          onChange={(e) => setQuery(e.target.value)} placeholder="Cerca per nome, città, squadra…" />
-        <button onClick={() => { setShowForm(!showForm); setMsg(null); }} className="redbtn" style={{ padding: "10px 16px" }}>
-          {showForm ? "Chiudi" : tab === "g" ? "+ Registra giocatore" : "+ Registra squadra"}
-        </button>
+        {tab !== "stats" && (
+          <>
+            <input className="statin" style={{ flex: "1 1 180px", maxWidth: 280 }} value={query}
+              onChange={(e) => setQuery(e.target.value)} placeholder="Cerca per nome, città, squadra…" />
+            <button onClick={() => { setShowForm(!showForm); setMsg(null); }} className="redbtn" style={{ padding: "10px 16px" }}>
+              {showForm ? "Chiudi" : tab === "g" ? "+ Registra giocatore" : "+ Registra squadra"}
+            </button>
+          </>
+        )}
       </div>
 
       <p className="ui" style={{ fontSize: 11.5, fontWeight: 600, opacity: 0.8, margin: "0 0 14px" }}>
@@ -101,6 +107,15 @@ export function AnagrafePage() {
           </div>
         )
       )}
+      {tab === "stats" && (
+        <>
+          <p className="ui" style={{ fontSize: 12, fontWeight: 600, opacity: 0.75, margin: "0 0 4px" }}>
+            Totali e medie per partita su tutte le tappe della lega corrente. Ordinate per media punti.
+          </p>
+          <StatsCircuito tappe={tappe} />
+        </>
+      )}
+
       {selGiocatore && (
         <GiocatoreModal
           g={selGiocatore}

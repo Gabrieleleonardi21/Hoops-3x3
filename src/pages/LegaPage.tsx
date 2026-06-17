@@ -1,5 +1,5 @@
 /** Pagina principale della lega attiva: gestisce nome, creazione, lista tappe e classifica circuito. */
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { Navigate, useNavigate, Link } from "react-router-dom";
 import { useLega } from "../hooks/useLega";
 import { TappaForm } from "../components/tappa/TappaForm";
@@ -8,11 +8,48 @@ import { GuestBanner } from "../components/auth/GuestBanner";
 import { Input } from "../components/ui/Input";
 import { INK, ORANGE, RULE } from "../constants/colors";
 import { useAppStore } from "../stores/useAppStore";
+import type { Tappa } from "../types";
 
 export function LegaPage() {
   const { user, legaName, tappe, setLegaName, createTappa } = useLega();
-  const legaId = useAppStore((s) => s.legaId);
-  const navigate = useNavigate();
+  const legaId    = useAppStore((s) => s.legaId);
+  const importLega = useAppStore((s) => s.importLega);
+  const navigate  = useNavigate();
+  const fileRef   = useRef<HTMLInputElement>(null);
+
+  /** Scarica la lega corrente come file JSON. */
+  const esportaLega = () => {
+    const blob = new Blob(
+      [JSON.stringify({ nome: legaName, tappe }, null, 2)],
+      { type: "application/json" },
+    );
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${legaName.replace(/\s+/g, "_") || "lega"}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  /** Importa una lega da un file JSON selezionato dall'utente. */
+  const importaLega = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target?.result as string) as { nome?: string; tappe?: Tappa[] };
+        if (!Array.isArray(data.tappe)) { alert("File non valido: manca il campo 'tappe'."); return; }
+        importLega(data.nome ?? file.name.replace(".json", ""), data.tappe);
+        navigate("/lega");
+      } catch {
+        alert("File JSON non valido.");
+      }
+    };
+    reader.readAsText(file);
+    // Resetta il file input così si può reimportare lo stesso file
+    e.target.value = "";
+  };
 
   // Classifica circuito: aggrega tutte le squadre da tutte le tappe,
   // prende il rank massimo per squadra (nome case-insensitive) e ordina in modo decrescente
@@ -50,11 +87,23 @@ export function LegaPage() {
         </Link>
       </div>
 
-      <div style={{ maxWidth: 420, marginBottom: 22 }}>
+      <div style={{ maxWidth: 420, marginBottom: 10 }}>
         <Input label="La tua lega — circuito italiano 3x3"
           labelStyle={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.1em" }}
           value={legaName} onChange={(e) => setLegaName(e.target.value)}
           placeholder="Es. Roma Streetball League" />
+      </div>
+
+      {/* Import / Export JSON */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 22, flexWrap: "wrap" }}>
+        <button onClick={esportaLega} className="blackbtn" style={{ padding: "8px 14px", fontSize: 12 }}>
+          Esporta JSON
+        </button>
+        <button onClick={() => fileRef.current?.click()} className="blackbtn" style={{ padding: "8px 14px", fontSize: 12 }}>
+          Importa JSON
+        </button>
+        {/* Input file nascosto: sicuro perché accetta solo .json e il contenuto è parsato */}
+        <input ref={fileRef} type="file" accept=".json" style={{ display: "none" }} onChange={importaLega} />
       </div>
 
       <TappaForm onCreate={(input) => { const t = createTappa(input); navigate(`/lega/tappa/${t.id}`); }} />

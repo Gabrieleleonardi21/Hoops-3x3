@@ -67,3 +67,17 @@ body {
 .pulse { animation: pulse 1.2s ease-in-out infinite; }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* ── Stampa ────────────────────────────────────────────────────────────────── */
+@media print {
+  /* Nasconde tutto ciò che non serve su carta */
+  header, nav, .chatfab, .chatpanel, .no-print { display: none !important; }
+  body { background: #fff; color: #000; font-size: 12px; }
+  a { text-decoration: none; color: inherit; }
+  /* Forza colori leggibili su carta */
+  :root { --ink: #000; --paper: #fff; --card: #fff; --orange: #000; --red: #000; --rule: #ccc; }
+  /* Evita interruzioni di pagina dentro le sezioni */
+  section, .standtable, .statstable { page-break-inside: avoid; }
+  button { display: none !important; }
+  .print-show { display: block !important; }
+}
