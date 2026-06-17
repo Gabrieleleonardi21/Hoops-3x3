@@ -1172,6 +1172,14 @@
         },
       },
     ],
+    // Bracket Tappa 1: 1°A=Team Rome, 2°A=The Goat | 1°B=FDC Tunes, 2°B=FVG 3×3
+    // Cross-seeding: SF1 = 1°A vs 2°B, SF2 = 1°B vs 2°A
+    // The Goat batte FDC Tunes a sorpresa; Team Rome vince il titolo
+    bracket: [
+      { id: "t1b1", label: "Semifinale 1", squadraA: "s01", squadraB: "s06", pA: 21, pB: 15, done: true },
+      { id: "t1b2", label: "Semifinale 2", squadraA: "s04", squadraB: "s05", pA: 21, pB: 18, done: true },
+      { id: "t1b3", label: "Finale",       squadraA: "s01", squadraB: "s04", pA: 21, pB: 17, done: true },
+    ],
   };
 
   // ─── TAPPA 2 — Riccione (in corso) ───────────────────────────────────────
@@ -1453,6 +1461,14 @@
         },
       },
     ],
+    // Bracket Tappa 2: 1°A=Team Rome, 2°A=The Goat | 1°B=All Star, 2°B=Concrete
+    // Cross-seeding: SF1 = 1°A(Team Rome) vs 2°B(Concrete), SF2 = 1°B(All Star) vs 2°A(The Goat)
+    // All Star vince la tappa: batte The Goat in SF2 e Team Rome in Finale
+    bracket: [
+      { id: "t2b1", label: "Semifinale 1", squadraA: "s01", squadraB: "s03", pA: 21, pB: 16, done: true },
+      { id: "t2b2", label: "Semifinale 2", squadraA: "s04", squadraB: "s02", pA: 19, pB: 21, done: true },
+      { id: "t2b3", label: "Finale",       squadraA: "s02", squadraB: "s01", pA: 21, pB: 18, done: true },
+    ],
   };
 
   // ─── TAPPA 3 — Firenze (conclusa) ────────────────────────────────────────
@@ -1731,6 +1747,14 @@
           p28: { pt: 2, rb: 5 },
         },
       },
+    ],
+    // Bracket Tappa 3: 1°A=All Star, 2°A=Concrete | 1°B=Team Rome, 2°B=The Goat
+    // Cross-seeding: SF1 = 1°A(All Star) vs 2°B(The Goat), SF2 = 1°B(Team Rome) vs 2°A(Concrete)
+    // The Goat elimina All Star a sorpresa; Team Rome vince il titolo
+    bracket: [
+      { id: "t3b1", label: "Semifinale 1", squadraA: "s02", squadraB: "s04", pA: 19, pB: 21, done: true },
+      { id: "t3b2", label: "Semifinale 2", squadraA: "s03", squadraB: "s01", pA: 15, pB: 21, done: true },
+      { id: "t3b3", label: "Finale",       squadraA: "s04", squadraB: "s01", pA: 17, pB: 21, done: true },
     ],
   };
 
@@ -2011,6 +2035,14 @@
         },
       },
     ],
+    // Bracket Tappa 4 Finals: 1°A=Team Rome, 2°A=The Goat | 1°B=FDC Tunes, 2°B=FVG 3×3
+    // Cross-seeding: SF1 = 1°A(Team Rome) vs 2°B(FVG), SF2 = 1°B(FDC Tunes) vs 2°A(The Goat)
+    // FDC Tunes batte The Goat; Team Rome vince il Campionato 2025
+    bracket: [
+      { id: "t4b1", label: "Semifinale 1", squadraA: "s01", squadraB: "s06", pA: 21, pB: 14, done: true },
+      { id: "t4b2", label: "Semifinale 2", squadraA: "s04", squadraB: "s05", pA: 18, pB: 21, done: true },
+      { id: "t4b3", label: "Finale",       squadraA: "s01", squadraB: "s05", pA: 21, pB: 16, done: true },
+    ],
   };
 
   // ─── LEGA + ARCHIVIO ───────────────────────────────────────────────────────
@@ -2083,7 +2115,7 @@
     "✅ Seed completato — dati REALI Estathé 3x3 Italia Streetbasket Circuit 2025",
   );
   console.log(
-    "   8 squadre • 32 giocatori • 4 tappe  (tutte concluse, stagione completa)",
+    "   8 squadre • 32 giocatori • 4 tappe  (tutte concluse con bracket eliminazione)",
   );
   console.log(
     "   Tappa 1: Cesenatico • Tappa 2: Riccione • Tappa 3: Firenze • Finals: Roma",

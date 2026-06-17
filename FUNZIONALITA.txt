@@ -1,0 +1,264 @@
+HOOP 3X3 — Gestionale per circuiti di basket 3x3
+=================================================
+Documento generato il 17/06/2026
+
+
+PANORAMICA
+----------
+Applicazione web per organizzatori di tornei e circuiti di basket 3x3.
+Permette di gestire più leghe indipendenti, ciascuna con le proprie tappe,
+gironi, risultati, statistiche e archivio pubblico. Integra un assistente AI
+(Coach AI) per velocizzare le operazioni via linguaggio naturale.
+
+Tecnologia: React 19 + TypeScript, dati salvati in localStorage e in uno
+spazio condiviso (anagrafe) accessibile a tutti gli utenti del circuito.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. AUTENTICAZIONE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Registrazione e login con email + password (archiviati in modo sicuro).
+- Modalità Ospite: accesso immediato senza credenziali per provare l'app;
+  i dati vengono salvati solo localmente, i controlli obbligatori su roster
+  e punteggi sono disattivati, la pubblicazione nell'archivio è bloccata.
+- Solo utenti registrati possono scrivere nell'anagrafe condivisa e
+  concludere/pubblicare una tappa.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. GESTIONE LEGHE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Creazione di più leghe distinte (es. "Circuito Roma 2025", "Milano 3x3").
+- Lista leghe con switch rapido tra una lega e l'altra.
+- Ogni lega ha un nome personalizzabile in qualsiasi momento.
+- Export della lega corrente come file JSON (backup / trasferimento).
+- Import di una lega da file JSON (ripristino / migrazione da altro dispositivo).
+- Classifica circuito aggregata: ordina le squadre per punteggio ranking
+  massimo ottenuto nelle tappe, con numero di tappe disputate.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. GESTIONE TAPPE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Creazione tappa con: nome, luogo, data, numero di gironi.
+- Aggiunta e rimozione squadre iscritte (minimo 3 giocatori per squadra
+  obbligatori per il sorteggio, controllo disattivato in modalità Ospite).
+- Modifica dei dati della tappa in qualsiasi momento prima della conclusione.
+- Eliminazione tappa con conferma.
+- Collegamento automatico all'anagrafe: quando si digita il nome di una squadra,
+  l'app cerca in anagrafe e, se trovata, importa logo, sito, rank e roster.
+  Se non trovata, crea automaticamente la scheda in anagrafe.
+- Regole di gara personalizzabili per tappa:
+    • Punteggio target (default 21)
+    • Durata massima in minuti (default 10)
+    • Punti per il supplementare (default 2)
+    • Shot clock in secondi (default 12)
+- Conclusione e pubblicazione della tappa nell'Archivio circuito (richiede
+  account registrato; la tappa passa in sola lettura).
+- Riapertura di una tappa conclusa per correzioni.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. SORTEGGIO GIRONI
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Sorteggio casuale: le squadre vengono distribuite nei gironi in modo
+  completamente random.
+- Sorteggio per ranking (seeded): distribuzione a serpentina in base ai punti
+  ranking, per evitare che le squadre più forti si incontrino subito.
+- Generazione automatica di tutti i match del girone (ogni squadra affronta
+  tutte le altre una volta sola).
+- Possibilità di risorteggiare finché non si è soddisfatti del tabellone.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. GIRONI E PARTITE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Visualizzazione di tutti i gironi con le rispettive partite.
+- Inserimento del punteggio per ogni partita (i pareggi non sono consentiti
+  in accordo alle regole FIBA 3x3).
+- Classifica girone aggiornata in tempo reale dopo ogni risultato:
+    • Vittorie, sconfitte, punti fatti/subiti, differenza canestri.
+    • Gestione dei pareggi in classifica tramite scontri diretti e
+      differenza canestri.
+- Statistiche individuali per partita (tabellino):
+    • Punti (PT), Rimbalzi (RIMB), Assist (AST), Palle rubate (RUB),
+      Stoppate (STO), Palle perse (PER), Falli (FALLI).
+- Log degli eventi di gara: registrazione cronologica di Falli,
+  Sostituzioni, Timeout, Infortuni e altri eventi con il giocatore coinvolto.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. FASE A ELIMINAZIONE DIRETTA (PLAYOFF BRACKET)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Quando tutti i gironi sono conclusi, compare il bottone "Genera bracket".
+- Il bracket viene costruito automaticamente con logica di cross-seeding:
+    • 1° classificato Girone A vs 2° classificato Girone B (e viceversa)
+    per evitare rivincite immediate tra squadre dello stesso girone.
+- Le partite del bracket si giocano in sequenza: Semifinali → Finale.
+- Inserimento dei punteggi; il vincitore avanza automaticamente al turno
+  successivo (slot TBD aggiornato in tempo reale).
+- Nomi dei turni generati dinamicamente: "Semifinale 1", "Semifinale 2",
+  "Finale" in base al numero di squadre qualificate.
+- Il bracket è visibile in sola lettura anche nell'Archivio circuito.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. TIMER DI GARA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Modale a schermo intero utilizzabile dal tavolo durante la partita.
+- Countdown del tempo di gara (10:00 minuti FIBA 3x3).
+- Shot clock separato (12 secondi) con reset automatico a 0 e reset manuale.
+- Punteggio live per entrambe le squadre con tasti +1, +2 e correzione −.
+- Rilevamento automatico del "game over":
+    • Tempo scaduto → passa in modalità supplementare (OT).
+    • Una squadra raggiunge 21 punti → partita conclusa.
+- Indicatori visivi di urgenza: il contatore diventa rosso sotto i 60 secondi,
+  lo shot clock rosso sotto i 4 secondi.
+- Il vincitore del team viene evidenziato in arancione durante la partita.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. LEADERBOARD DELLA TAPPA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Classifiche individuali per categoria statistica al termine della tappa:
+  Punti, Rimbalzi, Assist, Palle rubate, Stoppate.
+- Visualizzazione dei leader per ciascuna categoria con nome, squadra
+  e valore assoluto.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. ANALISI INDIVIDUALE DEL GIOCATORE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Modale accessibile dall'Archivio cliccando su una squadra e poi un giocatore.
+- Medie a partita su tutti gli indicatori statistici della tappa.
+- Punti di forza evidenziati: statistiche sopra la media della tappa.
+- Aree di miglioramento identificate automaticamente con spiegazione e
+  lista di esercizi specifici per il basket 3x3.
+- Pulsante "Consigli personalizzati del Coach AI" (richiede chiave API):
+  il modello analizza le statistiche del giocatore e fornisce 2-3 consigli
+  pratici di allenamento in linguaggio naturale.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. VIDEO DELLA TAPPA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Aggiunta di link video alla tappa (durante l'organizzazione o dopo la
+  conclusione).
+- I link YouTube vengono incorporati direttamente come player nella pagina.
+- Gli altri URL si aprono in una nuova scheda.
+- Rimozione di singoli video.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. ARCHIVIO CIRCUITO (PAGINA PUBBLICA)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Elenco di tutte le tappe concluse e pubblicate del circuito.
+- Ogni tappa mostra: squadre e roster, risultati per girone, classifica
+  finale, dettaglio statistiche e log eventi per ogni partita,
+  bracket playoff (se generato), leaderboard, video.
+- La vista dell'Archivio è accessibile anche senza login.
+- Condivisione via link pubblico:
+    • URL univoco per ogni tappa (es. /tappa/<id>) navigabile da chiunque.
+    • Bottone "Copia link" con conferma visiva "Copiato!".
+- Stampa / Export PDF:
+    • Bottone "Stampa / PDF" che apre la finestra di stampa del browser.
+    • CSS dedicato: nasconde header, navigazione, Coach AI e tutti i bottoni;
+      forza colori leggibili su carta; evita interruzioni di pagina nelle
+      tabelle e sezioni.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. ANAGRAFE CONDIVISA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+L'anagrafe è uno spazio condiviso tra tutti gli utenti del circuito.
+I dati inseriti sono visibili a chiunque abbia accesso all'app.
+
+Scheda GIOCATORE
+  - Dati anagrafici: nome, cognome, soprannome, data di nascita, città,
+    nazionalità, altezza, peso, numero di maglia.
+  - Dati sportivi: ruolo (Playmaker / Ala / Centro / ecc.), anni di
+    esperienza nel 3x3, squadra di appartenenza, note libere.
+  - Ricerca per nome, cognome, soprannome, città, squadra, ruolo.
+  - Modifica e cancellazione (solo per l'autore o utenti autorizzati).
+
+Scheda SQUADRA
+  - Dati squadra: nome, città, anno di fondazione, punteggio ranking
+    circuito, referente/capitano, note libere.
+  - Link a logo (URL immagine), sito web, profilo Instagram.
+  - Roster collegato: aggiunta dei giocatori presenti in anagrafe.
+  - Logo visibile nelle card delle squadre durante la tappa.
+  - Ricerca per nome, città, referente.
+  - Modifica e cancellazione con modale di dettaglio.
+
+Statistiche stagione (tab dedicato)
+  - Tabella aggregata di tutti i giocatori su tutte le tappe della lega.
+  - Colonne: posizione, giocatore, squadra, partite giocate, punti totali,
+    media punti/partita, rimbalzi totali, media rimbalzi, assist, recuperi,
+    stoppate.
+  - Ordinata per media punti decrescente.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. COACH AI — ASSISTENTE INTELLIGENTE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Il Coach AI è un assistente conversazionale (LLM Llama 3.3 70B via Groq)
+integrato in un pannello flottante accessibile da qualsiasi pagina.
+Risponde in italiano, conosce le regole FIBA 3x3 e ha visibilità in tempo
+reale sui dati della lega (tappe, squadre, risultati, classifica circuito).
+
+Azioni che il Coach AI può eseguire nell'app tramite tool calling:
+
+  crea_lega          Crea una nuova lega e la imposta come attiva.
+  crea_tappa         Crea una tappa con tutte le squadre in un'unica chiamata;
+                     cerca le squadre in anagrafe e, se mancanti, le registra
+                     automaticamente con i dati minimi.
+  sorteggia_gironi   Esegue il sorteggio (casuale o per ranking) su una tappa.
+  registra_risultato Registra il punteggio di una partita; l'operazione è
+                     atomica: più risultati in parallelo non si sovrascrivono.
+  annulla_risultato  Annulla un risultato già inserito (riporta la partita a
+                     "non disputata").
+  registra_squadra   Aggiunge una squadra all'anagrafe condivisa.
+  aggiorna_squadra   Modifica i dati di una squadra esistente in anagrafe
+                     (logo, città, referente, rank, ecc.); aggiorna solo i
+                     campi passati, gli altri restano invariati.
+  registra_giocatore Aggiunge un giocatore all'anagrafe condivisa.
+  concludi_tappa     Conclude e pubblica la tappa nell'Archivio circuito
+                     (richiede account non ospite).
+
+Contesto fornito al Coach AI:
+  - Nome della lega e numero di tappe.
+  - Per ogni tappa: nome, luogo, data, squadre iscritte, numero gironi,
+    partite giocate/mancanti, classifica di ogni girone.
+  - Classifica circuito aggregata (vittorie/partite totali per squadra).
+
+La cronologia della chat viene mantenuta per tutta la sessione e si azzera
+al reload della pagina. Richiede la variabile d'ambiente VITE_GROQ_API_KEY.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. SICUREZZA E ARCHITETTURA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Nessun uso di innerHTML: tutti i contenuti dinamici usano createElement /
+  textContent / React JSX per prevenire attacchi XSS.
+- URL dinamici validati con safeUrl() che blocca schemi javascript: e data:.
+- ID generati con crypto.randomUUID() (CSPRNG, non indovinabili).
+- Il testo proveniente dall'utente e dall'AI nel prompt del Coach è
+  racchiuso in tag <dati_lega> con istruzione esplicita a ignorare qualsiasi
+  comando al loro interno (prompt injection mitigation).
+- Persistenza: localStorage per i dati della lega (multi-lega con indice),
+  spazio condiviso (reg_s_* / reg_g_*) per l'anagrafe, pub_* per le tappe
+  pubblicate nell'archivio.
