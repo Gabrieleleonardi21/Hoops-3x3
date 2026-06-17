@@ -72,7 +72,7 @@ async function callGroq(
       body: JSON.stringify({
         // llama-3.3-70b-versatile: ottimo equilibrio qualità/velocità, gratuito su Groq
         model: "llama-3.3-70b-versatile",
-        max_tokens: 400,
+        max_tokens: 650,
         messages,
         ...(tools?.length ? { tools, tool_choice: "auto" } : {}),
       }),

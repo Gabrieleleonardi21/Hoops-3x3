@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Lega, LegaMeta, Tappa, User } from "../types";
+import type { Lega, LegaMeta, Partita, Tappa, User } from "../types";
 import { uid } from "../utils/uid";
 
 interface AppState {
@@ -16,6 +16,8 @@ interface AppState {
   setLega: (nome: string, tappe: Tappa[]) => void;
   addTappa: (t: Tappa) => void;
   updateTappa: (id: string, patch: Partial<Tappa>) => void;
+  /** Aggiorna una singola partita in modo atomico, evita race condition in chiamate parallele. */
+  updateTappaPartita: (tappaId: string, partitaId: string, patch: Partial<Partita>) => void;
   replaceTappa: (t: Tappa) => void;
   removeTappa: (id: string) => void;
   reset: () => void;
@@ -156,6 +158,18 @@ export const useAppStore = create<AppState>((set, get) => {
 
     updateTappa: (id, patch) => {
       set((s) => ({ tappe: s.tappe.map((t) => (t.id === id ? { ...t, ...patch } : t)) }));
+      persistActive();
+    },
+
+    updateTappaPartita: (tappaId, partitaId, patch) => {
+      set((s) => ({
+        tappe: s.tappe.map((t) =>
+          t.id !== tappaId ? t : {
+            ...t,
+            partite: t.partite.map((m) => m.id === partitaId ? { ...m, ...patch } : m),
+          }
+        ),
+      }));
       persistActive();
     },
 

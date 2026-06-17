@@ -2,6 +2,27 @@ import type { Tappa } from "../types";
 import { standings } from "./standings";
 import { tappaLeaders } from "./tappaLeaders";
 
+/** Classifica cumulativa del circuito: aggrega vittorie e partite su tutte le tappe. */
+function circuitStandings(tappe: Tappa[]): string {
+  const wins: Record<string, { nome: string; v: number; g: number }> = {};
+  for (const t of tappe) {
+    for (const sq of t.squadre) {
+      if (!wins[sq.id]) wins[sq.id] = { nome: sq.nome, v: 0, g: 0 };
+    }
+    for (const m of t.partite) {
+      if (!m.done) continue;
+      const vincitore = m.sa > m.sb ? m.a : m.b;
+      const perdente  = m.sa > m.sb ? m.b : m.a;
+      if (wins[vincitore]) { wins[vincitore].v++; wins[vincitore].g++; }
+      if (wins[perdente])  { wins[perdente].g++; }
+    }
+  }
+  return Object.values(wins)
+    .sort((a, b) => b.v - a.v || b.g - a.g)
+    .map((r, i) => `${i + 1}. ${r.nome} (${r.v}V/${r.g}P totali)`)
+    .join("; ");
+}
+
 /** Costruisce un riassunto testuale della lega per il preamble del Coach AI. */
 export function buildCoachContext(legaName: string, tappe: Tappa[]): string {
   if (!legaName && !tappe.length) return "";
@@ -14,6 +35,12 @@ export function buildCoachContext(legaName: string, tappe: Tappa[]): string {
     .map((t) => `"${t.nome}" (${t.data}, ${t.luogo})${t.conclusa ? " [conclusa]" : ""}`)
     .join("; ");
   lines.push(`Tappe (${tappe.length}): ${tappeResume}`);
+
+  // Classifica cumulativa del circuito (solo se ci sono partite concluse)
+  const tappeConPartite = tappe.filter((t) => t.partite.some((m) => m.done));
+  if (tappeConPartite.length > 0) {
+    lines.push(`Classifica circuito: ${circuitStandings(tappeConPartite)}`);
+  }
 
   // Focus sulla tappa attiva più recente, altrimenti l'ultima
   const attiva = [...tappe].reverse().find((t) => !t.conclusa) ?? tappe[tappe.length - 1];

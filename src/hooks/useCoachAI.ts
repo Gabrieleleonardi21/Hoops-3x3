@@ -50,6 +50,44 @@ const COACH_TOOLS: ToolDef[] = [
   {
     type: "function",
     function: {
+      name: "annulla_risultato",
+      description: "Annulla il risultato di una partita già registrata, riportandola a non disputata. Usalo se l'utente segnala un errore di inserimento.",
+      parameters: {
+        type: "object",
+        properties: {
+          squadra_a:  { type: "string", description: "Nome (o parte del nome) della prima squadra" },
+          squadra_b:  { type: "string", description: "Nome (o parte del nome) della seconda squadra" },
+          tappa_nome: { type: "string", description: "Nome della tappa (opzionale, default: ultima tappa)" },
+        },
+        required: ["squadra_a", "squadra_b"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "aggiorna_squadra",
+      description: "Aggiorna i dati di una squadra già esistente nell'anagrafe (es. logo, città, referente). Passa solo i campi da modificare.",
+      parameters: {
+        type: "object",
+        properties: {
+          nome:      { type: "string", description: "Nome attuale della squadra (per trovarla in anagrafe)" },
+          citta:     { type: "string", description: "Nuova città" },
+          referente: { type: "string", description: "Nuovo referente/capitano" },
+          logo:      { type: "string", description: "Nuovo URL del logo" },
+          website:   { type: "string", description: "Nuovo URL del sito web" },
+          instagram: { type: "string", description: "Nuovo URL Instagram" },
+          anno:      { type: "string", description: "Anno di fondazione" },
+          rank:      { type: "string", description: "Punti ranking circuito" },
+          note:      { type: "string", description: "Note libere" },
+        },
+        required: ["nome"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "registra_squadra",
       description: "Registra una nuova squadra nell'anagrafe condivisa del circuito. Usalo solo se l'utente chiede esplicitamente di aggiungere o registrare una squadra.",
       parameters: {
@@ -201,8 +239,9 @@ export function useCoachAI() {
   const user         = useAppStore((s) => s.user);
   const createLega   = useAppStore((s) => s.createLega);
   const addTappa     = useAppStore((s) => s.addTappa);
-  const updateTappa  = useAppStore((s) => s.updateTappa);
-  const replaceTappa = useAppStore((s) => s.replaceTappa);
+  const updateTappa        = useAppStore((s) => s.updateTappa);
+  const updateTappaPartita = useAppStore((s) => s.updateTappaPartita);
+  const replaceTappa       = useAppStore((s) => s.replaceTappa);
   const navigate     = useNavigate();
 
   // Sincronizza la chat in sessionStorage ad ogni aggiornamento
@@ -402,14 +441,65 @@ export function useCoachAI() {
       const sa = aMatchesNomeA ? pA : pB;
       const sb = aMatchesNomeA ? pB : pA;
 
-      updateTappa(tappa.id, {
-        partite: tappa.partite.map((m) =>
-          m.id === partita.id ? { ...m, sa, sb, done: true } : m
-        ),
-      });
+      // updateTappaPartita è atomica: legge lo stato fresco dentro Zustand set(),
+      // evita race condition se l'AI registra più risultati in parallelo
+      updateTappaPartita(tappa.id, partita.id, { sa, sb, done: true });
 
       const vincitore = sa > sb ? sA.nome : sB.nome;
       return `Risultato registrato: ${sA.nome} ${sa} — ${sb} ${sB.nome}. Vince ${vincitore}.`;
+    }
+
+    if (name === "annulla_risultato") {
+      const freshTappe = useAppStore.getState().tappe;
+      const tappa = findTappa(freshTappe, str(args, "tappa_nome") || undefined);
+      if (!tappa) return "Nessuna tappa trovata.";
+      if (!tappa.gironi) return `La tappa "${tappa.nome}" non è ancora sorteggiata.`;
+
+      const nomeA = str(args, "squadra_a");
+      const nomeB = str(args, "squadra_b");
+      // Cerca la partita (già conclusa) tra le due squadre
+      const partita = tappa.partite.find((m) => {
+        const sA = tappa.squadre.find((s) => s.id === m.a);
+        const sB = tappa.squadre.find((s) => s.id === m.b);
+        if (!sA || !sB || !m.done) return false;
+        const naL = nomeA.toLowerCase();
+        const nbL = nomeB.toLowerCase();
+        return (
+          (sA.nome.toLowerCase().includes(naL) && sB.nome.toLowerCase().includes(nbL)) ||
+          (sA.nome.toLowerCase().includes(nbL) && sB.nome.toLowerCase().includes(naL))
+        );
+      });
+      if (!partita) return `Partita già conclusa tra "${nomeA}" e "${nomeB}" non trovata nella tappa "${tappa.nome}".`;
+
+      updateTappaPartita(tappa.id, partita.id, { done: false, sa: 0, sb: 0 });
+      const sA = tappa.squadre.find((s) => s.id === partita.a)!;
+      const sB = tappa.squadre.find((s) => s.id === partita.b)!;
+      return `Risultato di "${sA.nome}" vs "${sB.nome}" annullato: la partita è tornata a non disputata.`;
+    }
+
+    if (name === "aggiorna_squadra") {
+      const nomeRicerca = str(args, "nome");
+      if (!nomeRicerca) return "Specifica il nome della squadra da aggiornare.";
+      const tutteSquadre = await fetchShared<RegSquadra>("reg_s_");
+      const nl = nomeRicerca.toLowerCase();
+      const reg = tutteSquadre.find(
+        (s) => s.nome.toLowerCase() === nl || s.nome.toLowerCase().includes(nl),
+      );
+      if (!reg) return `Squadra "${nomeRicerca}" non trovata in anagrafe.`;
+
+      // Aggiorna solo i campi presenti negli argomenti
+      const aggiornamenti: Partial<RegSquadra> = {};
+      const campi = ["citta", "referente", "logo", "website", "instagram", "anno", "rank", "note"] as const;
+      for (const k of campi) {
+        const v = str(args, k);
+        if (v) aggiornamenti[k] = v;
+      }
+      if (Object.keys(aggiornamenti).length === 0) return "Nessun campo da aggiornare specificato.";
+
+      const aggiornata: RegSquadra = { ...reg, ...aggiornamenti, ts: Date.now() };
+      await storage.set(`reg_s_${reg.id}`, JSON.stringify(aggiornata), true);
+      const campiModificati = Object.keys(aggiornamenti).join(", ");
+      return `Squadra "${reg.nome}" aggiornata in anagrafe (${campiModificati}).`;
     }
 
     if (name === "concludi_tappa") {
