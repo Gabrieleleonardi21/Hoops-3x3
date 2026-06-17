@@ -28,9 +28,9 @@ export function GiocatoreForm({ squadre, onSave }: { squadre: RegSquadra[]; onSa
     <div style={{ background: "var(--card)", border: `1.5px solid ${INK}`, padding: 16, marginBottom: 18 }}>
       <h3 className="disp" style={{ fontSize: 16, margin: "0 0 10px", textTransform: "uppercase" }}>Registra un giocatore</h3>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
-        <Input label="Nome *" value={d.nome} onChange={set("nome")} />
-        <Input label="Cognome *" value={d.cognome} onChange={set("cognome")} />
-        <Input label="Soprannome" value={d.soprannome} onChange={set("soprannome")} placeholder="da campo" />
+        <Input label="Nome *" value={d.nome} onChange={set("nome")} maxLength={100} />
+        <Input label="Cognome *" value={d.cognome} onChange={set("cognome")} maxLength={100} />
+        <Input label="Soprannome" value={d.soprannome} onChange={set("soprannome")} placeholder="da campo" maxLength={50} />
         <Input label="Data di nascita" type="date" value={d.nascita} onChange={set("nascita")} />
         <Input label="Città" value={d.citta} onChange={set("citta")} />
         <Input label="Nazionalità" value={d.nazionalita} onChange={set("nazionalita")} />
@@ -49,7 +49,7 @@ export function GiocatoreForm({ squadre, onSave }: { squadre: RegSquadra[]; onSa
         {squadre.map((s) => <option key={s.id} value={s.nome} />)}
       </datalist>
       <Input label="Note sportive" labelStyle={{ marginTop: 10 }} value={d.note} onChange={set("note")}
-        placeholder="es. tiratore da fuori, ex serie C" />
+        placeholder="es. tiratore da fuori, ex serie C" maxLength={500} />
       {err && <p className="ui" style={{ color: RED, fontWeight: 700, fontSize: 13, margin: "8px 0 0" }}>{err}</p>}
       <button onClick={save} className="blackbtn" style={{ marginTop: 12 }}>Salva nell'anagrafe</button>
     </div>

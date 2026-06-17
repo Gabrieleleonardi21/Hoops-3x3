@@ -4,6 +4,7 @@ import { Input } from "../ui/Input";
 import { REG_ROLES } from "../../constants/roles";
 import { eta } from "../../utils/eta";
 import { useScrollLock } from "../../hooks/useScrollLock";
+import { safeUrl } from "../../utils/safeUrl";
 import type { RegGiocatore, RegSquadra, User } from "../../types";
 
 type EditDraft = Omit<RegGiocatore, "id" | "autore" | "ts">;
@@ -64,7 +65,7 @@ export function GiocatoreModal({
         {/* Intestazione: logo squadra + nome + numero */}
         <div style={{ textAlign: "center", borderBottom: `3px solid ${INK}`, paddingBottom: 10, marginBottom: 14 }}>
           {squadraLogo && (
-            <img src={squadraLogo} alt="" aria-hidden
+            <img src={safeUrl(squadraLogo)} alt="" aria-hidden
               style={{ width: 80, height: 80, objectFit: "contain", display: "block", margin: "0 auto 8px" }}
               onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
           )}

@@ -3,6 +3,7 @@ import { INK, ORANGE, PAPER, RED, RULE } from "../../constants/colors";
 import { Input } from "../ui/Input";
 import type { RegGiocatore, RegSquadra, User } from "../../types";
 import { useScrollLock } from "../../hooks/useScrollLock";
+import { safeUrl } from "../../utils/safeUrl";
 
 /** Campi modificabili (roster escluso: richiede UI dedicata) */
 type EditDraft = Pick<RegSquadra, "nome" | "citta" | "anno" | "rank" | "referente" | "logo" | "website" | "instagram" | "note">;
@@ -51,8 +52,8 @@ export function SquadraAnagrafeModal({
   const handleRemove = () => { onRemove(); onClose(); };
 
   // Fallback: se mancano sito e Instagram usa una ricerca Google del nome squadra
-  const logoLink = s.website || s.instagram ||
-    `https://www.google.com/search?q=${encodeURIComponent(s.nome + " basket 3x3")}`;
+  const logoLink = safeUrl(s.website || s.instagram ||
+    `https://www.google.com/search?q=${encodeURIComponent(s.nome + " basket 3x3")}`);
   const logoTitle = s.website
     ? `Vai al sito di ${s.nome}`
     : s.instagram
@@ -80,7 +81,7 @@ export function SquadraAnagrafeModal({
           {s.logo ? (
             <a href={logoLink} target="_blank" rel="noopener noreferrer" title={logoTitle}>
               <img
-                src={s.logo}
+                src={safeUrl(s.logo)}
                 alt={`Logo ${s.nome}`}
                 style={{ width: 130, height: 130, objectFit: "contain", cursor: "pointer" }}
                 onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
@@ -113,7 +114,7 @@ export function SquadraAnagrafeModal({
               {s.website && (
                 <div>
                   Sito web:{" "}
-                  <a href={s.website} target="_blank" rel="noopener noreferrer" style={{ color: ORANGE, fontWeight: 700 }}>
+                  <a href={safeUrl(s.website)} target="_blank" rel="noopener noreferrer" style={{ color: ORANGE, fontWeight: 700 }}>
                     {s.website.replace(/^https?:\/\//, "")}
                   </a>
                 </div>
@@ -122,7 +123,7 @@ export function SquadraAnagrafeModal({
                 <div>
                   Instagram:{" "}
                   {/* mostra solo il @handle per leggibilità */}
-                  <a href={s.instagram} target="_blank" rel="noopener noreferrer" style={{ color: ORANGE, fontWeight: 700 }}>
+                  <a href={safeUrl(s.instagram)} target="_blank" rel="noopener noreferrer" style={{ color: ORANGE, fontWeight: 700 }}>
                     @{s.instagram.replace(/^https?:\/\/(www\.)?instagram\.com\/?/, "").replace(/\/$/, "")}
                   </a>
                 </div>

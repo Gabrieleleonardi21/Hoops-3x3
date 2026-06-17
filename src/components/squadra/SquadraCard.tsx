@@ -1,5 +1,6 @@
 import type { SquadraTappa } from "../../types";
 import { INK, ORANGE, RED } from "../../constants/colors";
+import { safeUrl } from "../../utils/safeUrl";
 import { RosterEditor } from "./RosterEditor";
 import { Input } from "../ui/Input";
 import type { useTappa } from "../../hooks/useTappa";
@@ -20,7 +21,7 @@ export function SquadraCard({ s, index, h, onNameCommit }: {
       {/* Logo (da anagrafe se collegata) */}
       {s.logo && (
         <div style={{ marginBottom: 8 }}>
-          <img src={s.logo} alt={`Logo ${s.nome}`}
+          <img src={safeUrl(s.logo)} alt={`Logo ${s.nome}`}
             style={{ width: 48, height: 48, objectFit: "contain", display: "block" }}
             onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
         </div>

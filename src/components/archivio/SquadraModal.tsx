@@ -1,6 +1,7 @@
 import { INK, ORANGE, PAPER, RULE } from "../../constants/colors";
 import type { SquadraTappa } from "../../types";
 import { useScrollLock } from "../../hooks/useScrollLock";
+import { safeUrl } from "../../utils/safeUrl";
 
 /** Modale con le info ingrandite di una squadra: logo, roster cliccabile per analisi */
 export function SquadraModal({
@@ -37,9 +38,9 @@ export function SquadraModal({
         {squadra.logo && (
           <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
             {squadra.website ? (
-              <a href={squadra.website} target="_blank" rel="noopener noreferrer" title={`Vai al sito di ${squadra.nome}`}>
+              <a href={safeUrl(squadra.website)} target="_blank" rel="noopener noreferrer" title={`Vai al sito di ${squadra.nome}`}>
                 <img
-                  src={squadra.logo}
+                  src={safeUrl(squadra.logo)}
                   alt={`Logo ${squadra.nome}`}
                   style={{ width: 120, height: 120, objectFit: "contain", cursor: "pointer" }}
                   onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
@@ -47,7 +48,7 @@ export function SquadraModal({
               </a>
             ) : (
               <img
-                src={squadra.logo}
+                src={safeUrl(squadra.logo)}
                 alt={`Logo ${squadra.nome}`}
                 style={{ width: 120, height: 120, objectFit: "contain" }}
                 onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
@@ -71,7 +72,7 @@ export function SquadraModal({
         {/* Link Instagram se disponibile */}
         {squadra.instagram && (
           <div style={{ textAlign: "center", marginBottom: 14 }}>
-            <a href={squadra.instagram} target="_blank" rel="noopener noreferrer"
+            <a href={safeUrl(squadra.instagram)} target="_blank" rel="noopener noreferrer"
                className="ui" style={{ fontSize: 13, fontWeight: 700, color: INK, textDecoration: "none" }}>
               Instagram ↗
             </a>

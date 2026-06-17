@@ -11,6 +11,8 @@ export function TappaViewPage() {
   const [pub, setPub] = useState<PubTappa | null | undefined>(undefined);
 
   useEffect(() => {
+    // Valida il formato dell'id prima di usarlo come chiave storage (evita path-like injection)
+    if (!id || !/^[a-z0-9-]{7,36}$/.test(id)) { setPub(null); return; }
     storage.get(`pub_${id}`, true)
       .then((r) => setPub(JSON.parse(r.value)))
       .catch(() => setPub(null));

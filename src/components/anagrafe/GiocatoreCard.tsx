@@ -2,6 +2,7 @@
  *  Solo l'autore può eliminarlo; il × stoppa il click sulla card. */
 import { INK, ORANGE } from "../../constants/colors";
 import { eta } from "../../utils/eta";
+import { safeUrl } from "../../utils/safeUrl";
 import type { RegGiocatore, RegSquadra, User } from "../../types";
 
 export function GiocatoreCard({ g, user, squadre, onRemove, onOpen }: {
@@ -24,7 +25,7 @@ export function GiocatoreCard({ g, user, squadre, onRemove, onOpen }: {
       <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
           {squadraLogo && (
-            <img src={squadraLogo} alt="" aria-hidden
+            <img src={safeUrl(squadraLogo)} alt="" aria-hidden
               style={{ width: 22, height: 22, objectFit: "contain", flexShrink: 0 }}
               onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
           )}

@@ -12,7 +12,7 @@ import { Input } from "../ui/Input";
 const registerSchema = z.object({
   name: z.string().min(1, "Inserisci il nome utente"),
   email: z.string().email("Mail non valida"),
-  pass: z.string().min(4, "Password di almeno 4 caratteri"),
+  pass: z.string().min(8, "Password di almeno 8 caratteri"),
 });
 const loginSchema = z.object({
   email: z.string().email("Mail non valida"),

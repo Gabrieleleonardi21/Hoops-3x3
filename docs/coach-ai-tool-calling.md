@@ -45,12 +45,52 @@ Il ciclo è al massimo a **due turni API**: prima chiamata (possibile tool call)
   3. Per le squadre trovate: popola `giocatori` dal loro roster, copia `regId`, `logo`, `rank`, `website`
   4. Per le squadre non trovate: aggiunge un placeholder senza giocatori (da completare manualmente)
   5. Chiama `addTappa(tappa)` sullo store + naviga a `/lega/tappa/:id`
+- **Nota:** Deve essere chiamato **UNA SOLA VOLTA** con tutte le squadre nell'array `squadre`.
 - **Esempio:** *"Crea la tappa Roma Open con le squadre Ballers Roma, Street Kings e Wildcats"*
 
 ---
 
+### `sorteggia_gironi`
+- **Descrizione:** Esegue il sorteggio dei gironi per una tappa esistente.
+- **Parametri opzionali:** `tappa_nome` (default: ultima tappa), `mode` (`"casuale"` o `"ranking"`)
+- **Azione:**
+  1. Trova la tappa per nome (parziale, case-insensitive) o usa l'ultima
+  2. Costruisce i gironi con `buildGironi` (casuale) o `buildGironiSeeded` (a serpentina per ranking)
+  3. Genera il calendario partite con `buildMatches`
+  4. Chiama `updateTappa(id, { gironi, partite })` + naviga alla pagina tappa
+- **Nota:** Usa `useAppStore.getState()` per leggere le tappe aggiornate anche se chiamato in parallelo ad altri tool.
+- **Esempio:** *"Sorteggia i gironi della tappa Roma Open"* oppure *"Fai il sorteggio per ranking"*
+
+---
+
+### `registra_risultato`
+- **Descrizione:** Registra il punteggio di una partita nella tappa.
+- **Parametri obbligatori:** `squadra_a`, `punti_a`, `squadra_b`, `punti_b`
+- **Parametri opzionali:** `tappa_nome` (default: ultima tappa)
+- **Azione:**
+  1. Trova la tappa e cerca la partita tra le due squadre non ancora registrata
+  2. Valida: nessun pareggio (FIBA 3x3), punteggi numerici
+  3. Gestisce l'ordine A/B corretto (non inverte i punteggi se l'utente li da nell'ordine inverso)
+  4. Chiama `updateTappa` con la partita marcata `done: true`
+- **Nota:** Può essere chiamato più volte nello stesso turno per registrare più partite.
+- **Esempio:** *"Risultato: Ballers Roma 21, Street Kings 15"*
+
+---
+
+### `concludi_tappa`
+- **Descrizione:** Conclude e pubblica la tappa nell'Archivio circuito.
+- **Parametri opzionali:** `tappa_nome` (default: ultima tappa)
+- **Prerequisiti:** gironi sorteggiati, tutte le partite `done`, account non ospite
+- **Azione:**
+  1. Valida che tutte le partite siano registrate
+  2. Chiama `replaceTappa` con `conclusa: true`
+  3. Scrive `pub_${tappaId}` nello storage condiviso
+- **Esempio:** *"Concludi la tappa Roma Open"*
+
+---
+
 ### `registra_squadra`
-- **Descrizione:** Registra una nuova squadra nell'anagrafe condivisa.
+- **Descrizione:** Registra una nuova squadra nell'anagrafe condivisa del circuito.
 - **Parametri obbligatori:** `nome`
 - **Parametri opzionali:** `citta`, `anno`, `rank`, `referente`, `logo`, `website`, `instagram`, `note`
 - **Azione:** scrive `reg_s_<id>` nel namespace shared di localStorage
@@ -59,11 +99,29 @@ Il ciclo è al massimo a **due turni API**: prima chiamata (possibile tool call)
 ---
 
 ### `registra_giocatore`
-- **Descrizione:** Registra un nuovo giocatore nell'anagrafe condivisa.
+- **Descrizione:** Registra un nuovo giocatore nell'anagrafe condivisa del circuito.
 - **Parametri obbligatori:** `nome`, `cognome`
 - **Parametri opzionali:** `squadra`, `ruolo`, `nascita`, `citta`, `nazionalita`, `altezza`, `peso`, `numero`, `soprannome`, `esperienza`, `note`
 - **Azione:** scrive `reg_g_<id>` nel namespace shared di localStorage
 - **Esempio:** *"Aggiungi il giocatore Marco Rossi, ruolo Playmaker, squadra Ballers Roma"*
+
+---
+
+## Flusso completo di una tappa via Coach AI
+
+```
+1. "Crea la tappa Roma Open con Ballers Roma, Street Kings, Wildcats"
+   → crea_tappa (carica squadre dall'anagrafe, genera la tappa)
+
+2. "Sorteggia i gironi"
+   → sorteggia_gironi (casuale o per ranking)
+
+3. "Registra: Ballers Roma 21 - Street Kings 14"
+   → registra_risultato (ripetuto per ogni partita)
+
+4. "Concludi la tappa"
+   → concludi_tappa (pubblica nell'Archivio circuito)
+```
 
 ---
 
@@ -100,6 +158,9 @@ Il tipo `ToolParamProp` in `aiService.ts` supporta scalari e array:
 
 ```ts
 if (name === "nome_tool") {
+  // Per tool che leggono stato potenzialmente modificato da altri tool nello stesso turno,
+  // usa getState() invece della closure per avere valori freschi:
+  const freshTappe = useAppStore.getState().tappe;
   const valore = str(args, "param") || "default";
   // azione sullo store o storage (può essere async)
   return `Azione completata: ${valore}`;
@@ -107,15 +168,16 @@ if (name === "nome_tool") {
 ```
 
 > `str(args, key)` è un helper interno che legge stringhe con fallback a `""`.
+> `findTappa(tappe, nome?)` è un helper interno che cerca per nome parziale o restituisce l'ultima tappa.
 > `fetchShared<T>(prefix)` è un helper interno per leggere liste dall'anagrafe condivisa.
 
 ### Esempi di tool futuri possibili
 
 | Tool | Azione |
 |---|---|
-| `sorteggia_gironi` | esegue il sorteggio sulla tappa attiva |
 | `rinomina_lega` | `setLegaName(nome)` |
 | `vai_a_anagrafe` | `navigate("/anagrafe")` |
+| `aggiungi_video` | `addVideo(titolo, url)` sulla tappa attiva |
 
 ---
 
@@ -126,3 +188,5 @@ if (name === "nome_tool") {
 - La chat in UI mostra **solo messaggi user/assistant**; i messaggi tool restano interni all'API.
 - La cronologia chat è in `sessionStorage` (si azzera alla chiusura della scheda).
 - `crea_tappa` richiede una lega attiva (`legaId !== null`); se manca, restituisce un errore descrittivo.
+- `crea_tappa` deve essere chiamato **una sola volta** con tutte le squadre nell'array. Il preamble e la descrizione del tool lo specificano esplicitamente. Se il modello lo chiama più volte con lo stesso nome, il guard `tappe.some(t => t.nome === nomeTappa)` blocca i duplicati.
+- `sorteggia_gironi`, `registra_risultato`, `concludi_tappa` usano `useAppStore.getState().tappe` per leggere lo stato aggiornato anche quando più tool sono eseguiti in parallelo nello stesso turno.

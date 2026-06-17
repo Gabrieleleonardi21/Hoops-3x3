@@ -16,7 +16,7 @@ async function fetchList<T>(prefix: string): Promise<T[]> {
         out.push(JSON.parse(item.value));
       } catch { /* skip */ }
     }
-    return out.sort((a: any, b: any) => (b.ts || 0) - (a.ts || 0));
+    return out.sort((a, b) => ((b as { ts?: number }).ts || 0) - ((a as { ts?: number }).ts || 0));
   } catch {
     return [];
   }

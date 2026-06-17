@@ -1,5 +1,6 @@
 import { INK, RED } from "../../constants/colors";
 import { ytId } from "../../utils/ytId";
+import { safeUrl } from "../../utils/safeUrl";
 import type { VideoItem } from "../../types";
 
 export function VideoCard({ v, onRemove }: { v: VideoItem; onRemove?: (id: string) => void }) {
@@ -13,10 +14,11 @@ export function VideoCard({ v, onRemove }: { v: VideoItem; onRemove?: (id: strin
       {id ? (
         <div style={{ position: "relative", paddingTop: "56.25%" }}>
           <iframe src={`https://www.youtube.com/embed/${id}`} title={v.titolo} allowFullScreen
+            sandbox="allow-scripts allow-same-origin allow-presentation allow-fullscreen"
             style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: 0 }} />
         </div>
       ) : (
-        <a href={v.url} target="_blank" rel="noreferrer" className="ui" style={{ fontSize: 13, fontWeight: 700, color: RED }}>
+        <a href={safeUrl(v.url)} target="_blank" rel="noopener noreferrer" className="ui" style={{ fontSize: 13, fontWeight: 700, color: RED }}>
           Apri il video ↗
         </a>
       )}

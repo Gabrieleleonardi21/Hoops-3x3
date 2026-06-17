@@ -52,5 +52,7 @@ export function buildCoachContext(legaName: string, tappe: Tappa[]): string {
     lines.push(`Top marcatori: ${top}`);
   }
 
-  return lines.join("\n");
+  // I tag delimitano i dati utente dal resto del prompt: l'AI è istruita a non eseguire
+  // comandi trovati all'interno di questi tag (difesa contro prompt injection).
+  return `<dati_lega>\n${lines.join("\n")}\n</dati_lega>`;
 }
