@@ -33,7 +33,7 @@ const COACH_TOOLS: ToolDef[] = [
     type: "function",
     function: {
       name: "crea_tappa",
-      description: "Crea una nuova tappa nella lega attiva con tutte le squadre partecipanti. IMPORTANTE: chiama questo tool UNA SOLA VOLTA per tappa, mettendo TUTTE le squadre nell'array 'squadre'. NON chiamare questo tool più volte per la stessa tappa. Cerca automaticamente le squadre nell'anagrafe per nome e carica i loro giocatori.",
+      description: "Crea una nuova tappa nella lega attiva con tutte le squadre partecipanti. IMPORTANTE: chiama questo tool UNA SOLA VOLTA per tappa, mettendo TUTTE le squadre nell'array 'squadre'. NON chiamare questo tool più volte per la stessa tappa. Cerca le squadre nell'anagrafe per nome: se non esistono le registra automaticamente.",
       parameters: {
         type: "object",
         properties: {
@@ -247,37 +247,49 @@ export function useCoachAI() {
         fetchShared<RegGiocatore>("reg_g_"),
       ]);
 
-      // Abbina ogni nome richiesto a una squadra in anagrafe (case-insensitive)
-      const squadreTappa: SquadraTappa[] = nomiRichiesti.map((nomeRichiesto) => {
-        const nl = nomeRichiesto.toLowerCase();
-        const reg = tutteSquadre.find(
-          (s) => s.nome.toLowerCase() === nl || s.nome.toLowerCase().includes(nl),
-        );
+      // Abbina ogni nome richiesto a una squadra in anagrafe; se non trovata, la registra in automatico
+      const autoRegistrate: string[] = [];
+      const squadreTappa: SquadraTappa[] = await Promise.all(
+        nomiRichiesti.map(async (nomeRichiesto) => {
+          const nl = nomeRichiesto.toLowerCase();
+          let reg = tutteSquadre.find(
+            (s) => s.nome.toLowerCase() === nl || s.nome.toLowerCase().includes(nl),
+          );
 
-        if (!reg) {
-          // Non trovata: placeholder senza giocatori
-          return { id: uid(), nome: nomeRichiesto, giocatori: [], rank: "" };
-        }
+          if (!reg) {
+            // Squadra non in anagrafe: la registra automaticamente con dati minimi
+            const newReg: RegSquadra = {
+              id: uid(), autore, ts: Date.now(),
+              nome: nomeRichiesto,
+              citta: "", anno: "", rank: "", referente: "",
+              logo: "", website: "", instagram: "", note: "",
+              roster: [],
+            };
+            await storage.set(`reg_s_${newReg.id}`, JSON.stringify(newReg), true);
+            reg = newReg;
+            autoRegistrate.push(nomeRichiesto);
+          }
 
-        // Carica i giocatori del roster dell'anagrafe
-        const giocatori: GiocatoreRoster[] = reg.roster
-          .map((gId) => {
-            const g = tuttiGiocatori.find((x) => x.id === gId);
-            return g ? { id: uid(), nome: `${g.nome} ${g.cognome}` } : null;
-          })
-          .filter((g): g is GiocatoreRoster => g !== null);
+          // Carica i giocatori del roster dell'anagrafe
+          const giocatori: GiocatoreRoster[] = reg.roster
+            .map((gId) => {
+              const g = tuttiGiocatori.find((x) => x.id === gId);
+              return g ? { id: uid(), nome: `${g.nome} ${g.cognome}` } : null;
+            })
+            .filter((g): g is GiocatoreRoster => g !== null);
 
-        return {
-          id: uid(),
-          nome: reg.nome,
-          giocatori,
-          rank: reg.rank || "",
-          regId: reg.id,
-          logo: reg.logo || undefined,
-          website: reg.website || undefined,
-          instagram: reg.instagram || undefined,
-        };
-      });
+          return {
+            id: uid(),
+            nome: reg.nome,
+            giocatori,
+            rank: reg.rank || "",
+            regId: reg.id,
+            logo: reg.logo || undefined,
+            website: reg.website || undefined,
+            instagram: reg.instagram || undefined,
+          };
+        })
+      );
 
       const nG = Math.max(1, Math.min(Math.floor(squadreTappa.length / 2) || 1, nGironi));
       const tappa: Tappa = {
@@ -290,11 +302,10 @@ export function useCoachAI() {
       addTappa(tappa);
       navigate(`/lega/tappa/${tappa.id}`);
 
-      const trovate = squadreTappa.filter((s) => s.regId).length;
-      const nonTrovate = squadreTappa.filter((s) => !s.regId).map((s) => s.nome);
+      const trovate = squadreTappa.length - autoRegistrate.length;
       let msg = `Tappa "${nomeTappa}" creata con ${squadreTappa.length} squadre`;
       if (trovate > 0) msg += `, ${trovate} trovate in anagrafe con i rispettivi giocatori`;
-      if (nonTrovate.length) msg += `. Non trovate in anagrafe (aggiunte senza giocatori): ${nonTrovate.join(", ")}`;
+      if (autoRegistrate.length) msg += `. Registrate automaticamente nell'anagrafe: ${autoRegistrate.join(", ")}`;
       return msg + ".";
     }
 
