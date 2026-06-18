@@ -687,8 +687,7 @@
       rank: "200",
       referente: "Francesco Santucci",
       roster: ["p09", "p10", "p11", "p12"],
-      logo: "/logos/all-star-3x3.png",
-      // Fonte verificata: allstar3x3.it (homepage) — Instagram ufficiale @allstar3x3
+      logo: "https://www.allstar3x3.it/wp-content/uploads/2024/12/allstar-logo-png_Tavola-disegno-1.png",
       website: "https://www.allstar3x3.it",
       instagram: "https://www.instagram.com/allstar3x3",
       note: "Circuito Elite — Campioni 2023, #1 ranking Elite 2025. Fonte: Wikipedia/allstar3x3.it",
@@ -806,7 +805,7 @@
       id: "s02",
       nome: "All Star 3×3",
       rank: 200,
-      logo: "/logos/all-star-3x3.png",
+      logo: "https://www.allstar3x3.it/wp-content/uploads/2024/12/allstar-logo-png_Tavola-disegno-1.png",
       website: "https://www.allstar3x3.it",
       instagram: "https://www.instagram.com/allstar3x3",
       giocatori: [
