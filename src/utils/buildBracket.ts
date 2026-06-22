@@ -105,3 +105,35 @@ function roundLabel(matchesInRound: number, index: number): string {
   if (matchesInRound === 4) return `Quarto di finale ${index + 1}`;
   return `Round ${index + 1}`;
 }
+
+/**
+ * Calcola lo slot del round successivo in cui far avanzare il vincitore di un match.
+ * I match sono ordinati round per round, quindi il primo slot TBD (squadra null) dopo
+ * il match corrente è quello da riempire. Logica condivisa tra la UI (BracketSection)
+ * e il Coach AI, così l'avanzamento è identico in entrambi i percorsi.
+ *
+ * @returns id del match successivo e patch da applicare, oppure null se è la finale.
+ */
+export function nextBracketSlot(
+  bracket: BracketMatch[],
+  matchId: string,
+  vincitoreId: string | null,
+): { id: string; patch: Partial<BracketMatch> } | null {
+  if (!vincitoreId) return null;
+  const idx = bracket.findIndex((m) => m.id === matchId);
+  if (idx === -1) return null;
+
+  // Primo slot TBD nei round successivi (squadraA o squadraB ancora da assegnare)
+  const nextTbd = bracket
+    .slice(idx + 1)
+    .find((m) => !m.done && (m.squadraA === null || m.squadraB === null));
+  if (!nextTbd) return null;
+
+  const patch: Partial<BracketMatch> = {};
+  if (nextTbd.squadraA === null) {
+    patch.squadraA = vincitoreId;
+  } else {
+    patch.squadraB = vincitoreId;
+  }
+  return { id: nextTbd.id, patch };
+}

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { INK, ORANGE, RED, RULE } from "../../constants/colors";
 import type { BracketMatch, SquadraTappa, Tappa } from "../../types";
 import { useAppStore } from "../../stores/useAppStore";
-import { buildBracket } from "../../utils/buildBracket";
+import { buildBracket, nextBracketSlot } from "../../utils/buildBracket";
 import { standings } from "../../utils/standings";
 
 /** Divide il bracket in round in base alla struttura ad albero:
@@ -79,21 +79,9 @@ export function BracketSection({ tappa, readOnly = false }: Props) {
     const vincitoreId = pA > pB ? match.squadraA : match.squadraB;
     updateBracketMatch(tappa.id, match.id, { pA, pB, done: true });
 
-    // Avanza il vincitore al match successivo del bracket
-    // Il match successivo è quello TBD che ha il minor indice tra i match non ancora assegnati
-    // Trova la posizione di questo match nel bracket
-    const bracket = tappa.bracket ?? [];
-    const thisIdx  = bracket.findIndex((m) => m.id === match.id);
-    // Il round successivo: cerca il prossimo match TBD (squadraA o squadraB null)
-    // nella seconda metà del bracket (dopo i match del round corrente)
-    // Logica: i match sono ordinati round per round; il successivo TBD appartiene al round dopo
-    const nextTbd = bracket.slice(thisIdx + 1).find((m) => !m.done && (m.squadraA === null || m.squadraB === null));
-    if (nextTbd && vincitoreId) {
-      const patch = nextTbd.squadraA === null
-        ? { squadraA: vincitoreId }
-        : { squadraB: vincitoreId };
-      updateBracketMatch(tappa.id, nextTbd.id, patch);
-    }
+    // Avanza il vincitore allo slot TBD del round successivo (logica condivisa col Coach AI)
+    const next = nextBracketSlot(tappa.bracket ?? [], match.id, vincitoreId);
+    if (next) updateBracketMatch(tappa.id, next.id, next.patch);
 
     setScores((prev) => ({ ...prev, [match.id]: { a: "", b: "" } }));
   };

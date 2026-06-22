@@ -4,6 +4,8 @@
 export interface ChatMsg {
   role: "user" | "assistant";
   content: string;
+  /** Nomi dei tool eseguiti per produrre questa risposta (solo assistant; mostrati come badge in chat). */
+  tools?: string[];
 }
 
 /** Definizione di una proprietà parametro (supporta scalari e array). */
@@ -96,16 +98,27 @@ async function callGroq(
 
 /** Chiamata semplice senza tool calling (compatibilità con il vecchio flusso). */
 export async function askCoach(preamble: string, history: ChatMsg[]): Promise<string> {
-  const messages: ApiMsg[] = [{ role: "system", content: preamble }, ...history];
+  // Mappa a {role, content}: scarta eventuali campi extra (es. `tools`) dal payload API
+  const messages: ApiMsg[] = [
+    { role: "system", content: preamble },
+    ...history.map((m) => ({ role: m.role, content: m.content })),
+  ];
   const { content } = await callGroq(messages);
   return content || "Non ho una risposta ora, riprova.";
 }
 
 /**
- * Chiamata con tool calling. Se l'AI invoca uno strumento:
- * 1. esegue onToolCall (callback del chiamante)
- * 2. manda il risultato all'AI come messaggio tool
- * 3. restituisce la risposta testuale finale
+ * Chiamata con tool calling in loop agentico. Finché l'AI invoca strumenti:
+ * 1. registra il turno assistant che li richiede
+ * 2. esegue onToolCall per ogni tool e rimanda i risultati come messaggi tool
+ * 3. richiama il modello; ripete finché risponde con testo o si raggiunge il cap
+ *
+ * I tool dello stesso turno girano IN SEQUENZA: così un tool che dipende da un altro
+ * (es. sorteggia_gironi dopo crea_tappa) legge lo stato già aggiornato, senza race.
+ *
+ * Guardia anti-stallo: una chiamata con firma (nome + argomenti) identica a una già
+ * eseguita non viene rieseguita; se un round contiene solo ricicli il loop si chiude,
+ * evitando di bruciare i round con un modello bloccato che ripete la stessa azione.
  *
  * @param onToolCall - riceve nome e argomenti dello strumento; può essere async
  * @returns testo finale da mostrare in chat + nomi degli strumenti chiamati
@@ -121,32 +134,50 @@ export async function askCoachWithTools(
     ...history.map((m) => ({ role: m.role, content: m.content })),
   ];
 
-  const first = await callGroq(messages, tools);
-
-  // Nessun tool call: risposta diretta
-  if (!first.tool_calls?.length) {
-    return { text: first.content || "Non ho una risposta ora, riprova.", calledTools: [] };
-  }
-
-  // Esegui ogni tool call in parallelo e raccoglie i risultati
   const calledTools: string[] = [];
-  const toolResultMsgs: ApiMsg[] = await Promise.all(
-    first.tool_calls.map(async (tc) => {
+  // Firme (nome + argomenti) dei tool già eseguiti in questa richiesta: blocca i ricicli
+  // identici di un modello bloccato (es. richiama crea_tappa che risponde "già creata").
+  const seen = new Set<string>();
+  // Cap ai round di tool: copre un flusso completo di tappa (crea → sorteggia →
+  // risultati → fasi dirette → risultati → concludi) e blocca eventuali loop infiniti.
+  const MAX_TOOL_ROUNDS = 8;
+
+  for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+    const res = await callGroq(messages, tools);
+
+    // Nessun tool richiesto: è la risposta finale da mostrare in chat
+    if (!res.tool_calls?.length) {
+      return { text: res.content || "Non ho una risposta ora, riprova.", calledTools };
+    }
+
+    // Registra il turno assistant che ha richiesto i tool
+    messages.push({ role: "assistant", content: res.content, tool_calls: res.tool_calls });
+
+    // Esegue i tool in sequenza e accoda ogni risultato come messaggio tool
+    let eseguitoQualcosa = false; // false se il round contiene SOLO ricicli → si esce
+    for (const tc of res.tool_calls) {
       let args: Record<string, unknown> = {};
       try { args = JSON.parse(tc.function.arguments) as Record<string, unknown>; } catch { /* args vuoti */ }
+
+      // Guardia anti-stallo: stesso tool con gli stessi argomenti già eseguito → non ripetere
+      const firma = `${tc.function.name}:${tc.function.arguments}`;
+      if (seen.has(firma)) {
+        messages.push({ role: "tool", tool_call_id: tc.id, content: `Azione "${tc.function.name}" già eseguita in questa richiesta: non ripeterla, rispondi all'utente.` });
+        continue;
+      }
+
+      seen.add(firma);
+      eseguitoQualcosa = true;
       const result = await Promise.resolve(onToolCall(tc.function.name, args));
       calledTools.push(tc.function.name);
-      return { role: "tool" as const, tool_call_id: tc.id, content: result };
-    }),
-  );
+      messages.push({ role: "tool", tool_call_id: tc.id, content: result });
+    }
 
-  // Secondo turno: l'AI conferma l'azione eseguita
-  const enriched: ApiMsg[] = [
-    ...messages,
-    { role: "assistant", content: null, tool_calls: first.tool_calls },
-    ...toolResultMsgs,
-  ];
+    // Round di soli ricicli: il modello è bloccato, esci e chiudi con una risposta testuale
+    if (!eseguitoQualcosa) break;
+  }
 
-  const second = await callGroq(enriched);
-  return { text: second.content || "Fatto!", calledTools };
+  // Cap raggiunto o loop interrotto: una chiamata finale senza tool forza la risposta di chiusura.
+  const final = await callGroq(messages);
+  return { text: final.content || "Fatto!", calledTools };
 }

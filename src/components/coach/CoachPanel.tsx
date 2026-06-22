@@ -1,8 +1,42 @@
 /** Pannello chat del Coach AI: input utente, lista messaggi, bottone "Cancella chat".
  *  La cronologia viene persistita in sessionStorage (si azzera alla chiusura della scheda). */
 import { useState } from "react";
-import { INK, PAPER, RULE } from "../../constants/colors";
+import { INK, ORANGE, PAPER, RED, RULE } from "../../constants/colors";
 import { useCoachAI } from "../../hooks/useCoachAI";
+
+/** Etichette leggibili (al passato) per i tool eseguiti dal Coach AI. */
+const TOOL_LABELS: Record<string, string> = {
+  crea_lega:           "Lega creata",
+  crea_tappa:          "Tappa creata",
+  registra_squadra:    "Squadra registrata",
+  registra_giocatore:  "Giocatore registrato",
+  aggiorna_squadra:    "Squadra aggiornata",
+  sorteggia_gironi:    "Gironi sorteggiati",
+  genera_fasi_dirette: "Fasi dirette generate",
+  registra_risultato:  "Risultato registrato",
+  annulla_risultato:   "Risultato annullato",
+  concludi_tappa:      "Tappa conclusa",
+};
+
+/** Colore del badge per natura dell'azione: le correzioni/undo risaltano in RED, il resto ORANGE. */
+const TOOL_COLORS: Record<string, string> = {
+  annulla_risultato: RED,
+};
+
+/** Raggruppa i tool eseguiti in etichette con conteggio e colore, nell'ordine di prima esecuzione. */
+function riepilogoTool(tools: string[]): Array<{ label: string; count: number; color: string }> {
+  const out: Array<{ label: string; count: number; color: string }> = [];
+  for (const name of tools) {
+    const label = TOOL_LABELS[name] ?? name;
+    const trovato = out.find((x) => x.label === label);
+    if (trovato) {
+      trovato.count += 1;
+    } else {
+      out.push({ label, count: 1, color: TOOL_COLORS[name] ?? ORANGE });
+    }
+  }
+  return out;
+}
 
 export function CoachPanel({ onClose }: { onClose: () => void }) {
   const { msgs, loading, send, clearChat } = useCoachAI();
@@ -32,7 +66,20 @@ export function CoachPanel({ onClose }: { onClose: () => void }) {
           </p>
         )}
         {msgs.map((m, i) => (
-          <div key={i} className={m.role === "user" ? "bubble-u" : "bubble-a"}>{m.content}</div>
+          <div key={i}>
+            <div className={m.role === "user" ? "bubble-u" : "bubble-a"}>{m.content}</div>
+            {/* Badge delle azioni eseguite, solo sui messaggi assistant che hanno usato tool */}
+            {m.role === "assistant" && m.tools && m.tools.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 5 }}>
+                {riepilogoTool(m.tools).map((t, j) => (
+                  <span key={j} className="ui" title="Azione eseguita dal Coach AI"
+                    style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", background: t.color, color: PAPER, padding: "2px 7px" }}>
+                    ✓ {t.label}{t.count > 1 && ` ×${t.count}`}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
         ))}
         {loading && <div className="bubble-a pulse">Il coach sta pensando…</div>}
       </div>
