@@ -12,7 +12,6 @@ import { SquadraAnagrafeCard } from "../components/anagrafe/SquadraAnagrafeCard"
 import { SquadraAnagrafeModal } from "../components/anagrafe/SquadraAnagrafeModal";
 import { GiocatoreModal } from "../components/anagrafe/GiocatoreModal";
 import { Loading } from "../components/ui/Loading";
-import { RED } from "../constants/colors";
 import type { RegGiocatore, RegSquadra } from "../types";
 
 export function AnagrafePage() {
@@ -46,7 +45,7 @@ export function AnagrafePage() {
 
   return (
     <div>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+      <div className="row wrap gap-8" style={{ marginBottom: 12 }}>
         {([["g", `Giocatori (${(giocatori || []).length})`], ["s", `Squadre (${(squadre || []).length})`], ["stats", "Statistiche stagione"]] as const).map(([id, label]) => (
           <button key={id} onClick={() => { setTab(id); setShowForm(false); setMsg(null); }}
             className={`navbtn${tab === id ? " active" : ""}`} style={{ fontFamily: "'Archivo', sans-serif", textTransform: "none", fontSize: 13.5 }}>
@@ -69,7 +68,7 @@ export function AnagrafePage() {
         informazioni che possono essere rese pubbliche e per cui hai il consenso degli interessati.
       </p>
 
-      {msg && <p className="ui" style={{ color: RED, fontWeight: 700, fontSize: 13, margin: "0 0 10px" }}>{msg}</p>}
+      {msg && <p className="ui t-red" style={{ fontWeight: 700, fontSize: 13, margin: "0 0 10px" }}>{msg}</p>}
 
       {showForm && tab === "g" && <GiocatoreForm squadre={squadre || []} onSave={(d) => guard(() => saveGiocatore(d))} />}
       {showForm && tab === "s" && <SquadraAnagrafeForm giocatori={giocatori || []} onSave={(d) => guard(() => saveSquadra(d))} />}

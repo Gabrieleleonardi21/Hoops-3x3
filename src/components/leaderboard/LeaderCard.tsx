@@ -11,11 +11,11 @@ export function LeaderCard({ label, statKey, players }: {
   if (!top.length) return null;
   return (
     <div style={{ background: "var(--card)", border: `1.5px solid ${INK}`, padding: 12 }}>
-      <div className="disp" style={{ fontSize: 14, textTransform: "uppercase", marginBottom: 8, borderBottom: `2px solid ${INK}`, paddingBottom: 4 }}>
+      <div className="disp up" style={{ fontSize: 14, marginBottom: 8, borderBottom: `2px solid ${INK}`, paddingBottom: 4 }}>
         {label}
       </div>
       {top.map((p, i) => (
-        <div key={i} style={{ display: "flex", alignItems: "baseline", gap: 8, padding: "4px 0" }}>
+        <div key={i} className="row items-base gap-8" style={{ padding: "4px 0" }}>
           <span className="disp" style={{ fontSize: 14, minWidth: 18, color: i === 0 ? ORANGE : INK }}>{i + 1}</span>
           <span style={{ flex: 1, minWidth: 0 }}>
             <span className="ui" style={{ fontSize: 13, fontWeight: 700 }}>{p.nome}</span>

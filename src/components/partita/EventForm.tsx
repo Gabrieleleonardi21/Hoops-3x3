@@ -29,7 +29,7 @@ export function EventForm({ m, nameOf, playersOf, onAdd }: Props) {
   const selStyle = { marginTop: 3, padding: "6px 8px", fontSize: 12.5 };
 
   return (
-    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8, alignItems: "flex-end" }}>
+    <div className="row wrap items-end gap-6" style={{ marginTop: 8 }}>
       <label className="ui" style={{ fontSize: 10.5, fontWeight: 700 }}>Tipo
         <select className="statin" style={selStyle} value={draft.tipo} onChange={(e) => setDraft({ ...draft, tipo: e.target.value })}>
           {EVENT_TYPES.map((t) => <option key={t}>{t}</option>)}

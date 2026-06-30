@@ -13,11 +13,11 @@ export function SorteggioControls({ hasGironi, onSorteggia }: Props) {
   const run = (mode: "casuale" | "ranking") => setError(onSorteggia(mode));
   return (
     <>
-      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 6 }}>
+      <div className="row gap-10 wrap" style={{ marginBottom: 6 }}>
         <button onClick={() => run("casuale")} className="redbtn">🎲 Sorteggio casuale</button>
         <button onClick={() => run("ranking")} className="blackbtn">📊 Sorteggio per ranking</button>
         {hasGironi && (
-          <span className="ui" style={{ fontSize: 12.5, fontWeight: 700, color: RED }}>
+          <span className="ui t-red" style={{ fontSize: 12.5, fontWeight: 700 }}>
             Un nuovo sorteggio azzera i punteggi già registrati.
           </span>
         )}
@@ -26,7 +26,7 @@ export function SorteggioControls({ hasGironi, onSorteggia }: Props) {
         Il sorteggio per ranking usa i punti ranking del circuito inseriti nelle card delle squadre:
         le teste di serie vengono distribuite a serpentina per bilanciare i gironi.
       </p>
-      {error && <p className="ui" style={{ color: RED, fontWeight: 700, fontSize: 13, marginTop: -8 }}>{error}</p>}
+      {error && <p className="ui t-red" style={{ fontWeight: 700, fontSize: 13, marginTop: -8 }}>{error}</p>}
     </>
   );
 }

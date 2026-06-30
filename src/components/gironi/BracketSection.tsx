@@ -95,7 +95,7 @@ export function BracketSection({ tappa, readOnly = false }: Props) {
   if (!tappa.bracket?.length) {
     return (
       <section style={{ borderTop: `4px solid ${INK}`, marginBottom: 26 }}>
-        <h3 className="disp" style={{ fontSize: 18, margin: "12px 0 6px", textTransform: "uppercase" }}>
+        <h3 className="disp up" style={{ fontSize: 18, margin: "12px 0 6px" }}>
           Fase finale
         </h3>
         <p className="ui" style={{ fontSize: 12.5, fontWeight: 600, opacity: 0.75, margin: "0 0 12px" }}>
@@ -114,36 +114,32 @@ export function BracketSection({ tappa, readOnly = false }: Props) {
 
   return (
     <section style={{ borderTop: `4px solid ${INK}`, marginBottom: 26 }}>
-      <h3 className="disp" style={{ fontSize: 18, margin: "12px 0 8px", textTransform: "uppercase" }}>
+      <h3 className="h-sec">
         Fase finale — Eliminazione diretta
       </h3>
 
       {rounds.map((round, ri) => (
         <div key={ri} style={{ marginBottom: 18 }}>
-          <div className="ui" style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", opacity: 0.6, margin: "0 0 8px" }}>
+          <div className="ui up" style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", opacity: 0.6, margin: "0 0 8px" }}>
             {round[0]?.label.replace(/\s\d+$/, "") ?? `Round ${ri + 1}`}
           </div>
           {round.map((m) => {
             const sc = scores[m.id] ?? { a: "", b: "" };
             const isFinale = m.label === "Finale";
             return (
-              <div key={m.id} style={{
+              <div key={m.id} className="row wrap gap-12" style={{
                 border: `1.5px solid ${INK}`,
                 background: "var(--card)",
                 padding: "10px 14px",
                 marginBottom: 8,
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                flexWrap: "wrap",
               }}>
                 <span className="ui" style={{ fontSize: 10.5, fontWeight: 700, opacity: 0.5, minWidth: 80 }}>
                   {m.label}
                 </span>
 
                 {/* Squadra A */}
-                <span className="disp" style={{
-                  flex: "1 1 120px", textAlign: "right", fontSize: 14, textTransform: "uppercase",
+                <span className="disp tar up" style={{
+                  flex: "1 1 120px", fontSize: 14,
                   color: m.done && m.pA > m.pB ? INK : m.done ? RED : INK,
                   fontWeight: m.done && m.pA > m.pB ? 900 : 400,
                 }}>
@@ -152,13 +148,13 @@ export function BracketSection({ tappa, readOnly = false }: Props) {
 
                 {/* Punteggio / input */}
                 {m.done ? (
-                  <span className="disp" style={{ fontSize: 20, minWidth: 70, textAlign: "center" }}>
+                  <span className="disp tac" style={{ fontSize: 20, minWidth: 70 }}>
                     <span style={{ color: m.pA > m.pB ? INK : RED }}>{m.pA}</span>
                     {" — "}
                     <span style={{ color: m.pB > m.pA ? INK : RED }}>{m.pB}</span>
                   </span>
                 ) : !readOnly && m.squadraA && m.squadraB ? (
-                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <div className="row gap-4">
                     <input type="number" min={0} className="scorein"
                       value={sc.a}
                       onChange={(e) => setScores((p) => ({ ...p, [m.id]: { ...p[m.id] ?? { a: "", b: "" }, a: e.target.value } }))}
@@ -173,14 +169,14 @@ export function BracketSection({ tappa, readOnly = false }: Props) {
                     </button>
                   </div>
                 ) : (
-                  <span className="disp" style={{ fontSize: 18, minWidth: 70, textAlign: "center", opacity: 0.35 }}>
+                  <span className="disp tac" style={{ fontSize: 18, minWidth: 70, opacity: 0.35 }}>
                     ? — ?
                   </span>
                 )}
 
                 {/* Squadra B */}
-                <span className="disp" style={{
-                  flex: "1 1 120px", fontSize: 14, textTransform: "uppercase",
+                <span className="disp up" style={{
+                  flex: "1 1 120px", fontSize: 14,
                   color: m.done && m.pB > m.pA ? INK : m.done ? RED : INK,
                   fontWeight: m.done && m.pB > m.pA ? 900 : 400,
                 }}>

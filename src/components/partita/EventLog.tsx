@@ -13,13 +13,13 @@ export function EventLog({ eventi, nameOf, playerNameById, onRemove }: Props) {
   return (
     <>
       {eventi.map((ev) => (
-        <div key={ev.id} className="ui" style={{ display: "flex", gap: 8, alignItems: "baseline", fontSize: 12.5, padding: "4px 0", borderBottom: `1px dotted ${RULE}` }}>
+        <div key={ev.id} className="ui flex gap-8 items-base" style={{ fontSize: 12.5, padding: "4px 0", borderBottom: `1px dotted ${RULE}` }}>
           <strong style={{ minWidth: 86 }}>{ev.tipo}{ev.min ? ` ${ev.min}'` : ""}</strong>
           <span style={{ flex: 1 }}>
             {nameOf(ev.teamId)}{ev.pid ? ` — ${playerNameById(ev.pid) || ""}` : ""}{ev.nota ? ` · ${ev.nota}` : ""}
           </span>
           {onRemove && (
-            <button onClick={() => onRemove(ev.id)} className="linkbtn" style={{ color: INK, opacity: 0.5 }}>×</button>
+            <button onClick={() => onRemove(ev.id)} className="linkbtn t-ink" style={{ opacity: 0.5 }}>×</button>
           )}
         </div>
       ))}

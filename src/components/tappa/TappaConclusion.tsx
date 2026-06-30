@@ -12,7 +12,7 @@ export function TappaConclusion({ onConcludi }: { onConcludi: () => Promise<stri
         Quando tutte le partite sono registrate, la tappa viene pubblicata nell'Archivio circuito: ogni utente
         potrà consultarne squadre, statistiche, eventi e video. I dati pubblicati sono visibili a tutti.
       </p>
-      {msg && <p className="ui" style={{ color: RED, fontWeight: 700, fontSize: 13, marginTop: 6 }}>{msg}</p>}
+      {msg && <p className="ui t-red" style={{ fontWeight: 700, fontSize: 13, marginTop: 6 }}>{msg}</p>}
     </section>
   );
 }

@@ -47,10 +47,10 @@ export function MatchCard({ m, h }: { m: Partita; h: ReturnType<typeof useTappa>
 
   return (
     <div style={{ borderBottom: `1px dotted ${RULE}`, padding: "10px 0" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <span className="disp" style={{ fontSize: 14, flex: "1 1 150px", textAlign: "right" }}>{h.nameOf(m.a)}</span>
+      <div className="row gap-10 wrap">
+        <span className="disp tar" style={{ fontSize: 14, flex: "1 1 150px" }}>{h.nameOf(m.a)}</span>
         {m.done ? (
-          <span className="disp" style={{ fontSize: 20, minWidth: 90, textAlign: "center" }}>
+          <span className="disp tac" style={{ fontSize: 20, minWidth: 90 }}>
             <span style={{ color: m.sa > m.sb ? INK : RED }}>{m.sa}</span>
             {" - "}
             <span style={{ color: m.sb > m.sa ? INK : RED }}>{m.sb}</span>
@@ -63,7 +63,7 @@ export function MatchCard({ m, h }: { m: Partita; h: ReturnType<typeof useTappa>
         )}
         <span className="disp" style={{ fontSize: 14, flex: "1 1 150px" }}>{h.nameOf(m.b)}</span>
         {m.done ? (
-          <button onClick={() => h.reopenScore(m.id)} className="linkbtn" style={{ color: INK, opacity: 0.55 }}>Correggi</button>
+          <button onClick={() => h.reopenScore(m.id)} className="linkbtn t-ink" style={{ opacity: 0.55 }}>Correggi</button>
         ) : (
           <button onClick={save} className="blackbtn" style={{ padding: "8px 14px", fontSize: 12.5 }}>Salva</button>
         )}
@@ -125,7 +125,7 @@ export function MatchCard({ m, h }: { m: Partita; h: ReturnType<typeof useTappa>
         )}
       </div>
 
-      {error && <p className="ui" style={{ color: RED, fontWeight: 700, fontSize: 12.5, margin: "6px 0 0", textAlign: "center" }}>{error}</p>}
+      {error && <p className="ui t-red tac" style={{ fontWeight: 700, fontSize: 12.5, margin: "6px 0 0" }}>{error}</p>}
     </div>
   );
 }

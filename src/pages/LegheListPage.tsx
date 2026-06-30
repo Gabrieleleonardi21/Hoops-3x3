@@ -5,16 +5,16 @@ import { Navigate, useNavigate } from "react-router-dom";
 import { useAppStore } from "../stores/useAppStore";
 import { GuestBanner } from "../components/auth/GuestBanner";
 import { Input } from "../components/ui/Input";
-import { INK, ORANGE, RED, RULE } from "../constants/colors";
+import { INK, RED, RULE } from "../constants/colors";
 import type { LegaMeta } from "../types";
 
 function LegaCard({ m, onOpen, onDelete }: { m: LegaMeta; onOpen: () => void; onDelete: () => void }) {
   const date = m.ts ? new Date(m.ts).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" }) : null;
 
   return (
-    <div style={{ background: "var(--card)", border: `1.5px solid ${INK}`, padding: 16, display: "flex", flexDirection: "column", gap: 8 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-        <div className="disp" style={{ fontSize: 18, textTransform: "uppercase", flex: 1 }}>{m.nome}</div>
+    <div className="col gap-8" style={{ background: "var(--card)", border: `1.5px solid ${INK}`, padding: 16 }}>
+      <div className="row between gap-8 items-start">
+        <div className="disp up" style={{ fontSize: 18, flex: 1 }}>{m.nome}</div>
         {/* Elimina lega */}
         <button onClick={onDelete} className="linkbtn" style={{ color: INK, opacity: 0.4, flexShrink: 0 }}
           title="Elimina lega">×</button>
@@ -63,8 +63,8 @@ export function LegheListPage() {
       <GuestBanner text="Modalità Ospite: i dati sono salvati solo su questo browser." />
 
       <div style={{ borderBottom: `4px solid ${INK}`, paddingBottom: 16, marginBottom: 24 }}>
-        <div className="disp" style={{ fontSize: 28, textTransform: "uppercase", marginBottom: 4 }}>
-          Le mie <span style={{ color: ORANGE }}>leghe</span>
+        <div className="disp up" style={{ fontSize: 28, marginBottom: 4 }}>
+          Le mie <span className="t-orange">leghe</span>
         </div>
         <p style={{ fontSize: 14, fontStyle: "italic", margin: 0 }}>
           Ogni lega è un circuito indipendente con le sue tappe, squadre e statistiche.
@@ -72,7 +72,7 @@ export function LegheListPage() {
       </div>
 
       {/* Form creazione nuova lega */}
-      <div style={{ display: "flex", gap: 10, alignItems: "flex-end", marginBottom: 28, flexWrap: "wrap" }}>
+      <div className="row items-end wrap gap-10" style={{ marginBottom: 28 }}>
         <div style={{ flex: "1 1 260px", maxWidth: 360 }}>
           <Input
             label="Nome della nuova lega"
@@ -94,7 +94,7 @@ export function LegheListPage() {
         </p>
       ) : (
         <>
-          <div className="ui" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 700, marginBottom: 10, color: RED }}>
+          <div className="ui up" style={{ fontSize: 11, letterSpacing: "0.1em", fontWeight: 700, marginBottom: 10, color: RED }}>
             {leghe.length} {leghe.length === 1 ? "lega" : "leghe"}
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 12 }}>

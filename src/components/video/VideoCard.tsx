@@ -7,7 +7,7 @@ export function VideoCard({ v, onRemove }: { v: VideoItem; onRemove?: (id: strin
   const id = ytId(v.url);
   return (
     <div style={{ background: "var(--card)", border: `1.5px solid ${INK}`, padding: 8 }}>
-      <div className="ui" style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>
+      <div className="ui flex between items-base" style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 6 }}>
         <span>{v.titolo}</span>
         {onRemove && <button onClick={() => onRemove(v.id)} className="linkbtn" style={{ color: INK, opacity: 0.5 }}>×</button>}
       </div>
@@ -18,7 +18,7 @@ export function VideoCard({ v, onRemove }: { v: VideoItem; onRemove?: (id: strin
             style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: 0 }} />
         </div>
       ) : (
-        <a href={safeUrl(v.url)} target="_blank" rel="noopener noreferrer" className="ui" style={{ fontSize: 13, fontWeight: 700, color: RED }}>
+        <a href={safeUrl(v.url)} target="_blank" rel="noopener noreferrer" className="ui t-red" style={{ fontSize: 13, fontWeight: 700 }}>
           Apri il video ↗
         </a>
       )}

@@ -18,7 +18,7 @@ export function ClassificaTable({ rows }: { rows: StandingRow[] }) {
           <col style={{ width: 50 }} />
         </colgroup>
         <thead>
-          <tr><th></th><th style={{ textAlign: "left" }}>SQUADRA</th><th>G</th><th>V</th><th>P</th><th>PF</th><th>PS</th><th>DIFF</th></tr>
+          <tr><th></th><th className="tal">SQUADRA</th><th>G</th><th>V</th><th>P</th><th>PF</th><th>PS</th><th>DIFF</th></tr>
         </thead>
         <tbody>
           {rows.map((r, i) => (

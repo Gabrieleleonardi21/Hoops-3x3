@@ -1,5 +1,5 @@
 import type { SquadraTappa } from "../../types";
-import { INK, ORANGE, RED } from "../../constants/colors";
+import { INK, RED } from "../../constants/colors";
 import { safeUrl } from "../../utils/safeUrl";
 import { RosterEditor } from "./RosterEditor";
 import { Input } from "../ui/Input";
@@ -29,7 +29,7 @@ export function SquadraCard({ s, index, h, onNameCommit }: {
 
       {/* Badge anagrafe */}
       {linked && (
-        <div className="ui" style={{ fontSize: 10, fontWeight: 700, color: ORANGE, marginBottom: 4 }}>
+        <div className="ui t-orange" style={{ fontSize: 10, fontWeight: 700, marginBottom: 4 }}>
           ✓ collegata all'anagrafe
         </div>
       )}
@@ -65,7 +65,7 @@ export function SquadraCard({ s, index, h, onNameCommit }: {
       )}
 
       {/* Giocatori: sempre editabili indipendentemente dall'anagrafe */}
-      <div className="ui" style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", margin: "8px 0 5px", color: ok ? INK : RED }}>
+      <div className="kicker" style={{ margin: "8px 0 5px", color: ok ? INK : RED }}>
         {ok ? "Roster completo ✓" : "Giocatori obbligatori (min. 3)"}
       </div>
       <RosterEditor giocatori={s.giocatori || []}
@@ -75,8 +75,8 @@ export function SquadraCard({ s, index, h, onNameCommit }: {
 
       {h.tappa!.squadre.length > 2 && (
         <div>
-          <button onClick={() => h.removeTeam(s.id)} className="linkbtn"
-            style={{ fontSize: 11, color: INK, opacity: 0.5, marginTop: 4 }}>Rimuovi squadra</button>
+          <button onClick={() => h.removeTeam(s.id)} className="linkbtn t-ink"
+            style={{ fontSize: 11, opacity: 0.5, marginTop: 4 }}>Rimuovi squadra</button>
         </div>
       )}
     </div>

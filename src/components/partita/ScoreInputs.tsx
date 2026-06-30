@@ -6,7 +6,7 @@ export function ScoreInputs({ sa, sb, onSa, onSb, labelA, labelB }: {
   labelA: string; labelB: string;
 }) {
   return (
-    <span style={{ display: "flex", gap: 6, alignItems: "center" }}>
+    <span className="row gap-6">
       <input className="scorein" type="number" inputMode="numeric" min={0} value={sa}
         onChange={(e) => onSa(e.target.value)} aria-label={`Punti ${labelA}`} />
       <span className="disp">-</span>

@@ -12,7 +12,7 @@ export function VideoForm({ onAdd, compact }: { onAdd: (titolo: string, url: str
     setTitolo(""); setUrl("");
   };
   return (
-    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 12 }}>
+    <div className="row gap-8 wrap items-end" style={{ marginBottom: 12 }}>
       <Input label={compact ? "Aggiungi un video (titolo)" : "Titolo"} labelStyle={{ flex: "1 1 140px" }}
         value={titolo} onChange={(e) => setTitolo(e.target.value)} placeholder="Es. Finale" />
       <Input label="Link video" labelStyle={{ flex: "2 1 220px" }}

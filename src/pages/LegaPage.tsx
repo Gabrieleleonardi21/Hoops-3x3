@@ -82,7 +82,7 @@ export function LegaPage() {
 
       {/* Breadcrumb di navigazione verso la lista leghe */}
       <div style={{ marginBottom: 14 }}>
-        <Link to="/leghe" className="linkbtn" style={{ fontSize: 12.5, color: INK, opacity: 0.6 }}>
+        <Link to="/leghe" className="linkbtn t-ink" style={{ fontSize: 12.5, opacity: 0.6 }}>
           ← Le mie leghe
         </Link>
       </div>
@@ -95,7 +95,7 @@ export function LegaPage() {
       </div>
 
       {/* Import / Export JSON */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 22, flexWrap: "wrap" }}>
+      <div className="flex wrap gap-8" style={{ marginBottom: 22 }}>
         <button onClick={esportaLega} className="blackbtn" style={{ padding: "8px 14px", fontSize: 12 }}>
           Esporta JSON
         </button>
@@ -110,7 +110,7 @@ export function LegaPage() {
 
       {tappe.length > 0 ? (
         <section style={{ borderTop: `4px solid ${INK}` }}>
-          <div className="ui" style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.1em", margin: "10px 0 2px", fontWeight: 700 }}>
+          <div className="ui up" style={{ fontSize: 12, letterSpacing: "0.1em", margin: "10px 0 2px", fontWeight: 700 }}>
             Le tappe del circuito
           </div>
           {tappe.map((t) => (
@@ -124,16 +124,16 @@ export function LegaPage() {
       {/* Classifica circuito — visibile solo se ci sono squadre con rank */}
       {circuitRanking.length > 0 && (
         <section style={{ borderTop: `4px solid ${INK}`, marginTop: 24 }}>
-          <div className="ui" style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.1em", margin: "10px 0 8px", fontWeight: 700 }}>
+          <div className="ui up" style={{ fontSize: 12, letterSpacing: "0.1em", margin: "10px 0 8px", fontWeight: 700 }}>
             Classifica circuito
           </div>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <table className="fullw" style={{ borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ borderBottom: `2px solid ${INK}` }}>
-                <th className="ui" style={{ textAlign: "left", fontSize: 11, fontWeight: 700, padding: "4px 8px", width: 32 }}>#</th>
-                <th className="ui" style={{ textAlign: "left", fontSize: 11, fontWeight: 700, padding: "4px 8px" }}>Squadra</th>
-                <th className="ui" style={{ textAlign: "right", fontSize: 11, fontWeight: 700, padding: "4px 8px" }}>Punti</th>
-                <th className="ui" style={{ textAlign: "right", fontSize: 11, fontWeight: 700, padding: "4px 8px" }}>Tappe</th>
+                <th className="ui tal" style={{ fontSize: 11, fontWeight: 700, padding: "4px 8px", width: 32 }}>#</th>
+                <th className="ui tal" style={{ fontSize: 11, fontWeight: 700, padding: "4px 8px" }}>Squadra</th>
+                <th className="ui tar" style={{ fontSize: 11, fontWeight: 700, padding: "4px 8px" }}>Punti</th>
+                <th className="ui tar" style={{ fontSize: 11, fontWeight: 700, padding: "4px 8px" }}>Tappe</th>
               </tr>
             </thead>
             <tbody>
@@ -142,11 +142,11 @@ export function LegaPage() {
                   <td className="disp" style={{ fontSize: 13, padding: "6px 8px", color: i < 3 ? ORANGE : INK, fontWeight: 700 }}>
                     {i + 1}
                   </td>
-                  <td className="disp" style={{ fontSize: 14, padding: "6px 8px", textTransform: "uppercase" }}>{row.nome}</td>
-                  <td className="ui" style={{ fontSize: 13, fontWeight: 700, padding: "6px 8px", textAlign: "right", color: ORANGE }}>
+                  <td className="disp up" style={{ fontSize: 14, padding: "6px 8px" }}>{row.nome}</td>
+                  <td className="ui tar t-orange" style={{ fontSize: 13, fontWeight: 700, padding: "6px 8px" }}>
                     {row.rank > 0 ? row.rank : "—"}
                   </td>
-                  <td className="ui" style={{ fontSize: 12, padding: "6px 8px", textAlign: "right", opacity: 0.6 }}>{row.nTappe}</td>
+                  <td className="ui tar" style={{ fontSize: 12, padding: "6px 8px", opacity: 0.6 }}>{row.nTappe}</td>
                 </tr>
               ))}
             </tbody>

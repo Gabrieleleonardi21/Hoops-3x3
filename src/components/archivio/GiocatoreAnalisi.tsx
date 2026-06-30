@@ -1,7 +1,7 @@
 /** Modale di analisi individuale: mostra medie statistiche, punti di forza, aree di
  *  miglioramento con esercizi specifici per il 3x3 e (opzionalmente) i consigli del Coach AI. */
 import { useState } from "react";
-import { INK, ORANGE, PAPER, RED, RULE } from "../../constants/colors";
+import { INK, PAPER, RULE } from "../../constants/colors";
 import { analyzePlayer3x3 } from "../../utils/analyzePlayer3x3";
 import { askCoach, aiAvailable } from "../../services/aiService";
 import type { Tappa } from "../../types";
@@ -31,18 +31,18 @@ export function GiocatoreAnalisi({ tappa, pid, onClose }: { tappa: Tappa; pid: s
 
   return (
     <div onClick={onClose}
-      style={{ position: "fixed", inset: 0, background: "rgba(23,32,58,0.55)", zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+      className="modal-overlay">
       <div onClick={(e) => e.stopPropagation()} role="dialog" aria-label={`Analisi di ${a?.nome || "giocatore"}`}
-        style={{ background: "var(--card)", border: `2px solid ${INK}`, width: "min(560px, 100%)", maxHeight: "85vh", overflowY: "auto", padding: 18 }}>
+        className="modal-card" style={{ width: "min(560px, 100%)", maxHeight: "85vh", padding: 18 }}>
 
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", borderBottom: `3px solid ${INK}`, paddingBottom: 8, marginBottom: 12 }}>
+        <div className="row between items-base" style={{ borderBottom: `3px solid ${INK}`, paddingBottom: 8, marginBottom: 12 }}>
           <div>
-            <div className="disp" style={{ fontSize: 20, textTransform: "uppercase" }}>{a?.nome || "?"}</div>
-            <div className="ui" style={{ fontSize: 12, fontWeight: 700, color: ORANGE }}>
+            <div className="disp up" style={{ fontSize: 20 }}>{a?.nome || "?"}</div>
+            <div className="ui t-orange" style={{ fontSize: 12, fontWeight: 700 }}>
               {a?.squadra}{a ? ` · ${a.partite} ${a.partite === 1 ? "partita" : "partite"}` : ""}
             </div>
           </div>
-          <button onClick={onClose} className="linkbtn" style={{ color: INK, fontSize: 20 }} aria-label="Chiudi">×</button>
+          <button onClick={onClose} className="linkbtn t-ink" style={{ fontSize: 20 }} aria-label="Chiudi">×</button>
         </div>
 
         {!a || a.partite === 0 ? (
@@ -69,23 +69,23 @@ export function GiocatoreAnalisi({ tappa, pid, onClose }: { tappa: Tappa; pid: s
 
             {a.forti.length > 0 && (
               <p className="ui" style={{ fontSize: 13, fontWeight: 700, margin: "0 0 12px" }}>
-                Punti di forza: <span style={{ color: ORANGE }}>{a.forti.join(", ")}</span> — sopra la media della tappa.
+                Punti di forza: <span className="t-orange">{a.forti.join(", ")}</span> — sopra la media della tappa.
               </p>
             )}
 
-            <h4 className="disp" style={{ fontSize: 15, margin: "0 0 8px", textTransform: "uppercase" }}>Su cosa lavorare</h4>
+            <h4 className="disp up" style={{ fontSize: 15, margin: "0 0 8px" }}>Su cosa lavorare</h4>
             {a.migliorare.map((m) => (
               <div key={m.area} style={{ background: PAPER, border: `1px solid ${RULE}`, padding: 12, marginBottom: 10 }}>
                 <div className="ui" style={{ fontWeight: 700, fontSize: 13.5 }}>
-                  <span style={{ color: RED }}>▸ {m.area}</span>
+                  <span className="t-red">▸ {m.area}</span>
                   <span style={{ fontWeight: 600, opacity: 0.85 }}> — {m.motivo}</span>
                 </div>
-                <div className="ui" style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", margin: "8px 0 4px" }}>
+                <div className="kicker" style={{ margin: "8px 0 4px" }}>
                   Esercizi consigliati
                 </div>
                 {m.esercizi.map((e, i) => (
                   <p key={i} style={{ fontSize: 13.5, margin: "0 0 5px", lineHeight: 1.45 }}>
-                    <span className="disp" style={{ fontSize: 12, color: ORANGE }}>{i + 1}.</span> {e}
+                    <span className="disp t-orange" style={{ fontSize: 12 }}>{i + 1}.</span> {e}
                   </p>
                 ))}
               </div>
@@ -94,7 +94,7 @@ export function GiocatoreAnalisi({ tappa, pid, onClose }: { tappa: Tappa; pid: s
             <div style={{ borderTop: `1px solid ${RULE}`, paddingTop: 10, marginTop: 4 }}>
               {aiText ? (
                 <p style={{ fontSize: 14, lineHeight: 1.5, margin: 0 }}>
-                  <span className="ui" style={{ fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em", color: ORANGE }}>Coach AI · </span>
+                  <span className="ui up t-orange" style={{ fontWeight: 700, fontSize: 11, letterSpacing: "0.08em" }}>Coach AI · </span>
                   {aiText}
                 </p>
               ) : aiAvailable ? (

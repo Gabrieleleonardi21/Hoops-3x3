@@ -9,7 +9,7 @@ const links = [
 
 export function NavBar() {
   return (
-    <nav className="ui" style={{ display: "flex", gap: 8, marginBottom: 24, flexWrap: "wrap" }}>
+    <nav className="ui flex gap-8 wrap" style={{ marginBottom: 24 }}>
       {links.map(([to, label]) => (
         <NavLink key={to} to={to} className={({ isActive }) => `navbtn${isActive ? " active" : ""}`}
           style={{ textDecoration: "none", display: "inline-block" }}>

@@ -11,7 +11,7 @@ export function GironeSection({ gi, girone, h }: { gi: number; girone: string[];
   const rows = standings(girone, matches, h.nameOf);
   return (
     <section style={{ borderTop: `4px solid ${INK}`, marginBottom: 26 }}>
-      <h3 className="disp" style={{ fontSize: 18, margin: "12px 0 8px", textTransform: "uppercase" }}>
+      <h3 className="h-sec">
         Girone {String.fromCharCode(65 + gi)}
         <span className="ui" style={{ fontSize: 12, fontWeight: 700, opacity: 0.6, marginLeft: 10 }}>
           {girone.map(h.nameOf).join(" · ")}

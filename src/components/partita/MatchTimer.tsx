@@ -67,53 +67,52 @@ export function MatchTimer({ teamA, teamB, onClose }: {
   const timeDanger = timeLeft <= 60;
 
   return (
-    <div style={{
-      position: "fixed", inset: 0, background: INK, color: PAPER,
-      display: "flex", flexDirection: "column", alignItems: "center",
-      justifyContent: "center", zIndex: 1000, padding: 20,
+    <div className="col items-center jc-center t-paper" style={{
+      position: "fixed", inset: 0, background: INK,
+      zIndex: 1000, padding: 20,
     }}>
       {/* Chiudi */}
-      <button onClick={onClose} className="linkbtn"
-        style={{ position: "absolute", top: 16, right: 20, color: PAPER, fontSize: 22, opacity: 0.7 }}>
+      <button onClick={onClose} className="linkbtn t-paper"
+        style={{ position: "absolute", top: 16, right: 20, fontSize: 22, opacity: 0.7 }}>
         ✕
       </button>
 
       {/* Squadre */}
-      <div style={{ display: "flex", gap: 32, fontSize: "clamp(13px, 3vw, 16px)", fontFamily: "'Archivo', sans-serif", fontWeight: 700, opacity: 0.7, marginBottom: 8 }}>
+      <div className="flex" style={{ gap: 32, fontSize: "clamp(13px, 3vw, 16px)", fontFamily: "'Archivo', sans-serif", fontWeight: 700, opacity: 0.7, marginBottom: 8 }}>
         <span>{teamA ?? "Squadra A"}</span>
         <span>vs</span>
         <span>{teamB ?? "Squadra B"}</span>
       </div>
 
       {/* Punteggio */}
-      <div style={{ display: "flex", gap: 24, alignItems: "center", marginBottom: 18 }}>
-        <div style={{ textAlign: "center" }}>
+      <div className="row" style={{ gap: 24, marginBottom: 18 }}>
+        <div className="tac">
           <div className="disp" style={{ fontSize: "clamp(64px, 14vw, 96px)", lineHeight: 1, color: scoreA > scoreB ? ORANGE : PAPER }}>
             {scoreA}
           </div>
-          <div style={{ display: "flex", gap: 6, marginTop: 8, justifyContent: "center" }}>
+          <div className="flex jc-center" style={{ gap: 6, marginTop: 8 }}>
             <button onClick={() => addPoint("A", 1)} className="redbtn" style={{ padding: "10px 16px", fontSize: 18 }}>+1</button>
             <button onClick={() => addPoint("A", 2)} className="redbtn" style={{ padding: "10px 16px", fontSize: 18 }}>+2</button>
-            <button onClick={() => setScoreA((s) => Math.max(0, s - 1))} className="linkbtn" style={{ color: PAPER, opacity: 0.5, fontSize: 13 }}>−</button>
+            <button onClick={() => setScoreA((s) => Math.max(0, s - 1))} className="linkbtn t-paper" style={{ opacity: 0.5, fontSize: 13 }}>−</button>
           </div>
         </div>
 
         <div className="disp" style={{ fontSize: "clamp(28px, 6vw, 40px)", opacity: 0.4 }}>—</div>
 
-        <div style={{ textAlign: "center" }}>
+        <div className="tac">
           <div className="disp" style={{ fontSize: "clamp(64px, 14vw, 96px)", lineHeight: 1, color: scoreB > scoreA ? ORANGE : PAPER }}>
             {scoreB}
           </div>
-          <div style={{ display: "flex", gap: 6, marginTop: 8, justifyContent: "center" }}>
+          <div className="flex jc-center" style={{ gap: 6, marginTop: 8 }}>
             <button onClick={() => addPoint("B", 1)} className="redbtn" style={{ padding: "10px 16px", fontSize: 18 }}>+1</button>
             <button onClick={() => addPoint("B", 2)} className="redbtn" style={{ padding: "10px 16px", fontSize: 18 }}>+2</button>
-            <button onClick={() => setScoreB((s) => Math.max(0, s - 1))} className="linkbtn" style={{ color: PAPER, opacity: 0.5, fontSize: 13 }}>−</button>
+            <button onClick={() => setScoreB((s) => Math.max(0, s - 1))} className="linkbtn t-paper" style={{ opacity: 0.5, fontSize: 13 }}>−</button>
           </div>
         </div>
       </div>
 
       {/* Countdown + Shot clock */}
-      <div style={{ borderTop: `1px solid ${RULE}`, paddingTop: 16, width: "100%", maxWidth: 480, textAlign: "center" }}>
+      <div className="fullw tac" style={{ borderTop: `1px solid ${RULE}`, paddingTop: 16, maxWidth: 480 }}>
         <div className="disp" style={{ fontSize: "clamp(48px, 10vw, 72px)", color: timeDanger ? RED : PAPER, lineHeight: 1 }}>
           {overtime ? "OT" : fmt(timeLeft)}
         </div>
@@ -122,32 +121,32 @@ export function MatchTimer({ teamA, teamB, onClose }: {
         </div>
 
         {/* Shot clock */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, marginBottom: 18 }}>
-          <div className="disp" style={{
-            fontSize: 40, minWidth: 60, textAlign: "center",
+        <div className="row jc-center" style={{ gap: 12, marginBottom: 18 }}>
+          <div className="disp tac" style={{
+            fontSize: 40, minWidth: 60,
             color: shotDanger ? RED : ORANGE,
           }}>
             {shotClock}
           </div>
           <div>
             <div style={{ fontFamily: "'Archivo', sans-serif", fontSize: 11, fontWeight: 700, opacity: 0.6 }}>SHOT CLOCK</div>
-            <button onClick={resetShot} className="linkbtn" style={{ color: PAPER, opacity: 0.7, fontSize: 13 }}>Reset 12s</button>
+            <button onClick={resetShot} className="linkbtn t-paper" style={{ opacity: 0.7, fontSize: 13 }}>Reset 12s</button>
           </div>
         </div>
 
         {/* Controlli */}
-        <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+        <div className="flex jc-center wrap gap-10">
           {gameOver ? (
-            <span className="disp" style={{ fontSize: 18, color: ORANGE }}>
+            <span className="disp t-orange" style={{ fontSize: 18 }}>
               {scoreA >= 21 ? (teamA ?? "A") : scoreB >= 21 ? (teamB ?? "B") : "Fine tempo"} — Partita conclusa
             </span>
           ) : (
-            <button onClick={() => setRunning((r) => !r)} className="blackbtn"
-              style={{ background: running ? RED : ORANGE, color: PAPER, fontSize: 20, padding: "12px 32px" }}>
+            <button onClick={() => setRunning((r) => !r)} className="blackbtn t-paper"
+              style={{ background: running ? RED : ORANGE, fontSize: 20, padding: "12px 32px" }}>
               {running ? "STOP" : "START"}
             </button>
           )}
-          <button onClick={resetAll} className="linkbtn" style={{ color: PAPER, opacity: 0.6, fontSize: 13 }}>
+          <button onClick={resetAll} className="linkbtn t-paper" style={{ opacity: 0.6, fontSize: 13 }}>
             Reset tutto
           </button>
         </div>

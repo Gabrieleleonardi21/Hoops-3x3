@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { INK, ORANGE, RED, RULE } from "../../constants/colors";
+import { INK, RULE } from "../../constants/colors";
 import { Input } from "../ui/Input";
 import { REG_ROLES } from "../../constants/roles";
 import { eta } from "../../utils/eta";
@@ -49,32 +49,33 @@ export function GiocatoreModal({
   return (
     <div
       onClick={onClose}
-      style={{ position: "fixed", inset: 0, background: "rgba(23,32,58,0.55)", zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+      className="modal-overlay"
     >
       <div
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-label={`Scheda giocatore ${g.nome} ${g.cognome}`}
-        style={{ background: "var(--card)", border: `2px solid ${INK}`, width: "min(480px, 100%)", maxHeight: "88vh", overflowY: "auto", padding: 24 }}
+        className="modal-card"
+        style={{ width: "min(480px, 100%)", maxHeight: "88vh", padding: 24 }}
       >
         {/* Pulsante chiudi */}
-        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 4 }}>
-          <button onClick={onClose} className="linkbtn" style={{ color: INK, fontSize: 22 }} aria-label="Chiudi">×</button>
+        <div className="flex jc-end" style={{ marginBottom: 4 }}>
+          <button onClick={onClose} className="linkbtn t-ink" style={{ fontSize: 22 }} aria-label="Chiudi">×</button>
         </div>
 
         {/* Intestazione: logo squadra + nome + numero */}
-        <div style={{ textAlign: "center", borderBottom: `3px solid ${INK}`, paddingBottom: 10, marginBottom: 14 }}>
+        <div className="tac" style={{ borderBottom: `3px solid ${INK}`, paddingBottom: 10, marginBottom: 14 }}>
           {squadraLogo && (
             <img src={safeUrl(squadraLogo)} alt="" aria-hidden
               style={{ width: 80, height: 80, objectFit: "contain", display: "block", margin: "0 auto 8px" }}
               onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
           )}
-          <div className="disp" style={{ fontSize: 28, textTransform: "uppercase" }}>
+          <div className="disp up" style={{ fontSize: 28 }}>
             {g.nome} {g.cognome}
-            {g.numero && <span style={{ color: ORANGE }}> #{g.numero}</span>}
+            {g.numero && <span className="t-orange"> #{g.numero}</span>}
           </div>
           {g.soprannome && (
-            <div className="ui" style={{ fontSize: 13, fontWeight: 700, color: ORANGE, marginTop: 2 }}>
+            <div className="ui t-orange" style={{ fontSize: 13, fontWeight: 700, marginTop: 2 }}>
               "{g.soprannome}"
             </div>
           )}
@@ -106,8 +107,8 @@ export function GiocatoreModal({
 
         {/* ── Modalità modifica ── */}
         {editing && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
+          <div className="col gap-10" style={{ marginBottom: 14 }}>
+            <div className="grid-auto" style={{ "--min": "140px" }}>
               <Input label="Nome" value={draft.nome} onChange={set("nome")} />
               <Input label="Cognome" value={draft.cognome} onChange={set("cognome")} />
               <Input label="Soprannome" value={draft.soprannome} onChange={set("soprannome")} />
@@ -127,20 +128,20 @@ export function GiocatoreModal({
               <Input label="Anni di esperienza" type="number" min={0} value={draft.esperienza} onChange={set("esperienza")} />
             </div>
             <Input label="Note sportive" value={draft.note} onChange={set("note")} placeholder="es. tiratore da fuori" />
-            <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+            <div className="flex gap-8" style={{ marginTop: 4 }}>
               <button onClick={saveEdit} className="blackbtn" style={{ padding: "10px 18px" }}>Salva modifiche</button>
-              <button onClick={() => setEditing(false)} className="linkbtn" style={{ color: INK }}>Annulla</button>
+              <button onClick={() => setEditing(false)} className="linkbtn t-ink">Annulla</button>
             </div>
           </div>
         )}
 
         {/* Footer: autore + azioni */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: `1px solid ${RULE}`, paddingTop: 10, marginTop: 4, gap: 8, flexWrap: "wrap" }}>
+        <div className="row between wrap gap-8" style={{ borderTop: `1px solid ${RULE}`, paddingTop: 10, marginTop: 4 }}>
           <span className="ui" style={{ fontSize: 10.5, opacity: 0.5 }}>Registrato da {g.autore}</span>
           {canEdit && !editing && (
-            <div style={{ display: "flex", gap: 12 }}>
-              <button onClick={() => setEditing(true)} className="linkbtn" style={{ color: INK }}>Modifica</button>
-              <button onClick={handleRemove} className="linkbtn" style={{ color: RED }}>Elimina giocatore</button>
+            <div className="flex gap-12">
+              <button onClick={() => setEditing(true)} className="linkbtn t-ink">Modifica</button>
+              <button onClick={handleRemove} className="linkbtn t-red">Elimina giocatore</button>
             </div>
           )}
         </div>

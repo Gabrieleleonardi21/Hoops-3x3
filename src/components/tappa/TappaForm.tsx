@@ -11,8 +11,8 @@ export function TappaForm({ onCreate }: { onCreate: (input: NuovaTappaInput) => 
 
   return (
     <div style={{ background: "var(--card)", border: `1.5px solid ${INK}`, padding: 18, marginBottom: 22 }}>
-      <h2 className="disp" style={{ fontSize: 18, margin: "0 0 12px", textTransform: "uppercase" }}>Crea una Tappa</h2>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 10 }}>
+      <h2 className="disp up" style={{ fontSize: 18, margin: "0 0 12px" }}>Crea una Tappa</h2>
+      <div className="grid-auto" style={{ "--min": "170px" }}>
         <Input label="Nome tappa" value={draft.nome} onChange={set("nome")} placeholder="Es. Tappa di Roma" />
         <Input label="Luogo" value={draft.luogo} onChange={set("luogo")} placeholder="Es. Piazza del Popolo" />
         <Input label="Data" type="date" value={draft.data} onChange={set("data")} />

@@ -7,7 +7,7 @@ export function StatsView({ teamName, players, sheet }: {
 }) {
   return (
     <div style={{ overflowX: "auto", marginBottom: 8 }}>
-      <div className="ui" style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>
+      <div className="kicker" style={{ marginBottom: 4 }}>
         {teamName}
       </div>
       <table className="statstable">
@@ -18,7 +18,7 @@ export function StatsView({ teamName, players, sheet }: {
         </colgroup>
         <thead>
           <tr>
-            <th style={{ textAlign: "left" }}>GIOCATORE</th>
+            <th className="tal">GIOCATORE</th>
             {STAT_KEYS.map(([k, hdr]) => <th key={k}>{hdr}</th>)}
           </tr>
         </thead>

@@ -1,5 +1,5 @@
 /** Header globale: mostra logo (cliccabile → home), titolo, utente e pulsante logout. */
-import { ORANGE, INK, RULE } from "../../constants/colors";
+import { INK, RULE } from "../../constants/colors";
 import { useAuth } from "../../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 
@@ -10,13 +10,13 @@ export function Header() {
   return (
     <>
       <header style={{ borderBottom: `4px solid ${INK}`, paddingBottom: 14, marginBottom: 6 }}>
-        <div className="ui" style={{ display: "flex", justifyContent: "space-between", fontSize: 12, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 6, flexWrap: "wrap", gap: 6 }}>
+        <div className="ui flex between up wrap gap-6" style={{ fontSize: 12, letterSpacing: "0.12em", marginBottom: 6 }}>
           <span>Circuito italiano 3x3</span>
           {user ? (
             <span>
               {user.name}{user.guest ? " (ospite)" : ""} ·{" "}
-              <button onClick={() => { logout(); navigate("/"); }} className="linkbtn"
-                style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.12em" }}>
+              <button onClick={() => { logout(); navigate("/"); }} className="linkbtn up"
+                style={{ fontSize: 12, letterSpacing: "0.12em" }}>
                 Esci
               </button>
             </span>
@@ -24,14 +24,14 @@ export function Header() {
             <span>Edizione street</span>
           )}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+        <div className="row gap-16 wrap">
           <img src="/logo.png" alt="Logo HOOP 3X3" onClick={() => navigate(user ? "/leghe" : "/")}
             style={{ width: "clamp(58px, 11vw, 88px)", height: "auto", cursor: "pointer" }} />
           <div>
             <h1 className="disp" style={{ fontSize: "clamp(36px, 8vw, 64px)", lineHeight: 0.95, margin: 0 }}>
-              HOOP <span style={{ color: ORANGE }}>3X3</span>
+              HOOP <span className="t-orange">3X3</span>
             </h1>
-            <div className="ui" style={{ color: ORANGE, fontWeight: 700, fontSize: "clamp(11px, 2.4vw, 14px)", letterSpacing: "0.2em", textTransform: "uppercase", marginTop: 4 }}>
+            <div className="ui t-orange up" style={{ fontWeight: 700, fontSize: "clamp(11px, 2.4vw, 14px)", letterSpacing: "0.2em", marginTop: 4 }}>
               Analyze. Train. Improve.
             </div>
           </div>

@@ -1,6 +1,6 @@
 /** Card cliccabile di un giocatore registrato nell'anagrafe: apre la modale di dettaglio.
  *  Solo l'autore può eliminarlo; il × stoppa il click sulla card. */
-import { INK, ORANGE } from "../../constants/colors";
+import { INK } from "../../constants/colors";
 import { eta } from "../../utils/eta";
 import { safeUrl } from "../../utils/safeUrl";
 import type { RegGiocatore, RegSquadra, User } from "../../types";
@@ -18,27 +18,26 @@ export function GiocatoreCard({ g, user, squadre, onRemove, onOpen }: {
       tabIndex={0}
       onClick={onOpen}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onOpen(); }}
-      style={{ background: "var(--card)", border: `1.5px solid ${INK}`, padding: 12, cursor: "pointer", textAlign: "left", width: "100%" }}
-      onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = `0 0 0 2px ${ORANGE}`; }}
-      onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = "none"; }}
+      className="tal fullw hovercard"
+      style={{ background: "var(--card)", border: `1.5px solid ${INK}`, padding: 12, cursor: "pointer" }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+      <div className="row between gap-8">
+        <div className="row gap-7">
           {squadraLogo && (
             <img src={safeUrl(squadraLogo)} alt="" aria-hidden
               style={{ width: 22, height: 22, objectFit: "contain", flexShrink: 0 }}
               onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
           )}
-          <div className="disp" style={{ fontSize: 15, textTransform: "uppercase" }}>
-            {g.nome} {g.cognome}{g.numero ? <span style={{ color: ORANGE }}> #{g.numero}</span> : null}
+          <div className="disp up" style={{ fontSize: 15 }}>
+            {g.nome} {g.cognome}{g.numero ? <span className="t-orange"> #{g.numero}</span> : null}
           </div>
         </div>
         {/* Il × stoppa il click sulla card per non aprire la modale */}
         {!user.guest && g.autore === user.name && (
-          <button onClick={(e) => { e.stopPropagation(); onRemove(); }} className="linkbtn" style={{ color: INK, opacity: 0.5 }}>×</button>
+          <button onClick={(e) => { e.stopPropagation(); onRemove(); }} className="linkbtn t-ink" style={{ opacity: 0.5 }}>×</button>
         )}
       </div>
-      {g.soprannome && <div className="ui" style={{ fontSize: 11.5, fontWeight: 700, color: ORANGE }}>"{g.soprannome}"</div>}
+      {g.soprannome && <div className="ui t-orange" style={{ fontSize: 11.5, fontWeight: 700 }}>"{g.soprannome}"</div>}
       <div className="ui" style={{ fontSize: 12.5, marginTop: 6, lineHeight: 1.6 }}>
         <strong>{g.ruolo}</strong>{g.squadra ? <> · {g.squadra}</> : null}<br />
         {g.nascita && <>{`Nato il ${g.nascita}`}{age !== null ? ` (${age} anni)` : ""}{g.citta ? ` a ${g.citta}` : ""}<br /></>}

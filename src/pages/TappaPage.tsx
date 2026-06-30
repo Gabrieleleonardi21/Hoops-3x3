@@ -17,7 +17,7 @@ import { VideoGrid } from "../components/video/VideoGrid";
 import { VideoForm } from "../components/video/VideoForm";
 import { ArchivioTappaView } from "../components/archivio/ArchivioTappaView";
 import { MatchTimer } from "../components/partita/MatchTimer";
-import { INK, RED, RULE } from "../constants/colors";
+import { INK, RULE } from "../constants/colors";
 import type { User } from "../types";
 
 export function TappaPage() {
@@ -80,24 +80,24 @@ export function TappaPage() {
   if (t.conclusa) {
     return (
       <div>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "baseline", marginBottom: 12 }}>
+        <div className="flex between gap-10 wrap items-base" style={{ marginBottom: 12 }}>
           <span className="ui" style={{ background: "var(--card)", border: `1.5px solid ${INK}`, padding: "8px 12px", fontWeight: 700, fontSize: 13 }}>
             Tappa conclusa e pubblicata nell'Archivio circuito.
           </span>
-          <span style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <span className="flex gap-8 wrap">
             <button onClick={() => navigate("/lega")} className="linkbtn">← Tutte le tappe</button>
             <button onClick={() => setShareOpen((o) => !o)} className="linkbtn">Condividi</button>
-            <button onClick={() => h.riapri()} className="linkbtn" style={{ color: INK, opacity: 0.6 }}>Riapri</button>
+            <button onClick={() => h.riapri()} className="linkbtn t-ink" style={{ opacity: 0.6 }}>Riapri</button>
           </span>
         </div>
 
         {/* Pannello condivisione link pubblico */}
         {shareOpen && (
           <div style={{ background: "var(--card)", border: `1.5px solid ${INK}`, padding: 12, marginBottom: 12 }}>
-            <div className="ui" style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
+            <div className="kicker" style={{ fontSize: 11, marginBottom: 6 }}>
               Link pubblico — chiunque può consultare questa tappa
             </div>
-            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <div className="row gap-8 wrap">
               <code style={{ fontSize: 13, background: "var(--paper)", padding: "6px 10px", border: `1px solid ${RULE}`, flex: "1 1 200px", wordBreak: "break-all" }}>
                 {publicUrl}
               </code>
@@ -119,21 +119,21 @@ export function TappaPage() {
   /* organizzazione */
   return (
     <div>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", borderBottom: `4px solid ${INK}`, paddingBottom: 10, flexWrap: "wrap", gap: 8 }}>
+      <div className="flex between items-base wrap gap-8" style={{ borderBottom: `4px solid ${INK}`, paddingBottom: 10 }}>
         <div>
-          <h2 className="disp" style={{ fontSize: "clamp(20px, 5vw, 28px)", margin: 0, textTransform: "uppercase" }}>{t.nome}</h2>
+          <h2 className="disp up" style={{ fontSize: "clamp(20px, 5vw, 28px)", margin: 0 }}>{t.nome}</h2>
           <span className="ui" style={{ fontSize: 13, fontWeight: 600 }}>
             {[t.luogo, t.data].filter(Boolean).join(" · ")} · {t.squadre.length} squadre · {t.nGironi} gironi
           </span>
         </div>
-        <span style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        <span className="flex gap-6 wrap">
           <button onClick={() => navigate("/lega")} className="linkbtn">← Tutte le tappe</button>
           {" · "}
           <button onClick={() => setEditOpen(!editOpen)} className="linkbtn">{editOpen ? "Chiudi modifica" : "⚙ Modifica"}</button>
           {" · "}
           <button onClick={() => setTimerOpen(true)} className="linkbtn">Timer</button>
           {" · "}
-          <button onClick={() => { h.removeTappa(t.id); navigate("/lega"); }} className="linkbtn" style={{ color: INK, opacity: 0.55 }}>
+          <button onClick={() => { h.removeTappa(t.id); navigate("/lega"); }} className="linkbtn t-ink" style={{ opacity: 0.55 }}>
             Elimina
           </button>
         </span>
@@ -143,8 +143,8 @@ export function TappaPage() {
 
       <TappaRules regole={t.regole} onChange={h.setRule} />
 
-      <h3 className="disp" style={{ fontSize: 16, margin: "18px 0 8px", textTransform: "uppercase" }}>Le squadre iscritte</h3>
-      <p className="ui" style={{ fontSize: 12.5, fontWeight: 700, margin: "0 0 10px", color: RED }}>
+      <h3 className="disp up" style={{ fontSize: 16, margin: "18px 0 8px" }}>Le squadre iscritte</h3>
+      <p className="ui t-red" style={{ fontSize: 12.5, fontWeight: 700, margin: "0 0 10px" }}>
         Ogni squadra deve inserire i propri giocatori (minimo 3, massimo 4): senza roster completi non si possono sorteggiare i gironi.
         {h.user.guest ? " In modalità Ospite il controllo è disattivato per le prove." : ""}
       </p>
@@ -165,7 +165,7 @@ export function TappaPage() {
       <LeaderboardSection tappa={t} />
 
       <section style={{ borderTop: `4px solid ${INK}`, marginBottom: 26 }}>
-        <h3 className="disp" style={{ fontSize: 18, margin: "12px 0 2px", textTransform: "uppercase" }}>Video della tappa</h3>
+        <h3 className="disp up" style={{ fontSize: 18, margin: "12px 0 2px" }}>Video della tappa</h3>
         <p className="ui" style={{ fontSize: 12, fontWeight: 600, opacity: 0.7, margin: "0 0 10px" }}>
           Incolla i link delle riprese: i video di YouTube vengono incorporati, gli altri si aprono in una nuova scheda.
         </p>

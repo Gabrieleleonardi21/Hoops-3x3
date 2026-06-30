@@ -16,18 +16,18 @@ interface Props {
 export function StatsEditor({ teamName, players, sheet, guest, onChange }: Props) {
   return (
     <div style={{ background: "var(--card)", border: `1px solid ${RULE}`, padding: 10 }}>
-      <div className="ui" style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
+      <div className="kicker" style={{ marginBottom: 6 }}>
         Statistiche dei giocatori — {teamName}{guest ? " (facoltative da Ospite)" : " (punti obbligatori, il resto facoltativo)"}
       </div>
       {players.length === 0 && (
-        <p className="ui" style={{ fontSize: 12, color: RED, fontWeight: 700, margin: 0 }}>Nessun giocatore nel roster.</p>
+        <p className="ui t-red" style={{ fontSize: 12, fontWeight: 700, margin: 0 }}>Nessun giocatore nel roster.</p>
       )}
       {players.length > 0 && (
         <div style={{ overflowX: "auto" }}>
           <table className="statstable">
             <thead>
               <tr>
-                <th style={{ textAlign: "left" }}>GIOCATORE</th>
+                <th className="tal">GIOCATORE</th>
                 {STAT_KEYS.map(([k, hdr]) => <th key={k}>{hdr}</th>)}
               </tr>
             </thead>

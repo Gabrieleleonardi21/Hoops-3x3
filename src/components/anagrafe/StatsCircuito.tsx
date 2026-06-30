@@ -92,17 +92,17 @@ export function StatsCircuito({ tappe }: { tappe: Tappa[] }) {
         <tbody>
           {rows.map((r, i) => (
             <tr key={r.id} style={{ borderBottom: `1px solid ${RULE}`, background: i === 0 ? "var(--card)" : "transparent" }}>
-              <td className="disp" style={{ padding: "5px 8px", fontSize: 13, color: i < 3 ? ORANGE : INK, fontWeight: 700, textAlign: "center" }}>{i + 1}</td>
-              <td className="disp" style={{ padding: "5px 8px", fontSize: 13, textTransform: "uppercase" }}>{r.nome}</td>
+              <td className="disp tac" style={{ padding: "5px 8px", fontSize: 13, color: i < 3 ? ORANGE : INK, fontWeight: 700 }}>{i + 1}</td>
+              <td className="disp up" style={{ padding: "5px 8px", fontSize: 13 }}>{r.nome}</td>
               <td className="ui"   style={{ padding: "5px 8px", fontSize: 12, opacity: 0.7 }}>{r.squadra}</td>
-              <td className="ui"   style={{ padding: "5px 8px", fontSize: 12, textAlign: "center" }}>{r.g}</td>
-              <td className="disp" style={{ padding: "5px 8px", fontSize: 14, textAlign: "center", color: ORANGE, fontWeight: 700 }}>{r.pt}</td>
-              <td className="ui"   style={{ padding: "5px 8px", fontSize: 12, textAlign: "center", fontWeight: 700 }}>{avg(r.pt, r.g)}</td>
-              <td className="ui"   style={{ padding: "5px 8px", fontSize: 12, textAlign: "center" }}>{r.rb}</td>
-              <td className="ui"   style={{ padding: "5px 8px", fontSize: 12, textAlign: "center" }}>{avg(r.rb, r.g)}</td>
-              <td className="ui"   style={{ padding: "5px 8px", fontSize: 12, textAlign: "center" }}>{r.as}</td>
-              <td className="ui"   style={{ padding: "5px 8px", fontSize: 12, textAlign: "center" }}>{r.ru}</td>
-              <td className="ui"   style={{ padding: "5px 8px", fontSize: 12, textAlign: "center" }}>{r.st}</td>
+              <td className="ui tac"   style={{ padding: "5px 8px", fontSize: 12 }}>{r.g}</td>
+              <td className="disp tac t-orange" style={{ padding: "5px 8px", fontSize: 14, fontWeight: 700 }}>{r.pt}</td>
+              <td className="ui tac"   style={{ padding: "5px 8px", fontSize: 12, fontWeight: 700 }}>{avg(r.pt, r.g)}</td>
+              <td className="ui tac"   style={{ padding: "5px 8px", fontSize: 12 }}>{r.rb}</td>
+              <td className="ui tac"   style={{ padding: "5px 8px", fontSize: 12 }}>{avg(r.rb, r.g)}</td>
+              <td className="ui tac"   style={{ padding: "5px 8px", fontSize: 12 }}>{r.as}</td>
+              <td className="ui tac"   style={{ padding: "5px 8px", fontSize: 12 }}>{r.ru}</td>
+              <td className="ui tac"   style={{ padding: "5px 8px", fontSize: 12 }}>{r.st}</td>
             </tr>
           ))}
         </tbody>

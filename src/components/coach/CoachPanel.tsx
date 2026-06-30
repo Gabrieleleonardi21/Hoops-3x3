@@ -1,7 +1,7 @@
 /** Pannello chat del Coach AI: input utente, lista messaggi, bottone "Cancella chat".
  *  La cronologia viene persistita in sessionStorage (si azzera alla chiusura della scheda). */
 import { useState } from "react";
-import { INK, ORANGE, PAPER, RED, RULE } from "../../constants/colors";
+import { INK, ORANGE, RED, RULE } from "../../constants/colors";
 import { useCoachAI } from "../../hooks/useCoachAI";
 
 /** Etichette leggibili (al passato) per i tool eseguiti dal Coach AI. */
@@ -50,16 +50,16 @@ export function CoachPanel({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="chatpanel" role="dialog" aria-label="Coach AI">
-      <div className="ui" style={{ background: INK, color: PAPER, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ fontFamily: "'Archivo Black', sans-serif", textTransform: "uppercase", fontSize: 14 }}>Coach AI · 3x3</span>
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+      <div className="ui row between t-paper" style={{ background: INK, padding: "10px 14px" }}>
+        <span className="up" style={{ fontFamily: "'Archivo Black', sans-serif", fontSize: 14 }}>Coach AI · 3x3</span>
+        <div className="row gap-10">
           {msgs.length > 0 && (
-            <button onClick={clearChat} style={{ background: "none", border: "none", color: PAPER, cursor: "pointer", fontSize: 12, opacity: 0.7 }} aria-label="Cancella chat">✕ Cancella</button>
+            <button onClick={clearChat} className="t-paper" style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, opacity: 0.7 }} aria-label="Cancella chat">✕ Cancella</button>
           )}
-          <button onClick={onClose} style={{ background: "none", border: "none", color: PAPER, cursor: "pointer", fontSize: 18, lineHeight: 1 }} aria-label="Chiudi">×</button>
+          <button onClick={onClose} className="t-paper" style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, lineHeight: 1 }} aria-label="Chiudi">×</button>
         </div>
       </div>
-      <div style={{ flex: 1, overflowY: "auto", padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
+      <div className="col gap-8" style={{ flex: 1, overflowY: "auto", padding: 12 }}>
         {msgs.length === 0 && (
           <p style={{ fontSize: 14, fontStyle: "italic", margin: 0, opacity: 0.8 }}>
             Chiedimi delle regole 3x3, come organizzare la tua tappa o come funziona il circuito FIBA 3x3.
@@ -70,10 +70,10 @@ export function CoachPanel({ onClose }: { onClose: () => void }) {
             <div className={m.role === "user" ? "bubble-u" : "bubble-a"}>{m.content}</div>
             {/* Badge delle azioni eseguite, solo sui messaggi assistant che hanno usato tool */}
             {m.role === "assistant" && m.tools && m.tools.length > 0 && (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 5 }}>
+              <div className="flex wrap" style={{ gap: 5, marginTop: 5 }}>
                 {riepilogoTool(m.tools).map((t, j) => (
-                  <span key={j} className="ui" title="Azione eseguita dal Coach AI"
-                    style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", background: t.color, color: PAPER, padding: "2px 7px" }}>
+                  <span key={j} className="ui up t-paper" title="Azione eseguita dal Coach AI"
+                    style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.04em", background: t.color, padding: "2px 7px" }}>
                     ✓ {t.label}{t.count > 1 && ` ×${t.count}`}
                   </span>
                 ))}
@@ -83,7 +83,7 @@ export function CoachPanel({ onClose }: { onClose: () => void }) {
         ))}
         {loading && <div className="bubble-a pulse">Il coach sta pensando…</div>}
       </div>
-      <div style={{ display: "flex", gap: 8, padding: 10, borderTop: `1px solid ${RULE}` }}>
+      <div className="flex gap-8" style={{ padding: 10, borderTop: `1px solid ${RULE}` }}>
         <input className="statin" style={{ flex: 1 }} value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && submit()}

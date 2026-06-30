@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { INK, ORANGE, PAPER, RED, RULE } from "../../constants/colors";
+import { INK, PAPER, RULE } from "../../constants/colors";
 import { Input } from "../ui/Input";
 import type { RegGiocatore, RegSquadra, User } from "../../types";
 import { useScrollLock } from "../../hooks/useScrollLock";
@@ -63,21 +63,22 @@ export function SquadraAnagrafeModal({
   return (
     <div
       onClick={onClose}
-      style={{ position: "fixed", inset: 0, background: "rgba(23,32,58,0.55)", zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+      className="modal-overlay"
     >
       <div
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-label={`Scheda squadra ${s.nome}`}
-        style={{ background: "var(--card)", border: `2px solid ${INK}`, width: "min(500px, 100%)", maxHeight: "88vh", overflowY: "auto", padding: 24 }}
+        className="modal-card"
+        style={{ width: "min(500px, 100%)", maxHeight: "88vh", padding: 24 }}
       >
         {/* Pulsante chiudi */}
-        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 4 }}>
-          <button onClick={onClose} className="linkbtn" style={{ color: INK, fontSize: 22 }} aria-label="Chiudi">×</button>
+        <div className="flex jc-end" style={{ marginBottom: 4 }}>
+          <button onClick={onClose} className="linkbtn t-ink" style={{ fontSize: 22 }} aria-label="Chiudi">×</button>
         </div>
 
         {/* Logo centrato — sempre cliccabile: sito > instagram > ricerca Google */}
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+        <div className="flex jc-center" style={{ marginBottom: 16 }}>
           {s.logo ? (
             <a href={logoLink} target="_blank" rel="noopener noreferrer" title={logoTitle}>
               <img
@@ -88,14 +89,14 @@ export function SquadraAnagrafeModal({
               />
             </a>
           ) : (
-            <div style={{ width: 100, height: 100, background: INK, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div className="row jc-center" style={{ width: 100, height: 100, background: INK }}>
               <span style={{ color: "var(--card)", fontSize: 28, fontFamily: "var(--disp)" }}>3×3</span>
             </div>
           )}
         </div>
 
         {/* Nome */}
-        <div className="disp" style={{ fontSize: 26, textTransform: "uppercase", textAlign: "center", borderBottom: `3px solid ${INK}`, paddingBottom: 10, marginBottom: 14 }}>
+        <div className="disp up tac" style={{ fontSize: 26, borderBottom: `3px solid ${INK}`, paddingBottom: 10, marginBottom: 14 }}>
           {s.nome}
         </div>
 
@@ -104,7 +105,7 @@ export function SquadraAnagrafeModal({
           <>
             <div className="ui" style={{ fontSize: 13.5, lineHeight: 1.9, marginBottom: 14 }}>
               {Number(s.rank) > 0 && (
-                <div style={{ fontWeight: 700, color: ORANGE }}>Ranking circuito: {s.rank} pt</div>
+                <div className="t-orange" style={{ fontWeight: 700 }}>Ranking circuito: {s.rank} pt</div>
               )}
               {s.citta && (
                 <div>Città: <strong>{s.citta}</strong>{s.anno ? ` · Fondata nel ${s.anno}` : ""}</div>
@@ -114,7 +115,7 @@ export function SquadraAnagrafeModal({
               {s.website && (
                 <div>
                   Sito web:{" "}
-                  <a href={safeUrl(s.website)} target="_blank" rel="noopener noreferrer" style={{ color: ORANGE, fontWeight: 700 }}>
+                  <a href={safeUrl(s.website)} target="_blank" rel="noopener noreferrer" className="t-orange" style={{ fontWeight: 700 }}>
                     {s.website.replace(/^https?:\/\//, "")}
                   </a>
                 </div>
@@ -123,7 +124,7 @@ export function SquadraAnagrafeModal({
                 <div>
                   Instagram:{" "}
                   {/* mostra solo il @handle per leggibilità */}
-                  <a href={safeUrl(s.instagram)} target="_blank" rel="noopener noreferrer" style={{ color: ORANGE, fontWeight: 700 }}>
+                  <a href={safeUrl(s.instagram)} target="_blank" rel="noopener noreferrer" className="t-orange" style={{ fontWeight: 700 }}>
                     @{s.instagram.replace(/^https?:\/\/(www\.)?instagram\.com\/?/, "").replace(/\/$/, "")}
                   </a>
                 </div>
@@ -133,10 +134,10 @@ export function SquadraAnagrafeModal({
             {/* Roster */}
             {(s.roster || []).length > 0 && (
               <div style={{ background: PAPER, border: `1px solid ${RULE}`, padding: 14, marginBottom: 14 }}>
-                <div className="ui" style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
+                <div className="ui up" style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", marginBottom: 8 }}>
                   Roster ({s.roster.length})
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                <div className="col" style={{ gap: 5 }}>
                   {s.roster.map((id) => (
                     <div key={id} className="ui" style={{ fontSize: 14, fontWeight: 700, borderBottom: `1px dotted ${RULE}`, paddingBottom: 4 }}>
                       {gName(id)}
@@ -152,8 +153,8 @@ export function SquadraAnagrafeModal({
 
         {/* ── Modalità modifica ── */}
         {editing && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
+          <div className="col" style={{ gap: 10, marginBottom: 14 }}>
+            <div className="grid-auto">
               <Input label="Nome squadra" value={draft.nome} onChange={set("nome")} />
               <Input label="Città" value={draft.citta} onChange={set("citta")} />
               <Input label="Anno fondazione" type="number" value={draft.anno} onChange={set("anno")} />
@@ -164,20 +165,20 @@ export function SquadraAnagrafeModal({
               <Input label="Instagram" value={draft.instagram} onChange={set("instagram")} placeholder="https://instagram.com/squadra" />
             </div>
             <Input label="Note" value={draft.note} onChange={set("note")} placeholder="es. campioni tappa Roma 2025" />
-            <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+            <div className="flex" style={{ gap: 8, marginTop: 4 }}>
               <button onClick={saveEdit} className="blackbtn" style={{ padding: "10px 18px" }}>Salva modifiche</button>
-              <button onClick={() => setEditing(false)} className="linkbtn" style={{ color: INK }}>Annulla</button>
+              <button onClick={() => setEditing(false)} className="linkbtn t-ink">Annulla</button>
             </div>
           </div>
         )}
 
         {/* Footer: autore + azioni */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: `1px solid ${RULE}`, paddingTop: 10, marginTop: 4, gap: 8, flexWrap: "wrap" }}>
+        <div className="row between wrap" style={{ borderTop: `1px solid ${RULE}`, paddingTop: 10, marginTop: 4, gap: 8 }}>
           <span className="ui" style={{ fontSize: 10.5, opacity: 0.5 }}>Registrata da {s.autore}</span>
           {canEdit && !editing && (
-            <div style={{ display: "flex", gap: 12 }}>
-              <button onClick={() => setEditing(true)} className="linkbtn" style={{ color: INK }}>Modifica</button>
-              <button onClick={handleRemove} className="linkbtn" style={{ color: RED }}>Elimina squadra</button>
+            <div className="flex gap-12">
+              <button onClick={() => setEditing(true)} className="linkbtn t-ink">Modifica</button>
+              <button onClick={handleRemove} className="linkbtn t-red">Elimina squadra</button>
             </div>
           )}
         </div>

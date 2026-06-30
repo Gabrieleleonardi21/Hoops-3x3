@@ -1,6 +1,6 @@
 /** Form per registrare un nuovo giocatore nell'anagrafe condivisa del circuito. */
 import { useState } from "react";
-import { INK, RED } from "../../constants/colors";
+import { INK } from "../../constants/colors";
 import { REG_ROLES } from "../../constants/roles";
 import { Input } from "../ui/Input";
 import type { RegGiocatore, RegSquadra } from "../../types";
@@ -26,8 +26,8 @@ export function GiocatoreForm({ squadre, onSave }: { squadre: RegSquadra[]; onSa
 
   return (
     <div style={{ background: "var(--card)", border: `1.5px solid ${INK}`, padding: 16, marginBottom: 18 }}>
-      <h3 className="disp" style={{ fontSize: 16, margin: "0 0 10px", textTransform: "uppercase" }}>Registra un giocatore</h3>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
+      <h3 className="disp up" style={{ fontSize: 16, margin: "0 0 10px" }}>Registra un giocatore</h3>
+      <div className="grid-auto">
         <Input label="Nome *" value={d.nome} onChange={set("nome")} maxLength={100} />
         <Input label="Cognome *" value={d.cognome} onChange={set("cognome")} maxLength={100} />
         <Input label="Soprannome" value={d.soprannome} onChange={set("soprannome")} placeholder="da campo" maxLength={50} />
@@ -50,7 +50,7 @@ export function GiocatoreForm({ squadre, onSave }: { squadre: RegSquadra[]; onSa
       </datalist>
       <Input label="Note sportive" labelStyle={{ marginTop: 10 }} value={d.note} onChange={set("note")}
         placeholder="es. tiratore da fuori, ex serie C" maxLength={500} />
-      {err && <p className="ui" style={{ color: RED, fontWeight: 700, fontSize: 13, margin: "8px 0 0" }}>{err}</p>}
+      {err && <p className="ui t-red" style={{ fontWeight: 700, fontSize: 13, margin: "8px 0 0" }}>{err}</p>}
       <button onClick={save} className="blackbtn" style={{ marginTop: 12 }}>Salva nell'anagrafe</button>
     </div>
   );

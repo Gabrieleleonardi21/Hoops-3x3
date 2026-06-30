@@ -1,6 +1,6 @@
 /** Card cliccabile per una squadra dell'anagrafe: apre la modale di dettaglio.
  *  Il × per eliminare stoppa la propagazione del click così non apre la modale. */
-import { INK, ORANGE } from "../../constants/colors";
+import { INK } from "../../constants/colors";
 import type { RegGiocatore, RegSquadra, User } from "../../types";
 
 export function SquadraAnagrafeCard({ s, giocatori, user, onRemove, onOpen }: {
@@ -17,25 +17,24 @@ export function SquadraAnagrafeCard({ s, giocatori, user, onRemove, onOpen }: {
       tabIndex={0}
       onClick={onOpen}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onOpen(); }}
-      style={{ background: "var(--card)", border: `1.5px solid ${INK}`, padding: 12, cursor: "pointer", textAlign: "left", width: "100%", display: "block" }}
-      onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = `0 0 0 2px ${ORANGE}`; }}
-      onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = "none"; }}
+      className="tal fullw hovercard"
+      style={{ background: "var(--card)", border: `1.5px solid ${INK}`, padding: 12, cursor: "pointer", display: "block" }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start" }}>
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+      <div className="row between gap-8 items-start">
+        <div className="row gap-10">
           {s.logo && (
             <img src={s.logo} alt={`Logo ${s.nome}`}
               style={{ width: 44, height: 44, objectFit: "contain", flexShrink: 0 }}
               onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
           )}
-          <div className="disp" style={{ fontSize: 15, textTransform: "uppercase" }}>{s.nome}</div>
+          <div className="disp up" style={{ fontSize: 15 }}>{s.nome}</div>
         </div>
         {/* Il × stoppa il click sulla card per non aprire la modale */}
         {!user.guest && s.autore === user.name && (
-          <button onClick={(e) => { e.stopPropagation(); onRemove(); }} className="linkbtn" style={{ color: INK, opacity: 0.5 }}>×</button>
+          <button onClick={(e) => { e.stopPropagation(); onRemove(); }} className="linkbtn t-ink" style={{ opacity: 0.5 }}>×</button>
         )}
       </div>
-      {Number(s.rank) > 0 && <div className="ui" style={{ fontSize: 11.5, fontWeight: 700, color: ORANGE }}>Ranking circuito: {s.rank}</div>}
+      {Number(s.rank) > 0 && <div className="ui t-orange" style={{ fontSize: 11.5, fontWeight: 700 }}>Ranking circuito: {s.rank}</div>}
       <div className="ui" style={{ fontSize: 12.5, marginTop: 6, lineHeight: 1.6 }}>
         {s.citta && <>{s.citta}{s.anno ? ` · dal ${s.anno}` : ""}<br /></>}
         {!s.citta && s.anno && <>Fondata nel {s.anno}<br /></>}
