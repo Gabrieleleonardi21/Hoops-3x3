@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="it"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>HOOP 3X3 — Campetti Torino</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=Public+Sans:wght@700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            surface: "#12151C",
+            "surface-elevated": "#1B1F29",
+            "on-surface": "#F2EDE4",
+            "on-surface-variant": "#A9A398",
+            "on-surface-disabled": "#6E6960",
+            primary: "#FF6A1F",
+            "primary-hover": "#FF7F3F",
+            "on-primary": "#0B0D12",
+            outline: "#2A2F3D",
+            "outline-strong": "#3A4052",
+            gold: "#F5C542",
+            win: "#3DD68C",
+            loss: "#FF4D4D",
+            live: "#FF3B3B",
+            navy: "#17203A",
+            asphalt: {
+              950: "#0B0D12",
+              900: "#12151C",
+              850: "#171B24",
+              800: "#1B1F29"
+            }
+          },
+          borderRadius: {
+            DEFAULT: "0.125rem",
+            lg: "0.25rem",
+            xl: "0.5rem",
+            full: "0.75rem"
+          },
+          fontFamily: {
+            headline: ["Public Sans", "sans-serif"],
+            display: ["Barlow Condensed", "Public Sans", "sans-serif"],
+            body: ["IBM Plex Sans", "sans-serif"],
+            label: ["IBM Plex Sans", "sans-serif"]
+          }
+        },
+      },
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      display: inline-block;
+      vertical-align: middle;
+      line-height: 1;
+    }
+    .material-symbols-outlined.fill {
+      font-variation-settings: 'FILL' 1;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #0B0D12;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #2A2F3D;
+      border-radius: 2px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: #3A4052;
+    }
+    .tabular-nums {
+      font-variant-numeric: tabular-nums;
+    }
+    @keyframes subtle-pulse {
+      0%, 100% { transform: scale(1); opacity: 0.9; }
+      50% { transform: scale(1.35); opacity: 0.25; }
+    }
+    .ping-ring {
+      animation: subtle-pulse 2.2s cubic-bezier(0, 0, 0.2, 1) infinite;
+    }
+  </style>
+</head>
+<body class="bg-[#0B0D12] text-[#F2EDE4] font-body antialiased min-h-screen flex flex-col selection:bg-primary selection:text-on-primary">
+<!-- TOP APP BAR (Shared Components JSON Anchor) -->
+<header class="bg-surface border-b border-outline sticky top-0 z-50">
+<div class="flex justify-between items-center w-full px-6 py-3 max-w-7xl mx-auto">
+<!-- Brand Logo -->
+<div class="flex items-center gap-6">
+<a class="font-display font-extrabold uppercase tracking-tight text-2xl text-on-surface flex items-center gap-1.5 hover:opacity-90 transition-opacity" href="#">
+<span>HOOP</span>
+<span class="bg-primary text-on-primary px-1.5 py-0.5 rounded text-lg font-black tracking-normal">3X3</span>
+</a>
+<!-- Desktop Navigation Links (JSON specified) -->
+<nav class="hidden md:flex items-center gap-6 font-headline uppercase tracking-tight text-xs font-bold pt-1">
+<a class="text-on-surface-variant hover:text-on-surface font-medium uppercase pb-1 transition-colors duration-150" href="#">Le mie leghe</a>
+<a class="text-on-surface-variant hover:text-on-surface font-medium uppercase pb-1 transition-colors duration-150" href="#">Anagrafe</a>
+<a class="text-on-surface-variant hover:text-on-surface font-medium uppercase pb-1 transition-colors duration-150" href="#">Archivio circuito</a>
+<!-- ACTIVE STATE LOCKED TO 'Campetti' -->
+<a class="text-primary border-b-2 border-primary pb-1 font-bold uppercase" href="#">Campetti</a>
+</nav>
+</div>
+<!-- Trailing Profile & Actions -->
+<div class="flex items-center gap-4">
+<button aria-label="Notifiche" class="text-on-surface-variant hover:text-primary transition-colors duration-150 p-1 rounded" type="button">
+<span class="material-symbols-outlined text-xl">notifications</span>
+</button>
+<div class="h-4 w-px bg-outline"></div>
+<div class="flex items-center gap-2.5">
+<div class="w-7 h-7 rounded-sm bg-surface-elevated border border-outline-strong flex items-center justify-center font-display font-bold text-sm text-primary">
+            G
+          </div>
+<span class="text-xs font-medium text-on-surface hidden sm:inline-block">Gabriele</span>
+</div>
+<a class="text-xs uppercase font-semibold text-on-surface-variant hover:text-primary transition-colors duration-150 pl-1" href="#">
+          Sign Out
+        </a>
+</div>
+</div>
+</header>
+<!-- MAIN WRAPPER -->
+<main class="flex-1 flex flex-col w-full max-w-7xl mx-auto px-4 md:px-6 py-4">
+<!-- COMPACT HERO & STAT KICKER SECTION -->
+<section class="border-b border-outline pb-4 mb-4">
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-3">
+<div>
+<div class="flex items-center gap-2 mb-1">
+<span class="text-[11px] uppercase tracking-wider font-semibold text-on-surface-variant bg-surface-elevated px-2 py-0.5 border border-outline">
+              CIRCUITO PIEMONTE
+            </span>
+<span class="inline-block w-1.5 h-1.5 rounded-full bg-win"></span>
+<span class="text-[11px] uppercase tracking-wider text-win font-semibold">Stagione Attiva 2026</span>
+</div>
+<h1 class="font-display font-extrabold uppercase text-3xl md:text-4xl tracking-tight text-on-surface leading-none">
+            CAMPETTI
+          </h1>
+<p class="text-xs md:text-sm text-on-surface-variant mt-1">
+            Trova un campo, consulta lo stato del fondo e organizza la prossima tappa del circuito.
+          </p>
+</div>
+<!-- Dense Stat Badges -->
+<div class="flex items-center gap-2 flex-wrap text-xs">
+<div class="bg-surface px-3 py-1.5 border border-outline flex items-center gap-2">
+<span class="w-2 h-2 bg-primary"></span>
+<span class="text-on-surface-variant">Campetti omologati:</span>
+<span class="font-display font-bold text-base text-on-surface tabular-nums">18</span>
+</div>
+<div class="bg-surface px-3 py-1.5 border border-outline flex items-center gap-2">
+<span class="material-symbols-outlined text-gold text-sm fill">light_mode</span>
+<span class="text-on-surface-variant">Notturni:</span>
+<span class="font-display font-bold text-base text-on-surface tabular-nums">5</span>
+</div>
+<div class="bg-surface px-3 py-1.5 border border-outline text-on-surface-variant">
+            Zona: <span class="text-on-surface font-medium">Torino e provincia</span>
+</div>
+</div>
+</div>
+</section>
+<!-- FUNCTIONAL DENSE FILTER BAR -->
+<section class="bg-surface border border-outline p-2.5 mb-4">
+<div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+<!-- Search & City Cluster -->
+<div class="flex flex-1 items-center gap-2">
+<div class="relative flex-1 max-w-sm">
+<span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-disabled text-lg pointer-events-none">search</span>
+<input class="w-full bg-[#0B0D12] text-xs text-on-surface border border-outline focus:border-primary focus:ring-1 focus:ring-primary pl-8 pr-3 py-1.5 rounded-sm outline-none placeholder:text-on-surface-disabled" placeholder="Cerca città o campo…" type="text" value="Torino"/>
+</div>
+<!-- City Selector -->
+<div class="relative">
+<button class="bg-surface-elevated border border-outline hover:border-outline-strong text-xs text-on-surface px-3 py-1.5 rounded-sm flex items-center gap-2">
+<span class="text-on-surface-variant">Città:</span>
+<span class="font-medium">Torino</span>
+<span class="bg-primary/20 text-primary text-[10px] font-bold px-1.5 py-0.2 rounded">8 disponibili</span>
+<span class="material-symbols-outlined text-sm text-on-surface-variant">expand_more</span>
+</button>
+</div>
+</div>
+<!-- Filter Chips & Sorting -->
+<div class="flex items-center gap-2 flex-wrap">
+<!-- Active Filter Pill -->
+<button class="bg-[#0B0D12] border border-primary text-primary text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1.5 transition-colors">
+<span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+            Illuminato
+            <span class="material-symbols-outlined text-xs">close</span>
+</button>
+<!-- Inactive Filter Pill -->
+<button class="bg-[#0B0D12] border border-outline hover:border-outline-strong text-on-surface-variant hover:text-on-surface text-xs font-medium px-2.5 py-1 rounded-full flex items-center gap-1 transition-colors">
+            Coperto
+          </button>
+<!-- Active Filter Pill -->
+<button class="bg-[#0B0D12] border border-primary text-primary text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1.5 transition-colors">
+<span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+            2 Canestri
+            <span class="material-symbols-outlined text-xs">close</span>
+</button>
+<!-- Active Filter Pill -->
+<button class="bg-[#0B0D12] border border-primary text-primary text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1.5 transition-colors">
+<span class="w-1.5 h-1.5 rounded-full bg-primary"></span>
+            Gratuito
+          </button>
+<!-- Dropdown Filter Pill -->
+<button class="bg-[#0B0D12] border border-outline hover:border-outline-strong text-on-surface-variant hover:text-on-surface text-xs font-medium px-2.5 py-1 rounded-full flex items-center gap-1 transition-colors">
+<span>Fondo: Asfalto / Resina</span>
+<span class="material-symbols-outlined text-xs">expand_more</span>
+</button>
+<div class="h-4 w-px bg-outline hidden sm:block"></div>
+<!-- Sort Select -->
+<div class="flex items-center gap-1.5 text-xs text-on-surface-variant pl-1">
+<span class="hidden xl:inline">Ordina:</span>
+<button class="bg-surface-elevated border border-outline text-on-surface px-2.5 py-1 rounded-sm flex items-center gap-1 text-xs">
+<span class="font-medium">Distanza (crescente)</span>
+<span class="material-symbols-outlined text-sm">unfold_more</span>
+</button>
+</div>
+</div>
+</div>
+</section>
+<!-- SPLIT VIEW CONTENT (Left List 45%, Right Map 55%) -->
+<div class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 items-start min-h-[640px]">
+<!-- LEFT COLUMN: COURT CARDS LIST (lg:col-span-5) -->
+<section class="lg:col-span-5 flex flex-col h-[740px] bg-surface border border-outline">
+<!-- List Header Bar -->
+<div class="px-4 py-2.5 border-b border-outline flex items-center justify-between bg-surface-elevated">
+<div class="flex items-center gap-2">
+<span class="font-display font-bold uppercase tracking-wider text-xs text-on-surface">5 RISULTATI A TORINO</span>
+<span class="text-[10px] bg-[#0B0D12] text-on-surface-variant px-1.5 py-0.5 border border-outline">Filtri applicati</span>
+</div>
+<div class="flex items-center gap-2 text-xs text-on-surface-variant">
+<button class="hover:text-primary flex items-center gap-1 text-[11px] font-medium" title="Vista compatta">
+<span class="material-symbols-outlined text-base">density_medium</span>
+</button>
+<span class="text-outline">|</span>
+<button class="hover:text-primary flex items-center gap-1 text-[11px] font-medium">
+<span class="material-symbols-outlined text-sm">fullscreen</span>
+<span class="hidden sm:inline">Schermo intero</span>
+</button>
+</div>
+</div>
+<!-- Scrollable Cards Container -->
+<div class="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-3">
+<!-- CARD 1: ACTIVE / SELECTED STATE -->
+<article class="relative bg-surface-elevated border border-outline-strong border-l-4 border-l-primary p-3 rounded-none transition-all">
+<div class="flex gap-3">
+<!-- Thumbnail -->
+<div class="w-24 h-24 flex-shrink-0 relative bg-asphalt-950 border border-outline overflow-hidden">
+<img alt="Parco Ruffini Campo 2" class="w-full h-full object-cover grayscale contrast-125" src="https://lh3.googleusercontent.com/aida/AEtjO1UmgeKhePY2VnXRrvmb4muzlQawbuqs3Mcua6-9GjFN26zTrsMG2IOa-VuysyommQ1Ucwq3vZ2RUnTLCBwaRFQnX4zStb5g7iIcaN8X1K0j1MlQr5BrdDmupW8U0qQDBRnJNThSHoT--UGRdek-uE24q_APvipIWTN_MgqXez8mSfRKorL26QKu9mnxnW0KUNexULkOE6J8n5qJjruJr49Pz6OR9QTnl9FyS8MrFqTHgWR9l4ssInDaCKg"/>
+<span class="absolute top-1 left-1 bg-primary text-on-primary text-[9px] font-bold px-1 uppercase tracking-tight">#1 SCELTO</span>
+</div>
+<!-- Content -->
+<div class="flex-1 min-w-0">
+<div class="flex items-start justify-between gap-1">
+<div>
+<span class="inline-block bg-primary/15 text-primary border border-primary/40 text-[9px] font-bold uppercase px-1 tracking-wide mb-1">
+                      OMOLOGATO FIBA 3X3
+                    </span>
+<h2 class="font-display font-bold uppercase text-base text-on-surface leading-tight truncate">
+                      Parco Ruffini — Campo 2
+                    </h2>
+</div>
+<span class="text-primary font-bold text-xs tabular-nums flex items-center">
+<span class="material-symbols-outlined text-xs mr-0.5 fill">star</span>4.6
+                  </span>
+</div>
+<div class="flex items-center gap-1 text-[11px] text-on-surface-variant mt-0.5 truncate">
+<span class="material-symbols-outlined text-xs text-primary">location_on</span>
+<span>Corso Trapani 32, Torino</span>
+<span class="text-outline">•</span>
+<span class="font-semibold text-on-surface tabular-nums">1.2 km</span>
+</div>
+<!-- Chips -->
+<div class="flex flex-wrap gap-1 mt-2">
+<span class="bg-[#0B0D12] text-[10px] text-on-surface-variant border border-outline px-1.5 py-0.5">Asfalto</span>
+<span class="bg-[#0B0D12] text-[10px] text-primary border border-primary/30 px-1.5 py-0.5 flex items-center gap-0.5">
+<span class="w-1 h-1 bg-primary rounded-full"></span>Illuminato
+                  </span>
+<span class="bg-[#0B0D12] text-[10px] text-on-surface-variant border border-outline px-1.5 py-0.5">2 Canestri</span>
+<span class="bg-[#0B0D12] text-[10px] text-on-surface-variant border border-outline px-1.5 py-0.5">Tabelloni ferro</span>
+</div>
+</div>
+</div>
+<!-- Card Bottom Row -->
+<div class="mt-3 pt-2.5 border-t border-outline/70 flex items-center justify-between text-xs">
+<span class="text-[11px] text-on-surface-disabled">
+                Ultima tappa: <span class="text-on-surface-variant font-medium">14/09/2026</span>
+</span>
+<div class="flex items-center gap-2">
+<button class="text-[11px] font-semibold uppercase text-on-surface hover:text-primary transition-colors">
+                  Visualizza dettagli
+                </button>
+<button class="bg-primary hover:bg-primary-hover text-on-primary text-[11px] font-display font-bold uppercase tracking-wider px-2.5 py-1 transition-colors">
+                  Organizza partita
+                </button>
+</div>
+</div>
+</article>
+<!-- CARD 2 -->
+<article class="bg-surface hover:bg-surface-elevated border border-outline p-3 transition-all cursor-pointer">
+<div class="flex gap-3">
+<div class="w-24 h-24 flex-shrink-0 relative bg-asphalt-950 border border-outline overflow-hidden">
+<img alt="Giardini Reali Playground Duomo" class="w-full h-full object-cover opacity-80 hover:opacity-100 transition-opacity" src="https://lh3.googleusercontent.com/aida/AEtjO1UmgeKhePY2VnXRrvmb4muzlQawbuqs3Mcua6-9GjFN26zTrsMG2IOa-VuysyommQ1Ucwq3vZ2RUnTLCBwaRFQnX4zStb5g7iIcaN8X1K0j1MlQr5BrdDmupW8U0qQDBRnJNThSHoT--UGRdek-uE24q_APvipIWTN_MgqXez8mSfRKorL26QKu9mnxnW0KUNexULkOE6J8n5qJjruJr49Pz6OR9QTnl9FyS8MrFqTHgWR9l4ssInDaCKg"/>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex items-start justify-between gap-1">
+<div>
+<span class="inline-block bg-[#1B1F29] text-on-surface-variant border border-outline text-[9px] font-bold uppercase px-1 tracking-wide mb-1">
+                      ACCESSO LIBERO
+                    </span>
+<h2 class="font-display font-bold uppercase text-base text-on-surface leading-tight truncate">
+                      Giardini Reali — Playground Duomo
+                    </h2>
+</div>
+<span class="text-gold font-bold text-xs tabular-nums flex items-center">
+<span class="material-symbols-outlined text-xs mr-0.5 fill">star</span>4.8
+                  </span>
+</div>
+<div class="flex items-center gap-1 text-[11px] text-on-surface-variant mt-0.5 truncate">
+<span class="material-symbols-outlined text-xs text-on-surface-disabled">location_on</span>
+<span>Viale Primo Maggio, Torino</span>
+<span class="text-outline">•</span>
+<span class="font-semibold text-on-surface tabular-nums">2.4 km</span>
+</div>
+<div class="flex flex-wrap gap-1 mt-2">
+<span class="bg-[#0B0D12] text-[10px] text-on-surface-variant border border-outline px-1.5 py-0.5">Resina</span>
+<span class="bg-[#0B0D12] text-[10px] text-primary border border-primary/30 px-1.5 py-0.5">Illuminato</span>
+<span class="bg-[#0B0D12] text-[10px] text-on-surface-variant border border-outline px-1.5 py-0.5">1 Canestro (Mezzo)</span>
+<span class="bg-[#0B0D12] text-[10px] text-win border border-win/30 px-1.5 py-0.5">Gratuito</span>
+</div>
+</div>
+</div>
+<div class="mt-3 pt-2.5 border-t border-outline/50 flex items-center justify-between text-xs">
+<span class="text-[11px] text-on-surface-disabled">
+                Ultima tappa: <span class="text-on-surface-variant">02/08/2026</span> (41 recensioni)
+              </span>
+<button class="text-[11px] font-semibold uppercase text-primary hover:text-primary-hover">
+                Dettagli →
+              </button>
+</div>
+</article>
+<!-- CARD 3 -->
+<article class="bg-surface hover:bg-surface-elevated border border-outline p-3 transition-all cursor-pointer">
+<div class="flex gap-3">
+<div class="w-24 h-24 flex-shrink-0 relative bg-asphalt-950 border border-outline overflow-hidden">
+<img alt="Parco Dora Le Arcate" class="w-full h-full object-cover opacity-80" src="https://lh3.googleusercontent.com/aida/AEtjO1UmgeKhePY2VnXRrvmb4muzlQawbuqs3Mcua6-9GjFN26zTrsMG2IOa-VuysyommQ1Ucwq3vZ2RUnTLCBwaRFQnX4zStb5g7iIcaN8X1K0j1MlQr5BrdDmupW8U0qQDBRnJNThSHoT--UGRdek-uE24q_APvipIWTN_MgqXez8mSfRKorL26QKu9mnxnW0KUNexULkOE6J8n5qJjruJr49Pz6OR9QTnl9FyS8MrFqTHgWR9l4ssInDaCKg"/>
+<span class="absolute bottom-1 right-1 bg-navy text-on-surface text-[9px] font-bold px-1 border border-outline">COPERTO</span>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex items-start justify-between gap-1">
+<div>
+<span class="inline-block bg-primary/15 text-primary border border-primary/40 text-[9px] font-bold uppercase px-1 tracking-wide mb-1">
+                      TOP CIRCOLO 3X3
+                    </span>
+<h2 class="font-display font-bold uppercase text-base text-on-surface leading-tight truncate">
+                      Parco Dora — Le Arcate
+                    </h2>
+</div>
+<span class="text-gold font-bold text-xs tabular-nums flex items-center">
+<span class="material-symbols-outlined text-xs mr-0.5 fill">star</span>4.9
+                  </span>
+</div>
+<div class="flex items-center gap-1 text-[11px] text-on-surface-variant mt-0.5 truncate">
+<span class="material-symbols-outlined text-xs text-on-surface-disabled">location_on</span>
+<span>Via Nole / C.so Mortara, Torino</span>
+<span class="text-outline">•</span>
+<span class="font-semibold text-on-surface tabular-nums">3.1 km</span>
+</div>
+<div class="flex flex-wrap gap-1 mt-2">
+<span class="bg-[#0B0D12] text-[10px] text-on-surface-variant border border-outline px-1.5 py-0.5">Cemento</span>
+<span class="bg-[#0B0D12] text-[10px] text-on-surface-variant border border-outline px-1.5 py-0.5">Coperto</span>
+<span class="bg-[#0B0D12] text-[10px] text-primary border border-primary/30 px-1.5 py-0.5">Illuminato</span>
+<span class="bg-[#0B0D12] text-[10px] text-on-surface-variant border border-outline px-1.5 py-0.5">2 Canestri</span>
+</div>
+</div>
+</div>
+<div class="mt-3 pt-2.5 border-t border-outline/50 flex items-center justify-between text-xs">
+<span class="text-[11px] text-on-surface-disabled">
+                Ultima tappa: <span class="text-on-surface-variant">20/07/2026</span> (88 recensioni)
+              </span>
+<button class="text-[11px] font-semibold uppercase text-primary hover:text-primary-hover">
+                Dettagli →
+              </button>
+</div>
+</article>
+<!-- CARD 4 -->
+<article class="bg-surface hover:bg-surface-elevated border border-outline p-3 transition-all cursor-pointer">
+<div class="flex gap-3">
+<div class="w-24 h-24 flex-shrink-0 relative bg-asphalt-950 border border-outline overflow-hidden">
+<img alt="Piazza d'Armi Spazio 3x3" class="w-full h-full object-cover opacity-80" src="https://lh3.googleusercontent.com/aida/AEtjO1UmgeKhePY2VnXRrvmb4muzlQawbuqs3Mcua6-9GjFN26zTrsMG2IOa-VuysyommQ1Ucwq3vZ2RUnTLCBwaRFQnX4zStb5g7iIcaN8X1K0j1MlQr5BrdDmupW8U0qQDBRnJNThSHoT--UGRdek-uE24q_APvipIWTN_MgqXez8mSfRKorL26QKu9mnxnW0KUNexULkOE6J8n5qJjruJr49Pz6OR9QTnl9FyS8MrFqTHgWR9l4ssInDaCKg"/>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex items-start justify-between gap-1">
+<div>
+<span class="inline-block bg-[#1B1F29] text-on-surface-variant border border-outline text-[9px] font-bold uppercase px-1 tracking-wide mb-1">
+                      STORICO STREETBALL
+                    </span>
+<h2 class="font-display font-bold uppercase text-base text-on-surface leading-tight truncate">
+                      Piazza d'Armi — Spazio 3x3
+                    </h2>
+</div>
+<span class="text-primary font-bold text-xs tabular-nums flex items-center">
+<span class="material-symbols-outlined text-xs mr-0.5 fill">star</span>4.3
+                  </span>
+</div>
+<div class="flex items-center gap-1 text-[11px] text-on-surface-variant mt-0.5 truncate">
+<span class="material-symbols-outlined text-xs text-on-surface-disabled">location_on</span>
+<span>Corso Galileo Ferraris, Torino</span>
+<span class="text-outline">•</span>
+<span class="font-semibold text-on-surface tabular-nums">3.8 km</span>
+</div>
+<div class="flex flex-wrap gap-1 mt-2">
+<span class="bg-[#0B0D12] text-[10px] text-on-surface-variant border border-outline px-1.5 py-0.5">Asfalto</span>
+<span class="bg-[#0B0D12] text-[10px] text-on-surface-variant border border-outline px-1.5 py-0.5">2 Canestri</span>
+<span class="bg-[#0B0D12] text-[10px] text-on-surface-variant border border-outline px-1.5 py-0.5">Aperto 24h</span>
+</div>
+</div>
+</div>
+<div class="mt-3 pt-2.5 border-t border-outline/50 flex items-center justify-between text-xs">
+<span class="text-[11px] text-on-surface-disabled">
+                Ultima tappa: <span class="text-on-surface-variant">10/06/2026</span> (15 recensioni)
+              </span>
+<button class="text-[11px] font-semibold uppercase text-primary hover:text-primary-hover">
+                Dettagli →
+              </button>
+</div>
+</article>
+<!-- CARD 5 -->
+<article class="bg-surface hover:bg-surface-elevated border border-outline p-3 transition-all cursor-pointer">
+<div class="flex gap-3">
+<div class="w-24 h-24 flex-shrink-0 relative bg-asphalt-950 border border-outline overflow-hidden">
+<img alt="Campo Vanchiglia Lungo Po" class="w-full h-full object-cover opacity-80" src="https://lh3.googleusercontent.com/aida/AEtjO1UmgeKhePY2VnXRrvmb4muzlQawbuqs3Mcua6-9GjFN26zTrsMG2IOa-VuysyommQ1Ucwq3vZ2RUnTLCBwaRFQnX4zStb5g7iIcaN8X1K0j1MlQr5BrdDmupW8U0qQDBRnJNThSHoT--UGRdek-uE24q_APvipIWTN_MgqXez8mSfRKorL26QKu9mnxnW0KUNexULkOE6J8n5qJjruJr49Pz6OR9QTnl9FyS8MrFqTHgWR9l4ssInDaCKg"/>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex items-start justify-between gap-1">
+<div>
+<span class="inline-block bg-[#1B1F29] text-on-surface-variant border border-outline text-[9px] font-bold uppercase px-1 tracking-wide mb-1">
+                      PLAYGROUND SUL FIUME
+                    </span>
+<h2 class="font-display font-bold uppercase text-base text-on-surface leading-tight truncate">
+                      Campo Vanchiglia — Lungo Po
+                    </h2>
+</div>
+<span class="text-primary font-bold text-xs tabular-nums flex items-center">
+<span class="material-symbols-outlined text-xs mr-0.5 fill">star</span>4.5
+                  </span>
+</div>
+<div class="flex items-center gap-1 text-[11px] text-on-surface-variant mt-0.5 truncate">
+<span class="material-symbols-outlined text-xs text-on-surface-disabled">location_on</span>
+<span>Lungo Po Antonelli 14, Torino</span>
+<span class="text-outline">•</span>
+<span class="font-semibold text-on-surface tabular-nums">4.5 km</span>
+</div>
+<div class="flex flex-wrap gap-1 mt-2">
+<span class="bg-[#0B0D12] text-[10px] text-on-surface-variant border border-outline px-1.5 py-0.5">Asfalto</span>
+<span class="bg-[#0B0D12] text-[10px] text-primary border border-primary/30 px-1.5 py-0.5">Illuminato</span>
+<span class="bg-[#0B0D12] text-[10px] text-on-surface-variant border border-outline px-1.5 py-0.5">2 Canestri</span>
+<span class="bg-[#0B0D12] text-[10px] text-on-surface-variant border border-outline px-1.5 py-0.5">Fontanella</span>
+</div>
+</div>
+</div>
+<div class="mt-3 pt-2.5 border-t border-outline/50 flex items-center justify-between text-xs">
+<span class="text-[11px] text-on-surface-disabled">
+                Ultima tappa: <span class="text-on-surface-variant">28/05/2026</span> (32 recensioni)
+              </span>
+<button class="text-[11px] font-semibold uppercase text-primary hover:text-primary-hover">
+                Dettagli →
+              </button>
+</div>
+</article>
+</div>
+<!-- LIST FOOTER ACTION -->
+<div class="p-3 border-t border-outline bg-surface">
+<button class="w-full bg-primary hover:bg-primary-hover text-on-primary font-display font-extrabold uppercase tracking-wider text-sm py-2.5 px-4 flex items-center justify-center gap-2 transition-transform active:scale-[0.99]">
+<span class="material-symbols-outlined text-base">add_circle</span>
+            Aggiungi un campetto al circuito
+          </button>
+</div>
+</section>
+<!-- RIGHT COLUMN: STICKY INTERACTIVE DARK MAP VIEW (lg:col-span-7) -->
+<section class="lg:col-span-7 h-[740px] sticky top-20 bg-asphalt-950 border border-outline relative overflow-hidden flex flex-col">
+<!-- MAP CANVAS GRAPHIC (SVG Stylized dark street grid of Torino) -->
+<div class="absolute inset-0 w-full h-full bg-[#0E1117] select-none pointer-events-auto">
+<svg class="w-full h-full object-cover" viewbox="0 0 800 700" xmlns="http://www.w3.org/2000/svg">
+<!-- Background Grid Texture -->
+<defs>
+<pattern height="40" id="streetGrid" patternunits="userSpaceOnUse" width="40">
+<path d="M 40 0 L 0 0 0 40" fill="none" stroke="#161B24" stroke-width="0.75"></path>
+</pattern>
+<lineargradient id="poRiverGrad" x1="0" x2="1" y1="0" y2="1">
+<stop offset="0%" stop-color="#17203A" stop-opacity="0.8"></stop>
+<stop offset="100%" stop-color="#0F172A" stop-opacity="0.9"></stop>
+</lineargradient>
+</defs>
+<rect fill="#0B0D12" height="700" width="800"></rect>
+<rect fill="url(#streetGrid)" height="700" width="800"></rect>
+<!-- Urban Blocks / Parks -->
+<rect fill="#131822" height="90" rx="4" width="110" x="80" y="320"></rect>
+<text fill="#3A4052" font-family="Public Sans" font-size="9" font-weight="700" letter-spacing="1" x="95" y="340">PARCO RUFFINI</text>
+<rect fill="#131822" height="70" rx="4" width="80" x="380" y="160"></rect>
+<text fill="#3A4052" font-family="Public Sans" font-size="8" font-weight="700" letter-spacing="1" x="390" y="180">GIARDINI REALI</text>
+<rect fill="#131822" height="60" rx="4" width="130" x="260" y="90"></rect>
+<text fill="#3A4052" font-family="Public Sans" font-size="8" font-weight="700" letter-spacing="1" x="280" y="115">PARCO DORA</text>
+<rect fill="#131822" height="85" rx="4" width="120" x="220" y="440"></rect>
+<text fill="#3A4052" font-family="Public Sans" font-size="8" font-weight="700" letter-spacing="1" x="235" y="465">PIAZZA D'ARMI</text>
+<!-- River Po Flow -->
+<path d="M 520 -20 Q 560 140, 540 260 T 570 480 T 630 720" fill="none" stroke="url(#poRiverGrad)" stroke-linecap="round" stroke-width="26"></path>
+<path d="M 520 -20 Q 560 140, 540 260 T 570 480 T 630 720" fill="none" stroke="#253556" stroke-dasharray="6,6" stroke-width="2"></path>
+<text fill="#253556" font-family="IBM Plex Sans" font-size="10" font-weight="600" transform="rotate(78 590 340)" x="590" y="340">FIUME PO</text>
+<!-- Major Arterials (Corso Francia, Corso Vittorio, Corso Trapani) -->
+<line stroke="#1F2636" stroke-width="4" x1="0" x2="800" y1="270" y2="270"></line>
+<text fill="#3A4052" font-family="IBM Plex Sans" font-size="8" x="20" y="265">C.SO VITTORIO EMANUELE II</text>
+<line stroke="#1F2636" stroke-width="3" x1="0" x2="520" y1="180" y2="240"></line>
+<text fill="#3A4052" font-family="IBM Plex Sans" font-size="8" x="20" y="175">C.SO FRANCIA</text>
+<line stroke="#1F2636" stroke-width="3.5" x1="140" x2="140" y1="0" y2="700"></line>
+<text fill="#3A4052" font-family="IBM Plex Sans" font-size="8" transform="rotate(90 145 600)" x="145" y="600">C.SO TRAPANI</text>
+<line stroke="#1B2230" stroke-width="2" x1="330" x2="330" y1="0" y2="700"></line>
+<line stroke="#1B2230" stroke-width="2" x1="0" x2="800" y1="410" y2="410"></line>
+<!-- Secondary streets grid lines -->
+<line stroke="#151A24" stroke-width="1.5" x1="0" x2="800" y1="530" y2="530"></line>
+<line stroke="#151A24" stroke-width="1.5" x1="470" x2="470" y1="0" y2="700"></line>
+<line stroke="#151A24" stroke-width="1" x1="220" x2="220" y1="0" y2="700"></line>
+</svg>
+<!-- MAP PINS LAYER -->
+<!-- PIN 1: PARCO RUFFINI (ACTIVE WITH PULSE AND TOOLTIP) -->
+<div class="absolute" style="left: 17%; top: 48%;">
+<!-- Pulsing Rings -->
+<div class="absolute -inset-3 rounded-full bg-primary/25 ping-ring pointer-events-none"></div>
+<div class="absolute -inset-1 rounded-full bg-primary/40 pointer-events-none"></div>
+<!-- Pin Button Icon -->
+<button class="relative z-10 w-8 h-8 rounded-sm bg-primary border-2 border-[#0B0D12] text-on-primary flex items-center justify-center font-display font-extrabold text-sm shadow-xl cursor-pointer">
+              1
+            </button>
+<!-- Active Popover Tooltip Card -->
+<div class="absolute bottom-10 left-1/2 -translate-x-1/2 w-64 bg-surface border border-outline-strong p-3 shadow-2xl z-30 pointer-events-auto">
+<div class="flex items-start justify-between gap-1 pb-1.5 border-b border-outline">
+<div>
+<span class="text-[9px] font-bold text-primary uppercase tracking-wide">CAMPO SELEZIONATO</span>
+<h3 class="font-display font-bold uppercase text-sm text-on-surface leading-tight">Parco Ruffini #2</h3>
+</div>
+<span class="text-primary font-bold text-xs tabular-nums flex items-center">
+<span class="material-symbols-outlined text-xs fill">star</span>4.6
+                </span>
+</div>
+<div class="flex items-center justify-between text-[11px] text-on-surface-variant pt-2">
+<span>Dist. 1.2 km</span>
+<span class="text-win font-semibold flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-win"></span>Omologato
+                </span>
+</div>
+<div class="mt-2.5 flex items-center gap-1.5">
+<button class="flex-1 bg-primary hover:bg-primary-hover text-on-primary text-[10px] font-display font-bold uppercase py-1 px-2 text-center transition-colors">
+                  Indicazioni
+                </button>
+<button class="bg-surface-elevated border border-outline hover:border-outline-strong text-on-surface text-[10px] font-display font-semibold uppercase py-1 px-2 transition-colors">
+                  Scheda
+                </button>
+</div>
+<!-- Tooltip Arrow Down -->
+<div class="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-surface border-r border-b border-outline-strong rotate-45"></div>
+</div>
+</div>
+<!-- PIN 2: GIARDINI REALI -->
+<div class="absolute" style="left: 52%; top: 28%;">
+<button class="w-7 h-7 rounded-sm bg-surface-elevated hover:bg-primary border border-primary text-on-surface hover:text-on-primary flex items-center justify-center font-display font-bold text-xs transition-colors shadow-lg group">
+<span>2</span>
+</button>
+<div class="absolute top-8 left-1/2 -translate-x-1/2 hidden group-hover:block whitespace-nowrap bg-surface border border-outline px-2 py-1 text-[10px] font-medium text-on-surface shadow-md pointer-events-none z-20">
+              Giardini Reali • 2.4 km
+            </div>
+</div>
+<!-- PIN 3: PARCO DORA -->
+<div class="absolute" style="left: 38%; top: 16%;">
+<button class="w-7 h-7 rounded-sm bg-surface-elevated hover:bg-primary border border-primary text-on-surface hover:text-on-primary flex items-center justify-center font-display font-bold text-xs transition-colors shadow-lg group">
+<span>3</span>
+</button>
+<div class="absolute top-8 left-1/2 -translate-x-1/2 hidden group-hover:block whitespace-nowrap bg-surface border border-outline px-2 py-1 text-[10px] font-medium text-on-surface shadow-md pointer-events-none z-20">
+              Parco Dora — Le Arcate • 3.1 km
+            </div>
+</div>
+<!-- PIN 4: PIAZZA D'ARMI -->
+<div class="absolute" style="left: 34%; top: 68%;">
+<button class="w-7 h-7 rounded-sm bg-surface-elevated hover:bg-primary border border-outline-strong text-on-surface hover:text-on-primary flex items-center justify-center font-display font-bold text-xs transition-colors shadow-lg group">
+<span>4</span>
+</button>
+<div class="absolute top-8 left-1/2 -translate-x-1/2 hidden group-hover:block whitespace-nowrap bg-surface border border-outline px-2 py-1 text-[10px] font-medium text-on-surface shadow-md pointer-events-none z-20">
+              Piazza d'Armi • 3.8 km
+            </div>
+</div>
+<!-- PIN 5: VANCHIGLIA LUNGO PO -->
+<div class="absolute" style="left: 72%; top: 38%;">
+<button class="w-7 h-7 rounded-sm bg-surface-elevated hover:bg-primary border border-outline-strong text-on-surface hover:text-on-primary flex items-center justify-center font-display font-bold text-xs transition-colors shadow-lg group">
+<span>5</span>
+</button>
+<div class="absolute top-8 left-1/2 -translate-x-1/2 hidden group-hover:block whitespace-nowrap bg-surface border border-outline px-2 py-1 text-[10px] font-medium text-on-surface shadow-md pointer-events-none z-20">
+              Campo Vanchiglia • 4.5 km
+            </div>
+</div>
+</div>
+<!-- OVERLAY: TOP RIGHT MAP CONTROLS -->
+<div class="absolute top-3 right-3 flex flex-col gap-2 z-20">
+<!-- Layer Toggle -->
+<div class="bg-surface border border-outline p-1 flex flex-col gap-1 shadow-lg">
+<button class="px-2 py-1 bg-primary text-on-primary text-[10px] font-display font-bold uppercase rounded-none" title="Stradario notturno FIBA">
+              Stradario Scuro
+            </button>
+<button class="px-2 py-1 hover:bg-surface-elevated text-on-surface-variant hover:text-on-surface text-[10px] font-display font-bold uppercase transition-colors" title="Satellite notturno">
+              Satellite
+            </button>
+</div>
+<!-- Zoom & Location Tools -->
+<div class="bg-surface border border-outline flex flex-col shadow-lg">
+<button aria-label="Zoom in" class="w-8 h-8 flex items-center justify-center text-on-surface hover:text-primary border-b border-outline transition-colors">
+<span class="material-symbols-outlined text-sm">add</span>
+</button>
+<button aria-label="Zoom out" class="w-8 h-8 flex items-center justify-center text-on-surface hover:text-primary border-b border-outline transition-colors">
+<span class="material-symbols-outlined text-sm">remove</span>
+</button>
+<button aria-label="Centra posizione" class="w-8 h-8 flex items-center justify-center text-on-surface hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-sm">my_location</span>
+</button>
+</div>
+</div>
+<!-- OVERLAY: BOTTOM BAR (LEGEND & SCALE) -->
+<div class="mt-auto relative z-20 bg-surface/90 backdrop-blur-sm border-t border-outline px-3 py-2 flex items-center justify-between text-xs">
+<!-- Legend -->
+<div class="flex items-center gap-4 flex-wrap">
+<div class="flex items-center gap-1.5 text-[11px] text-on-surface-variant">
+<span class="w-2.5 h-2.5 bg-primary rounded-none"></span>
+<span>Omologato FIBA</span>
+</div>
+<div class="flex items-center gap-1.5 text-[11px] text-on-surface-variant">
+<span class="w-2.5 h-2.5 bg-surface-elevated border border-primary rounded-none"></span>
+<span>Illuminato</span>
+</div>
+<div class="flex items-center gap-1.5 text-[11px] text-on-surface-variant">
+<span class="w-2.5 h-2.5 bg-outline-strong rounded-none"></span>
+<span>In manutenzione (0)</span>
+</div>
+</div>
+<!-- Scale Indicator -->
+<div class="flex items-center gap-2 text-[10px] text-on-surface-disabled font-mono">
+<span>500 m</span>
+<div class="w-16 h-1 bg-outline relative flex items-center justify-between">
+<div class="w-0.5 h-2 bg-on-surface-disabled"></div>
+<div class="w-0.5 h-2 bg-on-surface-disabled"></div>
+</div>
+</div>
+</div>
+</section>
+</div>
+</main>
+<!-- FOOTER (Shared Components JSON Blueprint) -->
+<footer class="bg-surface border-t border-outline mt-8">
+<div class="flex flex-col md:flex-row justify-between items-center w-full px-6 py-6 max-w-7xl mx-auto gap-4 font-body text-xs text-on-surface-variant">
+<!-- Brand Copyright -->
+<div class="flex items-center gap-3">
+<span class="font-display font-bold uppercase tracking-tight text-base text-on-surface">HOOP 3X3</span>
+<span class="text-outline">|</span>
+<span>© 2025 HOOP 3X3 Streetball Circuit. All rights reserved.</span>
+</div>
+<!-- Links specified in JSON -->
+<div class="flex flex-wrap items-center gap-4 sm:gap-6">
+<a class="text-on-surface-variant hover:text-on-surface transition-colors duration-150" href="#">Regolamento FIBA 3x3</a>
+<a class="text-on-surface-variant hover:text-on-surface transition-colors duration-150" href="#">Privacy Policy</a>
+<a class="text-on-surface-variant hover:text-on-surface transition-colors duration-150" href="#">Termini di Servizio</a>
+<a class="text-on-surface-variant hover:text-on-surface transition-colors duration-150" href="#">Contatti Supporto</a>
+</div>
+</div>
+</footer>
+</body></html>
