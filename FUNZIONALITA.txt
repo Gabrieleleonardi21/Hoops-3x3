@@ -10,15 +10,20 @@ Permette di gestire più leghe indipendenti, ciascuna con le proprie tappe,
 gironi, risultati, statistiche e archivio pubblico. Integra un assistente AI
 (Coach AI) per velocizzare le operazioni via linguaggio naturale.
 
-Tecnologia: React 19 + TypeScript, dati salvati in localStorage e in uno
-spazio condiviso (anagrafe) accessibile a tutti gli utenti del circuito.
+Tecnologia: React 19 + TypeScript (frontend) e Spring Boot 4 + Spring
+Security + PostgreSQL (backend, cartella backend/). Gli utenti registrati
+hanno leghe e tappe sul server; anagrafe e archivio sono condivisi fra tutti
+gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 1. AUTENTICAZIONE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-- Registrazione e login con email + password (archiviati in modo sicuro).
+- Registrazione e login con email + password sul backend: password con hash
+  BCrypt, sessione con token JWT (7 giorni) salvato nel browser.
+- Ruoli USER e ADMIN: l'ADMIN (creato al primo avvio del server) può
+  modificare o eliminare qualsiasi lega, scheda o pubblicazione.
 - Modalità Ospite: accesso immediato senza credenziali per provare l'app;
   i dati vengono salvati solo localmente, i controlli obbligatori su roster
   e punteggi sono disattivati, la pubblicazione nell'archivio è bloccata.
@@ -143,7 +148,7 @@ spazio condiviso (anagrafe) accessibile a tutti gli utenti del circuito.
 - Punti di forza evidenziati: statistiche sopra la media della tappa.
 - Aree di miglioramento identificate automaticamente con spiegazione e
   lista di esercizi specifici per il basket 3x3.
-- Pulsante "Consigli personalizzati del Coach AI" (richiede chiave API):
+- Pulsante "Consigli personalizzati del Coach AI" (richiede account):
   il modello analizza le statistiche del giocatore e fornisce 2-3 consigli
   pratici di allenamento in linguaggio naturale.
 
@@ -244,8 +249,11 @@ Contesto fornito al Coach AI:
     partite giocate/mancanti, classifica di ogni girone.
   - Classifica circuito aggregata (vittorie/partite totali per squadra).
 
-La cronologia della chat viene mantenuta per tutta la sessione e si azzera
-al reload della pagina. Richiede la variabile d'ambiente VITE_GROQ_API_KEY.
+La cronologia della chat è in sessionStorage: sopravvive al reload della
+pagina e si azzera alla chiusura della scheda. Il Coach passa dal backend
+(POST /api/coach/chat) che inoltra a Groq con la chiave GROQ_API_KEY di
+backend/env.properties: la chiave non arriva mai al browser. Riservato agli
+utenti registrati.
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -259,6 +267,15 @@ al reload della pagina. Richiede la variabile d'ambiente VITE_GROQ_API_KEY.
 - Il testo proveniente dall'utente e dall'AI nel prompt del Coach è
   racchiuso in tag <dati_lega> con istruzione esplicita a ignorare qualsiasi
   comando al loro interno (prompt injection mitigation).
-- Persistenza: localStorage per i dati della lega (multi-lega con indice),
-  spazio condiviso (reg_s_* / reg_g_*) per l'anagrafe, pub_* per le tappe
-  pubblicate nell'archivio.
+- Persistenza (utente registrato): API REST del backend con JWT. Leghe e
+  tappe nelle tabelle leghe/tappe (dati di gioco della tappa in colonne
+  JSONB), anagrafe in anagrafe_giocatori/anagrafe_squadre (+ tabella ponte
+  per il roster), archivio in archivio_tappe. Lo store aggiorna subito la
+  UI e salva in background (debounce 400 ms per tappa); un salvataggio
+  fallito è segnalato da una barra in alto.
+- Persistenza (ospite): localStorage per la lega (multi-lega con indice);
+  anagrafe e archivio in sola lettura dal server.
+- Ogni modifica lato server verifica la proprietà: solo l'autore (o un ADMIN)
+  può modificare o eliminare una lega, una scheda anagrafe o una
+  pubblicazione; tutte le risposte di errore hanno il formato
+  {message, timestamp}.
