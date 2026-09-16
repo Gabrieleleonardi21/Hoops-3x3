@@ -1,70 +1,51 @@
-/** Hook per la gestione dell'anagrafe condivisa: giocatori (reg_g_*) e squadre (reg_s_*)
- *  sono salvati nello storage "shared" (namespace hoop3x3_shared_) e visibili a tutti. */
+/** Hook per l'anagrafe condivisa del circuito (giocatori e squadre) sul backend.
+ *  Lettura pubblica (anche ospite); scrittura solo con account: il server assegna
+ *  id, autore e timestamp e rifiuta (403) le modifiche di chi non è autore o ADMIN. */
 import { useEffect, useState } from "react";
-import { storage } from "../services/storage";
-import { uid } from "../utils/uid";
-import type { RegGiocatore, RegSquadra, User } from "../types";
+import { anagrafeApi, toGiocatoreInput, toSquadraInput } from "../services/anagrafeApi";
+import type { RegGiocatore, RegSquadra } from "../types";
 
-/** Carica tutte le voci con un dato prefisso dallo storage condiviso, più recenti prima */
-async function fetchList<T>(prefix: string): Promise<T[]> {
-  try {
-    const r = await storage.list(prefix, true);
-    const out: T[] = [];
-    for (const key of r.keys) {
-      try {
-        const item = await storage.get(key, true);
-        out.push(JSON.parse(item.value));
-      } catch { /* skip */ }
-    }
-    return out.sort((a, b) => ((b as { ts?: number }).ts || 0) - ((a as { ts?: number }).ts || 0));
-  } catch {
-    return [];
-  }
-}
-
-export function useAnagrafe(user: User) {
+export function useAnagrafe() {
   const [giocatori, setGiocatori] = useState<RegGiocatore[] | null>(null);
   const [squadre, setSquadre] = useState<RegSquadra[] | null>(null);
 
   useEffect(() => {
-    fetchList<RegGiocatore>("reg_g_").then(setGiocatori);
-    fetchList<RegSquadra>("reg_s_").then(setSquadre);
+    anagrafeApi.listGiocatori().then(setGiocatori).catch(() => setGiocatori([]));
+    anagrafeApi.listSquadre().then(setSquadre).catch(() => setSquadre([]));
   }, []);
 
   const saveGiocatore = async (data: Omit<RegGiocatore, "id" | "autore" | "ts">) => {
-    const rec: RegGiocatore = { ...data, id: uid(), autore: user.name, ts: Date.now() };
-    await storage.set(`reg_g_${rec.id}`, JSON.stringify(rec), true);
+    const rec = await anagrafeApi.createGiocatore(data);
     setGiocatori((l) => [rec, ...(l || [])]);
   };
 
   const saveSquadra = async (data: Omit<RegSquadra, "id" | "autore" | "ts">): Promise<RegSquadra> => {
-    const rec: RegSquadra = { ...data, id: uid(), autore: user.name, ts: Date.now() };
-    await storage.set(`reg_s_${rec.id}`, JSON.stringify(rec), true);
+    const rec = await anagrafeApi.createSquadra(data);
     setSquadre((l) => [rec, ...(l || [])]);
     return rec;
   };
 
   const removeGiocatore = async (id: string) => {
-    await storage.delete(`reg_g_${id}`, true).catch(() => {});
+    await anagrafeApi.removeGiocatore(id);
     setGiocatori((l) => (l || []).filter((x) => x.id !== id));
+    // Il server lo toglie anche dai roster: allineo la copia locale delle squadre
+    setSquadre((l) => (l || []).map((s) => ({ ...s, roster: s.roster.filter((g) => g !== id) })));
   };
 
-  /** Sovrascrive un giocatore esistente mantenendo id e autore, aggiornando il timestamp */
+  /** Sovrascrive un giocatore esistente (id e autore restano, il server aggiorna ts) */
   const updateGiocatore = async (updated: RegGiocatore) => {
-    const rec = { ...updated, ts: Date.now() };
-    await storage.set(`reg_g_${rec.id}`, JSON.stringify(rec), true);
+    const rec = await anagrafeApi.updateGiocatore(updated.id, toGiocatoreInput(updated));
     setGiocatori((l) => (l || []).map((x) => (x.id === rec.id ? rec : x)));
   };
 
   const removeSquadra = async (id: string) => {
-    await storage.delete(`reg_s_${id}`, true).catch(() => {});
+    await anagrafeApi.removeSquadra(id);
     setSquadre((l) => (l || []).filter((x) => x.id !== id));
   };
 
-  /** Sovrascrive una squadra esistente mantenendo id e autore, aggiornando il timestamp */
+  /** Sovrascrive una squadra esistente (roster compreso) */
   const updateSquadra = async (updated: RegSquadra) => {
-    const rec = { ...updated, ts: Date.now() };
-    await storage.set(`reg_s_${rec.id}`, JSON.stringify(rec), true);
+    const rec = await anagrafeApi.updateSquadra(updated.id, toSquadraInput(updated));
     setSquadre((l) => (l || []).map((x) => (x.id === rec.id ? rec : x)));
   };
 

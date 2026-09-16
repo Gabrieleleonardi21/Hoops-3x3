@@ -1,10 +1,24 @@
 /** Form di autenticazione: usa react-hook-form + Zod per la validazione dei campi.
- *  L'autenticazione è dimostrativa (client-side SHA-256 + localStorage), non adatta alla produzione. */
+ *  Registrazione e login passano dal backend (JWT); la modalità Ospite resta locale al browser. */
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuth } from "../../hooks/useAuth";
+import { ApiError } from "../../services/api";
+
+const ACCOUNT_HINT = "hoop3x3_has_account";
+function hasAccountHint(): boolean {
+  try { return localStorage.getItem(ACCOUNT_HINT) === "1"; } catch { return false; }
+}
+function rememberAccount() {
+  try { localStorage.setItem(ACCOUNT_HINT, "1"); } catch { /* ignora */ }
+}
+/** Il backend risponde sempre {message}: si mostra quello, altrimenti un testo generico */
+function messaggioErrore(e: unknown): string {
+  if (e instanceof ApiError) return e.message;
+  return "Errore imprevisto, riprova.";
+}
 import { useNavigate } from "react-router-dom";
 import { Input } from "../ui/Input";
 import { Button } from "../ui/Button";
@@ -22,9 +36,10 @@ type RegisterData = z.infer<typeof registerSchema>;
 type LoginData = z.infer<typeof loginSchema>;
 
 export function AuthForm() {
-  const { account, register: doRegister, login: doLogin, enterGuest } = useAuth();
+  const { register: doRegister, login: doLogin, enterGuest } = useAuth();
   const navigate = useNavigate();
-  const [mode, setMode] = useState<"register" | "login">(account ? "login" : "register");
+  // Chi ha già usato un account su questo browser parte dal tab "Accedi"
+  const [mode, setMode] = useState<"register" | "login">(hasAccountHint() ? "login" : "register");
   const [authError, setAuthError] = useState<string | null>(null);
 
   const regForm = useForm<RegisterData>({ resolver: zodResolver(registerSchema) });
@@ -32,15 +47,24 @@ export function AuthForm() {
 
   const onRegister = regForm.handleSubmit(async (d) => {
     setAuthError(null);
-    await doRegister(d.name, d.email, d.pass);
-    navigate("/lega");
+    try {
+      await doRegister(d.name, d.email, d.pass);
+      rememberAccount();
+      navigate("/lega");
+    } catch (e) {
+      setAuthError(messaggioErrore(e));
+    }
   });
 
   const onLogin = logForm.handleSubmit(async (d) => {
     setAuthError(null);
-    const ok = await doLogin(d.email, d.pass);
-    if (!ok) { setAuthError("Mail o password non corretti."); return; }
-    navigate("/lega");
+    try {
+      await doLogin(d.email, d.pass);
+      rememberAccount();
+      navigate("/lega");
+    } catch (e) {
+      setAuthError(messaggioErrore(e));
+    }
   });
 
   const tab = (m: "register" | "login", label: string) => (
@@ -63,13 +87,12 @@ export function AuthForm() {
           <Input label="Mail" type="email" placeholder="nome@mail.it" autoComplete="email" {...regForm.register("email")} error={!!regErr.email} hint={regErr.email?.message} />
           <Input label="Password" type="password" autoComplete="new-password" {...regForm.register("pass")} error={!!regErr.pass} hint={regErr.pass?.message} />
           <p className="m-0 text-xs text-chalk-muted">
-            Accesso dimostrativo salvato solo su questo browser: non usare una password che utilizzi altrove.
+            L'account è salvato sul server: le tue leghe ti seguono su qualsiasi dispositivo.
           </p>
           <Button type="submit" className="w-full">Crea account</Button>
         </form>
       ) : (
         <form className="flex flex-col gap-3" onSubmit={onLogin} noValidate>
-          {!account && <p className="m-0 text-[13px] text-chalk-muted">Nessun account trovato su questo browser: registrati per salvare la tua lega.</p>}
           <Input label="Mail" type="email" autoComplete="email" {...logForm.register("email")} error={!!logErr.email} hint={logErr.email?.message} />
           <Input label="Password" type="password" autoComplete="current-password" {...logForm.register("pass")} error={!!logErr.pass} hint={logErr.pass?.message} />
           <Button type="submit" className="w-full">Accedi</Button>

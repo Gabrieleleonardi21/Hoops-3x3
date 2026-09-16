@@ -25,7 +25,7 @@ export function AnagrafePage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [selSquadra, setSelSquadra] = useState<RegSquadra | null>(null);
   const [selGiocatore, setSelGiocatore] = useState<RegGiocatore | null>(null);
-  const anagrafe = useAnagrafe(user ?? { name: "Ospite", guest: true });
+  const anagrafe = useAnagrafe();
   if (!user) return <Navigate to="/" replace />;
   const { giocatori, squadre, saveGiocatore, saveSquadra, removeGiocatore, removeSquadra, updateSquadra, updateGiocatore } = anagrafe;
 

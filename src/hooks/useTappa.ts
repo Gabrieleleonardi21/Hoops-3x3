@@ -1,5 +1,5 @@
 import { useAppStore } from "../stores/useAppStore";
-import { storage } from "../services/storage";
+import { archivioApi } from "../services/archivioApi";
 import { uid } from "../utils/uid";
 import { buildGironi } from "../utils/buildGironi";
 import { buildGironiSeeded } from "../utils/buildGironiSeeded";
@@ -191,9 +191,7 @@ export function useTappa(id: string | undefined) {
   /* ── video + pubblicazione ── */
   const republish = async (t: Tappa) => {
     if (!t.conclusa || !user || user.guest) return;
-    await storage
-      .set(`pub_${t.id}`, JSON.stringify({ tappa: t, lega: legaName, autore: user.name, ts: Date.now() }), true)
-      .catch(() => {});
+    await archivioApi.pubblica(t, legaName).catch(() => {});
   };
   const addVideo = (titolo: string, url: string) => {
     if (!tappa || !url.trim()) return;
@@ -220,7 +218,7 @@ export function useTappa(id: string | undefined) {
     const t2: Tappa = { ...tappa, conclusa: true };
     replaceTappa(t2);
     try {
-      await storage.set(`pub_${tappa.id}`, JSON.stringify({ tappa: t2, lega: legaName, autore: user.name, ts: Date.now() }), true);
+      await archivioApi.pubblica(t2, legaName);
       return null;
     } catch {
       return "Tappa conclusa, ma pubblicazione non riuscita: riprova da 'Concludi'.";
@@ -230,7 +228,7 @@ export function useTappa(id: string | undefined) {
   const riapri = async () => {
     if (!tappa) return;
     updateTappa(tappa.id, { conclusa: false });
-    await storage.delete(`pub_${tappa.id}`, true).catch(() => {});
+    await archivioApi.rimuovi(tappa.id).catch(() => {});
   };
 
   return {

@@ -38,7 +38,7 @@ export function GiocatorePage() {
   const user = useAppStore((s) => s.user);
   const tappe = useAppStore((s) => s.tappe);
   const navigate = useNavigate();
-  const { giocatori, squadre } = useAnagrafe(user ?? { name: "Ospite", guest: true });
+  const { giocatori, squadre } = useAnagrafe();
 
   const g = giocatori?.find((x) => x.id === id) ?? null;
   const logo = g ? squadre?.find((s) => s.nome === g.squadra)?.logo : undefined;

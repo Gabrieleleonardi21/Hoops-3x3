@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { askCoachWithTools, aiAvailable, AiError, type ChatMsg, type ToolDef } from "../services/aiService";
+import { askCoachWithTools, AiError, type ChatMsg, type ToolDef } from "../services/aiService";
 import { useAppStore } from "../stores/useAppStore";
-import { storage } from "../services/storage";
+import { anagrafeApi } from "../services/anagrafeApi";
+import { archivioApi } from "../services/archivioApi";
 import { uid } from "../utils/uid";
 import { DEFAULT_RULES } from "../constants/rules";
 import { buildCoachContext } from "../utils/buildCoachContext";
@@ -202,9 +203,10 @@ const COACH_TOOLS: ToolDef[] = [
 /** Messaggi di errore specifici per codice Groq. */
 function errorMsg(err: unknown): string {
   if (err instanceof AiError) {
-    if (err.code === "GROQ_AUTH") return "Chiave API non valida. Controlla VITE_GROQ_API_KEY nel file .env.";
-    if (err.code === "GROQ_RATE") return "Limite richieste Groq raggiunto: aspetta qualche secondo e riprova.";
-    if (err.code === "GROQ_NETWORK") return "Nessuna connessione: controlla la rete e riprova.";
+    if (err.code === "AUTH") return "Sessione scaduta: esci e accedi di nuovo per usare Coach AI.";
+    if (err.code === "RATE") return "Limite richieste raggiunto: aspetta qualche secondo e riprova.";
+    if (err.code === "UNAVAILABLE") return "Coach AI non è configurato sul server: imposta GROQ_API_KEY in backend/env.properties. Il resto dell'app funziona senza.";
+    if (err.code === "NETWORK") return "Server non raggiungibile: controlla la rete o avvia il backend.";
   }
   return "Si è verificato un errore, riprova tra poco.";
 }
@@ -240,21 +242,12 @@ function faseFilter(raw: string): "girone" | "bracket" | null {
   return null;
 }
 
-/** Carica tutte le voci con un dato prefisso dallo storage condiviso. */
-async function fetchShared<T>(prefix: string): Promise<T[]> {
-  try {
-    const r = await storage.list(prefix, true);
-    const out: T[] = [];
-    for (const key of r.keys) {
-      try {
-        const item = await storage.get(key, true);
-        out.push(JSON.parse(item.value) as T);
-      } catch { /* skip voce corrotta */ }
-    }
-    return out;
-  } catch {
-    return [];
-  }
+/** Anagrafe dal backend; in caso di errore lista vuota (il tool risponde comunque). */
+async function fetchSquadre(): Promise<RegSquadra[]> {
+  return anagrafeApi.listSquadre().catch(() => []);
+}
+async function fetchGiocatori(): Promise<RegGiocatore[]> {
+  return anagrafeApi.listGiocatori().catch(() => []);
 }
 
 export function useCoachAI() {
@@ -293,11 +286,10 @@ export function useCoachAI() {
    * Il risultato viene rispedito all'AI per generare la risposta finale.
    */
   const executeTool = async (name: string, args: Record<string, unknown>): Promise<string> => {
-    const autore = user?.name ?? "Coach AI";
 
     if (name === "crea_lega") {
       const nomeLega = str(args, "nome") || "Nuova lega";
-      createLega(nomeLega);
+      await createLega(nomeLega);
       navigate("/lega");
       return `Lega "${nomeLega}" creata con successo e impostata come attiva.`;
     }
@@ -318,10 +310,7 @@ export function useCoachAI() {
         : [];
 
       // Carica anagrafe in parallelo
-      const [tutteSquadre, tuttiGiocatori] = await Promise.all([
-        fetchShared<RegSquadra>("reg_s_"),
-        fetchShared<RegGiocatore>("reg_g_"),
-      ]);
+      const [tutteSquadre, tuttiGiocatori] = await Promise.all([fetchSquadre(), fetchGiocatori()]);
 
       // Abbina ogni nome richiesto a una squadra in anagrafe; se non trovata, la registra in automatico
       const autoRegistrate: string[] = [];
@@ -334,15 +323,12 @@ export function useCoachAI() {
 
           if (!reg) {
             // Squadra non in anagrafe: la registra automaticamente con dati minimi
-            const newReg: RegSquadra = {
-              id: uid(), autore, ts: Date.now(),
+            reg = await anagrafeApi.createSquadra({
               nome: nomeRichiesto,
               citta: "", anno: "", rank: "", referente: "",
               logo: "", website: "", instagram: "", note: "",
               roster: [],
-            };
-            await storage.set(`reg_s_${newReg.id}`, JSON.stringify(newReg), true);
-            reg = newReg;
+            });
             autoRegistrate.push(nomeRichiesto);
           }
 
@@ -387,8 +373,7 @@ export function useCoachAI() {
 
     if (name === "registra_squadra") {
       const nome = str(args, "nome") || "Nuova squadra";
-      const rec: RegSquadra = {
-        id: uid(), autore, ts: Date.now(),
+      await anagrafeApi.createSquadra({
         nome,
         citta:     str(args, "citta"),
         anno:      str(args, "anno"),
@@ -399,16 +384,14 @@ export function useCoachAI() {
         instagram: str(args, "instagram"),
         note:      str(args, "note"),
         roster: [],
-      };
-      await storage.set(`reg_s_${rec.id}`, JSON.stringify(rec), true);
+      });
       return `Squadra "${nome}" registrata nell'anagrafe.`;
     }
 
     if (name === "registra_giocatore") {
       const nome    = str(args, "nome") || "Giocatore";
       const cognome = str(args, "cognome");
-      const rec: RegGiocatore = {
-        id: uid(), autore, ts: Date.now(),
+      await anagrafeApi.createGiocatore({
         nome, cognome,
         soprannome:  str(args, "soprannome"),
         nascita:     str(args, "nascita"),
@@ -421,8 +404,7 @@ export function useCoachAI() {
         squadra:     str(args, "squadra"),
         esperienza:  str(args, "esperienza"),
         note:        str(args, "note"),
-      };
-      await storage.set(`reg_g_${rec.id}`, JSON.stringify(rec), true);
+      });
       return `Giocatore "${nome} ${cognome}" registrato nell'anagrafe.`;
     }
 
@@ -563,7 +545,7 @@ export function useCoachAI() {
     if (name === "aggiorna_squadra") {
       const nomeRicerca = str(args, "nome");
       if (!nomeRicerca) return "Specifica il nome della squadra da aggiornare.";
-      const tutteSquadre = await fetchShared<RegSquadra>("reg_s_");
+      const tutteSquadre = await fetchSquadre();
       const nl = nomeRicerca.toLowerCase();
       const reg = tutteSquadre.find(
         (s) => s.nome.toLowerCase() === nl || s.nome.toLowerCase().includes(nl),
@@ -579,8 +561,8 @@ export function useCoachAI() {
       }
       if (Object.keys(aggiornamenti).length === 0) return "Nessun campo da aggiornare specificato.";
 
-      const aggiornata: RegSquadra = { ...reg, ...aggiornamenti, ts: Date.now() };
-      await storage.set(`reg_s_${reg.id}`, JSON.stringify(aggiornata), true);
+      const { id: _id, autore: _autore, ts: _ts, ...campiReg } = reg;
+      await anagrafeApi.updateSquadra(reg.id, { ...campiReg, ...aggiornamenti });
       const campiModificati = Object.keys(aggiornamenti).join(", ");
       return `Squadra "${reg.nome}" aggiornata in anagrafe (${campiModificati}).`;
     }
@@ -626,11 +608,7 @@ export function useCoachAI() {
       const t2: Tappa = { ...tappa, conclusa: true };
       replaceTappa(t2);
       try {
-        await storage.set(
-          `pub_${tappa.id}`,
-          JSON.stringify({ tappa: t2, lega: legaName, autore: user.name, ts: Date.now() }),
-          true,
-        );
+        await archivioApi.pubblica(t2, legaName);
         return `Tappa "${tappa.nome}" conclusa e pubblicata nell'Archivio circuito.`;
       } catch {
         return `Tappa "${tappa.nome}" conclusa, ma la pubblicazione non è riuscita: riprova dalla pagina tappa.`;
@@ -645,10 +623,10 @@ export function useCoachAI() {
     if (!t || loading) return;
     const history: ChatMsg[] = [...msgs, { role: "user", content: t }];
 
-    if (!aiAvailable) {
+    if (!user || user.guest) {
       setMsgs([...history, {
         role: "assistant",
-        content: "Coach AI non è configurato: imposta VITE_GROQ_API_KEY nel file .env — ottieni la chiave gratis su console.groq.com. Il resto dell'app funziona senza.",
+        content: "Coach AI è riservato agli utenti registrati: crea un account gratuito dalla home per usarlo.",
       }]);
       return;
     }

@@ -40,14 +40,14 @@ export function LegheListPage() {
 
   if (!user) return <Navigate to="/" replace />;
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!nome.trim()) return;
-    createLega(nome);
+    await createLega(nome);
     navigate("/lega");
   };
 
-  const handleOpen = (id: string) => {
-    selectLega(id);
+  const handleOpen = async (id: string) => {
+    await selectLega(id);
     navigate("/lega");
   };
 

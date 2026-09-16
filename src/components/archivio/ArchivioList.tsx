@@ -1,4 +1,4 @@
-/** Lista delle tappe concluse e pubblicate nell'archivio del circuito (storage condiviso). */
+/** Lista delle tappe concluse e pubblicate nell'archivio del circuito (dal backend). */
 import { Loading } from "../ui/Loading";
 import { Section } from "../ui/Section";
 import type { PubTappa } from "../../types";

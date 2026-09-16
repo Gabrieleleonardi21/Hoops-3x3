@@ -22,7 +22,6 @@ import { Card } from "../components/ui/Card";
 import { Icon } from "../components/ui/Icon";
 import { Section } from "../components/ui/Section";
 import { Badge } from "../components/ui/Badge";
-import type { User } from "../types";
 
 export function TappaPage() {
   const { id } = useParams();
@@ -34,8 +33,7 @@ export function TappaPage() {
   const [copied,      setCopied]      = useState(false);
 
   // useAnagrafe deve stare prima degli early return (regole degli hook)
-  const dummyUser: User = { name: "", guest: true };
-  const { squadre: squadreAnagrafe, saveSquadra } = useAnagrafe(h.user ?? dummyUser);
+  const { squadre: squadreAnagrafe, saveSquadra } = useAnagrafe();
 
   // Quando l'anagrafe carica, sincronizza le squadre della tappa (per nome o regId)
   useEffect(() => {

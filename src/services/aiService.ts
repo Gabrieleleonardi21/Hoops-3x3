@@ -1,6 +1,6 @@
-/** Chiamata al modello per Coach AI via Groq (gratuito).
- *  Imposta VITE_GROQ_API_KEY nel file .env — ottieni la chiave gratis su console.groq.com.
- *  IN PRODUZIONE: non esporre mai la chiave nel client, usa un backend proxy. */
+/** Chiamata al modello per Coach AI tramite il backend (POST /api/coach/chat), che inoltra
+ *  a Groq con la chiave tenuta sul server. Serve un account registrato (endpoint autenticato). */
+import { api, ApiError } from "./api";
 export interface ChatMsg {
   role: "user" | "assistant";
   content: string;
@@ -36,7 +36,7 @@ export interface ToolCall {
 }
 
 /** Codici di errore tipizzati per mostrare messaggi specifici all'utente. */
-export type AiErrorCode = "GROQ_AUTH" | "GROQ_RATE" | "GROQ_SERVER" | "GROQ_NETWORK";
+export type AiErrorCode = "AUTH" | "RATE" | "UNAVAILABLE" | "SERVER" | "NETWORK";
 
 export class AiError extends Error {
   constructor(public code: AiErrorCode, message: string) {
@@ -52,45 +52,23 @@ interface ApiMsg {
   tool_call_id?: string;
 }
 
-const GROQ_KEY = import.meta.env.VITE_GROQ_API_KEY as string | undefined;
-
-export const aiAvailable = Boolean(GROQ_KEY);
-
-/** Chiamata HTTP base verso Groq. Accetta messaggi API-level e opzionali tool definitions. */
+/** Chiamata HTTP base verso il proxy. Accetta messaggi API-level e opzionali tool definitions. */
 async function callGroq(
   messages: ApiMsg[],
   tools?: ToolDef[],
 ): Promise<{ content: string | null; tool_calls?: ToolCall[] }> {
-  if (!GROQ_KEY) throw new AiError("GROQ_AUTH", "Chiave API non configurata");
-
-  let res: Response;
+  let data: { choices?: { message?: { content?: string; tool_calls?: ToolCall[] } }[]; error?: { message?: string } };
   try {
-    res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${GROQ_KEY}`,
-      },
-      body: JSON.stringify({
-        // llama-3.3-70b-versatile: ottimo equilibrio qualità/velocità, gratuito su Groq
-        model: "llama-3.3-70b-versatile",
-        max_tokens: 650,
-        messages,
-        ...(tools?.length ? { tools, tool_choice: "auto" } : {}),
-      }),
-    });
-  } catch {
-    throw new AiError("GROQ_NETWORK", "Errore di rete");
+    data = await api("/api/coach/chat", { method: "POST", body: { messages, tools: tools ?? [] } });
+  } catch (e) {
+    if (!(e instanceof ApiError)) throw new AiError("SERVER", "errore imprevisto");
+    if (e.status === 0) throw new AiError("NETWORK", e.message);
+    if (e.status === 401) throw new AiError("AUTH", e.message);
+    if (e.status === 429) throw new AiError("RATE", e.message);
+    if (e.status === 503) throw new AiError("UNAVAILABLE", e.message);
+    throw new AiError("SERVER", e.message);
   }
-
-  if (!res.ok) {
-    if (res.status === 401) throw new AiError("GROQ_AUTH", "Chiave API non valida");
-    if (res.status === 429) throw new AiError("GROQ_RATE", "Limite richieste raggiunto");
-    throw new AiError("GROQ_SERVER", `Errore server Groq: ${res.status}`);
-  }
-
-  const data = await res.json();
-  if (data.error) throw new AiError("GROQ_SERVER", data.error.message || "errore API Groq");
+  if (data.error) throw new AiError("SERVER", data.error.message || "errore API Groq");
 
   const msg = data.choices?.[0]?.message;
   return { content: msg?.content?.trim() ?? null, tool_calls: msg?.tool_calls };

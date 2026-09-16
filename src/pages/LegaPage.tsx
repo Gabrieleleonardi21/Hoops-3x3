@@ -39,14 +39,20 @@ export function LegaPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => {
+    reader.onload = async (ev) => {
+      let data: { nome?: string; tappe?: Tappa[] };
       try {
-        const data = JSON.parse(ev.target?.result as string) as { nome?: string; tappe?: Tappa[] };
-        if (!Array.isArray(data.tappe)) { alert("File non valido: manca il campo 'tappe'."); return; }
-        importLega(data.nome ?? file.name.replace(".json", ""), data.tappe);
-        navigate("/lega");
+        data = JSON.parse(ev.target?.result as string);
       } catch {
         alert("File JSON non valido.");
+        return;
+      }
+      if (!Array.isArray(data.tappe)) { alert("File non valido: manca il campo 'tappe'."); return; }
+      try {
+        await importLega(data.nome ?? file.name.replace(".json", ""), data.tappe);
+        navigate("/lega");
+      } catch {
+        alert("Import non riuscito: il server ha rifiutato il file.");
       }
     };
     reader.readAsText(file);

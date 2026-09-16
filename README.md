@@ -34,16 +34,35 @@ App web per la gestione di un circuito italiano di basket 3x3: tornei, gironi, s
 - [React Router 7](https://reactrouter.com/) — routing
 - [React Hook Form](https://react-hook-form.com/) + [Zod](https://zod.dev/) — form e validazione
 - [Tailwind CSS 4](https://tailwindcss.com/) — styling; i token del design system "Asphalt" sono in `src/index.css` (`@theme`), documentati in `docs/design-system.md`
-- `localStorage` — persistenza dei dati (nessun backend richiesto)
+- Backend [Spring Boot 4](https://spring.io/projects/spring-boot) (Java 17+) con Spring Security + JWT, JPA/Hibernate e PostgreSQL — cartella `backend/`
+- `localStorage` — solo per la modalità Ospite (dati che restano nel browser)
 
 ## Avvio rapido
+
+Servono Node 20+, JDK 17+, Maven e PostgreSQL in ascolto su `localhost:5432`.
+
+**1. Database** — crea il DB `hoop3x3` ed esegui `backend/db/schema.sql` (in pgAdmin: Query Tool → apri il file → Esegui), oppure da terminale:
+
+```bash
+createdb hoop3x3 && psql -d hoop3x3 -f backend/db/schema.sql
+```
+
+**2. Backend** — copia `backend/env.properties.example` in `backend/env.properties`, compila password DB, `JWT_SECRET` e (facoltativa) `GROQ_API_KEY`, poi:
+
+```bash
+cd backend && mvn spring-boot:run
+```
+
+L'API risponde su `http://localhost:3001` (Hibernate gira in `validate`: se lo schema non combacia con le entity si ferma all'avvio con un messaggio chiaro).
+
+**3. Frontend**
 
 ```bash
 npm install
 npm run dev
 ```
 
-L'app è disponibile su `http://localhost:5173`.
+L'app è disponibile su `http://localhost:5173`; in sviluppo le chiamate a `/api` passano dal proxy di Vite verso il backend. In produzione imposta `VITE_API_URL` (vedi `.env.example`).
 
 ## Script disponibili
 
@@ -58,14 +77,38 @@ L'app è disponibile su `http://localhost:5173`.
 
 ## Coach AI (opzionale)
 
-Il Coach AI usa [Groq](https://console.groq.com/) (tier gratuito, modello `llama-3.3-70b-versatile`).  
-Crea un file `.env` nella root del progetto con la tua chiave:
+Il Coach AI usa [Groq](https://console.groq.com/) (tier gratuito, modello `llama-3.3-70b-versatile`) attraverso il backend (`POST /api/coach/chat`), così la chiave non arriva mai al browser. Impostala in `backend/env.properties`:
 
-```env
-VITE_GROQ_API_KEY=gsk_...
+```properties
+GROQ_API_KEY=gsk_...
 ```
 
-Vedi `.env.example` per riferimento. La chiave Groq free non ha costi per utilizzo personale.
+Senza chiave il Coach risponde "non configurato" e il resto dell'app funziona normalmente. Il Coach è riservato agli utenti registrati.
+
+## API REST
+
+Tutte le risposte di errore hanno il formato `{ "message": "...", "timestamp": "..." }`. Gli endpoint protetti richiedono `Authorization: Bearer <jwt>`.
+
+| Metodo | Endpoint | Accesso | Descrizione |
+|---|---|---|---|
+| POST | `/api/auth/register` | pubblico | Crea l'account (ruolo `USER`) e restituisce token + utente |
+| POST | `/api/auth/login` | pubblico | Login, restituisce token + utente |
+| GET | `/api/auth/me` | login | Utente del token corrente |
+| GET | `/api/utenti` | ADMIN | Elenco utenti |
+| GET/POST | `/api/leghe` | login | Indice leghe dell'utente / nuova lega (anche import con `tappe`) |
+| GET/PATCH/DELETE | `/api/leghe/{id}` | proprietario | Dettaglio con tappe / rinomina / elimina |
+| POST | `/api/leghe/{id}/tappe` | proprietario | Nuova tappa (id UUID generato dal client) |
+| PUT/DELETE | `/api/tappe/{id}` | proprietario | Sostituisce / elimina la tappa |
+| GET | `/api/anagrafe/giocatori`, `/squadre` | pubblico | Anagrafe circuito |
+| POST | `/api/anagrafe/giocatori`, `/squadre` | login | Nuova voce (autore = utente) |
+| PUT/DELETE | `/api/anagrafe/giocatori/{id}`, `/squadre/{id}` | autore o ADMIN | Modifica / elimina |
+| GET | `/api/archivio`, `/api/archivio/{tappaId}` | pubblico | Tappe pubblicate |
+| PUT | `/api/archivio` | login | Pubblica o ripubblica una tappa conclusa |
+| DELETE | `/api/archivio/{tappaId}` | autore o ADMIN | Ritira la pubblicazione |
+| GET | `/api/coach/status` | login | `{ available }` (chiave Groq configurata) |
+| POST | `/api/coach/chat` | login | Proxy verso Groq (messaggi + tool in formato OpenAI) |
+
+Un utente `ADMIN` iniziale viene creato al primo avvio dalle proprietà `ADMIN_EMAIL` / `ADMIN_PASSWORD` di `env.properties`.
 
 ## Struttura del progetto
 
@@ -89,7 +132,7 @@ src/
 ├── data/             # Dati di esempio (campetti)
 ├── hooks/            # Custom hooks
 ├── pages/            # Pagine dell'app
-├── services/         # Storage (localStorage) e AI
+├── services/         # Client HTTP (api.ts), servizi REST (leghe, anagrafe, archivio, auth) e AI
 ├── stores/           # Store Zustand globale
 ├── types/            # Definizioni TypeScript
 └── utils/            # Funzioni di utilità (gironi, classifica, ecc.)
@@ -103,4 +146,22 @@ accessibilità sono in [`docs/design-system.md`](docs/design-system.md). I mocku
 
 ## Dati e persistenza
 
-Tutti i dati sono salvati nel `localStorage` del browser, senza necessità di un server. Per ambienti multi-utente o condivisione reale dei dati, è necessario sostituire il layer `src/services/storage.ts` con chiamate a un'API backend.
+- **Utente registrato**: leghe e tappe sono sul server (`leghe`, `tappe`), l'anagrafe e l'archivio sono condivisi tra tutti gli utenti. Lo store aggiorna subito lo stato in memoria e salva in background (le modifiche a una tappa sono raggruppate con un debounce di 400 ms); un salvataggio fallito è segnalato da una barra in alto.
+- **Ospite**: la lega resta nel `localStorage` del browser; anagrafe e archivio sono consultabili in sola lettura.
+
+Schema del database in `backend/db/schema.sql`. I dati di gioco della tappa (squadre iscritte, gironi, partite con statistiche ed eventi, bracket, video) sono colonne `JSONB` della tabella `tappe`: il motore torneo li legge e li scrive sempre come blocco unico. Regole, nome, luogo, data e stato sono colonne normali.
+
+```
+backend/
+├── db/schema.sql                   # tabelle PostgreSQL (da eseguire in pgAdmin)
+├── env.properties.example          # segreti: copiare in env.properties
+└── src/main/java/com/hoop3x3/backend/
+    ├── controllers/  # REST (auth, utenti, leghe, tappe, anagrafe, archivio, coach)
+    ├── dto/          # record con validazione Bean Validation
+    ├── entities/     # JPA: Utente, Lega, Tappa (+Regole), AnagrafeGiocatore/Squadra, ArchivioTappa
+    ├── exceptions/   # eccezioni tipizzate + ExceptionsHandler (corpo uniforme)
+    ├── repositories/ # Spring Data JPA
+    ├── runners/      # DataSeeder (admin iniziale)
+    ├── security/     # SecurityConfig, JwtFilter, JWTtools, CorsConfig, JsonAuthEntryPoint
+    └── services/     # logica: proprietà (AccessGuard), JSON delle tappe, proxy Groq
+```

@@ -5,13 +5,16 @@ import { Modal } from "../ui/Modal";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
 import { analyzePlayer3x3 } from "../../utils/analyzePlayer3x3";
-import { askCoach, aiAvailable } from "../../services/aiService";
+import { askCoach, AiError } from "../../services/aiService";
+import { useAppStore } from "../../stores/useAppStore";
 import type { Tappa } from "../../types";
 
 const f = (v: number) => v.toFixed(1).replace(".", ",");
 
 export function GiocatoreAnalisi({ tappa, pid, onClose }: { tappa: Tappa; pid: string; onClose: () => void }) {
   const a = analyzePlayer3x3(tappa, pid);
+  const user = useAppStore((s) => s.user);
+  const aiAvailable = !!user && !user.guest; // il proxy Coach AI richiede un account
   const [aiText, setAiText] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
 
@@ -24,8 +27,9 @@ export function GiocatoreAnalisi({ tappa, pid, onClose }: { tappa: Tappa; pid: s
       const domanda = `Analizza questo giocatore di un torneo 3x3 e dagli consigli pratici di allenamento. ${a.nome} (${a.squadra}), ${a.partite} partite giocate. Medie a partita: ${f(a.medie.pt)} punti, ${f(a.medie.rb)} rimbalzi, ${f(a.medie.as)} assist, ${f(a.medie.ru)} recuperi, ${f(a.medie.st)} stoppate, ${f(a.medie.pe)} palle perse, ${f(a.medie.fa)} falli. Aree deboli individuate: ${a.migliorare.map((m) => m.area).join(", ") || "nessuna"}. Dai 2-3 consigli specifici e un esercizio in più non banale.`;
       const reply = await askCoach(preamble, [{ role: "user", content: domanda }]);
       setAiText(reply);
-    } catch {
-      setAiText("Il coach non risponde in questo momento, riprova tra poco.");
+    } catch (e) {
+      if (e instanceof AiError && e.code === "UNAVAILABLE") setAiText("Coach AI non è configurato sul server.");
+      else setAiText("Il coach non risponde in questo momento, riprova tra poco.");
     } finally {
       setAiLoading(false);
     }
@@ -91,7 +95,7 @@ export function GiocatoreAnalisi({ tappa, pid, onClose }: { tappa: Tappa; pid: s
               </Button>
             ) : (
               <p className="m-0 text-[11px] text-chalk-muted">
-                Con la chiave API configurata qui compaiono anche i consigli personalizzati del Coach AI.
+                Con un account registrato qui compaiono anche i consigli personalizzati del Coach AI.
               </p>
             )}
           </div>

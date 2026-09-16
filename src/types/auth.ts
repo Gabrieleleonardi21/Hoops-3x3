@@ -2,12 +2,7 @@
 export interface User {
   name: string;
   email?: string;   // assente per gli ospiti
-  guest: boolean;   // true = modalità ospite senza account
-}
-
-/** Account salvato nel localStorage (demo: in produzione gestire lato server) */
-export interface Account {
-  name: string;
-  email: string;
-  hash: string; // SHA-256 della password — solo a scopo dimostrativo
+  guest: boolean;   // true = modalità ospite senza account (dati solo nel browser)
+  id?: string;      // id lato server (solo registrati)
+  ruolo?: "USER" | "ADMIN";
 }
