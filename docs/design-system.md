@@ -22,7 +22,7 @@ niente gradienti (eccetto l'overlay sulla foto hero).
 | `asphalt-500`      | `#6B7390` | bordo input e controlli (3.9:1 su 900: WCAG 1.4.11)         |
 | `chalk`            | `#F2EDE4` | testo primario (16.7:1 su 950)                  |
 | `chalk-muted`      | `#A9A398` | testo secondario (7.8:1)                                   |
-| `chalk-dim`        | `#6E6960` | testo disabilitato / note (3.0–3.6:1: solo testo non essenziale, mai per dati) |
+| `chalk-dim`        | `#8C8780` | note e testo terziario (5.4:1 su 950, 4.6:1 su 800)         |
 | `court`            | `#FF6A1F` | accento: CTA, nav attiva, rank #1, focus ring (6.8:1)      |
 | `court-hover`      | `#FF7F3F` | hover del primario                                         |
 | `gold`             | `#F5C542` | badge MVP / 1° posto (solo quello)                         |
@@ -64,13 +64,21 @@ body 15/14, table 13, label 11. Line-height 1.5 corpo, 1.0 display.
 3. **Campetti**: filtri → lista card (45%) + mappa (55%). *Solo mockup: nessun modello dati esiste.*
 4. **Punteggio partita**: scoreboard gigante (leggibile da 1 m) con clock e shot clock → stat giocatori editabili | eventi di gara → barra azioni sticky.
 
-## Componenti da costruire (React + Tailwind)
+## Componenti riutilizzabili (React + Tailwind)
 
-`ui/`: Button (primary/outline/ghost), Badge (live/win/loss/gold), Kicker, StatTile, Card.
-`leaderboard/`: StandingsTable (`<table>` semantica, ordinamento per colonna, rail arancio riga evidenziata).
-`partita/`: ScoreCard (scoreboard), Clock.
-`gironi/`: Bracket (colonne per round, connettori CSS).
-`profile/`: Sparkline (SVG inline, nessuna libreria chart).
+| Componente | File | Uso |
+|---|---|---|
+| `Button` | `ui/Button.tsx` | primary / outline / ghost / link, `size="sm"` |
+| `Input` | `ui/Input.tsx` | etichetta, `hint`, `error` |
+| `Card`, `Section`, `Kicker`, `Badge`, `StatTile`, `Modal`, `Icon` | `ui/` | primitive di layout, etichette, modali, icone SVG |
+| `StandingsTable` | `leaderboard/StandingsTable.tsx` | `<table>` semantica, ordinamento per colonna con `aria-sort`, rail arancio sulla riga evidenziata, loghi |
+| `ScoreCard` | `partita/ScoreCard.tsx` | scoreboard con slot `center` (input, clock) e `footer` (azioni, eventi); `size="lg"` |
+| `Bracket` | `gironi/Bracket.tsx` | tabellone per round, presentazionale; i controlli arrivano da `renderControls` |
+| `Sparkline` | `profile/Sparkline.tsx` | barre SVG inline, nessuna libreria chart |
+| `Hero` | `layout/Hero.tsx` | banda hero con foto e overlay |
+
+Classi condivise in `index.css` (`@layer components`): `.statin`, `.scorein`, `.cellin`, `.standtable`,
+`.statstable`, `.kicker`, `.tapparow`, `.modal-*`, `.chat*`. Tutto il resto usa le utility Tailwind.
 
 Da 21st.dev preso solo il *pattern* "Market Watchlist" (toggle di ordinamento, rail accent, sparkline SVG):
 il componente originale è un grid di `<button>` su token shadcn, non riutilizzabile così com'è.

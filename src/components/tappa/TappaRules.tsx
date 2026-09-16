@@ -1,6 +1,6 @@
 /** Pannello di configurazione delle regole FIBA 3x3 per la tappa (punteggio, durata, ecc.) */
-import { INK } from "../../constants/colors";
 import { Input } from "../ui/Input";
+import { Card } from "../ui/Card";
 import type { Regole } from "../../types";
 
 const FIELDS: [keyof Regole, string][] = [
@@ -12,9 +12,9 @@ const FIELDS: [keyof Regole, string][] = [
 
 export function TappaRules({ regole, onChange }: { regole: Regole; onChange: (k: keyof Regole, v: string) => void }) {
   return (
-    <div style={{ background: "var(--card)", border: `1.5px solid ${INK}`, padding: 16, margin: "16px 0" }}>
-      <h3 className="disp up" style={{ fontSize: 16, margin: "0 0 4px" }}>Regole della tappa (base FIBA 3x3)</h3>
-      <p style={{ fontSize: 13.5, fontStyle: "italic", margin: "0 0 12px" }}>
+    <Card className="my-4">
+      <h3 className="font-display text-lg mb-1">Regole della tappa <span className="text-chalk-muted">(base FIBA 3x3)</span></h3>
+      <p className="mb-3 text-[13px] text-chalk-muted">
         Canestri da 1 e 2 punti. Vince chi arriva per primo al punteggio vittoria o chi è avanti allo scadere.
         Niente pareggi: supplementare al primo che segna {regole.ot} punti.
       </p>
@@ -23,6 +23,6 @@ export function TappaRules({ regole, onChange }: { regole: Regole; onChange: (k:
           <Input key={k} label={label} type="number" min={1} value={regole[k]} onChange={(e) => onChange(k, e.target.value)} />
         ))}
       </div>
-    </div>
+    </Card>
   );
 }

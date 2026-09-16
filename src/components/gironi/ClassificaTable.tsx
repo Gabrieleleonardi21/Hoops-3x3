@@ -1,37 +1,15 @@
-/** Tabella classifica di un girone: G=gare, V=vinte, P=perse, PF=punti fatti, PS=punti subiti */
+/** Tabella classifica di un girone: G=gare, V=vinte, P=perse, PF=punti fatti, PS=punti subiti.
+ *  Wrapper della StandingsTable riutilizzabile con la nota sui criteri di ordinamento. */
 import type { StandingRow } from "../../utils/standings";
-import { INK, ORANGE, RED, PAPER } from "../../constants/colors";
+import { StandingsTable } from "../leaderboard/StandingsTable";
 
-export function ClassificaTable({ rows }: { rows: StandingRow[] }) {
+export function ClassificaTable({ rows, logos, caption }: {
+  rows: StandingRow[]; logos?: Record<string, string | undefined>; caption?: string;
+}) {
   return (
-    <div style={{ marginTop: 10, overflowX: "auto" }}>
-      <table className="standtable">
-        {/* larghezze fisse per le colonne numeriche; SQUADRA si allarga automaticamente */}
-        <colgroup>
-          <col style={{ width: 28 }} />
-          <col />
-          <col style={{ width: 34 }} />
-          <col style={{ width: 34 }} />
-          <col style={{ width: 34 }} />
-          <col style={{ width: 40 }} />
-          <col style={{ width: 40 }} />
-          <col style={{ width: 50 }} />
-        </colgroup>
-        <thead>
-          <tr><th></th><th className="tal">SQUADRA</th><th>G</th><th>V</th><th>P</th><th>PF</th><th>PS</th><th>DIFF</th></tr>
-        </thead>
-        <tbody>
-          {rows.map((r, i) => (
-            <tr key={r.id} style={i === 0 && r.g > 0 ? { background: PAPER } : undefined}>
-              <td className="disp" style={{ color: i === 0 && r.g > 0 ? ORANGE : INK }}>{i + 1}</td>
-              <td className="tname">{r.nome}</td>
-              <td>{r.g}</td><td>{r.v}</td><td>{r.p}</td><td>{r.pf}</td><td>{r.ps}</td>
-              <td style={{ color: r.pf - r.ps < 0 ? RED : INK }}>{r.pf - r.ps > 0 ? "+" : ""}{r.pf - r.ps}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <p className="ui" style={{ fontSize: 11, opacity: 0.6, margin: "6px 0 0" }}>
+    <div className="mt-3">
+      <StandingsTable rows={rows} logos={logos} caption={caption} compact />
+      <p className="mt-1.5 text-[11px] text-chalk-dim">
         Ordinamento: vittorie, poi punti fatti, poi differenza punti (criteri FIBA 3x3 semplificati).
       </p>
     </div>

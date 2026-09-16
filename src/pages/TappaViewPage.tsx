@@ -21,7 +21,7 @@ export function TappaViewPage() {
   if (pub === undefined) return <Loading>Sto caricando la tappa…</Loading>;
   if (pub === null)
     return (
-      <p style={{ fontStyle: "italic" }}>
+      <p className="text-chalk-muted">
         Tappa non trovata nell'archivio. <Link to="/archivio" className="linkbtn">Vai all'archivio</Link>
       </p>
     );

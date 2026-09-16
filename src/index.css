@@ -1,130 +1,141 @@
-@import url("https://fonts.googleapis.com/css2?family=Archivo+Black&family=Archivo:wght@400;600;700&display=swap");
+@import "tailwindcss";
 
-:root {
-  --ink: #17203a;
-  --paper: #f7e3d0;
-  --card: #fdf4e9;
-  --red: #bf5527;
-  --orange: #d97757;
-  --rule: #17203a33;
+/* ── Design system "Asphalt" ─────────────────────────────────────────────────
+   Fonte di verità dei token (vedi docs/design-system.md). Tailwind v4 genera le
+   utility da queste variabili: bg-asphalt-900, text-chalk, border-court, font-display… */
+@theme {
+  /* Azzera la palette di default: si usano solo i colori del design system */
+  --color-*: initial;
+  --color-transparent: transparent;
+  --color-current: currentColor;
+  --color-white: #ffffff;
+  --color-black: #000000;
+
+  --color-asphalt-950: #0b0d12; /* sfondo pagina */
+  --color-asphalt-900: #12151c; /* superfici / card */
+  --color-asphalt-800: #1b1f29; /* hover, input, elementi elevati */
+  --color-asphalt-700: #2a2f3d; /* bordi 1px */
+  --color-asphalt-600: #3a4052; /* bordi forti, header tabella */
+  --color-asphalt-500: #6b7390; /* bordo input e controlli (3.9:1) */
+
+  --color-chalk: #f2ede4;       /* testo primario */
+  --color-chalk-muted: #a9a398; /* testo secondario */
+  --color-chalk-dim: #8c8780;   /* note e testo terziario (4.6:1 anche su asphalt-800) */
+
+  --color-court: #ff6a1f;       /* accento: CTA, nav attiva, rank #1 */
+  --color-court-hover: #ff7f3f;
+  --color-gold: #f5c542;        /* solo 1° posto / MVP */
+  --color-win: #3dd68c;
+  --color-loss: #ff4d4d;
+  --color-live: #ff3b3b;
+  --color-navy: #17203a;        /* brand: solo logo e overlay hero */
+
+  --font-display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --font-sans: "IBM Plex Sans", system-ui, sans-serif;
+
+  --animate-live: live-pulse 1.4s ease-in-out infinite;
+  @keyframes live-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 }
 
-* { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; }
-body {
-  background: var(--paper);
-  color: var(--ink);
-  font-family: Georgia, "Times New Roman", serif;
-  min-height: 100vh;
+/* ── Base ──────────────────────────────────────────────────────────────────── */
+@layer base {
+  html { color-scheme: dark; }
+  body {
+    @apply bg-asphalt-950 text-chalk font-sans antialiased;
+    min-height: 100vh;
+    /* cifre tabulari ovunque: in un prodotto data-intensivo le colonne devono allinearsi */
+    font-variant-numeric: tabular-nums;
+  }
+  /* Focus visibile e coerente su tutti gli elementi interattivi */
+  :focus-visible { outline: 2px solid var(--color-court); outline-offset: 2px; }
+  button, [role="button"] { cursor: pointer; }
+  button:disabled { cursor: not-allowed; opacity: 0.5; }
+  /* Input nativi: il colore dei controlli segue il tema */
+  input, select, textarea { color-scheme: dark; }
+  /* Regolazione Barlow Condensed: sempre maiuscolo e stretto */
+  .font-display { text-transform: uppercase; letter-spacing: -0.01em; line-height: 1; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 }
 
-.disp { font-family: "Archivo Black", sans-serif; letter-spacing: -0.02em; }
-.ui { font-family: "Archivo", sans-serif; }
-
-.statin {
-  background: var(--card); border: 1.5px solid var(--ink); padding: 9px 11px;
-  width: 100%; font-family: "Archivo", sans-serif; font-weight: 600; font-size: 15px;
+/* ── Utility custom ────────────────────────────────────────────────────────── */
+@utility grid-auto {
+  display: grid; gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(var(--min, 150px), 1fr));
 }
-.statin:focus { outline: 2px solid var(--orange); outline-offset: 1px; }
-/* Etichette del componente Input: .input-label è il default; .form-label è la variante maiuscola per i form */
-.input-label { font-size: 11px; font-weight: 700; display: block; }
-.form-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; display: block; margin-bottom: 10px; }
 
-.scorein {
-  width: 58px; text-align: center; background: var(--card); border: 1.5px solid var(--ink);
-  padding: 7px 4px; font-family: "Archivo Black", sans-serif; font-size: 16px;
+/* ── Classi componente condivise ─────────────────────────────────────────────
+   Pattern ripetuti in più file (input, tabelle, chat, modali): il resto usa
+   direttamente le utility Tailwind nei componenti. */
+@layer components {
+  .pulse { animation: var(--animate-live); }
+
+  /* Input */
+  .statin {
+    @apply block w-full bg-asphalt-800 border border-asphalt-500 rounded px-3 py-2 text-[15px] font-medium text-chalk;
+    @apply placeholder:text-chalk-dim focus:border-court focus:outline-none;
+  }
+  .input-label { @apply block text-[11px] font-semibold text-chalk-muted; }
+  .form-label { @apply block text-[11px] font-semibold uppercase tracking-[0.08em] text-chalk-muted mb-2; }
+  .scorein {
+    @apply w-[58px] text-center bg-asphalt-800 border border-asphalt-500 rounded px-1 py-1.5 font-display text-xl text-chalk;
+    @apply focus:border-court focus:outline-none;
+  }
+  .cellin {
+    @apply w-[46px] text-center bg-asphalt-800 border border-asphalt-700 rounded-sm px-0.5 py-1 text-[13px] font-semibold text-chalk;
+    @apply focus:border-court focus:outline-none;
+  }
+
+  /* Link testuale arancio (usato dai Link di react-router) */
+  .linkbtn {
+    @apply bg-transparent border-0 p-0 text-court font-sans text-[13px] font-semibold hover:underline underline-offset-4;
+  }
+
+  /* Riga tappa nella lista lega */
+  .tapparow {
+    @apply w-full text-left border-0 border-b border-asphalt-700 bg-transparent px-1 py-3.5 flex justify-between items-baseline gap-2.5 flex-wrap;
+    @apply hover:bg-asphalt-900 transition-colors;
+  }
+
+  /* Tabelle dati: header basso e maiuscolo, numeri centrati, riga 36px */
+  .standtable, .statstable { @apply w-full border-collapse font-sans table-fixed; }
+  .standtable { @apply text-[13px]; }
+  .statstable { @apply text-xs; }
+  .standtable th, .statstable th {
+    @apply text-[10.5px] font-semibold uppercase tracking-[0.06em] text-chalk-muted text-center whitespace-nowrap overflow-hidden;
+    @apply border-b border-asphalt-600 bg-asphalt-900 px-2 py-1.5;
+  }
+  .standtable td, .statstable td { @apply border-b border-asphalt-700 text-center font-medium px-2 py-1.5 h-9; }
+  .statstable td { @apply px-1 py-0.5 h-8; }
+  .standtable td.tname, .statstable td.tname { @apply text-left font-semibold whitespace-nowrap overflow-hidden text-ellipsis max-w-0; }
+
+  /* Coach AI */
+  .chatfab {
+    @apply fixed right-4 bottom-4 w-14 h-14 rounded-full border-0 bg-court p-2 z-50 transition-colors hover:bg-court-hover;
+    box-shadow: 0 8px 24px rgba(255, 106, 31, 0.35);
+  }
+  .chatfab img { @apply w-full h-full object-contain; }
+  .chatpanel {
+    @apply fixed right-4 bottom-[84px] bg-asphalt-900 border border-asphalt-600 rounded flex flex-col z-50;
+    width: min(380px, calc(100vw - 32px)); height: min(500px, 70vh);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+  }
+  .bubble-u { @apply self-end bg-court text-asphalt-950 rounded px-3 py-2 max-w-[85%] text-sm font-medium; }
+  .bubble-a { @apply self-start bg-asphalt-800 border border-asphalt-700 rounded px-3 py-2 max-w-[85%] text-sm leading-relaxed; }
+
+  /* Modali */
+  .modal-overlay { @apply fixed inset-0 z-[60] flex items-center justify-center p-4; background: rgba(11, 13, 18, 0.8); }
+  .modal-card { @apply bg-asphalt-900 border border-asphalt-600 rounded overflow-y-auto; }
+
+  /* Testo */
+  .kicker { @apply font-sans text-[11px] font-semibold uppercase tracking-[0.08em] text-chalk-muted; }
+  .hovercard { @apply transition-colors duration-200 hover:border-asphalt-500 focus-visible:border-court; }
 }
-.cellin {
-  width: 46px; text-align: center; background: var(--card); border: 1px solid var(--rule);
-  padding: 5px 2px; font-family: "Archivo", sans-serif; font-weight: 700; font-size: 13px;
-}
-.cellin:focus { outline: 2px solid var(--orange); outline-offset: -1px; }
-
-.blackbtn { padding: 12px 22px; background: var(--ink); color: var(--paper); border: none; cursor: pointer; font-family: "Archivo", sans-serif; font-weight: 700; font-size: 14px; }
-.redbtn { padding: 12px 22px; background: var(--orange); color: #fff; border: none; cursor: pointer; font-family: "Archivo", sans-serif; font-weight: 700; font-size: 14px; }
-.linkbtn { background: none; border: none; color: var(--red); font-weight: 700; cursor: pointer; font-family: "Archivo", sans-serif; font-size: 13px; padding: 0; }
-.navbtn { padding: 10px 18px; border: 1.5px solid var(--ink); cursor: pointer; font-family: "Archivo Black", sans-serif; font-size: 13px; text-transform: uppercase; background: var(--card); color: var(--ink); }
-.navbtn.active { background: var(--ink); color: var(--paper); }
-
-.tapparow { width: 100%; text-align: left; border: none; border-bottom: 1px solid var(--rule); background: transparent; padding: 14px 4px; cursor: pointer; display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-.tapparow:hover { background: var(--card); }
-
-.standtable { border-collapse: collapse; width: 100%; font-family: "Archivo", sans-serif; font-size: 13px; table-layout: fixed; }
-.standtable th { border: 1px solid var(--rule); padding: 6px 8px; background: var(--paper); text-align: center; font-size: 10.5px; letter-spacing: 0.06em; white-space: nowrap; overflow: hidden; }
-.standtable td { border: 1px solid var(--rule); padding: 7px 8px; text-align: center; font-weight: 600; }
-/* la colonna del nome occupa lo spazio rimanente e tronca se troppo lungo */
-.standtable td.tname { text-align: left; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 0; }
-
-.statstable { border-collapse: collapse; width: 100%; font-family: "Archivo", sans-serif; font-size: 12px; table-layout: fixed; }
-.statstable th { border: 1px solid var(--rule); padding: 4px 6px; background: var(--paper); text-align: center; font-size: 9.5px; letter-spacing: 0.05em; white-space: nowrap; overflow: hidden; }
-.statstable td { border: 1px solid var(--rule); padding: 3px; text-align: center; }
-/* la colonna del nome si allarga e tronca, le colonne stat hanno larghezza fissa via <col> */
-.statstable td.tname { text-align: left; font-weight: 700; padding: 4px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 0; font-size: 12.5px; }
-
-.chatfab { position: fixed; right: 18px; bottom: 18px; width: 62px; height: 62px; border-radius: 18px; border: none; cursor: pointer; background: var(--ink); padding: 7px; box-shadow: 0 6px 18px rgba(23, 32, 58, 0.35); z-index: 50; }
-.chatfab img { width: 100%; height: 100%; object-fit: contain; }
-.chatpanel { position: fixed; right: 18px; bottom: 90px; width: min(370px, calc(100vw - 36px)); height: min(480px, 70vh); background: var(--card); border: 2px solid var(--ink); display: flex; flex-direction: column; z-index: 50; box-shadow: 0 10px 30px rgba(23, 32, 58, 0.3); }
-.bubble-u { align-self: flex-end; background: var(--ink); color: var(--paper); padding: 8px 12px; max-width: 85%; font-size: 14px; font-family: "Archivo", sans-serif; }
-.bubble-a { align-self: flex-start; background: var(--paper); border: 1px solid var(--rule); padding: 8px 12px; max-width: 85%; font-size: 14.5px; font-family: Georgia, serif; line-height: 1.45; }
-
-.pulse { animation: pulse 1.2s ease-in-out infinite; }
-@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
-@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
-
-/* ── Utility di layout ───────────────────────────────────────────────────────
-   Primitive flessibili riusate ovunque al posto degli inline ripetuti.
-   Restano inline solo i valori dinamici (colori/larghezze calcolati da stato). */
-.flex { display: flex; }                        /* flex "neutro": NON forza align-items (resta stretch) */
-.row { display: flex; align-items: center; }   /* riga orizzontale, centrata in verticale */
-.col { display: flex; flex-direction: column; } /* colonna */
-.wrap { flex-wrap: wrap; }
-.between { justify-content: space-between; }
-.jc-center { justify-content: center; }
-.jc-end { justify-content: flex-end; }
-/* override di align-items: vanno DOPO .row così vincono per ordine sorgente */
-.items-center { align-items: center; }
-.items-start { align-items: flex-start; }
-.items-end { align-items: flex-end; }
-.items-base { align-items: baseline; }
-/* scala dei gap effettivamente usata nel progetto */
-.gap-4 { gap: 4px; } .gap-6 { gap: 6px; } .gap-7 { gap: 7px; } .gap-8 { gap: 8px; }
-.gap-10 { gap: 10px; } .gap-12 { gap: 12px; } .gap-16 { gap: 16px; }
-.fullw { width: 100%; }
-/* griglia di card responsive: la larghezza minima della colonna è parametrica via --min */
-.grid-auto { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(var(--min, 150px), 1fr)); }
-
-/* ── Utility tipografia / colore ─────────────────────────────────────────────
-   I colori riusano i token di :root (identici alle costanti in constants/colors.ts). */
-.up { text-transform: uppercase; }
-.tac { text-align: center; } .tal { text-align: left; } .tar { text-align: right; }
-.t-ink { color: var(--ink); }
-.t-orange { color: var(--orange); }
-.t-red { color: var(--red); }
-.t-paper { color: var(--paper); }
-
-/* ── Blocchi ricorrenti ──────────────────────────────────────────────────────*/
-/* Overlay scuro a tutto schermo per le modali (era ripetuto identico in più file) */
-.modal-overlay { position: fixed; inset: 0; background: rgba(23, 32, 58, 0.55); z-index: 60; display: flex; align-items: center; justify-content: center; padding: 16px; }
-/* Intestazione di sezione (font display, maiuscolo): combinazione dominante */
-.h-sec { font-family: "Archivo Black", sans-serif; letter-spacing: -0.02em; font-size: 18px; margin: 12px 0 8px; text-transform: uppercase; }
-/* Etichetta piccola maiuscola (kicker) sopra colonne/blocchi */
-.kicker { font-family: "Archivo", sans-serif; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
-/* Scheda (dialog) interna ai modali: parte comune; dimensioni e padding restano inline (variano per modale) */
-.modal-card { background: var(--card); border: 2px solid var(--ink); overflow-y: auto; }
-/* Card cliccabile con evidenziazione su hover e focus da tastiera (sostituisce gli handler JS onMouseEnter/Leave) */
-.hovercard { transition: box-shadow 0.15s; }
-.hovercard:hover, .hovercard:focus-visible { box-shadow: 0 0 0 2px var(--orange); outline: none; }
 
 /* ── Stampa ────────────────────────────────────────────────────────────────── */
 @media print {
-  /* Nasconde tutto ciò che non serve su carta */
-  header, nav, .chatfab, .chatpanel, .no-print { display: none !important; }
-  body { background: #fff; color: #000; font-size: 12px; }
+  header, nav, .chatfab, .chatpanel, .no-print, button { display: none !important; }
+  body { background: #fff !important; color: #000 !important; font-size: 12px; }
   a { text-decoration: none; color: inherit; }
-  /* Forza colori leggibili su carta */
-  :root { --ink: #000; --paper: #fff; --card: #fff; --orange: #000; --red: #000; --rule: #ccc; }
-  /* Evita interruzioni di pagina dentro le sezioni */
   section, .standtable, .statstable { page-break-inside: avoid; }
-  button { display: none !important; }
   .print-show { display: block !important; }
 }

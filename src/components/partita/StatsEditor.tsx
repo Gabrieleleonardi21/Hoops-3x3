@@ -1,5 +1,4 @@
 import { STAT_KEYS } from "../../constants/rules";
-import { RED, RULE } from "../../constants/colors";
 import type { GiocatoreRoster, StatLine } from "../../types";
 
 export type SheetDraft = Record<string, Partial<Record<keyof StatLine, string>>>;
@@ -14,21 +13,18 @@ interface Props {
 
 /** Tabella di inserimento delle statistiche complete di una squadra */
 export function StatsEditor({ teamName, players, sheet, guest, onChange }: Props) {
+  const note = guest ? "facoltative da Ospite" : "punti obbligatori, il resto facoltativo";
   return (
-    <div style={{ background: "var(--card)", border: `1px solid ${RULE}`, padding: 10 }}>
-      <div className="kicker" style={{ marginBottom: 6 }}>
-        Statistiche dei giocatori — {teamName}{guest ? " (facoltative da Ospite)" : " (punti obbligatori, il resto facoltativo)"}
-      </div>
-      {players.length === 0 && (
-        <p className="ui t-red" style={{ fontSize: 12, fontWeight: 700, margin: 0 }}>Nessun giocatore nel roster.</p>
-      )}
+    <div className="rounded border border-asphalt-700 bg-asphalt-950/60 p-2.5">
+      <div className="kicker mb-1.5">Statistiche — {teamName} <span className="normal-case tracking-normal text-chalk-dim">({note})</span></div>
+      {players.length === 0 && <p className="m-0 text-xs font-semibold text-loss">Nessun giocatore nel roster.</p>}
       {players.length > 0 && (
-        <div style={{ overflowX: "auto" }}>
+        <div className="overflow-x-auto">
           <table className="statstable">
             <thead>
               <tr>
-                <th className="tal">GIOCATORE</th>
-                {STAT_KEYS.map(([k, hdr]) => <th key={k}>{hdr}</th>)}
+                <th className="text-left" scope="col">Giocatore</th>
+                {STAT_KEYS.map(([k, hdr]) => <th key={k} scope="col">{hdr}</th>)}
               </tr>
             </thead>
             <tbody>

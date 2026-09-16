@@ -13,6 +13,9 @@ App web per la gestione di un circuito italiano di basket 3x3: tornei, gironi, s
 - **Leaderboard** — classifiche individuali per categoria statistica su tutta la stagione
 - **Video** — galleria di highlight e partite (link YouTube)
 - **Coach AI** — assistente virtuale che conosce le regole FIBA 3x3 e i dati della lega corrente (gratuito via Groq API)
+- **Home dashboard** — tappa in corso, classifica live, ultimo risultato, prossime partite e leader
+- **Profilo giocatore** — pagina `/giocatore/:id` con statistiche aggregate, andamento punti e storico tappe
+- **Campetti** — ricerca campi con filtri e mappa schematica (*dati di esempio*, senza persistenza)
 - **Sessione persistente** — login e dati salvati nel browser; gli ospiti hanno dati locali separati
 
 ### Regole FIBA 3x3 (default)
@@ -30,6 +33,7 @@ App web per la gestione di un circuito italiano di basket 3x3: tornei, gironi, s
 - [Zustand](https://zustand-demo.pmnd.rs/) — state management
 - [React Router 7](https://reactrouter.com/) — routing
 - [React Hook Form](https://react-hook-form.com/) + [Zod](https://zod.dev/) — form e validazione
+- [Tailwind CSS 4](https://tailwindcss.com/) — styling; i token del design system "Asphalt" sono in `src/index.css` (`@theme`), documentati in `docs/design-system.md`
 - `localStorage` — persistenza dei dati (nessun backend richiesto)
 
 ## Avvio rapido
@@ -73,14 +77,16 @@ src/
 │   ├── auth/         # Login e registrazione
 │   ├── coach/        # Pannello Coach AI
 │   ├── gironi/       # Gestione gironi e classifiche
-│   ├── layout/       # Header e navigazione
+│   ├── layout/       # Header (con navigazione) e Hero
+│   ├── profile/      # Sparkline del profilo giocatore
 │   ├── leaderboard/  # Classifiche stagionali
 │   ├── partita/      # Live scoring e statistiche
 │   ├── squadra/      # Roster editor
 │   ├── tappa/        # Gestione tappa
-│   ├── ui/           # Componenti base (Button, Input, Loading)
+│   ├── ui/           # Componenti base (Button, Input, Card, Badge, StatTile, Section, Modal, Icon…)
 │   └── video/        # Galleria video
 ├── constants/        # Regole, ruoli, tipi di evento
+├── data/             # Dati di esempio (campetti)
 ├── hooks/            # Custom hooks
 ├── pages/            # Pagine dell'app
 ├── services/         # Storage (localStorage) e AI
@@ -88,6 +94,12 @@ src/
 ├── types/            # Definizioni TypeScript
 └── utils/            # Funzioni di utilità (gironi, classifica, ecc.)
 ```
+
+## Design system
+
+Tema unico dark "Asphalt": palette, font (Barlow Condensed + IBM Plex Sans), scala e regole di
+accessibilità sono in [`docs/design-system.md`](docs/design-system.md). I mockup di riferimento
+(Stitch) sono in `reference/stitch-screens/`, la hero in `reference/hero/`.
 
 ## Dati e persistenza
 

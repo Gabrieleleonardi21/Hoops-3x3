@@ -1,24 +1,24 @@
 /** Sezione di un singolo girone: lista delle partite + classifica. Lettera del girone
  *  calcolata dal suo indice (0→A, 1→B…) tramite charCodeAt. */
-import { INK } from "../../constants/colors";
 import { standings } from "../../utils/standings";
 import { MatchCard } from "../partita/MatchCard";
 import { ClassificaTable } from "./ClassificaTable";
+import { Section } from "../ui/Section";
 import type { useTappa } from "../../hooks/useTappa";
 
 export function GironeSection({ gi, girone, h }: { gi: number; girone: string[]; h: ReturnType<typeof useTappa> }) {
   const matches = h.tappa!.partite.filter((m) => m.g === gi);
   const rows = standings(girone, matches, h.nameOf);
+  const letter = String.fromCharCode(65 + gi);
+  const done = matches.filter((m) => m.done).length;
+  // mappa id → logo per la classifica
+  const logos = Object.fromEntries(h.tappa!.squadre.map((s) => [s.id, s.logo]));
   return (
-    <section style={{ borderTop: `4px solid ${INK}`, marginBottom: 26 }}>
-      <h3 className="h-sec">
-        Girone {String.fromCharCode(65 + gi)}
-        <span className="ui" style={{ fontSize: 12, fontWeight: 700, opacity: 0.6, marginLeft: 10 }}>
-          {girone.map(h.nameOf).join(" · ")}
-        </span>
-      </h3>
-      {matches.map((m) => <MatchCard key={m.id} m={m} h={h} />)}
-      <ClassificaTable rows={rows} />
-    </section>
+    <Section title={`Girone ${letter}`} kicker={`${girone.map(h.nameOf).join(" · ")} · ${done}/${matches.length} gare`}>
+      <div className="flex flex-col gap-2">
+        {matches.map((m, i) => <MatchCard key={m.id} m={m} h={h} label={`Partita ${i + 1}`} />)}
+      </div>
+      <ClassificaTable rows={rows} logos={logos} caption={`Classifica girone ${letter}`} />
+    </Section>
   );
 }

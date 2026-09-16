@@ -6,7 +6,10 @@ import { TappaForm } from "../components/tappa/TappaForm";
 import { TappaCard } from "../components/tappa/TappaCard";
 import { GuestBanner } from "../components/auth/GuestBanner";
 import { Input } from "../components/ui/Input";
-import { INK, ORANGE, RULE } from "../constants/colors";
+import { Button } from "../components/ui/Button";
+import { Icon } from "../components/ui/Icon";
+import { Section } from "../components/ui/Section";
+import { StandingsTable } from "../components/leaderboard/StandingsTable";
 import { useAppStore } from "../stores/useAppStore";
 import type { Tappa } from "../types";
 
@@ -76,82 +79,67 @@ export function LegaPage() {
   // Se nessuna lega è attiva, manda alla lista per selezionarne una
   if (!legaId) return <Navigate to="/leghe" replace />;
 
+  // La classifica circuito riusa StandingsTable: rank = punti circuito, "gare" = tappe giocate
+  const circuitRows = circuitRanking.map((r) => ({ id: r.nome, nome: r.nome, g: r.nTappe, v: r.rank, p: 0, pf: 0, ps: 0 }));
+
   return (
     <>
       <GuestBanner text="Modalità Ospite: i dati sono salvati solo su questo browser, non sincronizzati tra dispositivi. I controlli obbligatori su roster e punti sono disattivati. Registrati per la gestione completa." />
 
       {/* Breadcrumb di navigazione verso la lista leghe */}
-      <div style={{ marginBottom: 14 }}>
-        <Link to="/leghe" className="linkbtn t-ink" style={{ fontSize: 12.5, opacity: 0.6 }}>
-          ← Le mie leghe
-        </Link>
-      </div>
+      <Link to="/leghe" className="mb-3 inline-flex items-center gap-1 text-[13px] text-chalk-muted hover:text-chalk">
+        <Icon name="arrowLeft" size={14} /> Le mie leghe
+      </Link>
 
-      <div style={{ maxWidth: 420, marginBottom: 10 }}>
-        <Input label="La tua lega — circuito italiano 3x3"
-          labelStyle={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.1em" }}
-          value={legaName} onChange={(e) => setLegaName(e.target.value)}
-          placeholder="Es. Roma Streetball League" />
-      </div>
-
-      {/* Import / Export JSON */}
-      <div className="flex wrap gap-8" style={{ marginBottom: 22 }}>
-        <button onClick={esportaLega} className="blackbtn" style={{ padding: "8px 14px", fontSize: 12 }}>
-          Esporta JSON
-        </button>
-        <button onClick={() => fileRef.current?.click()} className="blackbtn" style={{ padding: "8px 14px", fontSize: 12 }}>
-          Importa JSON
-        </button>
-        {/* Input file nascosto: sicuro perché accetta solo .json e il contenuto è parsato */}
-        <input ref={fileRef} type="file" accept=".json" style={{ display: "none" }} onChange={importaLega} />
+      <div className="mb-6 flex flex-wrap items-end gap-3">
+        <div className="min-w-[240px] max-w-md flex-1">
+          <Input label="La tua lega — circuito italiano 3x3" labelClassName="form-label"
+            value={legaName} onChange={(e) => setLegaName(e.target.value)}
+            placeholder="Es. Roma Streetball League" className="font-display text-2xl h-12" />
+        </div>
+        {/* Import / Export JSON */}
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={esportaLega}><Icon name="download" size={14} /> Esporta JSON</Button>
+          <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()}><Icon name="upload" size={14} /> Importa JSON</Button>
+          {/* Input file nascosto: sicuro perché accetta solo .json e il contenuto è parsato */}
+          <input ref={fileRef} type="file" accept=".json" className="hidden" onChange={importaLega} />
+        </div>
       </div>
 
       <TappaForm onCreate={(input) => { const t = createTappa(input); navigate(`/lega/tappa/${t.id}`); }} />
 
-      {tappe.length > 0 ? (
-        <section style={{ borderTop: `4px solid ${INK}` }}>
-          <div className="ui up" style={{ fontSize: 12, letterSpacing: "0.1em", margin: "10px 0 2px", fontWeight: 700 }}>
-            Le tappe del circuito
+      <Section title="Le tappe del circuito" kicker={`${tappe.length} ${tappe.length === 1 ? "tappa" : "tappe"}`}>
+        {tappe.length > 0 ? (
+          <div className="rounded border border-asphalt-700 bg-asphalt-900 px-3">
+            {tappe.map((t) => <TappaCard key={t.id} t={t} onOpen={() => navigate(`/lega/tappa/${t.id}`)} />)}
           </div>
-          {tappe.map((t) => (
-            <TappaCard key={t.id} t={t} onOpen={() => navigate(`/lega/tappa/${t.id}`)} />
-          ))}
-        </section>
-      ) : (
-        <p style={{ fontStyle: "italic", fontSize: 15 }}>Nessuna tappa in calendario: crea la prima qui sopra.</p>
-      )}
+        ) : (
+          <p className="text-[15px] text-chalk-muted">Nessuna tappa in calendario: crea la prima qui sopra.</p>
+        )}
+      </Section>
 
       {/* Classifica circuito — visibile solo se ci sono squadre con rank */}
       {circuitRanking.length > 0 && (
-        <section style={{ borderTop: `4px solid ${INK}`, marginTop: 24 }}>
-          <div className="ui up" style={{ fontSize: 12, letterSpacing: "0.1em", margin: "10px 0 8px", fontWeight: 700 }}>
-            Classifica circuito
+        <Section title="Classifica circuito" kicker="Punti ranking · tappe giocate">
+          <div className="overflow-x-auto rounded border border-asphalt-700">
+            <table className="standtable">
+              <caption className="sr-only">Classifica circuito</caption>
+              <thead>
+                <tr><th className="w-9" scope="col">#</th><th className="text-left" scope="col">Squadra</th><th className="w-20" scope="col">Punti</th><th className="w-16" scope="col">Tappe</th></tr>
+              </thead>
+              <tbody>
+                {circuitRows.map((row, i) => (
+                  <tr key={row.id}>
+                    <td className={`font-display text-base ${i === 0 ? "text-court" : "text-chalk-muted"}`}>{i + 1}</td>
+                    <td className="tname font-display text-base">{row.nome}</td>
+                    <td className="font-semibold text-court">{row.v > 0 ? row.v : "—"}</td>
+                    <td className="text-chalk-muted">{row.g}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-          <table className="fullw" style={{ borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ borderBottom: `2px solid ${INK}` }}>
-                <th className="ui tal" style={{ fontSize: 11, fontWeight: 700, padding: "4px 8px", width: 32 }}>#</th>
-                <th className="ui tal" style={{ fontSize: 11, fontWeight: 700, padding: "4px 8px" }}>Squadra</th>
-                <th className="ui tar" style={{ fontSize: 11, fontWeight: 700, padding: "4px 8px" }}>Punti</th>
-                <th className="ui tar" style={{ fontSize: 11, fontWeight: 700, padding: "4px 8px" }}>Tappe</th>
-              </tr>
-            </thead>
-            <tbody>
-              {circuitRanking.map((row, i) => (
-                <tr key={row.nome} style={{ borderBottom: `1px solid ${RULE}`, background: i === 0 ? "var(--card)" : "transparent" }}>
-                  <td className="disp" style={{ fontSize: 13, padding: "6px 8px", color: i < 3 ? ORANGE : INK, fontWeight: 700 }}>
-                    {i + 1}
-                  </td>
-                  <td className="disp up" style={{ fontSize: 14, padding: "6px 8px" }}>{row.nome}</td>
-                  <td className="ui tar t-orange" style={{ fontSize: 13, fontWeight: 700, padding: "6px 8px" }}>
-                    {row.rank > 0 ? row.rank : "—"}
-                  </td>
-                  <td className="ui tar" style={{ fontSize: 12, padding: "6px 8px", opacity: 0.6 }}>{row.nTappe}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
+        </Section>
       )}
     </>
   );

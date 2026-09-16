@@ -1,6 +1,6 @@
 /** Lista degli eventi di gara in sola lettura (con × per rimuovere se onRemove è fornito) */
 import type { EventoGara } from "../../types";
-import { INK, RULE } from "../../constants/colors";
+import { Icon } from "../ui/Icon";
 
 interface Props {
   eventi: EventoGara[];
@@ -10,19 +10,23 @@ interface Props {
 }
 
 export function EventLog({ eventi, nameOf, playerNameById, onRemove }: Props) {
+  if (!eventi.length) return null;
   return (
-    <>
+    <ol className="m-0 list-none p-0">
       {eventi.map((ev) => (
-        <div key={ev.id} className="ui flex gap-8 items-base" style={{ fontSize: 12.5, padding: "4px 0", borderBottom: `1px dotted ${RULE}` }}>
-          <strong style={{ minWidth: 86 }}>{ev.tipo}{ev.min ? ` ${ev.min}'` : ""}</strong>
-          <span style={{ flex: 1 }}>
+        <li key={ev.id} className="flex items-baseline gap-2 border-b border-asphalt-700/60 py-1.5 text-xs last:border-b-0">
+          <span className="w-10 shrink-0 font-display text-sm text-court">{ev.min ? `${ev.min}'` : "—"}</span>
+          <span className="shrink-0 font-semibold text-chalk">{ev.tipo}</span>
+          <span className="min-w-0 flex-1 truncate text-chalk-muted">
             {nameOf(ev.teamId)}{ev.pid ? ` — ${playerNameById(ev.pid) || ""}` : ""}{ev.nota ? ` · ${ev.nota}` : ""}
           </span>
           {onRemove && (
-            <button onClick={() => onRemove(ev.id)} className="linkbtn t-ink" style={{ opacity: 0.5 }}>×</button>
+            <button onClick={() => onRemove(ev.id)} className="text-chalk-dim hover:text-loss" aria-label="Rimuovi evento">
+              <Icon name="close" size={12} />
+            </button>
           )}
-        </div>
+        </li>
       ))}
-    </>
+    </ol>
   );
 }

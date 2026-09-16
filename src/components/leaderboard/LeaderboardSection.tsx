@@ -1,25 +1,19 @@
-/** Sezione leader della tappa: raggruppa una LeaderCard per ciascuna categoria definita in LEADER_CATS.
+/** Sezione leader della tappa: una LeaderCard (top 5) per ciascuna categoria in LEADER_CATS.
  *  Non mostra nulla se non ci sono ancora statistiche registrate. */
-import { INK, ORANGE } from "../../constants/colors";
 import { LEADER_CATS } from "../../constants/rules";
 import { tappaLeaders } from "../../utils/tappaLeaders";
 import { LeaderCard } from "./LeaderCard";
+import { Section } from "../ui/Section";
 import type { Tappa } from "../../types";
 
 export function LeaderboardSection({ tappa }: { tappa: Tappa }) {
   const players = tappaLeaders(tappa);
   if (!players.length) return null;
   return (
-    <section style={{ borderTop: `4px solid ${INK}`, marginBottom: 26 }}>
-      <h3 className="disp up" style={{ fontSize: 18, margin: "12px 0 2px" }}>
-        Leader della tappa <span className="t-orange">★</span>
-      </h3>
-      <p className="ui" style={{ fontSize: 12, fontWeight: 600, opacity: 0.7, margin: "0 0 12px" }}>
-        Totali su tutte le gare giocate · tra parentesi la media a partita.
-      </p>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 12 }}>
+    <Section title="Leader della tappa" kicker="Totali su tutte le gare · media a partita tra parentesi">
+      <div className="grid gap-3 grid-cols-[repeat(auto-fit,minmax(220px,1fr))]">
         {LEADER_CATS.map(([k, label]) => <LeaderCard key={k} label={label} statKey={k} players={players} />)}
       </div>
-    </section>
+    </Section>
   );
 }
