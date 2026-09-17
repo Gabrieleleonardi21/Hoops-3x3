@@ -205,7 +205,7 @@ function errorMsg(err: unknown): string {
   if (err instanceof AiError) {
     if (err.code === "AUTH") return "Sessione scaduta: esci e accedi di nuovo per usare Coach AI.";
     if (err.code === "RATE") return "Limite richieste raggiunto: aspetta qualche secondo e riprova.";
-    if (err.code === "UNAVAILABLE") return "Coach AI non è configurato sul server: imposta GROQ_API_KEY in backend/env.properties. Il resto dell'app funziona senza.";
+    if (err.code === "UNAVAILABLE") return "Coach AI non è configurato sul server: imposta GROQ_API_KEY in env.properties del backend. Il resto dell'app funziona senza.";
     if (err.code === "NETWORK") return "Server non raggiungibile: controlla la rete o avvia il backend.";
   }
   return "Si è verificato un errore, riprova tra poco.";

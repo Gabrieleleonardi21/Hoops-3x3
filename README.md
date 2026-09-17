@@ -34,28 +34,23 @@ App web per la gestione di un circuito italiano di basket 3x3: tornei, gironi, s
 - [React Router 7](https://reactrouter.com/) — routing
 - [React Hook Form](https://react-hook-form.com/) + [Zod](https://zod.dev/) — form e validazione
 - [Tailwind CSS 4](https://tailwindcss.com/) — styling; i token del design system "Asphalt" sono in `src/index.css` (`@theme`), documentati in `docs/design-system.md`
-- Backend [Spring Boot 4](https://spring.io/projects/spring-boot) (Java 17+) con Spring Security + JWT, JPA/Hibernate e PostgreSQL — cartella `backend/`
+- Backend [Spring Boot 4](https://spring.io/projects/spring-boot) (Java 17+) con Spring Security + JWT, JPA/Hibernate e PostgreSQL — repo separato [hoop3x3-backend](https://github.com/Gabrieleleonardi21/hoop3x3-backend)
 - `localStorage` — solo per la modalità Ospite (dati che restano nel browser)
 
 ## Avvio rapido
 
 Servono Node 20+, JDK 17+, Maven e PostgreSQL in ascolto su `localhost:5432`.
 
-**1. Database** — crea il DB `hoop3x3` ed esegui `backend/db/schema.sql` (in pgAdmin: Query Tool → apri il file → Esegui), oppure da terminale:
+**1. Backend** — clona [hoop3x3-backend](https://github.com/Gabrieleleonardi21/hoop3x3-backend) e segui il suo README (crea il DB `hoop3x3` con `db/schema.sql`, compila `env.properties`, poi `mvn spring-boot:run`):
 
 ```bash
-createdb hoop3x3 && psql -d hoop3x3 -f backend/db/schema.sql
-```
-
-**2. Backend** — copia `backend/env.properties.example` in `backend/env.properties`, compila password DB, `JWT_SECRET` e (facoltativa) `GROQ_API_KEY`, poi:
-
-```bash
-cd backend && mvn spring-boot:run
+git clone https://github.com/Gabrieleleonardi21/hoop3x3-backend.git
+cd hoop3x3-backend && mvn spring-boot:run
 ```
 
 L'API risponde su `http://localhost:3001` (Hibernate gira in `validate`: se lo schema non combacia con le entity si ferma all'avvio con un messaggio chiaro).
 
-**3. Frontend**
+**2. Frontend**
 
 ```bash
 npm install
@@ -77,7 +72,7 @@ L'app è disponibile su `http://localhost:5173`; in sviluppo le chiamate a `/api
 
 ## Coach AI (opzionale)
 
-Il Coach AI usa [Groq](https://console.groq.com/) (tier gratuito, modello `llama-3.3-70b-versatile`) attraverso il backend (`POST /api/coach/chat`), così la chiave non arriva mai al browser. Impostala in `backend/env.properties`:
+Il Coach AI usa [Groq](https://console.groq.com/) (tier gratuito, modello `openai/gpt-oss-120b`) attraverso il backend (`POST /api/coach/chat`), così la chiave non arriva mai al browser. Impostala nell'`env.properties` del backend:
 
 ```properties
 GROQ_API_KEY=gsk_...
@@ -149,19 +144,8 @@ accessibilità sono in [`docs/design-system.md`](docs/design-system.md). I mocku
 - **Utente registrato**: leghe e tappe sono sul server (`leghe`, `tappe`), l'anagrafe e l'archivio sono condivisi tra tutti gli utenti. Lo store aggiorna subito lo stato in memoria e salva in background (le modifiche a una tappa sono raggruppate con un debounce di 400 ms); un salvataggio fallito è segnalato da una barra in alto.
 - **Ospite**: la lega resta nel `localStorage` del browser; anagrafe e archivio sono consultabili in sola lettura.
 
-Schema del database in `backend/db/schema.sql`. I dati di gioco della tappa (squadre iscritte, gironi, partite con statistiche ed eventi, bracket, video) sono colonne `JSONB` della tabella `tappe`: il motore torneo li legge e li scrive sempre come blocco unico. Regole, nome, luogo, data e stato sono colonne normali.
+Schema del database in `db/schema.sql` del repo backend. Con `SEED_DEMO=true` in `env.properties` il primo avvio carica i dati di prova del circuito Estathé 2025 (32 giocatori, 8 squadre, lega con 4 tappe concluse e archivio) intestandoli all'admin; gli avvii successivi non li duplicano.
 
-```
-backend/
-├── db/schema.sql                   # tabelle PostgreSQL (da eseguire in pgAdmin)
-├── env.properties.example          # segreti: copiare in env.properties
-└── src/main/java/com/hoop3x3/backend/
-    ├── controllers/  # REST (auth, utenti, leghe, tappe, anagrafe, archivio, coach)
-    ├── dto/          # record con validazione Bean Validation
-    ├── entities/     # JPA: Utente, Lega, Tappa (+Regole), AnagrafeGiocatore/Squadra, ArchivioTappa
-    ├── exceptions/   # eccezioni tipizzate + ExceptionsHandler (corpo uniforme)
-    ├── repositories/ # Spring Data JPA
-    ├── runners/      # DataSeeder (admin iniziale)
-    ├── security/     # SecurityConfig, JwtFilter, JWTtools, CorsConfig, JsonAuthEntryPoint
-    └── services/     # logica: proprietà (AccessGuard), JSON delle tappe, proxy Groq
-```
+I dati di gioco della tappa (squadre iscritte, gironi, partite con statistiche ed eventi, bracket, video) sono colonne `JSONB` della tabella `tappe`: il motore torneo li legge e li scrive sempre come blocco unico. Regole, nome, luogo, data e stato sono colonne normali.
+
+La struttura dei package Java (controllers, dto, entities, security, services…) è descritta nel README di [hoop3x3-backend](https://github.com/Gabrieleleonardi21/hoop3x3-backend).

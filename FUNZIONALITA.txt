@@ -11,7 +11,7 @@ gironi, risultati, statistiche e archivio pubblico. Integra un assistente AI
 (Coach AI) per velocizzare le operazioni via linguaggio naturale.
 
 Tecnologia: React 19 + TypeScript (frontend) e Spring Boot 4 + Spring
-Security + PostgreSQL (backend, cartella backend/). Gli utenti registrati
+Security + PostgreSQL (backend, repo separato hoop3x3-backend). Gli utenti registrati
 hanno leghe e tappe sul server; anagrafe e archivio sono condivisi fra tutti
 gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
 
@@ -252,7 +252,7 @@ Contesto fornito al Coach AI:
 La cronologia della chat è in sessionStorage: sopravvive al reload della
 pagina e si azzera alla chiusura della scheda. Il Coach passa dal backend
 (POST /api/coach/chat) che inoltra a Groq con la chiave GROQ_API_KEY di
-backend/env.properties: la chiave non arriva mai al browser. Riservato agli
+env.properties del backend: la chiave non arriva mai al browser. Riservato agli
 utenti registrati.
 
 
