@@ -42,10 +42,10 @@ Il ciclo è un **loop agentico**: ripete finché l'AI smette di chiedere tool o 
 - **Parametri obbligatori:** `nome`, `squadre` (array di stringhe)
 - **Parametri opzionali:** `luogo`, `data` (YYYY-MM-DD), `nGironi`
 - **Azione:**
-  1. Carica in parallelo tutte le squadre (`reg_s_*`) e giocatori (`reg_g_*`) dall'anagrafe condivisa
+  1. Carica in parallelo squadre e giocatori dell'anagrafe condivisa dal server (`anagrafeApi`: lettura sempre fresca, per non registrare doppioni)
   2. Per ogni nome richiesto: cerca corrispondenza esatta, poi parziale (case-insensitive)
   3. Per le squadre trovate: popola `giocatori` dal loro roster, copia `regId`, `logo`, `rank`, `website`
-  4. Per le squadre non trovate: aggiunge un placeholder senza giocatori (da completare manualmente)
+  4. Per le squadre non trovate: le registra in anagrafe con i dati minimi (`saveSquadra` di `useAnagrafeStore`, così si aggiorna anche la cache letta dalle pagine); il roster resta vuoto, da completare manualmente
   5. Chiama `addTappa(tappa)` sullo store + naviga a `/lega/tappa/:id`
 - **Nota:** Deve essere chiamato **UNA SOLA VOLTA** con tutte le squadre nell'array `squadre`.
 - **Esempio:** *"Crea la tappa Roma Open con le squadre Ballers Roma, Street Kings e Wildcats"*
@@ -107,7 +107,7 @@ Il ciclo è un **loop agentico**: ripete finché l'AI smette di chiedere tool o 
 - **Descrizione:** Registra una nuova squadra nell'anagrafe condivisa del circuito.
 - **Parametri obbligatori:** `nome`
 - **Parametri opzionali:** `citta`, `anno`, `rank`, `referente`, `logo`, `website`, `instagram`, `note`
-- **Azione:** scrive `reg_s_<id>` nel namespace shared di localStorage
+- **Azione:** `saveSquadra` di `useAnagrafeStore`: `POST /api/anagrafe/squadre` sul backend e aggiornamento della cache dell'anagrafe
 - **Esempio:** *"Registra la squadra Ballers Roma, città Roma"*
 
 ---
@@ -116,7 +116,7 @@ Il ciclo è un **loop agentico**: ripete finché l'AI smette di chiedere tool o 
 - **Descrizione:** Registra un nuovo giocatore nell'anagrafe condivisa del circuito.
 - **Parametri obbligatori:** `nome`, `cognome`
 - **Parametri opzionali:** `squadra`, `ruolo`, `nascita`, `citta`, `nazionalita`, `altezza`, `peso`, `numero`, `soprannome`, `esperienza`, `note`
-- **Azione:** scrive `reg_g_<id>` nel namespace shared di localStorage
+- **Azione:** `saveGiocatore` di `useAnagrafeStore`: `POST /api/anagrafe/giocatori` sul backend e aggiornamento della cache dell'anagrafe
 - **Esempio:** *"Aggiungi il giocatore Marco Rossi, ruolo Playmaker, squadra Ballers Roma"*
 
 ---
@@ -191,7 +191,7 @@ if (name === "nome_tool") {
 >
 > `str(args, key)` è un helper interno che legge stringhe con fallback a `""`.
 > `findTappa(tappe, nome?)` è un helper interno che cerca per nome parziale o restituisce l'ultima tappa.
-> `fetchShared<T>(prefix)` è un helper interno per leggere liste dall'anagrafe condivisa.
+> `fetchSquadre()` / `fetchGiocatori()` sono helper interni che leggono l'anagrafe condivisa dal server (lista vuota in caso di errore).
 
 ### Esempi di tool futuri possibili
 
@@ -205,7 +205,7 @@ if (name === "nome_tool") {
 
 ## Note tecniche
 
-- Le letture/scritture anagrafe usano `storage` direttamente (senza `useAnagrafe`) per evitare il fetch dell'intera lista al mount.
+- Anagrafe: le **scritture** dei tool passano da `useAnagrafeStore` (`saveSquadra`, `saveGiocatore`, `updateSquadra`), che aggiorna il server e la cache letta dalle pagine (`useAnagrafe`); le **letture** (`fetchSquadre` / `fetchGiocatori`) vanno dirette al server con `anagrafeApi`, perché al Coach servono dati freschi per non registrare doppioni.
 - L'AI chiama i tool **solo se l'utente lo chiede esplicitamente** (istruzione nel preamble).
 - La chat in UI mostra messaggi user/assistant; i messaggi tool restano interni all'API, ma sotto ogni risposta dell'assistant compaiono **badge** con le azioni eseguite (campo `tools` di `ChatMsg`, etichette in `CoachPanel`).
 - La cronologia chat è in `sessionStorage` (si azzera alla chiusura della scheda).

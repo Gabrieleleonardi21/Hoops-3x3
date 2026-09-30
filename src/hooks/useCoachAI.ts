@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { askCoachWithTools, AiError, type ChatMsg, type ToolDef } from "../services/aiService";
 import { useAppStore } from "../stores/useAppStore";
+import { useAnagrafeStore } from "../stores/useAnagrafeStore";
 import { anagrafeApi } from "../services/anagrafeApi";
 import { archivioApi } from "../services/archivioApi";
 import { uid } from "../utils/uid";
@@ -325,8 +326,8 @@ export function useCoachAI() {
           );
 
           if (!reg) {
-            // Squadra non in anagrafe: la registra automaticamente con dati minimi
-            reg = await anagrafeApi.createSquadra({
+            // Squadra non in anagrafe: la registra con dati minimi (dallo store, così la cache resta allineata)
+            reg = await useAnagrafeStore.getState().saveSquadra({
               nome: nomeRichiesto,
               citta: "", anno: "", rank: "", referente: "",
               logo: "", website: "", instagram: "", note: "",
@@ -376,7 +377,8 @@ export function useCoachAI() {
 
     if (name === "registra_squadra") {
       const nome = str(args, "nome") || "Nuova squadra";
-      await anagrafeApi.createSquadra({
+      // Le scritture in anagrafe passano dallo store: aggiornano il server e la cache usata dalle pagine
+      await useAnagrafeStore.getState().saveSquadra({
         nome,
         citta:     str(args, "citta"),
         anno:      str(args, "anno"),
@@ -394,7 +396,7 @@ export function useCoachAI() {
     if (name === "registra_giocatore") {
       const nome    = str(args, "nome") || "Giocatore";
       const cognome = str(args, "cognome");
-      await anagrafeApi.createGiocatore({
+      await useAnagrafeStore.getState().saveGiocatore({
         nome, cognome,
         soprannome:  str(args, "soprannome"),
         nascita:     str(args, "nascita"),
@@ -558,8 +560,8 @@ export function useCoachAI() {
       }
       if (Object.keys(aggiornamenti).length === 0) return "Nessun campo da aggiornare specificato.";
 
-      const { id: _id, autore: _autore, ts: _ts, ...campiReg } = reg;
-      await anagrafeApi.updateSquadra(reg.id, { ...campiReg, ...aggiornamenti });
+      // Dallo store: aggiorna il server e la copia in cache (id, autore e ts li toglie lui)
+      await useAnagrafeStore.getState().updateSquadra({ ...reg, ...aggiornamenti });
       const campiModificati = Object.keys(aggiornamenti).join(", ");
       return `Squadra "${reg.nome}" aggiornata in anagrafe (${campiModificati}).`;
     }
