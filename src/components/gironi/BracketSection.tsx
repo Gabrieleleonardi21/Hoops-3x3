@@ -6,7 +6,7 @@ import { Button } from "../ui/Button";
 import { Section } from "../ui/Section";
 import type { BracketMatch, Tappa } from "../../types";
 import { useAppStore } from "../../stores/useAppStore";
-import { buildBracket, nextBracketSlot } from "../../utils/buildBracket";
+import { generaFasiDirette, registraRisultatoBracket } from "../../domain/tappaOps";
 import { standings } from "../../utils/standings";
 
 /** Divide il bracket in round in base alla struttura ad albero:
@@ -53,8 +53,8 @@ interface Props {
 }
 
 export function BracketSection({ tappa, readOnly = false }: Props) {
-  const updateTappa        = useAppStore((s) => s.updateTappa);
-  const updateBracketMatch = useAppStore((s) => s.updateBracketMatch);
+  const updateTappa  = useAppStore((s) => s.updateTappa);
+  const replaceTappa = useAppStore((s) => s.replaceTappa);
   const nameOf = (id: string | null) =>
     id ? (tappa.squadre.find((s) => s.id === id)?.nome ?? id) : "TBD";
 
@@ -64,27 +64,19 @@ export function BracketSection({ tappa, readOnly = false }: Props) {
   const allGironiDone = tappa.gironi !== null &&
     tappa.partite.every((m) => m.done);
 
-  /** Genera il bracket dalla classifica dei gironi */
+  /** Genera il bracket dalla classifica dei gironi (regole in tappaOps) */
   const generaBracket = () => {
-    if (!tappa.gironi) return;
-    const bracket = buildBracket(tappa.gironi, tappa.partite, tappa.squadre);
-    updateTappa(tappa.id, { bracket });
+    const esito = generaFasiDirette(tappa);
+    if (esito.ok) replaceTappa(esito.tappa);
   };
 
-  /** Registra il risultato di un match del bracket e avanza il vincitore al round successivo. */
+  /** Registra il risultato di un match del bracket: validazione e avanzamento del vincitore
+   *  sono in tappaOps (stessa logica del Coach AI). */
   const registraRisultato = (match: BracketMatch) => {
     const sc = scores[match.id] ?? { a: "", b: "" };
-    const pA = parseInt(sc.a, 10);
-    const pB = parseInt(sc.b, 10);
-    if (isNaN(pA) || isNaN(pB) || pA === pB) return;
-
-    const vincitoreId = pA > pB ? match.squadraA : match.squadraB;
-    updateBracketMatch(tappa.id, match.id, { pA, pB, done: true });
-
-    // Avanza il vincitore allo slot TBD del round successivo (logica condivisa col Coach AI)
-    const next = nextBracketSlot(tappa.bracket ?? [], match.id, vincitoreId);
-    if (next) updateBracketMatch(tappa.id, next.id, next.patch);
-
+    const esito = registraRisultatoBracket(tappa, match.id, parseInt(sc.a, 10), parseInt(sc.b, 10));
+    if (!esito.ok) return; // punteggio non valido: come prima, non succede nulla
+    replaceTappa(esito.tappa);
     setScores((prev) => ({ ...prev, [match.id]: { a: "", b: "" } }));
   };
 
