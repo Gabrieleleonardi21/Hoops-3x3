@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { BracketMatch, Lega, LegaMeta, Partita, Tappa, User } from "../types";
+import type { Lega, LegaMeta, Partita, Tappa, User } from "../types";
 import { uid, isUuid } from "../utils/uid";
 import { legheApi } from "../services/legheApi";
 import { ApiError } from "../services/api";
@@ -32,8 +32,6 @@ interface AppState {
   updateTappa: (id: string, patch: Partial<Tappa>) => void;
   /** Aggiorna una singola partita in modo atomico, evita race condition in chiamate parallele. */
   updateTappaPartita: (tappaId: string, partitaId: string, patch: Partial<Partita>) => void;
-  /** Aggiorna un singolo match del bracket in modo atomico. */
-  updateBracketMatch: (tappaId: string, matchId: string, patch: Partial<BracketMatch>) => void;
   /** Crea una nuova lega importando dati JSON (nome + tappe). */
   importLega: (nome: string, tappe: Tappa[]) => Promise<void>;
   replaceTappa: (t: Tappa) => void;
@@ -261,18 +259,6 @@ export const useAppStore = create<AppState>((set, get) => {
           t.id !== tappaId ? t : {
             ...t,
             partite: t.partite.map((m) => m.id === partitaId ? { ...m, ...patch } : m),
-          }
-        ),
-      }));
-      afterTappaChange(tappaId);
-    },
-
-    updateBracketMatch: (tappaId, matchId, patch) => {
-      set((s) => ({
-        tappe: s.tappe.map((t) =>
-          t.id !== tappaId ? t : {
-            ...t,
-            bracket: (t.bracket ?? []).map((m) => m.id === matchId ? { ...m, ...patch } : m),
           }
         ),
       }));

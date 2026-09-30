@@ -10,7 +10,8 @@ Usa Groq (llama-3.3-70b-versatile) con il protocollo OpenAI function calling.
 | File | Ruolo |
 |---|---|
 | `src/services/aiService.ts` | Chiamate HTTP a Groq; gestisce il ciclo tool call → risultato → risposta finale |
-| `src/hooks/useCoachAI.ts` | Definisce i tool disponibili ed esegue le azioni sullo store / storage |
+| `src/hooks/useCoachAI.ts` | Definisce i tool disponibili ed esegue le azioni: per le tappe chiama `tappaOps` e salva il risultato nello store con `replaceTappa` |
+| `src/domain/tappaOps.ts` | Operazioni di tappa come funzioni pure (sorteggio, risultati, fasi dirette, conclusione): le stesse usate dall'interfaccia, testate in `tests/unit/tappaOps.test.ts` |
 
 ## Flusso di esecuzione
 
@@ -56,9 +57,8 @@ Il ciclo è un **loop agentico**: ripete finché l'AI smette di chiedere tool o 
 - **Parametri opzionali:** `tappa_nome` (default: ultima tappa), `mode` (`"casuale"` o `"ranking"`)
 - **Azione:**
   1. Trova la tappa per nome (parziale, case-insensitive) o usa l'ultima
-  2. Costruisce i gironi con `buildGironi` (casuale) o `buildGironiSeeded` (a serpentina per ranking)
-  3. Genera il calendario partite con `buildMatches`
-  4. Chiama `updateTappa(id, { gironi, partite })` + naviga alla pagina tappa
+  2. Chiama `sorteggia(tappa, modo)` di `tappaOps`: gironi con `buildGironi` (casuale) o `buildGironiSeeded` (a serpentina per ranking) e calendario con `buildMatches`; servono almeno 2 squadre
+  3. Salva la nuova tappa con `replaceTappa` + naviga alla pagina tappa
 - **Nota:** Usa `useAppStore.getState()` per leggere le tappe aggiornate dai tool precedenti dello stesso ciclo (la closure del hook è ferma all'ultimo render).
 - **Esempio:** *"Sorteggia i gironi della tappa Roma Open"* oppure *"Fai il sorteggio per ranking"*
 
@@ -69,10 +69,9 @@ Il ciclo è un **loop agentico**: ripete finché l'AI smette di chiedere tool o 
 - **Parametri opzionali:** `tappa_nome` (default: ultima tappa), `qualificate` (squadre per girone che passano, default 2)
 - **Prerequisiti:** gironi sorteggiati e **tutte** le partite dei gironi `done`.
 - **Azione:**
-  1. Valida che i gironi siano conclusi e che il bracket non esista già
-  2. Costruisce il tabellone con `buildBracket(gironi, partite, squadre, nPass)` (cross-seeding 1°A vs 2°B…)
-  3. Chiama `updateTappa(id, { bracket })` + naviga alla pagina tappa
-- **Nota:** Con un solo girone `buildBracket` restituisce `[]` (nessun incrocio): il tool risponde con un errore descrittivo.
+  1. Chiama `generaFasiDirette(tappa, nPass)` di `tappaOps`, che valida (gironi conclusi, bracket non ancora generato) e costruisce il tabellone con `buildBracket` (cross-seeding 1°A vs 2°B…)
+  2. Salva la nuova tappa con `replaceTappa` + naviga alla pagina tappa
+- **Nota:** Con un solo girone `buildBracket` restituisce `[]` (nessun incrocio): `generaFasiDirette` risponde con un errore descrittivo.
 - **Esempio:** *"Genera le fasi dirette"* oppure *"Crea il tabellone, passano le prime 2 di ogni girone"*
 
 ---
@@ -83,9 +82,9 @@ Il ciclo è un **loop agentico**: ripete finché l'AI smette di chiedere tool o 
 - **Parametri opzionali:** `tappa_nome` (default: ultima tappa), `fase` (`"girone"` o `"diretta"`)
 - **Azione:**
   1. Trova la tappa e cerca, tra le due squadre, sia la partita di girone non registrata sia il match di bracket non giocato (con entrambe le squadre note)
-  2. Valida: nessun pareggio (FIBA 3x3), punteggi numerici
-  3. Gestisce l'ordine A/B corretto (non inverte i punteggi se l'utente li da nell'ordine inverso)
-  4. Girone → `updateTappaPartita(... done: true)`. Bracket → `updateBracketMatch(... done: true)` **e fa avanzare il vincitore** allo slot TBD del round successivo via `nextBracketSlot`
+  2. Gestisce l'ordine A/B corretto (non inverte i punteggi se l'utente li da nell'ordine inverso)
+  3. Girone → `registraRisultato(tappa, partitaId, { sa, sb })`. Bracket → `registraRisultatoBracket(tappa, matchId, pA, pB)`, che **fa anche avanzare il vincitore** allo slot TBD del round successivo. In entrambi i casi la nuova tappa si salva con `replaceTappa`
+  4. La validazione è quella di `tappaOps`, la stessa dell'inserimento manuale: punteggi interi non negativi, nessun pareggio (FIBA 3x3) e, per i gironi, non oltre `target + 4`
 - **Disambiguazione (zero ambiguità):** il bracket si genera solo a gironi conclusi, quindi quando esiste non c'è alcun girone aperto → al massimo **un** candidato. Nel caso limite di due candidati (es. un risultato di girone annullato dopo aver generato il bracket) il tool **non indovina**: chiede di specificare la fase, e il parametro `fase` permette di forzarla.
 - **Nota:** Può essere chiamato più volte nello stesso turno per registrare più partite.
 - **Esempio:** *"Risultato: Ballers Roma 21, Street Kings 15"* — *"Finale: Wildcats 22, Ballers Roma 18"*
@@ -97,10 +96,9 @@ Il ciclo è un **loop agentico**: ripete finché l'AI smette di chiedere tool o 
 - **Parametri opzionali:** `tappa_nome` (default: ultima tappa)
 - **Prerequisiti:** gironi sorteggiati, tutte le partite dei gironi `done`, **fase diretta completata se presente**, account non ospite
 - **Azione:**
-  1. Valida che tutte le partite dei gironi siano registrate
-  2. Se esiste il `bracket`, valida che tutti i suoi match siano `done` (altrimenti blocca: la finale non può restare aperta)
-  3. Chiama `replaceTappa` con `conclusa: true`
-  4. Scrive `pub_${tappaId}` nello storage condiviso
+  1. Chiama `concludi(tappa)` di `tappaOps`, che valida che tutte le partite dei gironi siano registrate e che, se esiste il `bracket`, tutti i suoi match siano `done` (altrimenti blocca: la finale non può restare aperta). È la stessa regola del bottone "Concludi" dell'interfaccia
+  2. Salva la tappa con `conclusa: true` tramite `replaceTappa`
+  3. La pubblica nell'Archivio circuito con `archivioApi.pubblica`
 - **Esempio:** *"Concludi la tappa Roma Open"*
 
 ---
@@ -189,6 +187,8 @@ if (name === "nome_tool") {
 }
 ```
 
+> Se il tool modifica una tappa, la regola va in `src/domain/tappaOps.ts` (funzione pura `(tappa, …) → Esito`, con il suo test in `tests/unit/tappaOps.test.ts`): nel tool ci si limita a leggere la tappa fresca, chiamare la funzione e salvare con `replaceTappa`.
+>
 > `str(args, key)` è un helper interno che legge stringhe con fallback a `""`.
 > `findTappa(tappe, nome?)` è un helper interno che cerca per nome parziale o restituisce l'ultima tappa.
 > `fetchShared<T>(prefix)` è un helper interno per leggere liste dall'anagrafe condivisa.
@@ -211,5 +211,6 @@ if (name === "nome_tool") {
 - La cronologia chat è in `sessionStorage` (si azzera alla chiusura della scheda).
 - `crea_tappa` richiede una lega attiva (`legaId !== null`); se manca, restituisce un errore descrittivo.
 - `crea_tappa` deve essere chiamato **una sola volta** con tutte le squadre nell'array. Il preamble e la descrizione del tool lo specificano esplicitamente. Se il modello lo chiama più volte con lo stesso nome, il guard `tappe.some(t => t.nome === nomeTappa)` blocca i duplicati.
-- `sorteggia_gironi`, `genera_fasi_dirette`, `registra_risultato`, `concludi_tappa` usano `useAppStore.getState().tappe` per leggere lo stato aggiornato: combinato con l'esecuzione **in sequenza** dei tool dello stesso turno, ogni tool vede sempre gli effetti dei precedenti.
-- L'avanzamento del vincitore nel bracket usa `nextBracketSlot(bracket, matchId, vincitoreId)` (in `utils/buildBracket.ts`), **lo stesso helper della UI** (`BracketSection`): la logica di promozione al round successivo è unica e non duplicata.
+- `sorteggia_gironi`, `genera_fasi_dirette`, `registra_risultato`, `concludi_tappa` usano `useAppStore.getState().tappe` per leggere lo stato aggiornato: combinato con l'esecuzione **in sequenza** dei tool dello stesso turno, ogni tool vede sempre gli effetti dei precedenti. La tappa letta passa a `tappaOps` e il risultato viene salvato subito con `replaceTappa`, senza `await` in mezzo: due risultati ravvicinati non si sovrascrivono.
+- Le regole di questi quattro tool (validazioni comprese) stanno in `src/domain/tappaOps.ts` e sono **le stesse funzioni chiamate dalla UI** (`useTappa`, `BracketSection`): una modifica al salvataggio di un risultato si fa in un posto solo. L'avanzamento del vincitore nel bracket è dentro `registraRisultatoBracket`, che usa `nextBracketSlot(bracket, matchId, vincitoreId)` di `utils/buildBracket.ts`.
+- `annulla_risultato` è l'unico tool di tappa che aggiorna ancora lo store direttamente (`updateTappaPartita`).
