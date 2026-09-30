@@ -33,7 +33,7 @@ export function TappaPage() {
   const [copied,      setCopied]      = useState(false);
 
   // useAnagrafe deve stare prima degli early return (regole degli hook)
-  const { squadre: squadreAnagrafe, saveSquadra } = useAnagrafe();
+  const { squadre: squadreAnagrafe, saveSquadra, trovaSquadra } = useAnagrafe();
 
   // Quando l'anagrafe carica, sincronizza le squadre della tappa (per nome o regId)
   useEffect(() => {
@@ -55,7 +55,9 @@ export function TappaPage() {
     const s = h.tappa?.squadre.find((x) => x.id === teamId);
     if (!s || s.regId) return; // già collegata, niente da fare
 
-    const existing = squadreAnagrafe.find((r) => r.nome.toLowerCase() === trimmed.toLowerCase());
+    // Prima in cache, poi sul server: un altro utente può averla registrata dopo il caricamento
+    // della cache e non va creato un doppione nell'anagrafe condivisa
+    const existing = await trovaSquadra(trimmed);
     if (existing) {
       h.applyReg(teamId, existing);
     } else {

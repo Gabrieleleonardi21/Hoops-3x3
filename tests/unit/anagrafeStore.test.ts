@@ -144,6 +144,29 @@ describe("useAnagrafeStore (cache dell'anagrafe)", () => {
     expect(store.getState().squadre!.map((s) => s.id)).toEqual(["s2", "s1"]);
   });
 
+  it("trovaSquadra trova in cache senza richiamare il server", async () => {
+    const { api, store } = await nuovoStore();
+    await store.getState().load();
+    expect(await store.getState().trovaSquadra(" ballers ")).toEqual(squadra("s1", "Ballers", ["g1"]));
+    expect(api.listSquadre).toHaveBeenCalledTimes(1);
+  });
+
+  it("trovaSquadra ricontrolla sul server un nome assente in cache (registrato da un altro utente)", async () => {
+    const { api, store } = await nuovoStore();
+    await store.getState().load();
+    api.listSquadre.mockResolvedValue([squadra("s2", "Wildcats"), squadra("s1", "Ballers", ["g1"])]);
+    expect(await store.getState().trovaSquadra("Wildcats")).toEqual(squadra("s2", "Wildcats"));
+    expect(api.listSquadre).toHaveBeenCalledTimes(2);
+  });
+
+  it("trovaSquadra restituisce undefined se la squadra non esiste nemmeno sul server", async () => {
+    const { api, store } = await nuovoStore();
+    await store.getState().load();
+    expect(await store.getState().trovaSquadra("Sconosciuti")).toBeUndefined();
+    api.listSquadre.mockRejectedValueOnce(new Error("server spento"));
+    expect(await store.getState().trovaSquadra("Sconosciuti")).toBeUndefined();
+  });
+
   it("una scrittura arrivata durante il caricamento non convalida la cache: il load successivo riscarica", async () => {
     const { api, store } = await nuovoStore();
     // Il server risponde alla lista squadre solo quando lo decide il test

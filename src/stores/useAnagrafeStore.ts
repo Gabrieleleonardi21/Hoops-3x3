@@ -19,6 +19,8 @@ interface AnagrafeState {
   /** true dopo un caricamento riuscito: i load() successivi non richiamano il server */
   caricata: boolean;
   load: () => Promise<void>;
+  /** Cerca una squadra per nome (case-insensitive): prima in cache, poi sul server */
+  trovaSquadra: (nome: string) => Promise<RegSquadra | undefined>;
   saveGiocatore: (data: GiocatoreInput) => Promise<void>;
   saveSquadra: (data: SquadraInput) => Promise<RegSquadra>;
   removeGiocatore: (id: string) => Promise<void>;
@@ -58,6 +60,17 @@ export const useAnagrafeStore = create<AnagrafeState>((set, get) => {
         .catch(() => set((s) => ({ giocatori: s.giocatori ?? [], squadre: s.squadre ?? [] })))
         .finally(() => { inCorso = null; });
       return inCorso;
+    },
+
+    trovaSquadra: async (nome) => {
+      const cercato = nome.trim().toLowerCase();
+      const stessoNome = (s: RegSquadra) => s.nome.toLowerCase() === cercato;
+      const inCache = (get().squadre ?? []).find(stessoNome);
+      if (inCache) return inCache;
+      // Non in cache: un altro utente può averla registrata dopo il caricamento, quindi prima di
+      // farne un doppione si ricontrolla sul server (a server spento vale la risposta della cache)
+      const fresche = await anagrafeApi.listSquadre().catch(() => []);
+      return fresche.find(stessoNome);
     },
 
     saveGiocatore: async (data) => {
