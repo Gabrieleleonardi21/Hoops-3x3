@@ -30,8 +30,8 @@
 - [x] `useAnagrafe` ricarica dal server a ogni mount: cachearla nello store.
 - [ ] `me()` fa uscire l'utente anche quando il server non risponde: uscire solo se la sessione è
   davvero finita (401 del rinnovo).
-- [ ] Rinnovare il JWT a timer o quando la scheda torna visibile: oggi, con il JWT già scaduto (pagina
-  ferma da più di 30 minuti), una modifica seguita dalla chiusura della pagina entro circa mezzo
-  secondo va persa.
+- [ ] Rinnovare il JWT a timer o quando la scheda torna visibile: oggi, con il JWT già scaduto (basta
+  che nessuna richiesta parta negli ultimi 2 minuti della sua vita), una modifica seguita dalla
+  chiusura della pagina entro 400 ms più il tempo del rinnovo va persa.
 - [ ] Sincronizzare logout e login tra le schede (evento `storage`) e tornare al form di accesso quando
   la sessione finisce a pagina aperta.

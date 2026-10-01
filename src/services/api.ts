@@ -1,6 +1,7 @@
 /** Client HTTP minimale verso il backend Spring.
- *  In sviluppo le chiamate a /api passano dal proxy di Vite (vite.config.ts);
- *  in produzione si imposta VITE_API_URL con l'origine del server.
+ *  In sviluppo le chiamate a /api passano dal proxy di Vite (vite.config.ts); in produzione
+ *  VITE_API_URL resta vuoto dietro un reverse proxy sulla stessa origine e contiene l'origine
+ *  del backend solo se l'API ne ha una propria.
  *  Il JWT di accesso dura poco (30 minuti) e si rinnova da solo con il refresh token, che il server
  *  imposta in un cookie httpOnly: in anticipo quando sta per scadere, oppure dopo un 401
  *  ripetendo la richiesta una sola volta.
