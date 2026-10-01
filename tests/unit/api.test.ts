@@ -189,6 +189,20 @@ describe("api: rinnovo in anticipo", () => {
     await richiesta;
     expect(fetchFinto).toHaveBeenCalledTimes(1);
   });
+
+  it("una richiesta keepalive respinta con 401 viene ripetuta dopo il rinnovo, se la pagina è ancora viva", async () => {
+    token.set(jwt(-10));
+    fetchFinto
+      .mockResolvedValueOnce(errore(401, SCADUTO))
+      .mockResolvedValueOnce(ok({ token: "jwt-nuovo", user: {} }))
+      .mockResolvedValueOnce(ok({ id: "t1" }));
+    await expect(api("/api/tappe/t1", { method: "PUT", body: { id: "t1" }, keepalive: true })).resolves.toEqual({ id: "t1" });
+    // Prima la richiesta (nessun rinnovo in anticipo), poi il rinnovo, poi la ripetizione ancora keepalive
+    expect(chiamata(0).url).toBe("/api/tappe/t1");
+    expect(chiamata(1).url).toBe("/api/auth/refresh");
+    expect(chiamata(2).init.keepalive).toBe(true);
+    expect(header(2, "Authorization")).toBe("Bearer jwt-nuovo");
+  });
 });
 
 describe("api: più schede, logout e lock", () => {
@@ -199,6 +213,17 @@ describe("api: più schede, logout e lock", () => {
     await api("/api/leghe");
     expect(fetchFinto).toHaveBeenCalledTimes(1);
     expect(chiamata(0).url).toBe("/api/leghe");
+  });
+
+  it("se il JWT salvato dall'altra scheda è a sua volta in scadenza rinnova lo stesso", async () => {
+    token.set(jwt(-10));
+    vi.stubGlobal("navigator", lockDopo(() => token.set(jwt(60))));
+    fetchFinto
+      .mockResolvedValueOnce(ok({ token: "jwt-nuovo", user: {} }))
+      .mockResolvedValueOnce(ok([]));
+    await api("/api/leghe");
+    expect(chiamata(0).url).toBe("/api/auth/refresh");
+    expect(header(1, "Authorization")).toBe("Bearer jwt-nuovo");
   });
 
   it("se la sessione viene chiusa (logout) mentre si aspettava il lock non rinnova e non ripete la richiesta", async () => {
