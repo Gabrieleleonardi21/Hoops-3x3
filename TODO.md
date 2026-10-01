@@ -14,7 +14,8 @@
 ## Backend
 
 - [ ] Paginazione + ricerca server-side su `/api/anagrafe/*` quando l'anagrafe cresce.
-- [ ] Refresh token (oggi JWT da 7 giorni, poi si rifà il login).
+- [x] Refresh token: JWT di accesso da 30 minuti, rinnovato in automatico con un refresh token di
+  30 giorni in cookie httpOnly (ruotato a ogni rinnovo, revocato al logout).
 - [ ] Valutare la normalizzazione di `partite`/statistiche in tabelle dedicate se servono
   classifiche cross-tappa calcolate in SQL (oggi JSONB in `tappe`).
 
