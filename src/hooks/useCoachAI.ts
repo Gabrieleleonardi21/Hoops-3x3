@@ -2,15 +2,16 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { askCoachWithTools, AiError, type ChatMsg, type ToolDef } from "../services/aiService";
 import { useAppStore } from "../stores/useAppStore";
+import { useAnagrafeStore } from "../stores/useAnagrafeStore";
 import { anagrafeApi } from "../services/anagrafeApi";
 import { archivioApi } from "../services/archivioApi";
 import { uid } from "../utils/uid";
 import { DEFAULT_RULES } from "../constants/rules";
 import { buildCoachContext } from "../utils/buildCoachContext";
-import { buildGironi } from "../utils/buildGironi";
-import { buildGironiSeeded } from "../utils/buildGironiSeeded";
-import { buildMatches } from "../utils/buildMatches";
-import { buildBracket, nextBracketSlot } from "../utils/buildBracket";
+import {
+  concludi, generaFasiDirette, registraRisultato, registraRisultatoBracket, sorteggia,
+  type ModoSorteggio,
+} from "../domain/tappaOps";
 import type { Tappa, RegSquadra, RegGiocatore, SquadraTappa, GiocatoreRoster } from "../types";
 
 const CHAT_KEY = "coach_chat";
@@ -223,6 +224,11 @@ function findTappa(tappe: Tappa[], nomeTappa?: string): Tappa | null {
   return tappe.find((t) => t.nome.toLowerCase().includes(nl)) ?? null;
 }
 
+/** Errore di un'operazione di tappa, con il nome della tappa così l'AI sa a quale si riferisce */
+function erroreTappa(tappa: Tappa, errore: string): string {
+  return `Tappa "${tappa.nome}": ${errore}`;
+}
+
 /** Verifica che i due nomi squadra (parziali, in qualunque ordine) combacino con la coppia indicata. */
 function coppiaCombacia(squA: string, squB: string, queryA: string, queryB: string): boolean {
   const a = squA.toLowerCase();
@@ -268,9 +274,7 @@ export function useCoachAI() {
   const user         = useAppStore((s) => s.user);
   const createLega   = useAppStore((s) => s.createLega);
   const addTappa     = useAppStore((s) => s.addTappa);
-  const updateTappa        = useAppStore((s) => s.updateTappa);
   const updateTappaPartita = useAppStore((s) => s.updateTappaPartita);
-  const updateBracketMatch = useAppStore((s) => s.updateBracketMatch);
   const replaceTappa       = useAppStore((s) => s.replaceTappa);
   const navigate     = useNavigate();
 
@@ -322,8 +326,8 @@ export function useCoachAI() {
           );
 
           if (!reg) {
-            // Squadra non in anagrafe: la registra automaticamente con dati minimi
-            reg = await anagrafeApi.createSquadra({
+            // Squadra non in anagrafe: la registra con dati minimi (dallo store, così la cache resta allineata)
+            reg = await useAnagrafeStore.getState().saveSquadra({
               nome: nomeRichiesto,
               citta: "", anno: "", rank: "", referente: "",
               logo: "", website: "", instagram: "", note: "",
@@ -373,7 +377,8 @@ export function useCoachAI() {
 
     if (name === "registra_squadra") {
       const nome = str(args, "nome") || "Nuova squadra";
-      await anagrafeApi.createSquadra({
+      // Le scritture in anagrafe passano dallo store: aggiornano il server e la cache usata dalle pagine
+      await useAnagrafeStore.getState().saveSquadra({
         nome,
         citta:     str(args, "citta"),
         anno:      str(args, "anno"),
@@ -391,7 +396,7 @@ export function useCoachAI() {
     if (name === "registra_giocatore") {
       const nome    = str(args, "nome") || "Giocatore";
       const cognome = str(args, "cognome");
-      await anagrafeApi.createGiocatore({
+      await useAnagrafeStore.getState().saveGiocatore({
         nome, cognome,
         soprannome:  str(args, "soprannome"),
         nascita:     str(args, "nascita"),
@@ -411,20 +416,17 @@ export function useCoachAI() {
     if (name === "sorteggia_gironi") {
       // getState() legge lo stato fresco: la closure `tappe` è ferma all'ultimo render e non
       // riflette le modifiche fatte dai tool precedenti dello stesso ciclo (loop agentico)
-      const freshTappe = useAppStore.getState().tappe;
-      const tappa = findTappa(freshTappe, str(args, "tappa_nome") || undefined);
+      const tappa = findTappa(useAppStore.getState().tappe, str(args, "tappa_nome") || undefined);
       if (!tappa) return "Nessuna tappa trovata: crea prima una tappa con le squadre.";
-      if (tappa.squadre.length < 2) return `La tappa "${tappa.nome}" ha meno di 2 squadre: aggiungine prima.`;
 
-      const mode = str(args, "mode") || "casuale";
-      const gironi = mode === "ranking"
-        ? buildGironiSeeded(tappa.squadre, tappa.nGironi)
-        : buildGironi(tappa.squadre.map((s) => s.id), tappa.nGironi);
-      const partite = buildMatches(gironi);
-      updateTappa(tappa.id, { gironi, partite });
+      let modo: ModoSorteggio = "casuale";
+      if (str(args, "mode") === "ranking") modo = "ranking";
+      const esito = sorteggia(tappa, modo);
+      if (!esito.ok) return erroreTappa(tappa, esito.errore);
+      replaceTappa(esito.tappa);
       navigate(`/lega/tappa/${tappa.id}`);
 
-      return `Sorteggio "${mode}" completato per "${tappa.nome}": ${gironi.length} gironi, ${partite.length} partite generate.`;
+      return `Sorteggio "${modo}" completato per "${tappa.nome}": ${(esito.tappa.gironi ?? []).length} gironi, ${esito.tappa.partite.length} partite generate.`;
     }
 
     if (name === "registra_risultato") {
@@ -437,8 +439,6 @@ export function useCoachAI() {
       const nomeB = str(args, "squadra_b");
       const pA = typeof args.punti_a === "number" ? args.punti_a : parseInt(str(args, "punti_a"), 10);
       const pB = typeof args.punti_b === "number" ? args.punti_b : parseInt(str(args, "punti_b"), 10);
-      if (isNaN(pA) || isNaN(pB)) return "Specifica i punti di entrambe le squadre (numeri interi).";
-      if (pA === pB) return "Nel 3x3 non esistono pareggi: il supplementare decide sempre un vincitore.";
 
       const nomeOf = (id: string | null) => tappa.squadre.find((s) => s.id === id)?.nome ?? "";
 
@@ -477,9 +477,11 @@ export function useCoachAI() {
           sa = pA;
           sb = pB;
         }
-        // updateTappaPartita è atomica: applica la patch sullo stato fresco dentro Zustand set(),
-        // resta corretta anche con più risultati ravvicinati nello stesso ciclo
-        updateTappaPartita(tappa.id, mg.id, { sa, sb, done: true });
+        // Tappa letta fresca (getState) e salvata subito, senza await in mezzo: più risultati
+        // nello stesso ciclo non si sovrascrivono
+        const esito = registraRisultato(tappa, mg.id, { sa, sb });
+        if (!esito.ok) return erroreTappa(tappa, esito.errore);
+        replaceTappa(esito.tappa);
 
         let vincitore = sqB.nome;
         if (sa > sb) vincitore = sqA.nome;
@@ -498,17 +500,14 @@ export function useCoachAI() {
           ptA = pA;
           ptB = pB;
         }
+        // tappaOps registra il match e fa avanzare il vincitore al round successivo
+        const esito = registraRisultatoBracket(tappa, mb.id, ptA, ptB);
+        if (!esito.ok) return erroreTappa(tappa, esito.errore);
+        replaceTappa(esito.tappa);
+
         let vincitoreId = mb.squadraB;
         if (ptA > ptB) vincitoreId = mb.squadraA;
-
-        updateBracketMatch(tappa.id, mb.id, { pA: ptA, pB: ptB, done: true });
-        // Avanza il vincitore allo slot TBD del round successivo (stato fresco dopo l'update)
-        const freshBracket = useAppStore.getState().tappe.find((t) => t.id === tappa.id)?.bracket ?? [];
-        const next = nextBracketSlot(freshBracket, mb.id, vincitoreId);
-        if (next) updateBracketMatch(tappa.id, next.id, next.patch);
-
-        const vincitore = nomeOf(vincitoreId);
-        return `${mb.label} registrata: ${sqA.nome} ${ptA} — ${ptB} ${sqB.nome}. Avanza ${vincitore}.`;
+        return `${mb.label} registrata: ${sqA.nome} ${ptA} — ${ptB} ${sqB.nome}. Avanza ${nomeOf(vincitoreId)}.`;
       }
 
       return `Partita tra "${nomeA}" e "${nomeB}" non trovata o già registrata.`;
@@ -561,54 +560,39 @@ export function useCoachAI() {
       }
       if (Object.keys(aggiornamenti).length === 0) return "Nessun campo da aggiornare specificato.";
 
-      const { id: _id, autore: _autore, ts: _ts, ...campiReg } = reg;
-      await anagrafeApi.updateSquadra(reg.id, { ...campiReg, ...aggiornamenti });
+      // Dallo store: aggiorna il server e la copia in cache (id, autore e ts li toglie lui)
+      await useAnagrafeStore.getState().updateSquadra({ ...reg, ...aggiornamenti });
       const campiModificati = Object.keys(aggiornamenti).join(", ");
       return `Squadra "${reg.nome}" aggiornata in anagrafe (${campiModificati}).`;
     }
 
     if (name === "genera_fasi_dirette") {
-      const freshTappe = useAppStore.getState().tappe;
-      const tappa = findTappa(freshTappe, str(args, "tappa_nome") || undefined);
+      const tappa = findTappa(useAppStore.getState().tappe, str(args, "tappa_nome") || undefined);
       if (!tappa) return "Nessuna tappa trovata.";
-      if (!tappa.gironi) return `La tappa "${tappa.nome}" non è ancora sorteggiata: fai prima il sorteggio.`;
-
-      const mancanti = tappa.partite.filter((m) => !m.done).length;
-      if (mancanti > 0) return `Completa prima i gironi: mancano ${mancanti} partite nella tappa "${tappa.nome}".`;
-      if (tappa.bracket?.length) return `La fase a eliminazione diretta di "${tappa.nome}" è già stata generata.`;
 
       // qualificate per girone (default 2, come la UI)
       let nPass = 2;
       if (typeof args.qualificate === "number" && args.qualificate >= 1) nPass = Math.floor(args.qualificate);
 
-      const bracket = buildBracket(tappa.gironi, tappa.partite, tappa.squadre, nPass);
-      // buildBracket restituisce [] con un solo girone: non c'è incrocio possibile
-      if (!bracket.length) return `Impossibile generare la fase finale di "${tappa.nome}": servono almeno 2 gironi.`;
-
-      updateTappa(tappa.id, { bracket });
+      const esito = generaFasiDirette(tappa, nPass);
+      if (!esito.ok) return erroreTappa(tappa, esito.errore);
+      replaceTappa(esito.tappa);
       navigate(`/lega/tappa/${tappa.id}`);
-      return `Fase a eliminazione diretta generata per "${tappa.nome}": ${bracket.length} match (prime ${nPass} di ogni girone qualificate).`;
+      return `Fase a eliminazione diretta generata per "${tappa.nome}": ${(esito.tappa.bracket ?? []).length} match (prime ${nPass} di ogni girone qualificate).`;
     }
 
     if (name === "concludi_tappa") {
-      const freshTappe = useAppStore.getState().tappe;
-      const tappa = findTappa(freshTappe, str(args, "tappa_nome") || undefined);
+      const tappa = findTappa(useAppStore.getState().tappe, str(args, "tappa_nome") || undefined);
       if (!tappa) return "Nessuna tappa trovata.";
-      if (!tappa.gironi || !tappa.partite.length) return `La tappa "${tappa.nome}" non ha ancora gironi: fai il sorteggio e registra i risultati.`;
 
-      const left = tappa.partite.filter((m) => !m.done).length;
-      if (left > 0) return `Mancano ancora ${left} partite da registrare nella tappa "${tappa.nome}".`;
-      // Se esiste la fase a eliminazione diretta, dev'essere completata prima di concludere
-      if (tappa.bracket?.length) {
-        const bracketLeft = tappa.bracket.filter((m) => !m.done).length;
-        if (bracketLeft > 0) return `La fase a eliminazione diretta di "${tappa.nome}" non è completa: mancano ${bracketLeft} match.`;
-      }
+      // Gironi tutti registrati e fase diretta completa (se generata): lo verifica tappaOps
+      const esito = concludi(tappa);
+      if (!esito.ok) return erroreTappa(tappa, esito.errore);
       if (!user || user.guest) return "La conclusione nell'Archivio circuito richiede un account registrato (non ospite).";
 
-      const t2: Tappa = { ...tappa, conclusa: true };
-      replaceTappa(t2);
+      replaceTappa(esito.tappa);
       try {
-        await archivioApi.pubblica(t2, legaName);
+        await archivioApi.pubblica(esito.tappa, legaName);
         return `Tappa "${tappa.nome}" conclusa e pubblicata nell'Archivio circuito.`;
       } catch {
         return `Tappa "${tappa.nome}" conclusa, ma la pubblicazione non è riuscita: riprova dalla pagina tappa.`;

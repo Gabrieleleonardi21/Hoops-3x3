@@ -62,7 +62,9 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
     • Punti per il supplementare (default 2)
     • Shot clock in secondi (default 12)
 - Conclusione e pubblicazione della tappa nell'Archivio circuito (richiede
-  account registrato; la tappa passa in sola lettura).
+  account registrato; la tappa passa in sola lettura). Servono tutti i
+  risultati dei gironi e, se è stata generata la fase a eliminazione
+  diretta, anche tutti i suoi match.
 - Riapertura di una tappa conclusa per correzioni.
 
 
@@ -231,8 +233,9 @@ Azioni che il Coach AI può eseguire nell'app tramite tool calling:
                      cerca le squadre in anagrafe e, se mancanti, le registra
                      automaticamente con i dati minimi.
   sorteggia_gironi   Esegue il sorteggio (casuale o per ranking) su una tappa.
-  registra_risultato Registra il punteggio di una partita; l'operazione è
-                     atomica: più risultati in parallelo non si sovrascrivono.
+  registra_risultato Registra il punteggio di una partita (gironi o fase
+                     diretta) con le stesse regole dell'inserimento manuale;
+                     più risultati di seguito non si sovrascrivono.
   annulla_risultato  Annulla un risultato già inserito (riporta la partita a
                      "non disputata").
   registra_squadra   Aggiunge una squadra all'anagrafe condivisa.
@@ -275,6 +278,12 @@ utenti registrati.
   fallito è segnalato da una barra in alto.
 - Persistenza (ospite): localStorage per la lega (multi-lega con indice);
   anagrafe e archivio in sola lettura dal server.
+- Anagrafe in cache nello store (useAnagrafeStore): scaricata una volta e
+  aggiornata a ogni scrittura, non a ogni apertura di pagina; le modifiche
+  di altri utenti si vedono ricaricando la pagina.
+- Operazioni di tappa (sorteggio, risultati, fasi dirette, conclusione) come
+  funzioni pure in src/domain/tappaOps.ts: le stesse per l'interfaccia e per
+  il Coach AI, coperte da test unitari.
 - Ogni modifica lato server verifica la proprietà: solo l'autore (o un ADMIN)
   può modificare o eliminare una lega, una scheda anagrafe o una
   pubblicazione; tutte le risposte di errore hanno il formato

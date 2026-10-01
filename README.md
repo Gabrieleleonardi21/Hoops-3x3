@@ -125,10 +125,11 @@ src/
 │   └── video/        # Galleria video
 ├── constants/        # Regole, ruoli, tipi di evento
 ├── data/             # Dati di esempio (campetti)
+├── domain/           # Operazioni di tappa come funzioni pure (sorteggio, risultati, fasi dirette, conclusione)
 ├── hooks/            # Custom hooks
 ├── pages/            # Pagine dell'app
 ├── services/         # Client HTTP (api.ts), servizi REST (leghe, anagrafe, archivio, auth) e AI
-├── stores/           # Store Zustand globale
+├── stores/           # Store Zustand: stato globale (useAppStore) e cache dell'anagrafe (useAnagrafeStore)
 ├── types/            # Definizioni TypeScript
 └── utils/            # Funzioni di utilità (gironi, classifica, ecc.)
 ```
@@ -143,6 +144,7 @@ accessibilità sono in [`docs/design-system.md`](docs/design-system.md). I mocku
 
 - **Utente registrato**: leghe e tappe sono sul server (`leghe`, `tappe`), l'anagrafe e l'archivio sono condivisi tra tutti gli utenti. Lo store aggiorna subito lo stato in memoria e salva in background (le modifiche a una tappa sono raggruppate con un debounce di 400 ms); un salvataggio fallito è segnalato da una barra in alto.
 - **Ospite**: la lega resta nel `localStorage` del browser; anagrafe e archivio sono consultabili in sola lettura.
+- **Anagrafe**: viene scaricata una sola volta e tenuta in cache nello store (`useAnagrafeStore`), non a ogni apertura di pagina; ogni scrittura (dalle pagine o dal Coach AI) aggiorna server e cache. Le modifiche di altri utenti si vedono ricaricando la pagina.
 
 Schema del database in `db/schema.sql` del repo backend. Con `SEED_DEMO=true` in `env.properties` il primo avvio carica i dati di prova del circuito Estathé 2025 (32 giocatori, 8 squadre, lega con 4 tappe concluse e archivio) intestandoli all'admin; gli avvii successivi non li duplicano.
 

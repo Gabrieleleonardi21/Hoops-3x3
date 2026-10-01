@@ -2,7 +2,7 @@
 
 ## Refactor
 
-- [ ] **Estrarre le operazioni di tappa in funzioni pure** (`src/domain/tappaOps.ts`):
+- [x] **Estrarre le operazioni di tappa in funzioni pure** (`src/domain/tappaOps.ts`):
   `sorteggia(tappa, modo)`, `registraRisultato(tappa, partitaId, …)`, `generaFasiDirette(tappa)`,
   `concludi(tappa)` che restituiscono la nuova `Tappa`. Oggi `useCoachAI.ts` (~690 righe)
   duplica la logica di `useTappa` chiamando direttamente `useAppStore`: ogni modifica al
@@ -21,4 +21,4 @@
 ## Frontend
 
 - [ ] Rigenerare la hero a 2K con mcp-image quando la chiave Gemini ha il billing attivo.
-- [ ] `useAnagrafe` ricarica dal server a ogni mount: cachearla nello store.
+- [x] `useAnagrafe` ricarica dal server a ogni mount: cachearla nello store.
