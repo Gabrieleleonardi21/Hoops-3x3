@@ -58,6 +58,14 @@ describe("api: Bearer e richieste di autenticazione", () => {
     // Nessuna opzione credentials: vale la modalità predefinita del browser (cookie solo sulla stessa origine)
     for (const n of [0, 1, 2, 3, 4]) expect(chiamata(n).init.credentials).toBeUndefined();
   });
+
+  it("le chiamate di autenticazione non fanno partire rinnovi nemmeno con un JWT scaduto in memoria", async () => {
+    token.set(jwt(-10));
+    fetchFinto.mockImplementation(async () => ok({}));
+    await api("/api/auth/login", { method: "POST", body: { email: "a@b.it", password: "x" } });
+    expect(fetchFinto).toHaveBeenCalledTimes(1);
+    expect(chiamata(0).url).toBe("/api/auth/login");
+  });
 });
 
 describe("api: rinnovo dopo un 401", () => {
@@ -157,6 +165,7 @@ describe("api: rinnovo in anticipo", () => {
       // Sono già partite tutte e due in questo stesso giro di esecuzione: la richiesta, con il JWT vecchio, e il rinnovo
       expect(indiceDi("/api/leghe")).toBeGreaterThanOrEqual(0);
       expect(header(indiceDi("/api/leghe"), "Authorization")).toBe(`Bearer ${vecchio}`);
+      // (il lock finto esegue subito: con il lock vero del browser il rinnovo parte un giro dopo)
       expect(indiceDi("/api/auth/refresh")).toBeGreaterThanOrEqual(0);
     } finally {
       // Il rinnovo si sblocca comunque e si aspetta la fine: nessuna promessa resta appesa per i test successivi
@@ -269,6 +278,7 @@ describe("api: più schede, logout e lock", () => {
     expect(fetchFinto).toHaveBeenCalledTimes(3);
     expect(chiamata(2).url).toBe("/api/auth/logout");
     expect(chiamata(2).init.method).toBe("POST");
+    expect(chiamata(2).init.keepalive).toBe(true);
   });
 
   it("senza Web Locks (browser vecchio o pagina non https) il rinnovo funziona lo stesso", async () => {
@@ -280,6 +290,16 @@ describe("api: più schede, logout e lock", () => {
     await api("/api/leghe");
     expect(chiamata(0).url).toBe("/api/auth/refresh");
     expect(header(1, "Authorization")).toBe("Bearer jwt-nuovo");
+  });
+
+  it("con il lock non utilizzabile e il JWT in scadenza la richiesta va a buon fine lo stesso", async () => {
+    vi.stubGlobal("navigator", { locks: { request: () => Promise.reject(new Error("lock negato")) } });
+    token.set(jwt(90));
+    fetchFinto.mockResolvedValueOnce(ok([{ id: "l1" }]));
+    // Il rinnovo parte in parallelo senza await: il suo fallimento non deve diventare una promise rifiutata non gestita
+    await expect(api("/api/leghe")).resolves.toEqual([{ id: "l1" }]);
+    await new Promise((fatto) => setTimeout(fatto, 0));
+    expect(fetchFinto).toHaveBeenCalledTimes(1);
   });
 
   it("se il lock non è utilizzabile il rinnovo non riesce ma non lancia eccezioni", async () => {

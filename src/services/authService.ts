@@ -24,7 +24,8 @@ export async function login(email: string, password: string): Promise<User> {
   return toUser(r.user);
 }
 
-/** Verifica il token salvato; null se assente o scaduto (in quel caso lo rimuove) */
+/** Verifica la sessione salvata (un JWT scaduto si rinnova dentro api()); null se il token manca
+ *  o la verifica non riesce: in quel caso lo rimuove */
 export async function me(): Promise<User | null> {
   if (!token.get()) return null;
   try {
@@ -37,9 +38,10 @@ export async function me(): Promise<User | null> {
 
 /** Logout: butta via subito il JWT (da qui la scheda non fa più richieste autenticate né rinnovi), poi
  *  revoca il refresh token sul server, che cancella il cookie. Senza JWT (ospite, sessione già chiusa) non
- *  c'è niente da revocare. Se il server non risponde si è usciti lo stesso. */
+ *  c'è niente da revocare. Se il server non risponde si è usciti lo stesso.
+ *  keepalive: la revoca parte anche se la scheda viene chiusa subito dopo «Esci». */
 export async function logout() {
   if (!token.get()) return;
   token.clear();
-  await api<void>("/api/auth/logout", { method: "POST" }).catch(() => {});
+  await api<void>("/api/auth/logout", { method: "POST", keepalive: true }).catch(() => {});
 }

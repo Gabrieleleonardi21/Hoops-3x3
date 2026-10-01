@@ -29,6 +29,8 @@ describe("authService.logout", () => {
     expect(fetchFinto).toHaveBeenCalledTimes(1);
     expect(fetchFinto.mock.calls[0][0]).toBe("/api/auth/logout");
     expect((fetchFinto.mock.calls[0][1] as RequestInit).method).toBe("POST");
+    // keepalive: la revoca deve partire anche se la scheda viene chiusa subito dopo «Esci»
+    expect((fetchFinto.mock.calls[0][1] as RequestInit).keepalive).toBe(true);
     // Quando la richiesta parte il JWT è già sparito: da lì la scheda non può più fare rinnovi
     expect(tokenDuranteLaChiamata).toBeNull();
     expect(token.get()).toBeNull();

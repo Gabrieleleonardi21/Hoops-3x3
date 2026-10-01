@@ -2,7 +2,7 @@
  *  In sviluppo le chiamate a /api passano dal proxy di Vite (vite.config.ts);
  *  in produzione si imposta VITE_API_URL con l'origine del server.
  *  Il JWT di accesso dura poco (30 minuti) e si rinnova da solo con il refresh token, che il server
- *  tiene in un cookie httpOnly: in anticipo quando sta per scadere, oppure dopo un 401
+ *  imposta in un cookie httpOnly: in anticipo quando sta per scadere, oppure dopo un 401
  *  ripetendo la richiesta una sola volta.
  *  Il cookie viaggia solo se pagina e API hanno la stessa origine (proxy di Vite o reverse proxy):
  *  per origini diverse vedi «Sessioni e refresh token» nel README del backend. */
@@ -113,7 +113,8 @@ let rinnovoInCorso: Promise<boolean> | null = null;
 /** Chiede un nuovo JWT con il cookie di refresh. Una sola chiamata in volo per scheda (promise condivisa)
  *  e una sola per browser (lock): se nel frattempo un'altra scheda ha rinnovato, si usa il suo JWT.
  *  Non lancia mai eccezioni. false = sessione finita (401 dal server: token cancellato), sessione chiusa
- *  da un logout nel frattempo, oppure rinnovo non riuscito per rete o gara (token lasciato). */
+ *  da un logout nel frattempo, oppure rinnovo non riuscito per rete, gara o lock non utilizzabile
+ *  (token lasciato). */
 function rinnova(): Promise<boolean> {
   if (!rinnovoInCorso) {
     const tokenVecchio = token.get();
@@ -127,8 +128,9 @@ function rinnova(): Promise<boolean> {
         const r = await chiama<{ token: string }>("/api/auth/refresh", { method: "POST" }, false);
         // Logout arrivato durante il rinnovo: vince il logout. Il JWT nuovo non si salva e la sessione
         // appena rinnovata si chiude sul server, altrimenti resterebbe aperta dopo l'uscita
+        // (keepalive: la chiusura parte anche se intanto la scheda viene chiusa)
         if (!token.get()) {
-          await chiama<void>("/api/auth/logout", { method: "POST" }, false).catch(() => {});
+          await chiama<void>("/api/auth/logout", { method: "POST", keepalive: true }, false).catch(() => {});
           return false;
         }
         token.set(r.token);
@@ -142,7 +144,7 @@ function rinnova(): Promise<boolean> {
         return false;
       }
     })
-      .catch(() => false) // lock non utilizzabile: il rinnovo non parte
+      .catch(() => false) // lock non utilizzabile o errore imprevisto: il rinnovo risulta non riuscito
       .finally(() => { rinnovoInCorso = null; });
   }
   return rinnovoInCorso;
@@ -152,7 +154,7 @@ function rinnova(): Promise<boolean> {
 export async function api<T>(path: string, opts: Options = {}): Promise<T> {
   if (isAuth(path)) return chiama<T>(path, opts, false);
   // Rinnovo preventivo, mai per i salvataggi in chiusura pagina (keepalive), che devono partire subito.
-  // JWT già scaduto: si aspetta il rinnovo, senza la richiesta fallirebbe. JWT ancora valido ma vicino
+  // JWT già scaduto: si aspetta il rinnovo, altrimenti la richiesta fallirebbe. JWT ancora valido ma vicino
   // alla scadenza: il rinnovo parte in parallelo e la richiesta non aspetta
   if (!opts.keepalive) {
     if (scaduto()) await rinnova();
