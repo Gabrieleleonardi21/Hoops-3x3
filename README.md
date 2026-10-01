@@ -16,7 +16,7 @@ App web per la gestione di un circuito italiano di basket 3x3: tornei, gironi, s
 - **Home dashboard** — tappa in corso, classifica live, ultimo risultato, prossime partite e leader
 - **Profilo giocatore** — pagina `/giocatore/:id` con statistiche aggregate, andamento punti e storico tappe
 - **Campetti** — ricerca campi con filtri e mappa schematica (*dati di esempio*, senza persistenza)
-- **Sessione persistente** — login e dati salvati nel browser; gli ospiti hanno dati locali separati
+- **Sessione persistente** — login e dati salvati nel browser; la sessione di un utente registrato si rinnova da sola (JWT di 30 minuti + refresh token di 30 giorni in cookie httpOnly) e «Esci» la revoca sul server; gli ospiti hanno dati locali separati
 
 ### Regole FIBA 3x3 (default)
 | Parametro | Valore |
@@ -57,7 +57,7 @@ npm install
 npm run dev
 ```
 
-L'app è disponibile su `http://localhost:5173`; in sviluppo le chiamate a `/api` passano dal proxy di Vite verso il backend. In produzione imposta `VITE_API_URL` (vedi `.env.example`).
+L'app è disponibile su `http://localhost:5173`; in sviluppo le chiamate a `/api` passano dal proxy di Vite verso il backend. In produzione imposta `VITE_API_URL` (vedi `.env.example`). Se `VITE_API_URL` punta a un'origine diversa da quella del frontend, il cookie di refresh non viaggia e la sessione dura quanto il JWT (30 minuti): i passi per farlo viaggiare sono in «Sessioni e refresh token» nel README di [hoop3x3-backend](https://github.com/Gabrieleleonardi21/hoop3x3-backend).
 
 ## Script disponibili
 
@@ -86,8 +86,10 @@ Tutte le risposte di errore hanno il formato `{ "message": "...", "timestamp": "
 
 | Metodo | Endpoint | Accesso | Descrizione |
 |---|---|---|---|
-| POST | `/api/auth/register` | pubblico | Crea l'account (ruolo `USER`) e restituisce token + utente |
-| POST | `/api/auth/login` | pubblico | Login, restituisce token + utente |
+| POST | `/api/auth/register` | pubblico | Crea l'account (ruolo `USER`), imposta il cookie di refresh e restituisce token + utente |
+| POST | `/api/auth/login` | pubblico | Login, imposta il cookie di refresh e restituisce token + utente |
+| POST | `/api/auth/refresh` | pubblico, con il cookie di refresh | Ruota il refresh token e restituisce un nuovo token + utente |
+| POST | `/api/auth/logout` | pubblico | Revoca il refresh token e cancella il cookie (204) |
 | GET | `/api/auth/me` | login | Utente del token corrente |
 | GET | `/api/utenti` | ADMIN | Elenco utenti |
 | GET/POST | `/api/leghe` | login | Indice leghe dell'utente / nuova lega (anche import con `tappe`) |
@@ -144,6 +146,7 @@ accessibilità sono in [`docs/design-system.md`](docs/design-system.md). I mocku
 
 - **Utente registrato**: leghe e tappe sono sul server (`leghe`, `tappe`), l'anagrafe e l'archivio sono condivisi tra tutti gli utenti. Lo store aggiorna subito lo stato in memoria e salva in background (le modifiche a una tappa sono raggruppate con un debounce di 400 ms); un salvataggio fallito è segnalato da una barra in alto.
 - **Ospite**: la lega resta nel `localStorage` del browser; anagrafe e archivio sono consultabili in sola lettura.
+- **Sessione**: il JWT di 30 minuti è in `localStorage`. `api.ts` lo rinnova da solo con il refresh token, che il server tiene in un cookie httpOnly (30 giorni, ruotato a ogni rinnovo): in anticipo quando sta per scadere, oppure dopo un 401 ripetendo la richiesta una sola volta. Le schede dello stesso browser condividono la sessione e rinnovano una alla volta (con le Web Locks API). Il logout cancella subito il JWT e revoca il refresh token sul server.
 - **Anagrafe**: viene scaricata una sola volta e tenuta in cache nello store (`useAnagrafeStore`), non a ogni apertura di pagina; ogni scrittura (dalle pagine o dal Coach AI) aggiorna server e cache. Le modifiche di altri utenti si vedono ricaricando la pagina.
 
 Schema del database in `db/schema.sql` del repo backend. Con `SEED_DEMO=true` in `env.properties` il primo avvio carica i dati di prova del circuito Estathé 2025 (32 giocatori, 8 squadre, lega con 4 tappe concluse e archivio) intestandoli all'admin; gli avvii successivi non li duplicano.

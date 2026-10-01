@@ -21,7 +21,9 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 - Registrazione e login con email + password sul backend: password con hash
-  BCrypt, sessione con token JWT (7 giorni) salvato nel browser.
+  BCrypt, sessione con JWT di 30 minuti salvato nel browser e rinnovato in
+  automatico con un refresh token di 30 giorni in cookie httpOnly, che il
+  logout revoca.
 - Ruoli USER e ADMIN: l'ADMIN (creato al primo avvio del server) può
   modificare o eliminare qualsiasi lega, scheda o pubblicazione.
 - Modalità Ospite: accesso immediato senza credenziali per provare l'app;
