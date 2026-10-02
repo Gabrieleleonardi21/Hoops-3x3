@@ -133,13 +133,35 @@ async function conLock(fn: () => Promise<boolean>): Promise<boolean> {
   return fn();
 }
 
+/** Gestore della fine della sessione registrato dall'app (vedi suSessioneFinita) */
+let gestoreFineSessione: (() => void) | null = null;
+
+/** Registra il gestore della fine della sessione. Lo chiamano il rinnovo respinto dal server (refresh token scaduto o
+ *  revocato) e, in ogni scheda, la cancellazione del token fatta da un'altra (uscita o sessione finita lì). Ce n'è uno
+ *  solo: uno nuovo sostituisce il precedente.
+ *  @returns la funzione che lo toglie */
+export function suSessioneFinita(fn: () => void): () => void {
+  gestoreFineSessione = fn;
+  return () => {
+    if (gestoreFineSessione === fn) gestoreFineSessione = null;
+  };
+}
+
+// Token cancellato da un'altra scheda: l'evento storage arriva solo alle altre schede dello stesso browser, e per
+// tutte la sessione è finita. Un token appena rinnovato o salvato da un accesso non chiude niente
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (e) => {
+    if (e.key === TOKEN_KEY && !token.get()) gestoreFineSessione?.();
+  });
+}
+
 let rinnovoInCorso: Promise<boolean> | null = null;
 
 /** Chiede un nuovo JWT con il cookie di refresh. Una sola chiamata in volo per scheda (promise condivisa)
  *  e una sola per browser (lock): se nel frattempo un'altra scheda ha rinnovato, si usa il suo JWT.
- *  Non lancia mai eccezioni. false = sessione finita (401 dal server: token cancellato), sessione chiusa
- *  da un logout nel frattempo, oppure rinnovo non riuscito per rete, tempo massimo, gara o lock non utilizzabile
- *  (token lasciato). */
+ *  Non lancia mai eccezioni. false = sessione finita (401 dal server: token cancellato e gestore di fine sessione
+ *  chiamato), sessione chiusa da un logout nel frattempo, oppure rinnovo non riuscito per rete, tempo massimo,
+ *  gara o lock non utilizzabile (token lasciato). */
 function rinnova(): Promise<boolean> {
   if (!rinnovoInCorso) {
     const tokenVecchio = token.get();
@@ -165,7 +187,13 @@ function rinnova(): Promise<boolean> {
         // la sessione è viva, si usa il suo token e non si cancella nulla
         const dopo = token.get();
         if (dopo && dopo !== tokenVecchio) return true;
-        if (e instanceof ApiError && e.status === 401) token.clear();
+        // Refresh token respinto: la sessione è finita sul server e l'app lo deve sapere (ritorno al form). Se il token
+        // è già sparito non c'è niente da segnalare: un'uscita in questa scheda è già in corso, e per una sessione
+        // chiusa in un'altra scheda arriva l'evento storage
+        if (e instanceof ApiError && e.status === 401 && dopo) {
+          token.clear();
+          gestoreFineSessione?.();
+        }
         return false;
       }
     })
@@ -173,6 +201,29 @@ function rinnova(): Promise<boolean> {
       .finally(() => { rinnovoInCorso = null; });
   }
   return rinnovoInCorso;
+}
+
+/** Ogni quanto il rinnovo automatico controlla la scadenza del JWT (ms) */
+const INTERVALLO_RINNOVO = 60_000;
+
+/** Rinnovo automatico. Senza, il JWT si rinnova solo quando parte una richiesta: con la pagina ferma negli ultimi
+ *  2 minuti della sua vita scade, e una modifica seguita dalla chiusura della pagina va persa (il salvataggio in
+ *  chiusura parte subito, senza aspettare il rinnovo). Controlla il JWT ogni 60 secondi e quando la scheda torna
+ *  visibile (il browser rallenta i timer delle schede nascoste); se scade entro MARGINE_SCADENZA lo rinnova.
+ *  @returns la funzione che lo ferma (all'uscita) */
+export function avviaRinnovoAutomatico(): () => void {
+  const controlla = () => {
+    if (inScadenza()) void rinnova();
+  };
+  const alRitornoSullaScheda = () => {
+    if (document.visibilityState === "visible") controlla();
+  };
+  const timer = setInterval(controlla, INTERVALLO_RINNOVO);
+  document.addEventListener("visibilitychange", alRitornoSullaScheda);
+  return () => {
+    clearInterval(timer);
+    document.removeEventListener("visibilitychange", alRitornoSullaScheda);
+  };
 }
 
 /** Esegue una chiamata JSON rinnovando il JWT quando serve e converte gli errori in ApiError */
