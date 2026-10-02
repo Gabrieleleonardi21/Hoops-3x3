@@ -477,6 +477,35 @@ describe("api: tempo massimo delle richieste", () => {
     }
   });
 
+  it("un logout arrivato durante il rinnovo: se la chiusura sul server non risponde, il rinnovo finisce dopo 15 secondi", async () => {
+    token.set(jwt(3600));
+    let sblocca = () => {};
+    fetchFinto.mockImplementation((url: string, init: RequestInit) => {
+      if (url === "/api/leghe") return Promise.resolve(errore(401, SCADUTO));
+      // mentre il server rinnova, l'utente esce: il token locale sparisce
+      if (url === "/api/auth/refresh") { token.clear(); return Promise.resolve(ok({ token: "jwt-nuovo", user: {} })); }
+      // /api/auth/logout senza risposta: senza limite il rinnovo resterebbe fermo qui, con il lock delle altre schede
+      return new Promise<Response>((_risolvi, rifiuta) => {
+        sblocca = () => rifiuta(new TypeError("Failed to fetch"));
+        init.signal?.addEventListener("abort", () => rifiuta(init.signal!.reason));
+      });
+    });
+    let esito: unknown = "in attesa";
+    const richiesta = api("/api/leghe").then(() => { esito = "riuscita"; }, (e: unknown) => { esito = e; });
+    try {
+      await vi.advanceTimersByTimeAsync(14_999);
+      expect(esito).toBe("in attesa");
+      await vi.advanceTimersByTimeAsync(1);
+      expect(esito).toMatchObject({ status: 401 });
+      expect(chiamata(2).url).toBe("/api/auth/logout");
+      expect(chiamata(2).init.keepalive).toBe(true);
+      expect(token.get()).toBeNull();
+    } finally {
+      sblocca();
+      await richiesta;
+    }
+  });
+
   it("i salvataggi in chiusura pagina (keepalive) partono senza tempo massimo", async () => {
     token.set(jwt(3600));
     fetchFinto.mockImplementation(async () => ok({ id: "t1" }));

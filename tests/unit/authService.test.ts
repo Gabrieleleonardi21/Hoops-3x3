@@ -47,6 +47,40 @@ describe("authService.logout", () => {
     await expect(logout()).resolves.toBeUndefined();
     expect(token.get()).toBeNull();
   });
+
+  it("con la rete appesa la revoca si interrompe dopo il tempo massimo e l'uscita si conclude", async () => {
+    vi.useFakeTimers();
+    // AbortSignal.timeout di Node non segue i timer finti: lo si sostituisce con lo stesso segnale costruito su setTimeout
+    const timeout = vi.spyOn(AbortSignal, "timeout").mockImplementation((ms: number) => {
+      const controllo = new AbortController();
+      setTimeout(() => controllo.abort(new DOMException("The operation timed out.", "TimeoutError")), ms);
+      return controllo.signal;
+    });
+    let sblocca = () => {};
+    try {
+      token.set("jwt-di-prova");
+      // La revoca non riceve mai risposta: come la fetch vera, si interrompe solo quando scade il segnale
+      // (sblocca serve solo a non lasciare la promessa appesa se il segnale non arriva)
+      fetchFinto.mockImplementationOnce((_url: string, init: RequestInit) => new Promise<Response>((_risolvi, rifiuta) => {
+        sblocca = () => rifiuta(new TypeError("Failed to fetch"));
+        init.signal?.addEventListener("abort", () => rifiuta(init.signal!.reason));
+      }));
+      let uscito = false;
+      const uscita = logout().then(() => { uscito = true; });
+      await vi.advanceTimersByTimeAsync(14_999);
+      expect(uscito).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(uscito).toBe(true);
+      expect(token.get()).toBeNull();
+      // Resta keepalive: se la scheda si chiude la revoca prosegue (a pagina chiusa il timer non scatta più)
+      expect((fetchFinto.mock.calls[0][1] as RequestInit).keepalive).toBe(true);
+      await uscita;
+    } finally {
+      sblocca();
+      timeout.mockRestore();
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe("authService.me", () => {

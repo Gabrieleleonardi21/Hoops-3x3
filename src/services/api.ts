@@ -86,12 +86,15 @@ async function chiama<T>(path: string, opts: Options, conBearer: boolean): Promi
   if (opts.body !== undefined) headers["Content-Type"] = "application/json";
   const t = token.get();
   if (conBearer && t) headers.Authorization = `Bearer ${t}`;
-  // Tempo massimo su ogni richiesta, rinnovo compreso: una risposta che non arriva non tiene più in attesa le richieste
-  // che aspettano il rinnovo, né le altre schede ferme sul suo lock. I salvataggi in chiusura pagina (keepalive)
-  // restano senza limite: devono arrivare al server anche se è lento. Dove AbortSignal.timeout manca (Safari prima
-  // della 16) la richiesta parte senza limite, come prima, invece di fallire
+  // Tempo massimo su ogni richiesta, rinnovo e uscita compresi: una risposta che non arriva non tiene più in attesa le
+  // richieste che aspettano il rinnovo, né le altre schede ferme sul suo lock, né «Esci». Restano senza limite solo i
+  // salvataggi in chiusura pagina (keepalive fuori da /api/auth): devono arrivare al server anche se è lento. Le
+  // chiamate di autenticazione keepalive (revoca all'uscita) hanno il limite e restano keepalive: a pagina chiusa il
+  // timer non scatta più e la revoca prosegue. Dove AbortSignal.timeout manca (Safari prima della 16) la richiesta
+  // parte senza limite, come prima, invece di fallire
+  const salvataggioInChiusura = opts.keepalive && !isAuth(path);
   let signal: AbortSignal | undefined;
-  if (!opts.keepalive && typeof AbortSignal.timeout === "function") signal = AbortSignal.timeout(TEMPO_MASSIMO);
+  if (!salvataggioInChiusura && typeof AbortSignal.timeout === "function") signal = AbortSignal.timeout(TEMPO_MASSIMO);
 
   let res: Response;
   try {

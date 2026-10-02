@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { Header } from "../../src/components/layout/Header";
 import { useAppStore } from "../../src/stores/useAppStore";
@@ -77,5 +77,35 @@ describe("Header: «Esci» con modifiche non salvate", () => {
     await screen.findByText("Pagina iniziale");
     expect(store().user).toBeNull();
     expect(api.putTappa).not.toHaveBeenCalled();
+  });
+});
+
+describe("Header: «Esci» con la rete appesa", () => {
+  it("se la revoca non riceve risposta, dopo il tempo massimo torna comunque alla pagina iniziale", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    // AbortSignal.timeout di Node non segue i timer finti: lo si sostituisce con lo stesso segnale costruito su setTimeout
+    const timeout = vi.spyOn(AbortSignal, "timeout").mockImplementation((ms: number) => {
+      const controllo = new AbortController();
+      setTimeout(() => controllo.abort(new DOMException("The operation timed out.", "TimeoutError")), ms);
+      return controllo.signal;
+    });
+    // La revoca del refresh token non riceve mai risposta: come la fetch vera, si interrompe solo sul segnale
+    let sblocca = () => {};
+    vi.stubGlobal("fetch", vi.fn((_url: string, init: RequestInit) => new Promise<Response>((_risolvi, rifiuta) => {
+      sblocca = () => rifiuta(new TypeError("Failed to fetch"));
+      init.signal?.addEventListener("abort", () => rifiuta(init.signal!.reason));
+    })));
+    try {
+      clicEsci();
+      await act(async () => { await vi.advanceTimersByTimeAsync(14_999); });
+      expect(screen.queryByText("Pagina iniziale")).toBeNull();
+      await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+      expect(screen.getByText("Pagina iniziale")).toBeTruthy();
+      expect(store().user).toBeNull();
+    } finally {
+      sblocca();
+      timeout.mockRestore();
+      vi.useRealTimers();
+    }
   });
 });
