@@ -735,6 +735,11 @@ describe("CoachPanel", () => {
     fireEvent.keyDown(campo(), { key: "Enter" });
   }
 
+  // jsdom non scorre e non ha scrollIntoView: un finto registra su quale elemento e come viene chiamato
+  const scorri = vi.fn();
+  beforeEach(() => { Element.prototype.scrollIntoView = scorri; });
+  afterEach(() => { Reflect.deleteProperty(Element.prototype, "scrollIntoView"); });
+
   it("chiudendo il pannello durante l'attesa la risposta non si perde", async () => {
     const risposta = differita<Risposta>();
     modello(risposta.p);
@@ -759,6 +764,15 @@ describe("CoachPanel", () => {
     await screen.findByText("Sorteggio rifatto.");
     expect(screen.queryByRole("group")).toBeNull();
     expect(store().tappe[0].partite.filter((m) => m.done)).toEqual([]);
+  });
+
+  it("D4: la richiesta di conferma scorre in vista (la lista non scorre da sola e con una chat lunga resterebbe sotto)", async () => {
+    modello(strumenti(["sorteggia_gironi", { tappa_nome: "Roma Open" }]), testo("Sorteggio rifatto."));
+    apriPannello();
+    scriviEInvia("Rifai il sorteggio di Roma Open");
+    const richiesta = await screen.findByRole("group", { name: 'Rifare il sorteggio di "Roma Open"?' });
+    expect(scorri).toHaveBeenCalledWith({ block: "nearest" });
+    expect(scorri.mock.contexts).toContain(richiesta);
   });
 
   it("premendo Invio durante l'attesa il testo scritto resta nel campo e non parte", async () => {

@@ -1,6 +1,6 @@
 /** Pannello chat del Coach AI: input utente, lista messaggi, bottone "Cancella chat".
  *  La chat sta nello store di useCoachAI, non qui: chiudendo il pannello durante l'attesa la risposta non si perde. */
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { RED, ORANGE } from "../../constants/colors";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
@@ -43,6 +43,13 @@ function riepilogoTool(tools: string[]): Array<{ label: string; count: number; c
 export function CoachPanel({ onClose }: { onClose: () => void }) {
   const { msgs, loading, conferma, send, clearChat } = useCoachAI();
   const [input, setInput] = useState("");
+  const richiestaRef = useRef<HTMLDivElement>(null);
+
+  // D4: la lista non scorre da sola e, con una chat lunga, la richiesta di conferma resterebbe sotto il bordo visibile
+  // mentre «Invia» è disattivato: la si porta in vista
+  useEffect(() => {
+    if (conferma) richiestaRef.current?.scrollIntoView({ block: "nearest" });
+  }, [conferma]);
 
   const submit = () => {
     // Durante l'attesa send non parte: il testo resta nel campo invece di sparire
@@ -86,7 +93,7 @@ export function CoachPanel({ onClose }: { onClose: () => void }) {
         ))}
         {/* D4: l'azione distruttiva aspetta qui, nella chat dove l'utente sta guardando, e parte solo con «Conferma» */}
         {conferma && (
-          <div role="group" aria-label={conferma.titolo} className="bubble-a border-court">
+          <div ref={richiestaRef} role="group" aria-label={conferma.titolo} className="bubble-a border-court">
             <p className="m-0 font-semibold text-chalk">{conferma.titolo}</p>
             <p className="m-0 mt-1 text-chalk-muted">{conferma.testo}</p>
             <div className="mt-2 flex justify-end gap-2">
