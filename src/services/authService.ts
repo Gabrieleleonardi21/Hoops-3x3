@@ -1,27 +1,47 @@
-/** Autenticazione DIMOSTRATIVA su storage locale.
- *  In produzione: backend con sessioni/JWT e hashing lato server. */
-import { storage } from "./storage";
-import { sha256 } from "../utils/sha256";
-import type { Account, User } from "../types";
+/** Autenticazione contro il backend: JWT in localStorage (vedi api.ts) rinnovato con il refresh token
+ *  in cookie httpOnly; la password non viene mai salvata. */
+import { api, token } from "./api";
+import type { User } from "../types";
 
-const KEY = "account";
+interface AuthResponse {
+  token: string;
+  user: { id: string; name: string; email: string; ruolo: "USER" | "ADMIN" };
+}
 
-export async function loadAccount(): Promise<Account | null> {
+function toUser(u: AuthResponse["user"]): User {
+  return { id: u.id, name: u.name, email: u.email, ruolo: u.ruolo, guest: false };
+}
+
+export async function register(name: string, email: string, password: string): Promise<User> {
+  const r = await api<AuthResponse>("/api/auth/register", { method: "POST", body: { name, email, password } });
+  token.set(r.token);
+  return toUser(r.user);
+}
+
+export async function login(email: string, password: string): Promise<User> {
+  const r = await api<AuthResponse>("/api/auth/login", { method: "POST", body: { email, password } });
+  token.set(r.token);
+  return toUser(r.user);
+}
+
+/** Verifica la sessione salvata (un JWT scaduto si rinnova dentro api()); null se il token manca
+ *  o la verifica non riesce: in quel caso lo rimuove */
+export async function me(): Promise<User | null> {
+  if (!token.get()) return null;
   try {
-    const a = await storage.get(KEY);
-    return JSON.parse(a.value) as Account;
+    return toUser(await api<AuthResponse["user"]>("/api/auth/me"));
   } catch {
+    token.clear();
     return null;
   }
 }
 
-export async function register(name: string, email: string, pass: string): Promise<User> {
-  const acc: Account = { name: name.trim(), email: email.trim().toLowerCase(), hash: await sha256(pass) };
-  await storage.set(KEY, JSON.stringify(acc));
-  return { name: acc.name, email: acc.email, guest: false };
-}
-
-export async function login(account: Account, email: string, pass: string): Promise<User | null> {
-  const ok = email.trim().toLowerCase() === account.email && (await sha256(pass)) === account.hash;
-  return ok ? { name: account.name, email: account.email, guest: false } : null;
+/** Logout: butta via subito il JWT (da qui la scheda non fa più richieste autenticate né rinnovi), poi
+ *  revoca il refresh token sul server, che cancella il cookie. Senza JWT (ospite, sessione già chiusa) non
+ *  c'è niente da revocare. Se il server non risponde si è usciti lo stesso.
+ *  keepalive: la revoca parte anche se la scheda viene chiusa subito dopo «Esci». */
+export async function logout() {
+  if (!token.get()) return;
+  token.clear();
+  await api<void>("/api/auth/logout", { method: "POST", keepalive: true }).catch(() => {});
 }

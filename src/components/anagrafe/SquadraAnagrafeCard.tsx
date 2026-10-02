@@ -1,6 +1,7 @@
-/** Card cliccabile per una squadra dell'anagrafe: apre la modale di dettaglio.
- *  Il × per eliminare stoppa la propagazione del click così non apre la modale. */
-import { INK } from "../../constants/colors";
+/** Card di una squadra dell'anagrafe: il nome è un pulsante che apre la modale di dettaglio
+ *  (niente controlli annidati), il × elimina (solo autore). */
+import { safeUrl } from "../../utils/safeUrl";
+import { Icon } from "../ui/Icon";
 import type { RegGiocatore, RegSquadra, User } from "../../types";
 
 export function SquadraAnagrafeCard({ s, giocatori, user, onRemove, onOpen }: {
@@ -11,38 +12,33 @@ export function SquadraAnagrafeCard({ s, giocatori, user, onRemove, onOpen }: {
     return g ? `${g.nome} ${g.cognome}` : "?";
   };
   return (
-    /* div invece di button: permette il <button> del × interno senza violare HTML */
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={onOpen}
-      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onOpen(); }}
-      className="tal fullw hovercard"
-      style={{ background: "var(--card)", border: `1.5px solid ${INK}`, padding: 12, cursor: "pointer", display: "block" }}
-    >
-      <div className="row between gap-8 items-start">
-        <div className="row gap-10">
+    <article className="hovercard block w-full rounded border border-asphalt-700 bg-asphalt-900 p-3 text-left">
+      <div className="flex items-start justify-between gap-2">
+        <button onClick={onOpen} className="flex min-w-0 items-center gap-2.5 text-left" title="Apri la scheda">
           {s.logo && (
-            <img src={s.logo} alt={`Logo ${s.nome}`}
-              style={{ width: 44, height: 44, objectFit: "contain", flexShrink: 0 }}
+            <img src={safeUrl(s.logo)} alt={`Logo ${s.nome}`} className="h-11 w-11 shrink-0 object-contain"
               onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
           )}
-          <div className="disp up" style={{ fontSize: 15 }}>{s.nome}</div>
-        </div>
-        {/* Il × stoppa il click sulla card per non aprire la modale */}
+          <span className="min-w-0 truncate font-display text-lg text-chalk transition-colors hover:text-court">{s.nome}</span>
+        </button>
         {!user.guest && s.autore === user.name && (
-          <button onClick={(e) => { e.stopPropagation(); onRemove(); }} className="linkbtn t-ink" style={{ opacity: 0.5 }}>×</button>
+          <button onClick={onRemove} className="shrink-0 text-chalk-dim hover:text-loss" aria-label={`Elimina ${s.nome}`}>
+            <Icon name="close" size={14} />
+          </button>
         )}
       </div>
-      {Number(s.rank) > 0 && <div className="ui t-orange" style={{ fontSize: 11.5, fontWeight: 700 }}>Ranking circuito: {s.rank}</div>}
-      <div className="ui" style={{ fontSize: 12.5, marginTop: 6, lineHeight: 1.6 }}>
-        {s.citta && <>{s.citta}{s.anno ? ` · dal ${s.anno}` : ""}<br /></>}
-        {!s.citta && s.anno && <>Fondata nel {s.anno}<br /></>}
-        {s.referente && <>Referente: {s.referente}<br /></>}
-        {(s.roster || []).length > 0 && <>Roster: {(s.roster || []).map(gName).join(", ")}<br /></>}
+      {Number(s.rank) > 0 && <div className="text-xs font-semibold text-court">Ranking circuito: {s.rank}</div>}
+      <div className="mt-1.5 text-xs leading-relaxed text-chalk-muted">
+        {s.citta && <span className="block">{s.citta}{s.anno ? ` · dal ${s.anno}` : ""}</span>}
+        {!s.citta && s.anno && <span className="block">Fondata nel {s.anno}</span>}
+        {s.referente && <span className="block">Referente: {s.referente}</span>}
+        {(s.roster || []).length > 0 && <span className="block">Roster: {(s.roster || []).map(gName).join(", ")}</span>}
       </div>
-      {s.note && <p style={{ fontSize: 13, fontStyle: "italic", margin: "6px 0 0" }}>{s.note}</p>}
-      <div className="ui" style={{ fontSize: 10, opacity: 0.5, marginTop: 6 }}>Registrata da {s.autore}</div>
-    </div>
+      {s.note && <p className="mt-1.5 text-[13px] text-chalk-muted">{s.note}</p>}
+      <div className="mt-1.5 flex items-center justify-between">
+        <span className="text-[10.5px] text-chalk-dim">Registrata da {s.autore}</span>
+        <button onClick={onOpen} className="inline-flex items-center gap-1 text-xs font-semibold text-court hover:underline">Scheda <Icon name="chevron" size={12} /></button>
+      </div>
+    </article>
   );
 }

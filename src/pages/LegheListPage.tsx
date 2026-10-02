@@ -5,27 +5,26 @@ import { Navigate, useNavigate } from "react-router-dom";
 import { useAppStore } from "../stores/useAppStore";
 import { GuestBanner } from "../components/auth/GuestBanner";
 import { Input } from "../components/ui/Input";
-import { INK, RED, RULE } from "../constants/colors";
+import { Button } from "../components/ui/Button";
+import { Icon } from "../components/ui/Icon";
+import { Section } from "../components/ui/Section";
 import type { LegaMeta } from "../types";
 
 function LegaCard({ m, onOpen, onDelete }: { m: LegaMeta; onOpen: () => void; onDelete: () => void }) {
   const date = m.ts ? new Date(m.ts).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" }) : null;
 
   return (
-    <div className="col gap-8" style={{ background: "var(--card)", border: `1.5px solid ${INK}`, padding: 16 }}>
-      <div className="row between gap-8 items-start">
-        <div className="disp up" style={{ fontSize: 18, flex: 1 }}>{m.nome}</div>
-        {/* Elimina lega */}
-        <button onClick={onDelete} className="linkbtn" style={{ color: INK, opacity: 0.4, flexShrink: 0 }}
-          title="Elimina lega">×</button>
+    <div className="flex flex-col gap-2 rounded border border-asphalt-700 bg-asphalt-900 p-4 transition-colors hover:border-asphalt-500">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1 font-display text-2xl text-chalk">{m.nome}</div>
+        <button onClick={onDelete} className="shrink-0 text-chalk-dim hover:text-loss" title="Elimina lega" aria-label={`Elimina lega ${m.nome}`}>
+          <Icon name="trash" size={16} />
+        </button>
       </div>
-      <div className="ui" style={{ fontSize: 12, opacity: 0.6 }}>
-        {m.nTappe} {m.nTappe === 1 ? "tappa" : "tappe"}
-        {date ? ` · ${date}` : ""}
+      <div className="text-xs text-chalk-muted">
+        {m.nTappe} {m.nTappe === 1 ? "tappa" : "tappe"}{date ? ` · ${date}` : ""}
       </div>
-      <button onClick={onOpen} className="blackbtn" style={{ padding: "9px 14px", marginTop: 4 }}>
-        Apri →
-      </button>
+      <Button size="sm" className="mt-1 self-start" onClick={onOpen}>Apri <Icon name="chevron" size={14} /></Button>
     </div>
   );
 }
@@ -41,14 +40,14 @@ export function LegheListPage() {
 
   if (!user) return <Navigate to="/" replace />;
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!nome.trim()) return;
-    createLega(nome);
+    await createLega(nome);
     navigate("/lega");
   };
 
-  const handleOpen = (id: string) => {
-    selectLega(id);
+  const handleOpen = async (id: string) => {
+    await selectLega(id);
     navigate("/lega");
   };
 
@@ -62,48 +61,33 @@ export function LegheListPage() {
     <div>
       <GuestBanner text="Modalità Ospite: i dati sono salvati solo su questo browser." />
 
-      <div style={{ borderBottom: `4px solid ${INK}`, paddingBottom: 16, marginBottom: 24 }}>
-        <div className="disp up" style={{ fontSize: 28, marginBottom: 4 }}>
-          Le mie <span className="t-orange">leghe</span>
-        </div>
-        <p style={{ fontSize: 14, fontStyle: "italic", margin: 0 }}>
-          Ogni lega è un circuito indipendente con le sue tappe, squadre e statistiche.
-        </p>
+      <div className="mb-6 border-b border-asphalt-700 pb-4">
+        <h1 className="font-display text-4xl">Le mie <span className="text-court">leghe</span></h1>
+        <p className="mt-1 text-[13px] text-chalk-muted">Ogni lega è un circuito indipendente con le sue tappe, squadre e statistiche.</p>
       </div>
 
       {/* Form creazione nuova lega */}
-      <div className="row items-end wrap gap-10" style={{ marginBottom: 28 }}>
-        <div style={{ flex: "1 1 260px", maxWidth: 360 }}>
-          <Input
-            label="Nome della nuova lega"
-            value={nome}
-            onChange={(e) => setNome(e.target.value)}
+      <div className="mb-7 flex flex-wrap items-end gap-2.5">
+        <div className="min-w-[240px] max-w-sm flex-1">
+          <Input label="Nome della nuova lega" value={nome} onChange={(e) => setNome(e.target.value)}
             placeholder="Es. Roma Streetball 2025"
-            onKeyDown={(e: React.KeyboardEvent) => { if (e.key === "Enter") handleCreate(); }}
-          />
+            onKeyDown={(e: React.KeyboardEvent) => { if (e.key === "Enter") handleCreate(); }} />
         </div>
-        <button onClick={handleCreate} className="redbtn" style={{ padding: "10px 18px" }}>
-          + Crea lega
-        </button>
+        <Button onClick={handleCreate}><Icon name="plus" size={16} /> Crea lega</Button>
       </div>
 
       {/* Lista leghe esistenti */}
-      {leghe.length === 0 ? (
-        <p style={{ fontStyle: "italic", fontSize: 15, borderTop: `1px solid ${RULE}`, paddingTop: 20 }}>
-          Nessuna lega ancora: crea la prima qui sopra.
-        </p>
-      ) : (
-        <>
-          <div className="ui up" style={{ fontSize: 11, letterSpacing: "0.1em", fontWeight: 700, marginBottom: 10, color: RED }}>
-            {leghe.length} {leghe.length === 1 ? "lega" : "leghe"}
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 12 }}>
+      <Section title="Leghe" kicker={`${leghe.length} ${leghe.length === 1 ? "lega" : "leghe"}`}>
+        {leghe.length === 0 ? (
+          <p className="text-[15px] text-chalk-muted">Nessuna lega ancora: crea la prima qui sopra.</p>
+        ) : (
+          <div className="grid gap-3 grid-cols-[repeat(auto-fill,minmax(240px,1fr))]">
             {leghe.map((m) => (
               <LegaCard key={m.id} m={m} onOpen={() => handleOpen(m.id)} onDelete={() => handleDelete(m)} />
             ))}
           </div>
-        </>
-      )}
+        )}
+      </Section>
     </div>
   );
 }

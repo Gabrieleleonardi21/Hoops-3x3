@@ -6,10 +6,8 @@ export function StatsView({ teamName, players, sheet }: {
   teamName: string; players: GiocatoreRoster[]; sheet: StatSheet;
 }) {
   return (
-    <div style={{ overflowX: "auto", marginBottom: 8 }}>
-      <div className="kicker" style={{ marginBottom: 4 }}>
-        {teamName}
-      </div>
+    <div className="overflow-x-auto">
+      <div className="kicker mb-1">{teamName}</div>
       <table className="statstable">
         {/* colonne stat a larghezza fissa (44px); GIOCATORE occupa il resto */}
         <colgroup>
@@ -18,8 +16,8 @@ export function StatsView({ teamName, players, sheet }: {
         </colgroup>
         <thead>
           <tr>
-            <th className="tal">GIOCATORE</th>
-            {STAT_KEYS.map(([k, hdr]) => <th key={k}>{hdr}</th>)}
+            <th className="text-left" scope="col">Giocatore</th>
+            {STAT_KEYS.map(([k, hdr]) => <th key={k} scope="col">{hdr}</th>)}
           </tr>
         </thead>
         <tbody>
@@ -29,7 +27,7 @@ export function StatsView({ teamName, players, sheet }: {
             return (
               <tr key={p.id}>
                 <td className="tname">{p.nome}</td>
-                {STAT_KEYS.map(([k]) => <td key={k} style={{ fontWeight: 700, padding: "4px 6px" }}>{st[k] ?? "—"}</td>)}
+                {STAT_KEYS.map(([k]) => <td key={k} className="font-semibold text-chalk">{st[k] ?? "—"}</td>)}
               </tr>
             );
           })}

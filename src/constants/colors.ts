@@ -1,6 +1,7 @@
-export const INK = "#17203A"; // blu navy del logo
-export const PAPER = "#F7E3D0"; // arancione chiaro caldo
-export const CARD = "#FDF4E9";
-export const RED = "#BF5527"; // arancione bruciato: voti bassi e avvisi
-export const ORANGE = "#D97757"; // arancione principale
-export const RULE = "#17203A33";
+/** Token colore del design system "Asphalt" per gli (rari) usi in JS/inline, es. i badge
+ *  colorati del Coach AI. In JSX usare le utility Tailwind (text-court, bg-asphalt-900…):
+ *  la fonte di verità è @theme in src/index.css (vedi docs/design-system.md). */
+export const ORANGE = "#FF6A1F"; // court: accento principale
+export const RED = "#FF4D4D";    // loss: errori, correzioni
+export const GOLD = "#F5C542";   // 1° posto / MVP
+export const WIN = "#3DD68C";    // vittorie, DIFF positivo

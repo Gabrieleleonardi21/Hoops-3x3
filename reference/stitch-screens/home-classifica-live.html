@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="it"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>HOOP 3X3 — The Goat Torino Open</title>
+<!-- Fonts & Material Symbols -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,600;0,700;0,800;1,700&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=Public+Sans:wght@700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            asphalt: {
+              950: '#0B0D12',
+              900: '#12151C',
+              850: '#171B24',
+              800: '#1B1F29',
+              700: '#2A2F3D',
+              600: '#3A4052'
+            },
+            court: {
+              orange: '#FF6A1F',
+              hover: '#FF7F3F'
+            },
+            chalk: {
+              DEFAULT: '#F2EDE4',
+              muted: '#A9A398',
+              disabled: '#6E6960'
+            },
+            gold: '#F5C542',
+            positive: '#3DD68C',
+            negative: '#FF4D4D',
+            live: '#FF3B3B'
+          },
+          borderRadius: {
+            "DEFAULT": "0.125rem",
+            "lg": "0.25rem",
+            "xl": "0.5rem",
+            "full": "0.75rem"
+          },
+          fontFamily: {
+            headline: ["Barlow Condensed", "Public Sans", "sans-serif"],
+            display: ["Barlow Condensed", "Public Sans", "sans-serif"],
+            body: ["IBM Plex Sans", "sans-serif"],
+            label: ["IBM Plex Sans", "sans-serif"]
+          }
+        },
+      },
+    }
+  </script>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      display: inline-block;
+      vertical-align: middle;
+      line-height: 1;
+    }
+    .num-tabular {
+      font-variant-numeric: tabular-nums;
+    }
+    @keyframes pulseLive {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(1.15); }
+    }
+    .live-dot {
+      animation: pulseLive 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+  </style>
+</head>
+<body class="bg-[#0B0D12] text-[#F2EDE4] font-body antialiased min-h-screen flex flex-col selection:bg-[#FF6A1F] selection:text-[#0B0D12]">
+<!-- Top Navigation Bar (Shared Component Anchor) -->
+<header class="w-full bg-[#12151C] border-b border-[#2A2F3D] sticky top-0 z-50">
+<div class="flex justify-between items-center w-full px-4 md:px-8 py-3 max-w-7xl mx-auto">
+<!-- Brand & Global Links Cluster -->
+<div class="flex items-center gap-8">
+<a class="font-display font-extrabold uppercase tracking-tight text-2xl text-[#F2EDE4] flex items-center gap-1.5 focus:outline-none" href="#">
+<span>HOOP</span>
+<span class="text-[#FF6A1F]">3X3</span>
+</a>
+<!-- Desktop Navigation Items -->
+<nav class="hidden md:flex items-center gap-6 font-headline tracking-tight text-sm">
+<!-- Active tab: Le mie leghe -->
+<a class="text-[#FF6A1F] border-b-2 border-[#FF6A1F] pb-1 font-bold uppercase transition-colors" href="#">
+            Le mie leghe
+          </a>
+<a class="text-[#A9A398] hover:text-[#F2EDE4] font-medium uppercase pb-1 transition-colors" href="#">
+            Anagrafe
+          </a>
+<a class="text-[#A9A398] hover:text-[#F2EDE4] font-medium uppercase pb-1 transition-colors" href="#">
+            Archivio circuito
+          </a>
+<a class="text-[#A9A398] hover:text-[#F2EDE4] font-medium uppercase pb-1 transition-colors" href="#">
+            Campetti
+          </a>
+</nav>
+</div>
+<!-- Trailing Controls: Profile & Sign Out -->
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2.5 px-2.5 py-1 bg-[#1B1F29] border border-[#2A2F3D] rounded-sm">
+<div class="w-6 h-6 rounded-full bg-[#FF6A1F] text-[#0B0D12] font-display font-bold text-xs flex items-center justify-center">
+            G
+          </div>
+<span class="text-xs font-medium text-[#F2EDE4] tracking-wide">Gabriele</span>
+</div>
+<button class="text-xs font-semibold uppercase text-[#A9A398] hover:text-[#FF6A1F] transition-colors py-1 px-1 tracking-wider" title="Disconnetti" type="button">
+          Esci
+        </button>
+</div>
+</div>
+</header>
+<!-- Hero Stage -->
+<section class="relative w-full border-b border-[#2A2F3D] overflow-hidden bg-[#0B0D12]">
+<!-- Background Image with Overlay -->
+<div class="absolute inset-0 z-0">
+<img alt="Streetball court under sodium lights at dusk" class="w-full h-full object-cover object-center filter brightness-90 contrast-110" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB9oGdx8rD5HGhtU--5R05w48zxzLJSAZqYe9L4spp-LTWV6UsPU-a55UBDeim4JI-h_ZFLFwF6GNO1S5bkndbXWkICho4nV4PWjiYfTiWr7dtNoghTgVOQ6dsVfpofsaGb-vPgIJ6d35NEE9rtBFSxoJyPz41c2zMlF23NDzPtqOAvq-XyGNiTL0O0ESGdRnNWVomVqbB-mx9hj6zBgWGlFFfZuPXVTy4aWwbQRLVn6e7EFbRRmoIGHW2OrYYm29uWG0Q6H9L4kLIJ"/>
+<!-- Strict Asphalt & Navy Tint Grading Gradient for Sharp Text Legibility -->
+<div class="absolute inset-0 bg-gradient-to-r from-[#0B0D12] via-[#0B0D12]/90 to-[#0B0D12]/40"></div>
+<div class="absolute inset-0 bg-[#17203A]/25 mix-blend-multiply pointer-events-none"></div>
+</div>
+<!-- Hero Content Body -->
+<div class="relative z-10 max-w-7xl mx-auto px-4 md:px-8 py-10 md:py-16 flex flex-col justify-center">
+<!-- Live Kicker -->
+<div class="inline-flex items-center gap-2.5 mb-3">
+<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[#FF3B3B]/15 border border-[#FF3B3B]/40 text-[#FF3B3B] font-display font-bold text-xs tracking-wider uppercase">
+<span class="w-1.5 h-1.5 rounded-full bg-[#FF3B3B] live-dot"></span>
+          LIVE
+        </span>
+<span class="text-xs font-semibold tracking-widest text-[#A9A398] uppercase">
+          TAPPA IN CORSO · TORINO
+        </span>
+</div>
+<!-- Tournament Title Headline -->
+<h1 class="font-headline font-extrabold uppercase text-4xl sm:text-6xl md:text-7xl tracking-tight text-[#F2EDE4] leading-none mb-2">
+        THE GOAT TORINO OPEN
+      </h1>
+<p class="text-sm md:text-base font-medium text-[#A9A398] uppercase tracking-wider mb-6 flex items-center gap-2">
+<span>Girone A</span>
+<span class="text-[#3A4052]">•</span>
+<span>8 squadre</span>
+<span class="text-[#3A4052]">•</span>
+<span class="text-[#FF6A1F]">Giornata 2</span>
+</p>
+<!-- Action Buttons -->
+<div class="flex flex-wrap items-center gap-3">
+<button class="h-10 px-6 bg-[#FF6A1F] hover:bg-[#FF7F3F] text-[#0B0D12] font-headline font-bold text-base tracking-wide uppercase transition-colors flex items-center justify-center rounded-sm">
+          Vai alla tappa
+        </button>
+<button class="h-10 px-6 bg-[#12151C]/80 hover:bg-[#1B1F29] border border-[#2A2F3D] hover:border-[#3A4052] text-[#F2EDE4] font-headline font-bold text-base tracking-wide uppercase transition-colors flex items-center justify-center rounded-sm">
+          Classifica completa
+        </button>
+</div>
+</div>
+</section>
+<!-- Main Canvas: Two-Column Data-Dense Layout -->
+<main class="max-w-7xl mx-auto w-full px-4 md:px-8 py-8 flex-1">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+<!-- LEFT COLUMN: Standings Table (2/3 width) -->
+<section class="lg:col-span-8 flex flex-col">
+<!-- Standings Header -->
+<div class="flex items-center justify-between pb-3 border-b-2 border-[#FF6A1F]">
+<div class="flex items-center gap-2">
+<h2 class="font-headline font-extrabold uppercase text-xl md:text-2xl tracking-tight text-[#F2EDE4]">
+              CLASSIFICA LIVE · GIRONE A
+            </h2>
+</div>
+<div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#A9A398]">
+<span class="w-2 h-2 rounded-full bg-[#3DD68C]"></span>
+<span>Aggiornato live</span>
+</div>
+</div>
+<!-- Table Container with Asphalt Styling -->
+<div class="bg-[#12151C] border border-[#2A2F3D] overflow-x-auto mt-3">
+<table class="w-full text-left border-collapse num-tabular">
+<thead>
+<tr class="bg-[#171B24] border-b border-[#2A2F3D] text-[11px] font-semibold uppercase tracking-wider text-[#A9A398] h-9">
+<th class="px-3 w-10 text-center">#</th>
+<th class="px-3">SQUADRA</th>
+<th class="px-3 text-right">G</th>
+<th class="px-3 text-right">V</th>
+<th class="px-3 text-right">P</th>
+<th class="px-3 text-right font-semibold text-[#F2EDE4]">PF</th>
+<th class="px-3 text-right">PS</th>
+<th class="px-4 text-right">DIFF</th>
+</tr>
+</thead>
+<tbody class="text-xs divide-y divide-[#2A2F3D]">
+<!-- Rank 1: Leader row -->
+<tr class="h-9 hover:bg-[#1B1F29] transition-colors border-l-2 border-[#FF6A1F]">
+<td class="px-3 text-center font-headline font-extrabold text-sm text-[#FF6A1F]">1</td>
+<td class="px-3 flex items-center gap-2.5 h-9">
+<div class="w-5 h-5 rounded-full bg-[#1B1F29] border border-[#FF6A1F]/50 flex items-center justify-center text-[10px] font-bold text-[#FF6A1F]">
+                    TR
+                  </div>
+<span class="font-semibold text-[#F2EDE4] tracking-tight">Team Rome</span>
+</td>
+<td class="px-3 text-right text-[#A9A398]">3</td>
+<td class="px-3 text-right font-medium text-[#F2EDE4]">3</td>
+<td class="px-3 text-right text-[#A9A398]">0</td>
+<td class="px-3 text-right font-bold text-[#F2EDE4]">63</td>
+<td class="px-3 text-right text-[#A9A398]">44</td>
+<td class="px-4 text-right font-bold text-[#3DD68C]">+19</td>
+</tr>
+<!-- Rank 2 -->
+<tr class="h-9 hover:bg-[#1B1F29] transition-colors">
+<td class="px-3 text-center font-headline font-bold text-sm text-[#A9A398]">2</td>
+<td class="px-3 flex items-center gap-2.5 h-9">
+<div class="w-5 h-5 rounded-full bg-[#1B1F29] border border-[#3A4052] flex items-center justify-center text-[10px] font-bold text-[#F2EDE4]">
+                    UB
+                  </div>
+<span class="font-medium text-[#F2EDE4] tracking-tight">UB Kings</span>
+</td>
+<td class="px-3 text-right text-[#A9A398]">3</td>
+<td class="px-3 text-right font-medium text-[#F2EDE4]">2</td>
+<td class="px-3 text-right text-[#A9A398]">1</td>
+<td class="px-3 text-right font-semibold text-[#F2EDE4]">59</td>
+<td class="px-3 text-right text-[#A9A398]">48</td>
+<td class="px-4 text-right font-bold text-[#3DD68C]">+11</td>
+</tr>
+<!-- Rank 3 -->
+<tr class="h-9 hover:bg-[#1B1F29] transition-colors">
+<td class="px-3 text-center font-headline font-bold text-sm text-[#A9A398]">3</td>
+<td class="px-3 flex items-center gap-2.5 h-9">
+<div class="w-5 h-5 rounded-full bg-[#1B1F29] border border-[#3A4052] flex items-center justify-center text-[10px] font-bold text-[#F2EDE4]">
+                    GT
+                  </div>
+<span class="font-medium text-[#F2EDE4] tracking-tight">The Goat Torino</span>
+</td>
+<td class="px-3 text-right text-[#A9A398]">3</td>
+<td class="px-3 text-right font-medium text-[#F2EDE4]">2</td>
+<td class="px-3 text-right text-[#A9A398]">1</td>
+<td class="px-3 text-right font-semibold text-[#F2EDE4]">56</td>
+<td class="px-3 text-right text-[#A9A398]">51</td>
+<td class="px-4 text-right font-bold text-[#3DD68C]">+5</td>
+</tr>
+<!-- Rank 4 -->
+<tr class="h-9 hover:bg-[#1B1F29] transition-colors">
+<td class="px-3 text-center font-headline font-bold text-sm text-[#A9A398]">4</td>
+<td class="px-3 flex items-center gap-2.5 h-9">
+<div class="w-5 h-5 rounded-full bg-[#1B1F29] border border-[#3A4052] flex items-center justify-center text-[10px] font-bold text-[#F2EDE4]">
+                    CO
+                  </div>
+<span class="font-medium text-[#F2EDE4] tracking-tight">Concrete</span>
+</td>
+<td class="px-3 text-right text-[#A9A398]">3</td>
+<td class="px-3 text-right font-medium text-[#F2EDE4]">2</td>
+<td class="px-3 text-right text-[#A9A398]">1</td>
+<td class="px-3 text-right font-semibold text-[#F2EDE4]">52</td>
+<td class="px-3 text-right text-[#A9A398]">50</td>
+<td class="px-4 text-right font-bold text-[#3DD68C]">+2</td>
+</tr>
+<!-- Rank 5 -->
+<tr class="h-9 hover:bg-[#1B1F29] transition-colors">
+<td class="px-3 text-center font-headline font-bold text-sm text-[#A9A398]">5</td>
+<td class="px-3 flex items-center gap-2.5 h-9">
+<div class="w-5 h-5 rounded-full bg-[#1B1F29] border border-[#3A4052] flex items-center justify-center text-[10px] font-bold text-[#F2EDE4]">
+                    FV
+                  </div>
+<span class="font-medium text-[#F2EDE4] tracking-tight">FVG 3x3</span>
+</td>
+<td class="px-3 text-right text-[#A9A398]">3</td>
+<td class="px-3 text-right font-medium text-[#F2EDE4]">1</td>
+<td class="px-3 text-right text-[#A9A398]">2</td>
+<td class="px-3 text-right font-semibold text-[#F2EDE4]">49</td>
+<td class="px-3 text-right text-[#A9A398]">54</td>
+<td class="px-4 text-right font-bold text-[#FF4D4D]">-5</td>
+</tr>
+<!-- Rank 6 -->
+<tr class="h-9 hover:bg-[#1B1F29] transition-colors">
+<td class="px-3 text-center font-headline font-bold text-sm text-[#A9A398]">6</td>
+<td class="px-3 flex items-center gap-2.5 h-9">
+<div class="w-5 h-5 rounded-full bg-[#1B1F29] border border-[#3A4052] flex items-center justify-center text-[10px] font-bold text-[#F2EDE4]">
+                    AS
+                  </div>
+<span class="font-medium text-[#F2EDE4] tracking-tight">All Star 3x3</span>
+</td>
+<td class="px-3 text-right text-[#A9A398]">3</td>
+<td class="px-3 text-right font-medium text-[#F2EDE4]">1</td>
+<td class="px-3 text-right text-[#A9A398]">2</td>
+<td class="px-3 text-right font-semibold text-[#F2EDE4]">47</td>
+<td class="px-3 text-right text-[#A9A398]">56</td>
+<td class="px-4 text-right font-bold text-[#FF4D4D]">-9</td>
+</tr>
+<!-- Rank 7 -->
+<tr class="h-9 hover:bg-[#1B1F29] transition-colors">
+<td class="px-3 text-center font-headline font-bold text-sm text-[#A9A398]">7</td>
+<td class="px-3 flex items-center gap-2.5 h-9">
+<div class="w-5 h-5 rounded-full bg-[#1B1F29] border border-[#3A4052] flex items-center justify-center text-[10px] font-bold text-[#F2EDE4]">
+                    TE
+                  </div>
+<span class="font-medium text-[#F2EDE4] tracking-tight">Tortona Evolution</span>
+</td>
+<td class="px-3 text-right text-[#A9A398]">3</td>
+<td class="px-3 text-right font-medium text-[#F2EDE4]">1</td>
+<td class="px-3 text-right text-[#A9A398]">2</td>
+<td class="px-3 text-right font-semibold text-[#F2EDE4]">44</td>
+<td class="px-3 text-right text-[#A9A398]">58</td>
+<td class="px-4 text-right font-bold text-[#FF4D4D]">-14</td>
+</tr>
+<!-- Rank 8 -->
+<tr class="h-9 hover:bg-[#1B1F29] transition-colors">
+<td class="px-3 text-center font-headline font-bold text-sm text-[#A9A398]">8</td>
+<td class="px-3 flex items-center gap-2.5 h-9">
+<div class="w-5 h-5 rounded-full bg-[#1B1F29] border border-[#3A4052] flex items-center justify-center text-[10px] font-bold text-[#F2EDE4]">
+                    FD
+                  </div>
+<span class="font-medium text-[#F2EDE4] tracking-tight">FDC Tunes</span>
+</td>
+<td class="px-3 text-right text-[#A9A398]">3</td>
+<td class="px-3 text-right font-medium text-[#F2EDE4]">0</td>
+<td class="px-3 text-right text-[#A9A398]">3</td>
+<td class="px-3 text-right font-semibold text-[#F2EDE4]">41</td>
+<td class="px-3 text-right text-[#A9A398]">60</td>
+<td class="px-4 text-right font-bold text-[#FF4D4D]">-19</td>
+</tr>
+</tbody>
+</table>
+<div class="px-4 py-2.5 bg-[#171B24] border-t border-[#2A2F3D] text-[11px] text-[#A9A398] uppercase tracking-wider font-medium">
+            Ordinamento: vittorie, punti fatti, differenza punti
+          </div>
+</div>
+</section>
+<!-- RIGHT COLUMN: Live Game Card & Upcoming Matches (1/3 width) -->
+<section class="lg:col-span-4 flex flex-col gap-6">
+<!-- Live Match Card -->
+<div class="bg-[#12151C] border-t-4 border-[#FF6A1F] border-x border-b border-[#2A2F3D] p-4 flex flex-col shadow-sm">
+<!-- Card Kicker -->
+<div class="flex items-center justify-between pb-3 border-b border-[#2A2F3D] mb-4">
+<span class="text-xs font-semibold uppercase tracking-wider text-[#A9A398] flex items-center gap-1.5">
+<span class="material-symbols-outlined text-sm text-[#FF6A1F]">sports_basketball</span>
+              Campo Centrale · In corso
+            </span>
+<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-[#FF3B3B]/15 text-[#FF3B3B] text-[10px] font-bold tracking-widest uppercase">
+<span class="w-1.5 h-1.5 rounded-full bg-[#FF3B3B] live-dot"></span>
+              LIVE
+            </span>
+</div>
+<!-- Scoreboard Display -->
+<div class="grid grid-cols-2 items-center gap-2 mb-4 text-center">
+<!-- Home Team -->
+<div class="flex flex-col items-center">
+<span class="font-headline font-bold text-sm tracking-tight uppercase text-[#F2EDE4] mb-1 truncate w-full">UB KINGS</span>
+<span class="font-headline font-extrabold text-5xl md:text-6xl text-[#FF6A1F] leading-none num-tabular">17</span>
+<div class="flex gap-1 mt-2">
+<span class="w-1.5 h-1.5 rounded-full bg-[#FF6A1F]"></span>
+<span class="w-1.5 h-1.5 rounded-full bg-[#FF6A1F]"></span>
+<span class="w-1.5 h-1.5 rounded-full bg-[#FF6A1F]"></span>
+<span class="w-1.5 h-1.5 rounded-full bg-[#2A2F3D]"></span>
+</div>
+</div>
+<!-- Away Team -->
+<div class="flex flex-col items-center">
+<span class="font-headline font-bold text-sm tracking-tight uppercase text-[#A9A398] mb-1 truncate w-full">CONCRETE</span>
+<span class="font-headline font-extrabold text-5xl md:text-6xl text-[#F2EDE4] leading-none num-tabular">14</span>
+<div class="flex gap-1 mt-2">
+<span class="w-1.5 h-1.5 rounded-full bg-[#A9A398]"></span>
+<span class="w-1.5 h-1.5 rounded-full bg-[#A9A398]"></span>
+<span class="w-1.5 h-1.5 rounded-full bg-[#2A2F3D]"></span>
+<span class="w-1.5 h-1.5 rounded-full bg-[#2A2F3D]"></span>
+</div>
+</div>
+</div>
+<!-- Match Clocks Bar -->
+<div class="grid grid-cols-2 gap-2 bg-[#0B0D12] p-2.5 border border-[#2A2F3D] rounded-sm text-center">
+<div class="border-r border-[#2A2F3D]">
+<span class="block text-[10px] uppercase font-semibold text-[#A9A398] tracking-widest">TEMPO DI GIOCO</span>
+<span class="font-headline font-bold text-xl text-[#F2EDE4] num-tabular">06:42</span>
+</div>
+<div>
+<span class="block text-[10px] uppercase font-semibold text-[#A9A398] tracking-widest">SHOT CLOCK</span>
+<span class="font-headline font-bold text-xl text-[#FF3B3B] num-tabular">12"</span>
+</div>
+</div>
+<div class="mt-3 pt-2 text-[11px] text-[#A9A398] flex justify-between items-center">
+<span class="flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-[#FF6A1F]"></span>
+              Possesso: UB Kings
+            </span>
+<span>Falli di squadra: 4 - 3</span>
+</div>
+</div>
+<!-- Upcoming Fixtures (PROSSIME PARTITE) -->
+<div class="flex flex-col">
+<div class="flex items-center justify-between pb-2 mb-3 border-b border-[#2A2F3D]">
+<h3 class="font-headline font-bold uppercase text-lg tracking-tight text-[#F2EDE4]">
+              PROSSIME PARTITE
+            </h3>
+<span class="text-[11px] font-semibold uppercase text-[#A9A398] tracking-wider">OGGI</span>
+</div>
+<div class="space-y-2.5">
+<!-- Fixture 1 -->
+<div class="bg-[#12151C] border border-[#2A2F3D] hover:border-[#3A4052] p-3 flex items-center justify-between transition-colors">
+<div class="flex flex-col">
+<span class="font-headline font-bold text-sm tracking-tight text-[#F2EDE4]">
+                  The Goat Torino <span class="text-[#A9A398] font-normal text-xs">vs</span> All Star 3x3
+                </span>
+<span class="text-[11px] text-[#A9A398] tracking-wider uppercase font-medium mt-0.5">
+                  Girone A · Campo 1
+                </span>
+</div>
+<div class="px-2.5 py-1 bg-[#1B1F29] border border-[#2A2F3D] text-xs font-bold text-[#FF6A1F] num-tabular">
+                18:30
+              </div>
+</div>
+<!-- Fixture 2 -->
+<div class="bg-[#12151C] border border-[#2A2F3D] hover:border-[#3A4052] p-3 flex items-center justify-between transition-colors">
+<div class="flex flex-col">
+<span class="font-headline font-bold text-sm tracking-tight text-[#F2EDE4]">
+                  FVG 3x3 <span class="text-[#A9A398] font-normal text-xs">vs</span> Tortona Evolution
+                </span>
+<span class="text-[11px] text-[#A9A398] tracking-wider uppercase font-medium mt-0.5">
+                  Girone A · Campo 2
+                </span>
+</div>
+<div class="px-2.5 py-1 bg-[#1B1F29] border border-[#2A2F3D] text-xs font-bold text-[#A9A398] num-tabular">
+                19:00
+              </div>
+</div>
+<!-- Fixture 3 -->
+<div class="bg-[#12151C] border border-[#2A2F3D] hover:border-[#3A4052] p-3 flex items-center justify-between transition-colors">
+<div class="flex flex-col">
+<span class="font-headline font-bold text-sm tracking-tight text-[#F2EDE4]">
+                  Team Rome <span class="text-[#A9A398] font-normal text-xs">vs</span> FDC Tunes
+                </span>
+<span class="text-[11px] text-[#A9A398] tracking-wider uppercase font-medium mt-0.5">
+                  Girone A · Campo 1
+                </span>
+</div>
+<div class="px-2.5 py-1 bg-[#1B1F29] border border-[#2A2F3D] text-xs font-bold text-[#A9A398] num-tabular">
+                19:30
+              </div>
+</div>
+</div>
+</div>
+</section>
+</div>
+<!-- LEADER DELLA TAPPA Section -->
+<section class="mt-12 pt-6 border-t border-[#2A2F3D]">
+<div class="flex items-center justify-between mb-4">
+<div>
+<h2 class="font-headline font-extrabold uppercase text-xl md:text-2xl tracking-tight text-[#F2EDE4]">
+            LEADER DELLA TAPPA
+          </h2>
+<p class="text-xs text-[#A9A398] uppercase tracking-wider font-medium">Classifiche individuali aggiornate a Giornata 2</p>
+</div>
+</div>
+<!-- 5 Stat Tiles Grid -->
+<div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+<!-- Stat 1: Punti (Top Scorer with Gold Badge) -->
+<div class="bg-[#12151C] border border-[#2A2F3D] p-3.5 flex flex-col justify-between relative overflow-hidden">
+<div class="flex items-center justify-between">
+<span class="text-[11px] font-semibold uppercase tracking-wider text-[#A9A398]">PUNTI</span>
+<span class="px-1.5 py-0.5 bg-[#F5C542]/15 border border-[#F5C542]/40 text-[#F5C542] text-[10px] font-bold rounded-sm uppercase tracking-wider">
+              TOP SCORER
+            </span>
+</div>
+<div class="my-3">
+<div class="flex items-baseline gap-1.5">
+<span class="font-headline font-extrabold text-3xl md:text-4xl text-[#F2EDE4] leading-none num-tabular">38</span>
+<span class="text-xs text-[#A9A398] font-medium num-tabular">(12.7)</span>
+</div>
+</div>
+<div>
+<div class="text-xs font-bold text-[#F2EDE4] truncate">Marco "Kobe" Rossi</div>
+<div class="text-[11px] text-[#FF6A1F] uppercase font-semibold">UB Kings</div>
+</div>
+</div>
+<!-- Stat 2: Rimbalzi -->
+<div class="bg-[#12151C] border border-[#2A2F3D] p-3.5 flex flex-col justify-between">
+<div class="flex items-center justify-between">
+<span class="text-[11px] font-semibold uppercase tracking-wider text-[#A9A398]">REBOUND</span>
+</div>
+<div class="my-3">
+<div class="flex items-baseline gap-1.5">
+<span class="font-headline font-extrabold text-3xl md:text-4xl text-[#F2EDE4] leading-none num-tabular">26</span>
+<span class="text-xs text-[#A9A398] font-medium num-tabular">(8.7)</span>
+</div>
+</div>
+<div>
+<div class="text-xs font-bold text-[#F2EDE4] truncate">Luca Moretti</div>
+<div class="text-[11px] text-[#A9A398] uppercase font-semibold">Team Rome</div>
+</div>
+</div>
+<!-- Stat 3: Assist -->
+<div class="bg-[#12151C] border border-[#2A2F3D] p-3.5 flex flex-col justify-between">
+<div class="flex items-center justify-between">
+<span class="text-[11px] font-semibold uppercase tracking-wider text-[#A9A398]">ASSIST</span>
+</div>
+<div class="my-3">
+<div class="flex items-baseline gap-1.5">
+<span class="font-headline font-extrabold text-3xl md:text-4xl text-[#F2EDE4] leading-none num-tabular">19</span>
+<span class="text-xs text-[#A9A398] font-medium num-tabular">(6.3)</span>
+</div>
+</div>
+<div>
+<div class="text-xs font-bold text-[#F2EDE4] truncate">Davide Conti</div>
+<div class="text-[11px] text-[#A9A398] uppercase font-semibold">The Goat Torino</div>
+</div>
+</div>
+<!-- Stat 4: Rubate -->
+<div class="bg-[#12151C] border border-[#2A2F3D] p-3.5 flex flex-col justify-between">
+<div class="flex items-center justify-between">
+<span class="text-[11px] font-semibold uppercase tracking-wider text-[#A9A398]">RUBATE</span>
+</div>
+<div class="my-3">
+<div class="flex items-baseline gap-1.5">
+<span class="font-headline font-extrabold text-3xl md:text-4xl text-[#F2EDE4] leading-none num-tabular">11</span>
+<span class="text-xs text-[#A9A398] font-medium num-tabular">(3.7)</span>
+</div>
+</div>
+<div>
+<div class="text-xs font-bold text-[#F2EDE4] truncate">Simone Ferri</div>
+<div class="text-[11px] text-[#A9A398] uppercase font-semibold">Concrete</div>
+</div>
+</div>
+<!-- Stat 5: Stoppate -->
+<div class="bg-[#12151C] border border-[#2A2F3D] p-3.5 flex flex-col justify-between col-span-2 md:col-span-1">
+<div class="flex items-center justify-between">
+<span class="text-[11px] font-semibold uppercase tracking-wider text-[#A9A398]">STOPPATE</span>
+</div>
+<div class="my-3">
+<div class="flex items-baseline gap-1.5">
+<span class="font-headline font-extrabold text-3xl md:text-4xl text-[#F2EDE4] leading-none num-tabular">8</span>
+<span class="text-xs text-[#A9A398] font-medium num-tabular">(2.7)</span>
+</div>
+</div>
+<div>
+<div class="text-xs font-bold text-[#F2EDE4] truncate">Andrea Bianchi</div>
+<div class="text-[11px] text-[#A9A398] uppercase font-semibold">FVG 3x3</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Coach AI Floating Action Button (FAB) -->
+<div class="fixed bottom-6 right-6 z-40">
+<button class="flex items-center gap-2.5 px-4 h-12 bg-[#FF6A1F] hover:bg-[#FF7F3F] text-[#0B0D12] font-headline font-bold text-sm uppercase tracking-wider shadow-lg rounded-full transition-transform hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-[#FF6A1F] focus:ring-offset-2 focus:ring-offset-[#0B0D12]">
+<span class="material-symbols-outlined text-xl" style="font-variation-settings: 'FILL' 1;">sports_basketball</span>
+<span class="font-headline font-extrabold text-base tracking-wide">Coach AI</span>
+</button>
+</div>
+<!-- Footer (Shared Component Anchor) -->
+<footer class="w-full bg-[#12151C] border-t border-[#2A2F3D] mt-16">
+<div class="flex flex-col md:flex-row justify-between items-center w-full px-6 py-6 max-w-7xl mx-auto gap-4">
+<!-- Brand & Copyright -->
+<div class="flex flex-col sm:flex-row items-center gap-2 sm:gap-4">
+<span class="font-display font-bold uppercase tracking-tight text-base text-[#F2EDE4]">
+          HOOP <span class="text-[#FF6A1F]">3X3</span>
+</span>
+<span class="text-xs text-[#A9A398]">
+          © 2025 HOOP 3X3 Streetball Circuit. All rights reserved.
+        </span>
+</div>
+<!-- Legal & Info Links -->
+<div class="flex flex-wrap items-center justify-center gap-6 font-body text-xs text-[#A9A398]">
+<a class="hover:text-[#F2EDE4] transition-colors" href="#">
+          Regolamento FIBA 3x3
+        </a>
+<a class="hover:text-[#F2EDE4] transition-colors" href="#">
+          Privacy Policy
+        </a>
+<a class="hover:text-[#F2EDE4] transition-colors" href="#">
+          Termini di Servizio
+        </a>
+<a class="hover:text-[#F2EDE4] transition-colors" href="#">
+          Contatti Supporto
+        </a>
+</div>
+</div>
+</footer>
+</body></html>

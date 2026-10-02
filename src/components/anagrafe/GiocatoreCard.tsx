@@ -1,8 +1,10 @@
-/** Card cliccabile di un giocatore registrato nell'anagrafe: apre la modale di dettaglio.
- *  Solo l'autore può eliminarlo; il × stoppa il click sulla card. */
-import { INK } from "../../constants/colors";
+/** Card di un giocatore registrato nell'anagrafe. Il nome è un pulsante che apre la modale
+ *  di dettaglio (niente controlli annidati: card = <article>), "Profilo" porta alla pagina con
+ *  le statistiche; solo l'autore può eliminarlo. */
+import { Link } from "react-router-dom";
 import { eta } from "../../utils/eta";
 import { safeUrl } from "../../utils/safeUrl";
+import { Icon } from "../ui/Icon";
 import type { RegGiocatore, RegSquadra, User } from "../../types";
 
 export function GiocatoreCard({ g, user, squadre, onRemove, onOpen }: {
@@ -11,43 +13,43 @@ export function GiocatoreCard({ g, user, squadre, onRemove, onOpen }: {
   // Cerca il logo della squadra abbinando il nome del giocatore con la lista squadre
   const squadraLogo = squadre?.find((s) => s.nome === g.squadra)?.logo ?? null;
   const age = eta(g.nascita);
+  const dettagli = [
+    g.nascita ? `Nato il ${g.nascita}${age !== null ? ` (${age} anni)` : ""}${g.citta ? ` a ${g.citta}` : ""}` : g.citta,
+    g.nazionalita,
+    [g.altezza ? `${g.altezza} cm` : "", g.peso ? `${g.peso} kg` : ""].filter(Boolean).join(" · "),
+    g.esperienza ? `${g.esperienza} anni di esperienza` : "",
+  ].filter(Boolean);
+
   return (
-    /* div + role="button" per evitare <button> annidati (il × interno è già un button) */
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={onOpen}
-      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onOpen(); }}
-      className="tal fullw hovercard"
-      style={{ background: "var(--card)", border: `1.5px solid ${INK}`, padding: 12, cursor: "pointer" }}
-    >
-      <div className="row between gap-8">
-        <div className="row gap-7">
+    <article className="hovercard flex w-full flex-col rounded border border-asphalt-700 bg-asphalt-900 p-3 text-left">
+      <div className="flex items-start justify-between gap-2">
+        <button onClick={onOpen} className="flex min-w-0 items-center gap-2 text-left hover:text-court" title="Apri la scheda">
           {squadraLogo && (
-            <img src={safeUrl(squadraLogo)} alt="" aria-hidden
-              style={{ width: 22, height: 22, objectFit: "contain", flexShrink: 0 }}
+            <img src={safeUrl(squadraLogo)} alt="" aria-hidden className="h-6 w-6 shrink-0 object-contain"
               onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
           )}
-          <div className="disp up" style={{ fontSize: 15 }}>
-            {g.nome} {g.cognome}{g.numero ? <span className="t-orange"> #{g.numero}</span> : null}
-          </div>
-        </div>
-        {/* Il × stoppa il click sulla card per non aprire la modale */}
+          <span className="min-w-0 truncate font-display text-lg text-chalk transition-colors">
+            {g.nome} {g.cognome}{g.numero ? <span className="text-court"> #{g.numero}</span> : null}
+          </span>
+        </button>
         {!user.guest && g.autore === user.name && (
-          <button onClick={(e) => { e.stopPropagation(); onRemove(); }} className="linkbtn t-ink" style={{ opacity: 0.5 }}>×</button>
+          <button onClick={onRemove} className="shrink-0 text-chalk-dim hover:text-loss" aria-label={`Elimina ${g.nome} ${g.cognome}`}>
+            <Icon name="close" size={14} />
+          </button>
         )}
       </div>
-      {g.soprannome && <div className="ui t-orange" style={{ fontSize: 11.5, fontWeight: 700 }}>"{g.soprannome}"</div>}
-      <div className="ui" style={{ fontSize: 12.5, marginTop: 6, lineHeight: 1.6 }}>
-        <strong>{g.ruolo}</strong>{g.squadra ? <> · {g.squadra}</> : null}<br />
-        {g.nascita && <>{`Nato il ${g.nascita}`}{age !== null ? ` (${age} anni)` : ""}{g.citta ? ` a ${g.citta}` : ""}<br /></>}
-        {!g.nascita && g.citta && <>{g.citta}<br /></>}
-        {g.nazionalita && <>{g.nazionalita}<br /></>}
-        {(g.altezza || g.peso) && <>{g.altezza ? `${g.altezza} cm` : ""}{g.altezza && g.peso ? " · " : ""}{g.peso ? `${g.peso} kg` : ""}<br /></>}
-        {g.esperienza && <>{g.esperienza} anni di esperienza<br /></>}
+      {g.soprannome && <div className="text-xs font-semibold text-court">"{g.soprannome}"</div>}
+      <div className="mt-1.5 text-xs leading-relaxed text-chalk-muted">
+        <strong className="text-chalk">{g.ruolo}</strong>{g.squadra ? ` · ${g.squadra}` : ""}
+        {dettagli.map((d) => <span key={d} className="block">{d}</span>)}
       </div>
-      {g.note && <p style={{ fontSize: 13, fontStyle: "italic", margin: "6px 0 0" }}>{g.note}</p>}
-      <div className="ui" style={{ fontSize: 10, opacity: 0.5, marginTop: 6 }}>Registrato da {g.autore}</div>
-    </div>
+      {g.note && <p className="mt-1.5 text-[13px] text-chalk-muted">{g.note}</p>}
+      <div className="mt-auto flex items-center justify-between pt-2">
+        <span className="text-[10.5px] text-chalk-dim">Registrato da {g.autore}</span>
+        <Link to={`/giocatore/${g.id}`} className="inline-flex items-center gap-1 text-xs font-semibold text-court hover:underline">
+          Profilo <Icon name="chevron" size={12} />
+        </Link>
+      </div>
+    </article>
   );
 }

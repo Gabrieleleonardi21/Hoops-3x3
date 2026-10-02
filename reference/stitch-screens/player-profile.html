@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="it"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>HOOP 3X3 - Marco Bianchi #7</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800;900&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            court: {
+              bg: '#0B0D12',
+              surface: '#12151C',
+              elevated: '#1B1F29',
+              border: '#2A2F3D',
+              borderStrong: '#3A4052',
+              orange: '#FF6A1F',
+              orangeHover: '#FF7F3F',
+              chalk: '#F2EDE4',
+              muted: '#A9A398',
+              disabled: '#6E6960',
+              gold: '#F5C542',
+              win: '#3DD68C',
+              loss: '#FF4D4D'
+            }
+          },
+          borderRadius: {
+            DEFAULT: "0.125rem",
+            lg: "0.25rem",
+            xl: "0.5rem",
+            full: "0.75rem"
+          },
+          fontFamily: {
+            headline: ["'Barlow Condensed'", "sans-serif"],
+            display: ["'Barlow Condensed'", "sans-serif"],
+            body: ["'IBM Plex Sans'", "sans-serif"],
+            mono: ["'IBM Plex Mono'", "monospace"],
+            label: ["'IBM Plex Sans'", "sans-serif"]
+          }
+        },
+      },
+    }
+  </script>
+<style>
+    .tabular-nums {
+      font-variant-numeric: tabular-nums;
+    }
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+  </style>
+</head>
+<body class="bg-[#0B0D12] text-[#F2EDE4] font-body min-h-screen antialiased selection:bg-[#FF6A1F] selection:text-[#0B0D12] flex flex-col">
+<!-- TOP APP BAR -->
+<header class="bg-[#0B0D12] border-b border-[#2A2F3D] sticky top-0 z-50">
+<div class="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
+<!-- Left: Logo and Nav -->
+<div class="flex items-center space-x-8">
+<a class="font-headline text-2xl font-black uppercase tracking-tighter text-[#F2EDE4] flex items-center gap-1.5 hover:text-[#FF6A1F] transition-colors" href="#">
+<span class="text-[#FF6A1F]">HOOP</span>
+<span>3X3</span>
+</a>
+<!-- Desktop Navigation Links -->
+<nav class="hidden md:flex items-center space-x-6 h-14">
+<a class="text-[#A9A398] hover:text-[#F2EDE4] font-headline uppercase tracking-wider py-4 transition-colors text-sm" href="#">Le mie leghe</a>
+<a class="border-b-2 border-[#FF6A1F] text-[#F2EDE4] font-headline uppercase tracking-wider py-4 text-sm font-bold" href="#">Anagrafe</a>
+<a class="text-[#A9A398] hover:text-[#F2EDE4] font-headline uppercase tracking-wider py-4 transition-colors text-sm" href="#">Archivio circuito</a>
+<a class="text-[#A9A398] hover:text-[#F2EDE4] font-headline uppercase tracking-wider py-4 transition-colors text-sm" href="#">Campetti</a>
+</nav>
+</div>
+<!-- Right Actions -->
+<div class="flex items-center space-x-3">
+<!-- Search bar on right -->
+<div class="relative hidden sm:block">
+<span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[#A9A398] text-sm pointer-events-none">search</span>
+<input class="bg-[#12151C] border border-[#2A2F3D] text-xs text-[#F2EDE4] pl-8 pr-3 py-1.5 focus:outline-none focus:border-[#FF6A1F] transition-colors rounded-[2px] w-48 placeholder-[#6E6960]" placeholder="Cerca atleti, team..." type="text"/>
+</div>
+<button aria-label="Notifiche" class="p-2 text-[#A9A398] hover:text-[#FF6A1F] transition-colors flex items-center justify-center">
+<span class="material-symbols-outlined text-[20px]">notifications</span>
+</button>
+<button aria-label="Modalità Partita" class="p-2 text-[#A9A398] hover:text-[#FF6A1F] transition-colors flex items-center justify-center">
+<span class="material-symbols-outlined text-[20px]">sports_basketball</span>
+</button>
+<button class="bg-[#FF6A1F] hover:bg-[#FF7F3F] text-[#0B0D12] font-headline font-bold text-sm tracking-wider uppercase px-3.5 py-1.5 rounded-[2px] transition-colors duration-150">
+          Nuova Partita
+        </button>
+<div class="w-8 h-8 rounded-[2px] border border-[#2A2F3D] overflow-hidden ml-1">
+<img class="w-full h-full object-cover" data-alt="A gritty urban athlete headshot profile portrait in high contrast shadows on dark basketball court background, athletic build, focused gaze, asphalt concrete atmosphere with rim light." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAN0rJGd0kU0-wv9I_3a7QLx-O7Q_OsJpcCqVwBgC5i1vD7MwpD_rMNlT7SvsP1mKIh472-LacArSdSxd65kXcvHwBfB9-9ctZx00GDHpcQNfoDNeDmUM_2xWRWqXE8UHilXV-rgPsZA5jU-JBhSP6j87C86HPj16EvmtpMDmuvnp6c6oFNrhdrGZWWG_CUt1nS9WjBp_Ve45-sDnTs1VBW1vC6L4ENJJLdaXfGvFmeJ5j6h51gw3IDMwR0f7pZaQDWt-1vShd2Ipdp"/>
+</div>
+</div>
+</div>
+</header>
+<!-- MAIN CANVAS -->
+<main class="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 flex flex-col space-y-6">
+<!-- BREADCRUMB / NAV BACK -->
+<div class="flex items-center justify-between text-xs">
+<a class="text-[#A9A398] hover:text-[#FF6A1F] font-headline uppercase tracking-wider flex items-center gap-1.5 transition-colors group" href="#">
+<span class="material-symbols-outlined text-sm transition-transform group-hover:-translate-x-0.5">arrow_back</span>
+        Torna ad Anagrafe Giocatori
+      </a>
+<span class="font-mono text-[#6E6960] text-[11px] tracking-wider uppercase">FEDERAZIONE CIRCUITO PIEMONTE · MATRICOLA #3X3-TO-8894</span>
+</div>
+<!-- PROFILE HEADER CARD (3px Orange Top Border) -->
+<section class="bg-[#12151C] border border-[#2A2F3D] border-t-[3px] border-t-[#FF6A1F] p-5 sm:p-6 rounded-[4px] relative overflow-hidden">
+<!-- Background subtle court line watermark -->
+<div class="absolute -right-12 -bottom-12 w-64 h-64 border border-[#2A2F3D]/30 rounded-full pointer-events-none opacity-40"></div>
+<div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 relative z-10">
+<!-- Left details -->
+<div class="flex items-start sm:items-center gap-5 sm:gap-6">
+<!-- Massive Jersey #7 -->
+<div class="w-20 sm:w-24 h-20 sm:h-24 bg-[#0B0D12] border border-[#2A2F3D] flex items-center justify-center shrink-0 rounded-[2px]">
+<span class="font-headline font-black text-6xl sm:text-7xl text-[#FF6A1F] tabular-nums tracking-tighter leading-none">#7</span>
+</div>
+<div class="space-y-2">
+<div class="flex flex-wrap items-baseline gap-2.5">
+<h1 class="font-headline font-extrabold text-3xl sm:text-4xl text-[#F2EDE4] tracking-tight uppercase">MARCO BIANCHI</h1>
+<span class="font-headline text-[#FF6A1F] font-semibold text-lg italic tracking-wide">“Il Muro”</span>
+</div>
+<!-- Chips & Specs Row -->
+<div class="flex flex-wrap items-center gap-2 text-xs">
+<!-- Position -->
+<span class="border border-[#FF6A1F]/40 bg-[#FF6A1F]/10 text-[#FF6A1F] font-mono font-semibold px-2.5 py-0.5 rounded-[2px]">ALA</span>
+<!-- Team Badge -->
+<div class="flex items-center gap-1.5 bg-[#1B1F29] border border-[#2A2F3D] px-2.5 py-0.5 rounded-[2px]">
+<span class="material-symbols-outlined text-[#F5C542] text-sm" style="font-variation-settings: 'FILL' 1;">military_tech</span>
+<span class="font-headline font-bold text-[#F2EDE4] uppercase tracking-wider">UB KINGS</span>
+</div>
+<!-- City -->
+<div class="flex items-center gap-1 bg-[#1B1F29] border border-[#2A2F3D] px-2.5 py-0.5 rounded-[2px] text-[#A9A398]">
+<span class="material-symbols-outlined text-xs">location_on</span>
+<span class="font-body font-medium">Torino</span>
+</div>
+<!-- Physical Specs -->
+<span class="font-mono text-[#A9A398] bg-[#0B0D12] border border-[#2A2F3D] px-2.5 py-0.5 rounded-[2px]">
+                28 ANNI · 196 CM · 92 KG
+              </span>
+</div>
+</div>
+</div>
+<!-- Right actions & status -->
+<div class="flex flex-col sm:flex-row lg:flex-col items-start lg:items-end justify-between gap-3 shrink-0">
+<div class="flex items-center gap-2 bg-[#0B0D12] border border-[#2A2F3D] px-3 py-1 rounded-[2px]">
+<span class="w-2 h-2 rounded-full bg-[#3DD68C] animate-pulse"></span>
+<span class="font-mono text-[11px] font-medium tracking-wider text-[#3DD68C] uppercase">TESSERAMENTO ATTIVO 2025/26</span>
+</div>
+<div class="flex items-center gap-2">
+<button class="h-9 px-4 border border-[#2A2F3D] hover:border-[#FF6A1F] text-[#F2EDE4] hover:text-[#FF6A1F] font-headline font-semibold text-sm uppercase tracking-wider rounded-[2px] transition-colors flex items-center gap-1.5">
+<span class="material-symbols-outlined text-base">edit</span>
+              Modifica
+            </button>
+<button class="h-9 px-3 text-[#A9A398] hover:text-[#FF4D4D] font-headline font-semibold text-sm uppercase tracking-wider rounded-[2px] transition-colors flex items-center gap-1">
+<span class="material-symbols-outlined text-base">delete</span>
+              Elimina
+            </button>
+</div>
+</div>
+</div>
+</section>
+<!-- 6 KEY STAT TILES (Dense Industrial Grid) -->
+<section class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+<!-- Punti -->
+<div class="bg-[#12151C] border border-[#2A2F3D] p-3.5 rounded-[4px] flex flex-col justify-between">
+<span class="font-label text-[11px] uppercase tracking-widest text-[#A9A398] font-semibold">PUNTI</span>
+<div class="mt-1">
+<div class="font-headline font-extrabold text-3xl sm:text-4xl text-[#FF6A1F] tabular-nums tracking-tight">142</div>
+<div class="font-mono text-[11px] text-[#A9A398] mt-0.5">11.8 / gara</div>
+</div>
+</div>
+<!-- Rimbalzi -->
+<div class="bg-[#12151C] border border-[#2A2F3D] p-3.5 rounded-[4px] flex flex-col justify-between">
+<span class="font-label text-[11px] uppercase tracking-widest text-[#A9A398] font-semibold">RIMBALZI</span>
+<div class="mt-1">
+<div class="font-headline font-extrabold text-3xl sm:text-4xl text-[#F2EDE4] tabular-nums tracking-tight">67</div>
+<div class="font-mono text-[11px] text-[#A9A398] mt-0.5">5.6 / gara</div>
+</div>
+</div>
+<!-- Assist -->
+<div class="bg-[#12151C] border border-[#2A2F3D] p-3.5 rounded-[4px] flex flex-col justify-between">
+<span class="font-label text-[11px] uppercase tracking-widest text-[#A9A398] font-semibold">ASSIST</span>
+<div class="mt-1">
+<div class="font-headline font-extrabold text-3xl sm:text-4xl text-[#F2EDE4] tabular-nums tracking-tight">31</div>
+<div class="font-mono text-[11px] text-[#A9A398] mt-0.5">2.6 / gara</div>
+</div>
+</div>
+<!-- Rubate -->
+<div class="bg-[#12151C] border border-[#2A2F3D] p-3.5 rounded-[4px] flex flex-col justify-between">
+<span class="font-label text-[11px] uppercase tracking-widest text-[#A9A398] font-semibold">RUBATE</span>
+<div class="mt-1">
+<div class="font-headline font-extrabold text-3xl sm:text-4xl text-[#F2EDE4] tabular-nums tracking-tight">19</div>
+<div class="font-mono text-[11px] text-[#A9A398] mt-0.5">1.6 / gara</div>
+</div>
+</div>
+<!-- Stoppate -->
+<div class="bg-[#12151C] border border-[#2A2F3D] p-3.5 rounded-[4px] flex flex-col justify-between">
+<span class="font-label text-[11px] uppercase tracking-widest text-[#A9A398] font-semibold">STOPPATE</span>
+<div class="mt-1">
+<div class="font-headline font-extrabold text-3xl sm:text-4xl text-[#F2EDE4] tabular-nums tracking-tight">12</div>
+<div class="font-mono text-[11px] text-[#A9A398] mt-0.5">1.0 / gara</div>
+</div>
+</div>
+<!-- Gare -->
+<div class="bg-[#12151C] border border-[#2A2F3D] p-3.5 rounded-[4px] flex flex-col justify-between">
+<span class="font-label text-[11px] uppercase tracking-widest text-[#A9A398] font-semibold">GARE</span>
+<div class="mt-1">
+<div class="font-headline font-extrabold text-3xl sm:text-4xl text-[#F2EDE4] tabular-nums tracking-tight">12</div>
+<div class="font-mono text-[11px] text-[#3DD68C] mt-0.5">100% presenze</div>
+</div>
+</div>
+</section>
+<!-- TWO COLUMN CONTENT -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+<!-- LEFT COLUMN (Approx 60% = 7 cols) -->
+<div class="lg:col-span-7 space-y-6">
+<!-- CARD 1: ANALISI 3X3 -->
+<div class="bg-[#12151C] border border-[#2A2F3D] p-5 rounded-[4px] space-y-4">
+<div class="flex items-center justify-between pb-3 border-b border-[#2A2F3D]">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[#FF6A1F] text-lg">analytics</span>
+<h2 class="font-headline font-bold uppercase tracking-wider text-[#F2EDE4] text-base">ANALISI 3X3</h2>
+</div>
+<div class="flex items-center gap-2">
+<span class="font-headline font-black text-xl text-[#F5C542] tabular-nums bg-[#1B1F29] border border-[#2A2F3D] px-2 py-0.5 rounded-[2px]">8.4</span>
+<span class="font-label text-[10px] font-semibold tracking-wider uppercase px-2 py-1 bg-[#F5C542]/10 border border-[#F5C542]/30 text-[#F5C542] rounded-[2px]">TOP TIER REGIONALE</span>
+</div>
+</div>
+<!-- Skill Progress Bars -->
+<div class="space-y-3 pt-1">
+<!-- Attacco -->
+<div>
+<div class="flex justify-between items-center text-xs font-mono mb-1">
+<span class="text-[#F2EDE4] font-medium">Attacco</span>
+<span class="text-[#FF6A1F] tabular-nums font-semibold">82 / 100</span>
+</div>
+<div class="w-full h-2 bg-[#0B0D12] border border-[#2A2F3D] rounded-[1px] overflow-hidden">
+<div class="h-full bg-[#FF6A1F]" style="width: 82%;"></div>
+</div>
+</div>
+<!-- Difesa -->
+<div>
+<div class="flex justify-between items-center text-xs font-mono mb-1">
+<span class="text-[#F2EDE4] font-medium">Difesa</span>
+<span class="text-[#FF6A1F] tabular-nums font-semibold">94 / 100</span>
+</div>
+<div class="w-full h-2 bg-[#0B0D12] border border-[#2A2F3D] rounded-[1px] overflow-hidden">
+<div class="h-full bg-[#FF6A1F]" style="width: 94%;"></div>
+</div>
+</div>
+<!-- Rimbalzo -->
+<div>
+<div class="flex justify-between items-center text-xs font-mono mb-1">
+<span class="text-[#F2EDE4] font-medium">Rimbalzo</span>
+<span class="text-[#FF6A1F] tabular-nums font-semibold">91 / 100</span>
+</div>
+<div class="w-full h-2 bg-[#0B0D12] border border-[#2A2F3D] rounded-[1px] overflow-hidden">
+<div class="h-full bg-[#FF6A1F]" style="width: 91%;"></div>
+</div>
+</div>
+<!-- Playmaking -->
+<div>
+<div class="flex justify-between items-center text-xs font-mono mb-1">
+<span class="text-[#F2EDE4] font-medium">Playmaking</span>
+<span class="text-[#FF6A1F] tabular-nums font-semibold">68 / 100</span>
+</div>
+<div class="w-full h-2 bg-[#0B0D12] border border-[#2A2F3D] rounded-[1px] overflow-hidden">
+<div class="h-full bg-[#FF6A1F]" style="width: 68%;"></div>
+</div>
+</div>
+</div>
+<!-- Technical Scouting Paragraph -->
+<div class="p-3 bg-[#0B0D12] border border-[#2A2F3D] rounded-[2px] mt-3">
+<p class="text-xs text-[#A9A398] leading-relaxed">
+              Presenza dominante nel pitturato con eccellente tempismo a rimbalzo offensivo e protezione del ferro. Tiratore affidabile dall’arco dell’1 punto nei finali punto a punto, solido difensore nei cambi sistematici sui blocchi del circuito torinese.
+            </p>
+</div>
+</div>
+<!-- CARD 2: ANDAMENTO PUNTI (Custom Pure CSS Chart) -->
+<div class="bg-[#12151C] border border-[#2A2F3D] p-5 rounded-[4px] space-y-4">
+<div class="flex items-center justify-between pb-3 border-b border-[#2A2F3D]">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[#FF6A1F] text-lg">bar_chart</span>
+<h2 class="font-headline font-bold uppercase tracking-wider text-[#F2EDE4] text-base">ANDAMENTO PUNTI</h2>
+</div>
+<div class="text-[11px] font-mono text-[#A9A398]">Media: 11.8 pt/match</div>
+</div>
+<!-- Chart Area -->
+<div class="pt-4 pb-1">
+<div class="h-44 w-full flex items-end justify-between gap-1.5 sm:gap-2 px-2 border-b border-[#2A2F3D] relative">
+<!-- Grid line 15 pt -->
+<div class="absolute inset-x-0 top-6 border-b border-dashed border-[#2A2F3D] pointer-events-none flex justify-end">
+<span class="text-[9px] font-mono text-[#6E6960] pr-1 -mt-3">15 PT</span>
+</div>
+<!-- Grid line 10 pt -->
+<div class="absolute inset-x-0 top-20 border-b border-dashed border-[#2A2F3D] pointer-events-none flex justify-end">
+<span class="text-[9px] font-mono text-[#6E6960] pr-1 -mt-3">10 PT</span>
+</div>
+<!-- Bar 1: 14 pt -->
+<div class="flex-1 flex flex-col items-center group h-full justify-end">
+<span class="text-[10px] font-mono text-[#A9A398] group-hover:text-[#FF6A1F] transition-colors mb-1 tabular-nums">14</span>
+<div class="w-full bg-[#FF6A1F]/80 group-hover:bg-[#FF6A1F] transition-colors rounded-t-[1px]" style="height: 70%;"></div>
+<span class="text-[10px] font-mono text-[#6E6960] mt-2">G1</span>
+</div>
+<!-- Bar 2: 9 pt -->
+<div class="flex-1 flex flex-col items-center group h-full justify-end">
+<span class="text-[10px] font-mono text-[#A9A398] group-hover:text-[#FF6A1F] transition-colors mb-1 tabular-nums">9</span>
+<div class="w-full bg-[#FF6A1F]/80 group-hover:bg-[#FF6A1F] transition-colors rounded-t-[1px]" style="height: 45%;"></div>
+<span class="text-[10px] font-mono text-[#6E6960] mt-2">G2</span>
+</div>
+<!-- Bar 3: 12 pt -->
+<div class="flex-1 flex flex-col items-center group h-full justify-end">
+<span class="text-[10px] font-mono text-[#A9A398] group-hover:text-[#FF6A1F] transition-colors mb-1 tabular-nums">12</span>
+<div class="w-full bg-[#FF6A1F]/80 group-hover:bg-[#FF6A1F] transition-colors rounded-t-[1px]" style="height: 60%;"></div>
+<span class="text-[10px] font-mono text-[#6E6960] mt-2">G3</span>
+</div>
+<!-- Bar 4: 16 pt (Max) -->
+<div class="flex-1 flex flex-col items-center group h-full justify-end">
+<span class="text-[10px] font-mono text-[#FF6A1F] font-bold mb-1 tabular-nums">16</span>
+<div class="w-full bg-[#FF6A1F] transition-colors rounded-t-[1px]" style="height: 80%;"></div>
+<span class="text-[10px] font-mono text-[#6E6960] mt-2">G4</span>
+</div>
+<!-- Bar 5: 8 pt -->
+<div class="flex-1 flex flex-col items-center group h-full justify-end">
+<span class="text-[10px] font-mono text-[#A9A398] group-hover:text-[#FF6A1F] transition-colors mb-1 tabular-nums">8</span>
+<div class="w-full bg-[#FF6A1F]/80 group-hover:bg-[#FF6A1F] transition-colors rounded-t-[1px]" style="height: 40%;"></div>
+<span class="text-[10px] font-mono text-[#6E6960] mt-2">G5</span>
+</div>
+<!-- Bar 6: 11 pt -->
+<div class="flex-1 flex flex-col items-center group h-full justify-end">
+<span class="text-[10px] font-mono text-[#A9A398] group-hover:text-[#FF6A1F] transition-colors mb-1 tabular-nums">11</span>
+<div class="w-full bg-[#FF6A1F]/80 group-hover:bg-[#FF6A1F] transition-colors rounded-t-[1px]" style="height: 55%;"></div>
+<span class="text-[10px] font-mono text-[#6E6960] mt-2">G6</span>
+</div>
+<!-- Bar 7: 15 pt -->
+<div class="flex-1 flex flex-col items-center group h-full justify-end">
+<span class="text-[10px] font-mono text-[#A9A398] group-hover:text-[#FF6A1F] transition-colors mb-1 tabular-nums">15</span>
+<div class="w-full bg-[#FF6A1F]/80 group-hover:bg-[#FF6A1F] transition-colors rounded-t-[1px]" style="height: 75%;"></div>
+<span class="text-[10px] font-mono text-[#6E6960] mt-2">G7</span>
+</div>
+<!-- Bar 8: 10 pt -->
+<div class="flex-1 flex flex-col items-center group h-full justify-end">
+<span class="text-[10px] font-mono text-[#A9A398] group-hover:text-[#FF6A1F] transition-colors mb-1 tabular-nums">10</span>
+<div class="w-full bg-[#FF6A1F]/80 group-hover:bg-[#FF6A1F] transition-colors rounded-t-[1px]" style="height: 50%;"></div>
+<span class="text-[10px] font-mono text-[#6E6960] mt-2">G8</span>
+</div>
+<!-- Bar 9: 13 pt -->
+<div class="flex-1 flex flex-col items-center group h-full justify-end">
+<span class="text-[10px] font-mono text-[#A9A398] group-hover:text-[#FF6A1F] transition-colors mb-1 tabular-nums">13</span>
+<div class="w-full bg-[#FF6A1F]/80 group-hover:bg-[#FF6A1F] transition-colors rounded-t-[1px]" style="height: 65%;"></div>
+<span class="text-[10px] font-mono text-[#6E6960] mt-2">G9</span>
+</div>
+<!-- Bar 10: 12 pt -->
+<div class="flex-1 flex flex-col items-center group h-full justify-end">
+<span class="text-[10px] font-mono text-[#A9A398] group-hover:text-[#FF6A1F] transition-colors mb-1 tabular-nums">12</span>
+<div class="w-full bg-[#FF6A1F]/80 group-hover:bg-[#FF6A1F] transition-colors rounded-t-[1px]" style="height: 60%;"></div>
+<span class="text-[10px] font-mono text-[#6E6960] mt-2">G10</span>
+</div>
+<!-- Bar 11: 11 pt -->
+<div class="flex-1 flex flex-col items-center group h-full justify-end">
+<span class="text-[10px] font-mono text-[#A9A398] group-hover:text-[#FF6A1F] transition-colors mb-1 tabular-nums">11</span>
+<div class="w-full bg-[#FF6A1F]/80 group-hover:bg-[#FF6A1F] transition-colors rounded-t-[1px]" style="height: 55%;"></div>
+<span class="text-[10px] font-mono text-[#6E6960] mt-2">G11</span>
+</div>
+<!-- Bar 12: 11 pt -->
+<div class="flex-1 flex flex-col items-center group h-full justify-end">
+<span class="text-[10px] font-mono text-[#A9A398] group-hover:text-[#FF6A1F] transition-colors mb-1 tabular-nums">11</span>
+<div class="w-full bg-[#FF6A1F]/80 group-hover:bg-[#FF6A1F] transition-colors rounded-t-[1px]" style="height: 55%;"></div>
+<span class="text-[10px] font-mono text-[#6E6960] mt-2">G12</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- RIGHT COLUMN (Approx 40% = 5 cols) -->
+<div class="lg:col-span-5">
+<!-- CARD: STORICO TAPPE -->
+<div class="bg-[#12151C] border border-[#2A2F3D] rounded-[4px] overflow-hidden">
+<div class="p-4 border-b border-[#2A2F3D] flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[#FF6A1F] text-lg">calendar_month</span>
+<h2 class="font-headline font-bold uppercase tracking-wider text-[#F2EDE4] text-base">STORICO TAPPE</h2>
+</div>
+<span class="font-mono text-[11px] text-[#A9A398]">2026 TOUR</span>
+</div>
+<!-- Data Table -->
+<div class="overflow-x-auto">
+<table class="w-full text-left text-xs border-collapse">
+<thead>
+<tr class="border-b border-[#2A2F3D] bg-[#0B0D12] text-[#A9A398] font-label uppercase text-[10px] tracking-wider">
+<th class="py-2.5 px-3 font-semibold">TAPPA</th>
+<th class="py-2.5 px-2 font-semibold">DATA</th>
+<th class="py-2.5 px-2 font-semibold text-center">PIAZZ.</th>
+<th class="py-2.5 px-2 font-semibold text-right">PT</th>
+<th class="py-2.5 px-2 font-semibold text-right">REB</th>
+<th class="py-2.5 px-3 font-semibold text-right">AST</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-[#2A2F3D]/60 font-body">
+<!-- Row 1 -->
+<tr class="hover:bg-[#1B1F29] transition-colors">
+<td class="py-2.5 px-3 font-medium text-[#F2EDE4] truncate max-w-[130px]">The Goat Torino Open</td>
+<td class="py-2.5 px-2 text-[#A9A398] font-mono text-[11px]">14/09/2026</td>
+<td class="py-2.5 px-2 text-center">
+<span class="font-headline font-black text-[#F5C542]">1°</span>
+</td>
+<td class="py-2.5 px-2 font-mono text-right tabular-nums text-[#FF6A1F] font-semibold">38</td>
+<td class="py-2.5 px-2 font-mono text-right tabular-nums text-[#F2EDE4]">15</td>
+<td class="py-2.5 px-3 font-mono text-right tabular-nums text-[#F2EDE4]">6</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-[#1B1F29] transition-colors">
+<td class="py-2.5 px-3 font-medium text-[#F2EDE4] truncate max-w-[130px]">Street Playground Milano</td>
+<td class="py-2.5 px-2 text-[#A9A398] font-mono text-[11px]">28/08/2026</td>
+<td class="py-2.5 px-2 text-center">
+<span class="font-headline font-bold text-[#F2EDE4]">2°</span>
+</td>
+<td class="py-2.5 px-2 font-mono text-right tabular-nums text-[#FF6A1F] font-semibold">31</td>
+<td class="py-2.5 px-2 font-mono text-right tabular-nums text-[#F2EDE4]">14</td>
+<td class="py-2.5 px-3 font-mono text-right tabular-nums text-[#F2EDE4]">5</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-[#1B1F29] transition-colors">
+<td class="py-2.5 px-3 font-medium text-[#F2EDE4] truncate max-w-[130px]">Bologna Concrete Jam</td>
+<td class="py-2.5 px-2 text-[#A9A398] font-mono text-[11px]">11/07/2026</td>
+<td class="py-2.5 px-2 text-center">
+<span class="font-headline font-bold text-[#F2EDE4]">3°</span>
+</td>
+<td class="py-2.5 px-2 font-mono text-right tabular-nums text-[#FF6A1F] font-semibold">26</td>
+<td class="py-2.5 px-2 font-mono text-right tabular-nums text-[#F2EDE4]">12</td>
+<td class="py-2.5 px-3 font-mono text-right tabular-nums text-[#F2EDE4]">7</td>
+</tr>
+<!-- Row 4 -->
+<tr class="hover:bg-[#1B1F29] transition-colors">
+<td class="py-2.5 px-3 font-medium text-[#F2EDE4] truncate max-w-[130px]">Rivoli Summer Classic</td>
+<td class="py-2.5 px-2 text-[#A9A398] font-mono text-[11px]">20/06/2026</td>
+<td class="py-2.5 px-2 text-center">
+<span class="font-headline font-black text-[#F5C542]">1°</span>
+</td>
+<td class="py-2.5 px-2 font-mono text-right tabular-nums text-[#FF6A1F] font-semibold">29</td>
+<td class="py-2.5 px-2 font-mono text-right tabular-nums text-[#F2EDE4]">16</td>
+<td class="py-2.5 px-3 font-mono text-right tabular-nums text-[#F2EDE4]">4</td>
+</tr>
+<!-- Row 5 -->
+<tr class="hover:bg-[#1B1F29] transition-colors">
+<td class="py-2.5 px-3 font-medium text-[#F2EDE4] truncate max-w-[130px]">San Salvario Night Hoop</td>
+<td class="py-2.5 px-2 text-[#A9A398] font-mono text-[11px]">30/05/2026</td>
+<td class="py-2.5 px-2 text-center">
+<span class="font-headline font-bold text-[#A9A398]">4°</span>
+</td>
+<td class="py-2.5 px-2 font-mono text-right tabular-nums text-[#FF6A1F] font-semibold">18</td>
+<td class="py-2.5 px-2 font-mono text-right tabular-nums text-[#F2EDE4]">10</td>
+<td class="py-2.5 px-3 font-mono text-right tabular-nums text-[#F2EDE4]">9</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="p-3 bg-[#0B0D12] border-t border-[#2A2F3D] text-center">
+<a class="font-headline font-semibold text-xs tracking-wider uppercase text-[#A9A398] hover:text-[#FF6A1F] transition-colors inline-flex items-center gap-1" href="#">
+              VEDI TUTTI I TORNEI (12)
+              <span class="material-symbols-outlined text-xs">arrow_forward</span>
+</a>
+</div>
+</div>
+</div>
+</div>
+<!-- BOTTOM SECTION: ULTIME PARTITE -->
+<section class="bg-[#12151C] border border-[#2A2F3D] rounded-[4px] overflow-hidden">
+<!-- Header with Quick Filter -->
+<div class="p-4 border-b border-[#2A2F3D] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[#FF6A1F] text-lg">scoreboard</span>
+<h2 class="font-headline font-bold uppercase tracking-wider text-[#F2EDE4] text-base">ULTIME PARTITE</h2>
+</div>
+<!-- Quick Filters -->
+<div class="inline-flex bg-[#0B0D12] p-0.5 border border-[#2A2F3D] rounded-[2px] text-xs font-headline uppercase">
+<button class="px-3 py-1 bg-[#1B1F29] text-[#FF6A1F] font-bold rounded-[2px]">Tutte</button>
+<button class="px-3 py-1 text-[#A9A398] hover:text-[#F2EDE4] transition-colors">Vittorie</button>
+<button class="px-3 py-1 text-[#A9A398] hover:text-[#F2EDE4] transition-colors">Sconfitte</button>
+</div>
+</div>
+<!-- 4 Compact Match Rows -->
+<div class="divide-y divide-[#2A2F3D]">
+<!-- Row 1 -->
+<div class="p-3.5 sm:p-4 hover:bg-[#1B1F29]/60 transition-colors flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+<div class="flex items-center gap-3">
+<span class="w-6 h-6 rounded-[2px] bg-[#3DD68C]/20 border border-[#3DD68C]/50 text-[#3DD68C] font-headline font-black text-xs flex items-center justify-center">V</span>
+<div class="flex items-center gap-2">
+<span class="text-xs text-[#A9A398] font-mono">vs</span>
+<span class="font-headline font-bold text-sm tracking-wide uppercase text-[#F2EDE4]">Moncalieri Ballers</span>
+</div>
+<span class="font-mono text-[11px] text-[#6E6960] hidden sm:inline">· Finale 1° Posto</span>
+</div>
+<div class="flex items-center justify-between md:justify-end gap-6">
+<div class="font-headline font-black text-lg sm:text-xl text-[#F2EDE4] tabular-nums tracking-tight bg-[#0B0D12] border border-[#2A2F3D] px-2.5 py-0.5 rounded-[2px]">
+              21 - 17
+            </div>
+<div class="font-mono text-xs text-[#A9A398] tracking-wider tabular-nums">
+<span class="text-[#FF6A1F] font-semibold">12</span> PT · 6 REB · 2 AST · 1 BLK
+            </div>
+</div>
+</div>
+<!-- Row 2 -->
+<div class="p-3.5 sm:p-4 hover:bg-[#1B1F29]/60 transition-colors flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+<div class="flex items-center gap-3">
+<span class="w-6 h-6 rounded-[2px] bg-[#3DD68C]/20 border border-[#3DD68C]/50 text-[#3DD68C] font-headline font-black text-xs flex items-center justify-center">V</span>
+<div class="flex items-center gap-2">
+<span class="text-xs text-[#A9A398] font-mono">vs</span>
+<span class="font-headline font-bold text-sm tracking-wide uppercase text-[#F2EDE4]">Darsena Crew</span>
+</div>
+<span class="font-mono text-[11px] text-[#6E6960] hidden sm:inline">· Semifinale</span>
+</div>
+<div class="flex items-center justify-between md:justify-end gap-6">
+<div class="font-headline font-black text-lg sm:text-xl text-[#F2EDE4] tabular-nums tracking-tight bg-[#0B0D12] border border-[#2A2F3D] px-2.5 py-0.5 rounded-[2px]">
+              22 - 20
+            </div>
+<div class="font-mono text-xs text-[#A9A398] tracking-wider tabular-nums">
+<span class="text-[#FF6A1F] font-semibold">10</span> PT · 7 REB · 1 AST · 2 BLK
+            </div>
+</div>
+</div>
+<!-- Row 3 -->
+<div class="p-3.5 sm:p-4 hover:bg-[#1B1F29]/60 transition-colors flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+<div class="flex items-center gap-3">
+<span class="w-6 h-6 rounded-[2px] bg-[#FF4D4D]/20 border border-[#FF4D4D]/50 text-[#FF4D4D] font-headline font-black text-xs flex items-center justify-center">S</span>
+<div class="flex items-center gap-2">
+<span class="text-xs text-[#A9A398] font-mono">vs</span>
+<span class="font-headline font-bold text-sm tracking-wide uppercase text-[#F2EDE4]">Piemonte Heat</span>
+</div>
+<span class="font-mono text-[11px] text-[#6E6960] hidden sm:inline">· Girone Eliminatorio</span>
+</div>
+<div class="flex items-center justify-between md:justify-end gap-6">
+<div class="font-headline font-black text-lg sm:text-xl text-[#A9A398] tabular-nums tracking-tight bg-[#0B0D12] border border-[#2A2F3D] px-2.5 py-0.5 rounded-[2px]">
+              18 - 21
+            </div>
+<div class="font-mono text-xs text-[#A9A398] tracking-wider tabular-nums">
+<span class="text-[#FF6A1F] font-semibold">8</span> PT · 5 REB · 3 AST · 0 BLK
+            </div>
+</div>
+</div>
+<!-- Row 4 -->
+<div class="p-3.5 sm:p-4 hover:bg-[#1B1F29]/60 transition-colors flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+<div class="flex items-center gap-3">
+<span class="w-6 h-6 rounded-[2px] bg-[#3DD68C]/20 border border-[#3DD68C]/50 text-[#3DD68C] font-headline font-black text-xs flex items-center justify-center">V</span>
+<div class="flex items-center gap-2">
+<span class="text-xs text-[#A9A398] font-mono">vs</span>
+<span class="font-headline font-bold text-sm tracking-wide uppercase text-[#F2EDE4]">Barriera Snipers</span>
+</div>
+<span class="font-mono text-[11px] text-[#6E6960] hidden sm:inline">· Quarti di Finale</span>
+</div>
+<div class="flex items-center justify-between md:justify-end gap-6">
+<div class="font-headline font-black text-lg sm:text-xl text-[#F2EDE4] tabular-nums tracking-tight bg-[#0B0D12] border border-[#2A2F3D] px-2.5 py-0.5 rounded-[2px]">
+              21 - 15
+            </div>
+<div class="font-mono text-xs text-[#A9A398] tracking-wider tabular-nums">
+<span class="text-[#FF6A1F] font-semibold">11</span> PT · 8 REB · 2 AST · 3 BLK
+            </div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- FOOTER -->
+<footer class="bg-[#0B0D12] border-t border-[#2A2F3D] mt-12">
+<div class="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col md:flex-row items-center justify-between gap-4">
+<!-- Brand & Copyright -->
+<div class="flex flex-col sm:flex-row items-center gap-3">
+<span class="font-headline text-lg font-black uppercase tracking-tighter text-[#F2EDE4]">HOOP 3X3</span>
+<span class="hidden sm:inline text-[#2A2F3D]">|</span>
+<span class="font-body text-xs text-[#A9A398]">© 2025 HOOP 3X3 Streetball Circuit Italia. Tutti i diritti riservati.</span>
+</div>
+<!-- Links -->
+<div class="flex flex-wrap items-center justify-center gap-6 font-body text-xs">
+<a class="text-[#A9A398] hover:text-[#F2EDE4] transition-colors" href="#">Regolamento FIBA 3x3</a>
+<a class="text-[#A9A398] hover:text-[#F2EDE4] transition-colors" href="#">Privacy Policy</a>
+<a class="text-[#A9A398] hover:text-[#F2EDE4] transition-colors" href="#">Termini di Servizio</a>
+<a class="text-[#A9A398] hover:text-[#F2EDE4] transition-colors" href="#">Contatti Arbitri</a>
+</div>
+</div>
+</footer>
+</body></html>

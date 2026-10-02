@@ -12,6 +12,8 @@ import { SquadraAnagrafeCard } from "../components/anagrafe/SquadraAnagrafeCard"
 import { SquadraAnagrafeModal } from "../components/anagrafe/SquadraAnagrafeModal";
 import { GiocatoreModal } from "../components/anagrafe/GiocatoreModal";
 import { Loading } from "../components/ui/Loading";
+import { Button } from "../components/ui/Button";
+import { Icon } from "../components/ui/Icon";
 import type { RegGiocatore, RegSquadra } from "../types";
 
 export function AnagrafePage() {
@@ -23,7 +25,7 @@ export function AnagrafePage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [selSquadra, setSelSquadra] = useState<RegSquadra | null>(null);
   const [selGiocatore, setSelGiocatore] = useState<RegGiocatore | null>(null);
-  const anagrafe = useAnagrafe(user ?? { name: "Ospite", guest: true });
+  const anagrafe = useAnagrafe();
   if (!user) return <Navigate to="/" replace />;
   const { giocatori, squadre, saveGiocatore, saveSquadra, removeGiocatore, removeSquadra, updateSquadra, updateGiocatore } = anagrafe;
 
@@ -43,32 +45,40 @@ export function AnagrafePage() {
     try { await fn(); setShowForm(false); } catch { setMsg("Salvataggio non riuscito, riprova."); }
   };
 
+  const tabs = [["g", `Giocatori (${(giocatori || []).length})`], ["s", `Squadre (${(squadre || []).length})`], ["stats", "Statistiche stagione"]] as const;
+
   return (
     <div>
-      <div className="row wrap gap-8" style={{ marginBottom: 12 }}>
-        {([["g", `Giocatori (${(giocatori || []).length})`], ["s", `Squadre (${(squadre || []).length})`], ["stats", "Statistiche stagione"]] as const).map(([id, label]) => (
-          <button key={id} onClick={() => { setTab(id); setShowForm(false); setMsg(null); }}
-            className={`navbtn${tab === id ? " active" : ""}`} style={{ fontFamily: "'Archivo', sans-serif", textTransform: "none", fontSize: 13.5 }}>
-            {label}
-          </button>
-        ))}
+      <h1 className="font-display text-4xl mb-3">Anagrafe <span className="text-court">circuito</span></h1>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="flex gap-1 border-b border-asphalt-700" role="tablist">
+          {tabs.map(([id, label]) => (
+            <button key={id} role="tab" aria-selected={tab === id} onClick={() => { setTab(id); setShowForm(false); setMsg(null); }}
+              className={`-mb-px border-b-2 px-3 py-2 font-display text-[15px] transition-colors ${tab === id ? "border-court text-chalk" : "border-transparent text-chalk-muted hover:text-chalk"}`}>
+              {label}
+            </button>
+          ))}
+        </div>
         {tab !== "stats" && (
           <>
-            <input className="statin" style={{ flex: "1 1 180px", maxWidth: 280 }} value={query}
-              onChange={(e) => setQuery(e.target.value)} placeholder="Cerca per nome, città, squadra…" />
-            <button onClick={() => { setShowForm(!showForm); setMsg(null); }} className="redbtn" style={{ padding: "10px 16px" }}>
-              {showForm ? "Chiudi" : tab === "g" ? "+ Registra giocatore" : "+ Registra squadra"}
-            </button>
+            <label className="relative ml-auto flex-1 min-w-[180px] max-w-xs">
+              <span className="sr-only">Cerca</span>
+              <Icon name="search" size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-chalk-dim" />
+              <input className="statin pl-9" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Cerca per nome, città, squadra…" />
+            </label>
+            <Button onClick={() => { setShowForm(!showForm); setMsg(null); }}>
+              {showForm ? "Chiudi" : <><Icon name="plus" size={16} /> {tab === "g" ? "Registra giocatore" : "Registra squadra"}</>}
+            </Button>
           </>
         )}
       </div>
 
-      <p className="ui" style={{ fontSize: 11.5, fontWeight: 600, opacity: 0.8, margin: "0 0 14px" }}>
+      <p className="mb-4 text-xs text-chalk-muted">
         L'anagrafe è condivisa: i dati registrati sono visibili a tutti gli utenti del circuito. Inserisci solo
         informazioni che possono essere rese pubbliche e per cui hai il consenso degli interessati.
       </p>
 
-      {msg && <p className="ui t-red" style={{ fontWeight: 700, fontSize: 13, margin: "0 0 10px" }}>{msg}</p>}
+      {msg && <p className="mb-2.5 text-[13px] font-semibold text-loss" role="alert">{msg}</p>}
 
       {showForm && tab === "g" && <GiocatoreForm squadre={squadre || []} onSave={(d) => guard(() => saveGiocatore(d))} />}
       {showForm && tab === "s" && <SquadraAnagrafeForm giocatori={giocatori || []} onSave={(d) => guard(() => saveSquadra(d))} />}
@@ -76,11 +86,11 @@ export function AnagrafePage() {
       {tab === "g" && (
         giocatori === null ? <Loading>Sto aprendo l'anagrafe…</Loading> :
         gList.length === 0 ? (
-          <p style={{ fontStyle: "italic", fontSize: 15 }}>
+          <p className="text-[15px] text-chalk-muted">
             {query ? "Nessun giocatore trovato con questa ricerca." : "Nessun giocatore registrato: aggiungi il primo."}
           </p>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))", gap: 12 }}>
+          <div className="grid gap-3 grid-cols-[repeat(auto-fill,minmax(250px,1fr))]">
             {gList.map((g) => (
               <GiocatoreCard key={g.id} g={g} user={user} squadre={squadre || []}
                 onOpen={() => setSelGiocatore(g)}
@@ -93,11 +103,11 @@ export function AnagrafePage() {
       {tab === "s" && (
         squadre === null ? <Loading>Sto aprendo l'anagrafe…</Loading> :
         sList.length === 0 ? (
-          <p style={{ fontStyle: "italic", fontSize: 15 }}>
+          <p className="text-[15px] text-chalk-muted">
             {query ? "Nessuna squadra trovata con questa ricerca." : "Nessuna squadra registrata: aggiungi la prima."}
           </p>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))", gap: 12 }}>
+          <div className="grid gap-3 grid-cols-[repeat(auto-fill,minmax(250px,1fr))]">
             {sList.map((s) => (
               <SquadraAnagrafeCard key={s.id} s={s} giocatori={giocatori || []} user={user}
                 onOpen={() => setSelSquadra(s)}
@@ -108,7 +118,7 @@ export function AnagrafePage() {
       )}
       {tab === "stats" && (
         <>
-          <p className="ui" style={{ fontSize: 12, fontWeight: 600, opacity: 0.75, margin: "0 0 4px" }}>
+          <p className="mb-1 text-xs text-chalk-muted">
             Totali e medie per partita su tutte le tappe della lega corrente. Ordinate per media punti.
           </p>
           <StatsCircuito tappe={tappe} />

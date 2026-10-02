@@ -1,6 +1,7 @@
 /** Editor del roster di una squadra in una tappa: max 4 giocatori, min 3 per poter sorteggiare. */
 import type { GiocatoreRoster } from "../../types";
-import { INK } from "../../constants/colors";
+import { Icon } from "../ui/Icon";
+import { Button } from "../ui/Button";
 
 interface Props {
   giocatori: GiocatoreRoster[];
@@ -11,21 +12,21 @@ interface Props {
 
 export function RosterEditor({ giocatori, onAdd, onRename, onRemove }: Props) {
   return (
-    <>
+    <div className="flex flex-col gap-1.5">
       {giocatori.map((p, pi) => (
-        <div key={p.id} className="row gap-6" style={{ marginBottom: 5 }}>
-          <input className="statin" style={{ padding: "6px 8px", fontSize: 13 }}
-            placeholder={`Giocatore ${pi + 1}`} value={p.nome}
-            onChange={(e) => onRename(p.id, e.target.value)} />
-          <button onClick={() => onRemove(p.id)} className="linkbtn t-ink"
-            style={{ opacity: 0.5, fontSize: 16 }} aria-label="Rimuovi giocatore">×</button>
+        <div key={p.id} className="flex items-center gap-1.5">
+          <input className="statin h-8 py-0 text-[13px]" placeholder={`Giocatore ${pi + 1}`} value={p.nome}
+            onChange={(e) => onRename(p.id, e.target.value)} aria-label={`Nome giocatore ${pi + 1}`} />
+          <button onClick={() => onRemove(p.id)} className="p-1 text-chalk-dim hover:text-loss" aria-label="Rimuovi giocatore">
+            <Icon name="close" size={14} />
+          </button>
         </div>
       ))}
       {giocatori.length < 4 && (
-        <button onClick={onAdd} className="linkbtn" style={{ fontSize: 12 }}>
-          + Aggiungi giocatore ({giocatori.length}/4)
-        </button>
+        <Button variant="link" className="self-start" onClick={onAdd}>
+          <Icon name="plus" size={12} /> Aggiungi giocatore ({giocatori.length}/4)
+        </Button>
       )}
-    </>
+    </div>
   );
 }

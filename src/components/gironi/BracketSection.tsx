@@ -1,10 +1,12 @@
 /** Fase a eliminazione diretta: mostra i match del bracket, permette di registrare i risultati
  *  e avanza automaticamente i vincitori ai round successivi. */
 import { useState } from "react";
-import { INK, ORANGE, RED, RULE } from "../../constants/colors";
-import type { BracketMatch, SquadraTappa, Tappa } from "../../types";
+import { Bracket } from "./Bracket";
+import { Button } from "../ui/Button";
+import { Section } from "../ui/Section";
+import type { BracketMatch, Tappa } from "../../types";
 import { useAppStore } from "../../stores/useAppStore";
-import { buildBracket, nextBracketSlot } from "../../utils/buildBracket";
+import { generaFasiDirette, registraRisultatoBracket } from "../../domain/tappaOps";
 import { standings } from "../../utils/standings";
 
 /** Divide il bracket in round in base alla struttura ad albero:
@@ -51,8 +53,8 @@ interface Props {
 }
 
 export function BracketSection({ tappa, readOnly = false }: Props) {
-  const updateTappa        = useAppStore((s) => s.updateTappa);
-  const updateBracketMatch = useAppStore((s) => s.updateBracketMatch);
+  const updateTappa  = useAppStore((s) => s.updateTappa);
+  const replaceTappa = useAppStore((s) => s.replaceTappa);
   const nameOf = (id: string | null) =>
     id ? (tappa.squadre.find((s) => s.id === id)?.nome ?? id) : "TBD";
 
@@ -62,27 +64,19 @@ export function BracketSection({ tappa, readOnly = false }: Props) {
   const allGironiDone = tappa.gironi !== null &&
     tappa.partite.every((m) => m.done);
 
-  /** Genera il bracket dalla classifica dei gironi */
+  /** Genera il bracket dalla classifica dei gironi (regole in tappaOps) */
   const generaBracket = () => {
-    if (!tappa.gironi) return;
-    const bracket = buildBracket(tappa.gironi, tappa.partite, tappa.squadre);
-    updateTappa(tappa.id, { bracket });
+    const esito = generaFasiDirette(tappa);
+    if (esito.ok) replaceTappa(esito.tappa);
   };
 
-  /** Registra il risultato di un match del bracket e avanza il vincitore al round successivo. */
+  /** Registra il risultato di un match del bracket: validazione e avanzamento del vincitore
+   *  sono in tappaOps (stessa logica del Coach AI). */
   const registraRisultato = (match: BracketMatch) => {
     const sc = scores[match.id] ?? { a: "", b: "" };
-    const pA = parseInt(sc.a, 10);
-    const pB = parseInt(sc.b, 10);
-    if (isNaN(pA) || isNaN(pB) || pA === pB) return;
-
-    const vincitoreId = pA > pB ? match.squadraA : match.squadraB;
-    updateBracketMatch(tappa.id, match.id, { pA, pB, done: true });
-
-    // Avanza il vincitore allo slot TBD del round successivo (logica condivisa col Coach AI)
-    const next = nextBracketSlot(tappa.bracket ?? [], match.id, vincitoreId);
-    if (next) updateBracketMatch(tappa.id, next.id, next.patch);
-
+    const esito = registraRisultatoBracket(tappa, match.id, parseInt(sc.a, 10), parseInt(sc.b, 10));
+    if (!esito.ok) return; // punteggio non valido: come prima, non succede nulla
+    replaceTappa(esito.tappa);
     setScores((prev) => ({ ...prev, [match.id]: { a: "", b: "" } }));
   };
 
@@ -94,113 +88,43 @@ export function BracketSection({ tappa, readOnly = false }: Props) {
   // Bottone per generare il bracket
   if (!tappa.bracket?.length) {
     return (
-      <section style={{ borderTop: `4px solid ${INK}`, marginBottom: 26 }}>
-        <h3 className="disp up" style={{ fontSize: 18, margin: "12px 0 6px" }}>
-          Fase finale
-        </h3>
-        <p className="ui" style={{ fontSize: 12.5, fontWeight: 600, opacity: 0.75, margin: "0 0 12px" }}>
+      <Section title="Fase finale" kicker="Eliminazione diretta">
+        <p className="mb-3 text-[13px] text-chalk-muted">
           Tutti i gironi sono conclusi. Genera il bracket per la fase a eliminazione diretta.
         </p>
-        {!readOnly && (
-          <button onClick={generaBracket} className="blackbtn">
-            Genera bracket eliminazione diretta
-          </button>
-        )}
-      </section>
+        {!readOnly && <Button onClick={generaBracket}>Genera bracket eliminazione diretta</Button>}
+      </Section>
     );
   }
 
   const rounds = splitRounds(tappa.bracket);
+  const logoOf = (id: string | null) => (id ? tappa.squadre.find((s) => s.id === id)?.logo : undefined);
+
+  /** Input punteggio + salva per un match ancora da giocare (markup; la logica è registraRisultato) */
+  const renderControls = (m: BracketMatch) => {
+    const sc = scores[m.id] ?? { a: "", b: "" };
+    const setSc = (side: "a" | "b", v: string) =>
+      setScores((p) => ({ ...p, [m.id]: { ...(p[m.id] ?? { a: "", b: "" }), [side]: v } }));
+    return (
+      <div className="flex items-center gap-1.5">
+        <input type="number" min={0} inputMode="numeric" className="scorein w-12" value={sc.a}
+          onChange={(e) => setSc("a", e.target.value)} aria-label={`Punti ${nameOf(m.squadraA)}`} />
+        <span className="font-display text-chalk-dim">–</span>
+        <input type="number" min={0} inputMode="numeric" className="scorein w-12" value={sc.b}
+          onChange={(e) => setSc("b", e.target.value)} aria-label={`Punti ${nameOf(m.squadraB)}`} />
+        <Button size="sm" className="ml-auto" onClick={() => registraRisultato(m)}>Salva</Button>
+      </div>
+    );
+  };
 
   return (
-    <section style={{ borderTop: `4px solid ${INK}`, marginBottom: 26 }}>
-      <h3 className="h-sec">
-        Fase finale — Eliminazione diretta
-      </h3>
-
-      {rounds.map((round, ri) => (
-        <div key={ri} style={{ marginBottom: 18 }}>
-          <div className="ui up" style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", opacity: 0.6, margin: "0 0 8px" }}>
-            {round[0]?.label.replace(/\s\d+$/, "") ?? `Round ${ri + 1}`}
-          </div>
-          {round.map((m) => {
-            const sc = scores[m.id] ?? { a: "", b: "" };
-            const isFinale = m.label === "Finale";
-            return (
-              <div key={m.id} className="row wrap gap-12" style={{
-                border: `1.5px solid ${INK}`,
-                background: "var(--card)",
-                padding: "10px 14px",
-                marginBottom: 8,
-              }}>
-                <span className="ui" style={{ fontSize: 10.5, fontWeight: 700, opacity: 0.5, minWidth: 80 }}>
-                  {m.label}
-                </span>
-
-                {/* Squadra A */}
-                <span className="disp tar up" style={{
-                  flex: "1 1 120px", fontSize: 14,
-                  color: m.done && m.pA > m.pB ? INK : m.done ? RED : INK,
-                  fontWeight: m.done && m.pA > m.pB ? 900 : 400,
-                }}>
-                  {nameOf(m.squadraA)}
-                </span>
-
-                {/* Punteggio / input */}
-                {m.done ? (
-                  <span className="disp tac" style={{ fontSize: 20, minWidth: 70 }}>
-                    <span style={{ color: m.pA > m.pB ? INK : RED }}>{m.pA}</span>
-                    {" — "}
-                    <span style={{ color: m.pB > m.pA ? INK : RED }}>{m.pB}</span>
-                  </span>
-                ) : !readOnly && m.squadraA && m.squadraB ? (
-                  <div className="row gap-4">
-                    <input type="number" min={0} className="scorein"
-                      value={sc.a}
-                      onChange={(e) => setScores((p) => ({ ...p, [m.id]: { ...p[m.id] ?? { a: "", b: "" }, a: e.target.value } }))}
-                      style={{ width: 52 }} />
-                    <span className="disp" style={{ fontSize: 16, opacity: 0.5 }}>—</span>
-                    <input type="number" min={0} className="scorein"
-                      value={sc.b}
-                      onChange={(e) => setScores((p) => ({ ...p, [m.id]: { ...p[m.id] ?? { a: "", b: "" }, b: e.target.value } }))}
-                      style={{ width: 52 }} />
-                    <button onClick={() => registraRisultato(m)} className="blackbtn" style={{ padding: "8px 12px", fontSize: 12 }}>
-                      Salva
-                    </button>
-                  </div>
-                ) : (
-                  <span className="disp tac" style={{ fontSize: 18, minWidth: 70, opacity: 0.35 }}>
-                    ? — ?
-                  </span>
-                )}
-
-                {/* Squadra B */}
-                <span className="disp up" style={{
-                  flex: "1 1 120px", fontSize: 14,
-                  color: m.done && m.pB > m.pA ? INK : m.done ? RED : INK,
-                  fontWeight: m.done && m.pB > m.pA ? 900 : 400,
-                }}>
-                  {nameOf(m.squadraB)}
-                </span>
-
-                {/* Badge vincitore finale */}
-                {m.done && isFinale && (
-                  <span className="disp" style={{ fontSize: 11, background: ORANGE, color: "white", padding: "3px 8px" }}>
-                    CAMPIONE — {nameOf(m.pA > m.pB ? m.squadraA : m.squadraB)}
-                  </span>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      ))}
-
-      {!readOnly && (
-        <button onClick={() => updateTappa(tappa.id, { bracket: undefined })}
-          className="linkbtn" style={{ opacity: 0.5, fontSize: 12, marginTop: 4 }}>
+    <Section title="Fase finale" kicker="Eliminazione diretta"
+      actions={!readOnly && (
+        <Button variant="link" className="text-chalk-muted" onClick={() => updateTappa(tappa.id, { bracket: undefined })}>
           Elimina bracket e ricomincia
-        </button>
-      )}
-    </section>
+        </Button>
+      )}>
+      <Bracket rounds={rounds} nameOf={nameOf} logoOf={logoOf} renderControls={readOnly ? undefined : renderControls} />
+    </Section>
   );
 }

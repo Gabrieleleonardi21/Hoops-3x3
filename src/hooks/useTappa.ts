@@ -1,9 +1,8 @@
 import { useAppStore } from "../stores/useAppStore";
-import { storage } from "../services/storage";
+import { archivioApi } from "../services/archivioApi";
 import { uid } from "../utils/uid";
-import { buildGironi } from "../utils/buildGironi";
-import { buildGironiSeeded } from "../utils/buildGironiSeeded";
-import { buildMatches } from "../utils/buildMatches";
+import * as ops from "../domain/tappaOps";
+import type { ModoSorteggio } from "../domain/tappaOps";
 import type { EventoGara, Partita, RegSquadra, StatLine, StatSheet, Tappa } from "../types";
 
 export interface MatchDraft {
@@ -122,9 +121,10 @@ export function useTappa(id: string | undefined) {
       ),
     });
 
-  /* ── sorteggio ── */
-  const sorteggia = (mode: "casuale" | "ranking"): string | null => {
+  /* ── sorteggio: gironi e calendario li costruisce tappaOps ── */
+  const sorteggia = (mode: ModoSorteggio): string | null => {
     if (!tappa || !user) return "Tappa non trovata.";
+    // Roster e ranking sono obbligatori solo per i registrati: l'ospite fa prove libere
     if (!user.guest) {
       const incomplete = tappa.squadre.filter((s) => !teamComplete(s.id));
       if (incomplete.length)
@@ -132,24 +132,20 @@ export function useTappa(id: string | undefined) {
       if (mode === "ranking" && !tappa.squadre.some((s) => Number(s.rank) > 0))
         return "Per il sorteggio per ranking inserisci i punti ranking del circuito nelle card delle squadre.";
     }
-    const gironi =
-      mode === "ranking"
-        ? buildGironiSeeded(tappa.squadre, tappa.nGironi)
-        : buildGironi(tappa.squadre.map((s) => s.id), tappa.nGironi);
-    patch({ gironi, partite: buildMatches(gironi) });
+    const esito = ops.sorteggia(tappa, mode);
+    if (!esito.ok) return esito.errore;
+    replaceTappa(esito.tappa);
     return null;
   };
 
-  /* ── punteggi: valida secondo le regole 3x3 e salva ── */
+  /* ── punteggi: le regole 3x3 sul punteggio sono in tappaOps, qui i controlli sui roster ── */
   const saveScore = (m: Partita, draft: MatchDraft): string | null => {
     if (!tappa || !user) return "Tappa non trovata.";
     const sa = parseInt(draft.sa, 10);
     const sb = parseInt(draft.sb, 10);
-    if (isNaN(sa) || isNaN(sb) || sa < 0 || sb < 0) return "Inserisci entrambi i punteggi.";
-    if (sa === sb)
-      return `Nel 3x3 non esistono pareggi: si gioca il supplementare (primo a ${tappa.regole.ot} punti).`;
-    if (Math.max(sa, sb) > tappa.regole.target + 4)
-      return `Punteggio insolito: nel 3x3 la gara finisce a ${tappa.regole.target} punti (o allo scadere dei ${tappa.regole.durata}').`;
+    const esito = ops.registraRisultato(tappa, m.id, { sa, sb, pa: numify(draft.pa), pb: numify(draft.pb) });
+    if (!esito.ok) return esito.errore;
+    // Per i registrati i punti dei giocatori sono obbligatori e devono dare il totale di squadra
     if (!user.guest) {
       const sides: ["pa" | "pb", string, number][] = [["pa", m.a, sa], ["pb", m.b, sb]];
       for (const [side, teamId, total] of sides) {
@@ -163,11 +159,7 @@ export function useTappa(id: string | undefined) {
           return `I punti dei giocatori di ${nameOf(teamId)} sommano ${sum}, ma il totale è ${total}.`;
       }
     }
-    patch({
-      partite: tappa.partite.map((x) =>
-        x.id === m.id ? { ...x, sa, sb, pa: numify(draft.pa), pb: numify(draft.pb), done: true } : x
-      ),
-    });
+    replaceTappa(esito.tappa);
     return null;
   };
 
@@ -191,9 +183,7 @@ export function useTappa(id: string | undefined) {
   /* ── video + pubblicazione ── */
   const republish = async (t: Tappa) => {
     if (!t.conclusa || !user || user.guest) return;
-    await storage
-      .set(`pub_${t.id}`, JSON.stringify({ tappa: t, lega: legaName, autore: user.name, ts: Date.now() }), true)
-      .catch(() => {});
+    await archivioApi.pubblica(t, legaName).catch(() => {});
   };
   const addVideo = (titolo: string, url: string) => {
     if (!tappa || !url.trim()) return;
@@ -211,16 +201,15 @@ export function useTappa(id: string | undefined) {
     republish(t2);
   };
 
+  /* ── conclusione: gironi e fase diretta completi li verifica tappaOps ── */
   const concludi = async (): Promise<string | null> => {
     if (!tappa || !user) return "Tappa non trovata.";
-    if (!tappa.gironi || !tappa.partite.length) return "Sorteggia i gironi e registra le partite prima di concludere.";
-    const left = tappa.partite.filter((m) => !m.done).length;
-    if (left > 0) return `Mancano ancora ${left} partite da registrare.`;
+    const esito = ops.concludi(tappa);
+    if (!esito.ok) return esito.errore;
     if (user.guest) return "La pubblicazione nell'Archivio circuito richiede un account registrato.";
-    const t2: Tappa = { ...tappa, conclusa: true };
-    replaceTappa(t2);
+    replaceTappa(esito.tappa);
     try {
-      await storage.set(`pub_${tappa.id}`, JSON.stringify({ tappa: t2, lega: legaName, autore: user.name, ts: Date.now() }), true);
+      await archivioApi.pubblica(esito.tappa, legaName);
       return null;
     } catch {
       return "Tappa conclusa, ma pubblicazione non riuscita: riprova da 'Concludi'.";
@@ -230,7 +219,7 @@ export function useTappa(id: string | undefined) {
   const riapri = async () => {
     if (!tappa) return;
     updateTappa(tappa.id, { conclusa: false });
-    await storage.delete(`pub_${tappa.id}`, true).catch(() => {});
+    await archivioApi.rimuovi(tappa.id).catch(() => {});
   };
 
   return {

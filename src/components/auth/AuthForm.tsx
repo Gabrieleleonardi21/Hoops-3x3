@@ -1,13 +1,27 @@
 /** Form di autenticazione: usa react-hook-form + Zod per la validazione dei campi.
- *  L'autenticazione è dimostrativa (client-side SHA-256 + localStorage), non adatta alla produzione. */
+ *  Registrazione e login passano dal backend (JWT); la modalità Ospite resta locale al browser. */
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuth } from "../../hooks/useAuth";
+import { ApiError } from "../../services/api";
+
+const ACCOUNT_HINT = "hoop3x3_has_account";
+function hasAccountHint(): boolean {
+  try { return localStorage.getItem(ACCOUNT_HINT) === "1"; } catch { return false; }
+}
+function rememberAccount() {
+  try { localStorage.setItem(ACCOUNT_HINT, "1"); } catch { /* ignora */ }
+}
+/** Il backend risponde sempre {message}: si mostra quello, altrimenti un testo generico */
+function messaggioErrore(e: unknown): string {
+  if (e instanceof ApiError) return e.message;
+  return "Errore imprevisto, riprova.";
+}
 import { useNavigate } from "react-router-dom";
-import { INK, RED, RULE } from "../../constants/colors";
 import { Input } from "../ui/Input";
+import { Button } from "../ui/Button";
 
 const registerSchema = z.object({
   name: z.string().min(1, "Inserisci il nome utente"),
@@ -22,9 +36,10 @@ type RegisterData = z.infer<typeof registerSchema>;
 type LoginData = z.infer<typeof loginSchema>;
 
 export function AuthForm() {
-  const { account, register: doRegister, login: doLogin, enterGuest } = useAuth();
+  const { register: doRegister, login: doLogin, enterGuest } = useAuth();
   const navigate = useNavigate();
-  const [mode, setMode] = useState<"register" | "login">(account ? "login" : "register");
+  // Chi ha già usato un account su questo browser parte dal tab "Accedi"
+  const [mode, setMode] = useState<"register" | "login">(hasAccountHint() ? "login" : "register");
   const [authError, setAuthError] = useState<string | null>(null);
 
   const regForm = useForm<RegisterData>({ resolver: zodResolver(registerSchema) });
@@ -32,67 +47,66 @@ export function AuthForm() {
 
   const onRegister = regForm.handleSubmit(async (d) => {
     setAuthError(null);
-    await doRegister(d.name, d.email, d.pass);
-    navigate("/lega");
+    try {
+      await doRegister(d.name, d.email, d.pass);
+      rememberAccount();
+      navigate("/lega");
+    } catch (e) {
+      setAuthError(messaggioErrore(e));
+    }
   });
 
   const onLogin = logForm.handleSubmit(async (d) => {
     setAuthError(null);
-    const ok = await doLogin(d.email, d.pass);
-    if (!ok) { setAuthError("Mail o password non corretti."); return; }
-    navigate("/lega");
+    try {
+      await doLogin(d.email, d.pass);
+      rememberAccount();
+      navigate("/lega");
+    } catch (e) {
+      setAuthError(messaggioErrore(e));
+    }
   });
 
-  const err = (m?: string) =>
-    m ? <span className="ui t-red" style={{ fontSize: 11.5, fontWeight: 700 }}>{m}</span> : null;
+  const tab = (m: "register" | "login", label: string) => (
+    <button type="button" onClick={() => { setMode(m); setAuthError(null); }}
+      className={`border-b-2 px-1 pb-1.5 font-display text-lg transition-colors ${mode === m ? "border-court text-chalk" : "border-transparent text-chalk-muted hover:text-chalk"}`}
+      aria-pressed={mode === m}>
+      {label}
+    </button>
+  );
+  const regErr = regForm.formState.errors;
+  const logErr = logForm.formState.errors;
 
   return (
-    <section style={{ background: "var(--card)", border: `1.5px solid ${INK}`, padding: 24, maxWidth: 480 }}>
-      <div className="flex gap-16" style={{ marginBottom: 14 }}>
-        <button className="linkbtn" style={{ color: mode === "register" ? RED : INK, fontSize: 15 }}
-          onClick={() => { setMode("register"); setAuthError(null); }}>Registrati</button>
-        <button className="linkbtn" style={{ color: mode === "login" ? RED : INK, fontSize: 15 }}
-          onClick={() => { setMode("login"); setAuthError(null); }}>Accedi</button>
-      </div>
+    <section className="rounded border border-asphalt-600 bg-asphalt-900/95 p-5 backdrop-blur" aria-label="Accesso">
+      <div className="mb-4 flex gap-5 border-b border-asphalt-700">{tab("register", "Registrati")}{tab("login", "Accedi")}</div>
 
       {mode === "register" ? (
-        <div>
-          <Input label="Nome utente" labelClassName="form-label" placeholder="Es. Gabriele" {...regForm.register("name")} />
-          {err(regForm.formState.errors.name?.message)}
-          <Input label="Mail" labelClassName="form-label" type="email" placeholder="nome@mail.it" {...regForm.register("email")} />
-          {err(regForm.formState.errors.email?.message)}
-          <Input label="Password" labelClassName="form-label" labelStyle={{ marginBottom: 4 }} type="password" {...regForm.register("pass")} />
-          {err(regForm.formState.errors.pass?.message)}
-          <p style={{ fontSize: 12.5, fontStyle: "italic", margin: "6px 0 12px" }}>
-            Nota: è un accesso dimostrativo salvato solo su questo browser, non usare una password che utilizzi altrove.
+        <form className="flex flex-col gap-3" onSubmit={onRegister} noValidate>
+          <Input label="Nome utente" placeholder="Es. Gabriele" autoComplete="username" {...regForm.register("name")} error={!!regErr.name} hint={regErr.name?.message} />
+          <Input label="Mail" type="email" placeholder="nome@mail.it" autoComplete="email" {...regForm.register("email")} error={!!regErr.email} hint={regErr.email?.message} />
+          <Input label="Password" type="password" autoComplete="new-password" {...regForm.register("pass")} error={!!regErr.pass} hint={regErr.pass?.message} />
+          <p className="m-0 text-xs text-chalk-muted">
+            L'account è salvato sul server: le tue leghe ti seguono su qualsiasi dispositivo.
           </p>
-          <button onClick={onRegister} className="disp fullw up t-paper"
-            style={{ padding: 13, fontSize: 16, background: INK, border: "none", cursor: "pointer" }}>
-            Crea account
-          </button>
-        </div>
+          <Button type="submit" className="w-full">Crea account</Button>
+        </form>
       ) : (
-        <div>
-          {!account && <p style={{ fontSize: 14, fontStyle: "italic" }}>Nessun account trovato su questo browser: registrati per salvare la tua lega.</p>}
-          <Input label="Mail" labelClassName="form-label" type="email" {...logForm.register("email")} />
-          {err(logForm.formState.errors.email?.message)}
-          <Input label="Password" labelClassName="form-label" labelStyle={{ marginBottom: 14 }} type="password" {...logForm.register("pass")} />
-          {err(logForm.formState.errors.pass?.message)}
-          <button onClick={onLogin} className="disp fullw up t-paper"
-            style={{ padding: 13, fontSize: 16, background: INK, border: "none", cursor: "pointer" }}>
-            Accedi
-          </button>
-        </div>
+        <form className="flex flex-col gap-3" onSubmit={onLogin} noValidate>
+          <Input label="Mail" type="email" autoComplete="email" {...logForm.register("email")} error={!!logErr.email} hint={logErr.email?.message} />
+          <Input label="Password" type="password" autoComplete="current-password" {...logForm.register("pass")} error={!!logErr.pass} hint={logErr.pass?.message} />
+          <Button type="submit" className="w-full">Accedi</Button>
+        </form>
       )}
 
-      {authError && <p className="ui t-red" style={{ fontWeight: 700, fontSize: 13.5, marginTop: 10 }}>{authError}</p>}
+      {authError && <p className="mt-2.5 text-[13px] font-semibold text-loss" role="alert">{authError}</p>}
 
-      <div style={{ borderTop: `1px solid ${RULE}`, marginTop: 18, paddingTop: 14 }}>
-        <button onClick={() => { enterGuest().then(() => navigate("/lega")); }} className="redbtn fullw">
+      <div className="mt-4 border-t border-asphalt-700 pt-4">
+        <Button variant="outline" className="w-full" onClick={() => { enterGuest().then(() => navigate("/lega")); }}>
           Continua come Ospite
-        </button>
-        <p style={{ fontSize: 12.5, fontStyle: "italic", margin: "8px 0 0" }}>
-          I dati dell'Ospite vengono salvati solo su questo browser. I controlli obbligatori su roster e punti sono disattivati.
+        </Button>
+        <p className="mt-2 mb-0 text-xs text-chalk-muted">
+          I dati dell'Ospite restano su questo browser. I controlli obbligatori su roster e punti sono disattivati.
         </p>
       </div>
     </section>

@@ -1,10 +1,9 @@
-/** Hook di autenticazione: gestisce login, registrazione e modalità ospite.
- *  La sessione viene persistita in localStorage così il ricaricamento della pagina
- *  non obbliga l'utente a fare il login di nuovo. */
-import { useEffect, useState } from "react";
+/** Hook di autenticazione: login, registrazione (backend + JWT) e modalità ospite (solo browser).
+ *  L'utente della sessione è persistito in localStorage così il reload non obbliga a rifare il login;
+ *  il token JWT lo gestisce services/api.ts. */
 import { useAppStore, SESSION_KEY } from "../stores/useAppStore";
 import * as authService from "../services/authService";
-import type { Account, User } from "../types";
+import type { User } from "../types";
 
 function saveSession(u: User) {
   try { localStorage.setItem(SESSION_KEY, JSON.stringify(u)); } catch { /* quota exceeded */ }
@@ -16,41 +15,36 @@ function clearSession() {
 
 export function useAuth() {
   const { user, setUser, reset, rehydrate } = useAppStore();
-  const [account, setAccount] = useState<Account | null | undefined>(undefined);
 
-  useEffect(() => {
-    authService.loadAccount().then(setAccount);
-  }, []);
-
+  /** Registrazione: il server risponde già con il token, poi si caricano le leghe (vuote) */
   const register = async (name: string, email: string, pass: string) => {
     const u = await authService.register(name, email, pass);
-    setAccount({ name: u.name, email: u.email!, hash: "" });
     setUser(u);
     saveSession(u);
-    rehydrate(); // ripristina leghe e lega attiva da localStorage
+    await rehydrate();
   };
 
-  const login = async (email: string, pass: string): Promise<boolean> => {
-    if (!account) return false;
-    const u = await authService.login(account, email, pass);
-    if (!u) return false;
+  /** Login: lancia ApiError (401 credenziali, 0 server spento) che il form mostra all'utente */
+  const login = async (email: string, pass: string) => {
+    const u = await authService.login(email, pass);
     setUser(u);
     saveSession(u);
-    rehydrate(); // ripristina leghe e lega attiva da localStorage
-    return true;
+    await rehydrate();
   };
 
   const enterGuest = async () => {
     const u: User = { name: "Ospite", guest: true };
     setUser(u);
     saveSession(u);
-    rehydrate(); // ripristina eventuale sessione ospite precedente
+    await rehydrate(); // ripristina eventuale lega ospite precedente
   };
 
-  const logout = () => {
+  /** Uscita: prima lo stato locale, così l'interfaccia non aspetta la rete; poi la revoca sul server */
+  const logout = async () => {
     clearSession();
     reset();
+    await authService.logout();
   };
 
-  return { user, account, register, login, enterGuest, logout };
+  return { user, register, login, enterGuest, logout };
 }

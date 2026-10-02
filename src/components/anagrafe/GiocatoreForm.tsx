@@ -1,6 +1,7 @@
 /** Form per registrare un nuovo giocatore nell'anagrafe condivisa del circuito. */
 import { useState } from "react";
-import { INK } from "../../constants/colors";
+import { Button } from "../ui/Button";
+import { Card } from "../ui/Card";
 import { REG_ROLES } from "../../constants/roles";
 import { Input } from "../ui/Input";
 import type { RegGiocatore, RegSquadra } from "../../types";
@@ -25,8 +26,8 @@ export function GiocatoreForm({ squadre, onSave }: { squadre: RegSquadra[]; onSa
   };
 
   return (
-    <div style={{ background: "var(--card)", border: `1.5px solid ${INK}`, padding: 16, marginBottom: 18 }}>
-      <h3 className="disp up" style={{ fontSize: 16, margin: "0 0 10px" }}>Registra un giocatore</h3>
+    <Card className="mb-4">
+      <h3 className="font-display text-xl mb-3">Registra un giocatore</h3>
       <div className="grid-auto">
         <Input label="Nome *" value={d.nome} onChange={set("nome")} maxLength={100} />
         <Input label="Cognome *" value={d.cognome} onChange={set("cognome")} maxLength={100} />
@@ -36,8 +37,8 @@ export function GiocatoreForm({ squadre, onSave }: { squadre: RegSquadra[]; onSa
         <Input label="Nazionalità" value={d.nazionalita} onChange={set("nazionalita")} />
         <Input label="Altezza (cm)" type="number" min={0} value={d.altezza} onChange={set("altezza")} />
         <Input label="Peso (kg)" type="number" min={0} value={d.peso} onChange={set("peso")} />
-        <label className="ui" style={{ fontSize: 11, fontWeight: 700 }}>Ruolo
-          <select className="statin" style={{ marginTop: 4 }} value={d.ruolo} onChange={set("ruolo")}>
+        <label className="input-label">Ruolo
+          <select className="statin mt-1" value={d.ruolo} onChange={set("ruolo")}>
             {REG_ROLES.map((r) => <option key={r}>{r}</option>)}
           </select>
         </label>
@@ -50,8 +51,8 @@ export function GiocatoreForm({ squadre, onSave }: { squadre: RegSquadra[]; onSa
       </datalist>
       <Input label="Note sportive" labelStyle={{ marginTop: 10 }} value={d.note} onChange={set("note")}
         placeholder="es. tiratore da fuori, ex serie C" maxLength={500} />
-      {err && <p className="ui t-red" style={{ fontWeight: 700, fontSize: 13, margin: "8px 0 0" }}>{err}</p>}
-      <button onClick={save} className="blackbtn" style={{ marginTop: 12 }}>Salva nell'anagrafe</button>
-    </div>
+      {err && <p className="mt-2 text-[13px] font-semibold text-loss" role="alert">{err}</p>}
+      <Button className="mt-3" onClick={save}>Salva nell'anagrafe</Button>
+    </Card>
   );
 }

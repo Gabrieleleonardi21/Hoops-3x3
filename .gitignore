@@ -2,3 +2,9 @@ node_modules
 dist
 .env
 *.local
+
+# Cache Python della skill UI UX Pro Max
+.claude/skills/**/__pycache__
+
+# Grafo generato da graphify (cache locale)
+graphify-out/

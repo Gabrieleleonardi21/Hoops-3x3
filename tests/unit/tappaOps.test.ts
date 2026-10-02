@@ -1,0 +1,274 @@
+import { describe, it, expect } from "vitest";
+import {
+  sorteggia, registraRisultato, registraRisultatoBracket, generaFasiDirette, concludi,
+} from "../../src/domain/tappaOps";
+import type { Esito } from "../../src/domain/tappaOps";
+import type { Tappa } from "../../src/types";
+
+/** Tappa con 4 squadre e 2 gironi, non ancora sorteggiata (rank: Alfa 40, Beta 30, Gamma 20, Delta 10) */
+function tappaNuova(): Tappa {
+  return {
+    id: "t1", nome: "Roma Open", luogo: "Roma", data: "2026-06-01", nGironi: 2,
+    regole: { target: 21, durata: 10, ot: 2, shot: 12 },
+    squadre: [
+      { id: "a", nome: "Alfa", giocatori: [], rank: 40 },
+      { id: "b", nome: "Beta", giocatori: [], rank: 30 },
+      { id: "c", nome: "Gamma", giocatori: [], rank: 20 },
+      { id: "d", nome: "Delta", giocatori: [], rank: 10 },
+    ],
+    gironi: null, partite: [], video: [],
+  };
+}
+
+/** Tappa sorteggiata a mano: girone A = Alfa, Delta · girone B = Beta, Gamma (una partita per girone) */
+function tappaSorteggiata(): Tappa {
+  return {
+    ...tappaNuova(),
+    gironi: [["a", "d"], ["b", "c"]],
+    partite: [
+      { id: "m1", g: 0, a: "a", b: "d", sa: 0, sb: 0, done: false },
+      { id: "m2", g: 1, a: "b", b: "c", sa: 0, sb: 0, done: false },
+    ],
+  };
+}
+
+/** Gironi conclusi: Alfa batte Delta 21-15, Gamma batte Beta 21-18 */
+function tappaGironiConclusi(): Tappa {
+  const t = tappaSorteggiata();
+  return {
+    ...t,
+    partite: [
+      { ...t.partite[0], sa: 21, sb: 15, done: true },
+      { ...t.partite[1], sa: 18, sb: 21, done: true },
+    ],
+  };
+}
+
+/** Fase diretta già generata e ancora da giocare: SF1 Alfa-Beta, SF2 Delta-Gamma, finale da definire */
+function tappaConBracket(): Tappa {
+  return {
+    ...tappaGironiConclusi(),
+    bracket: [
+      { id: "sf1", label: "Semifinale 1", squadraA: "a", squadraB: "b", pA: 0, pB: 0, done: false },
+      { id: "sf2", label: "Semifinale 2", squadraA: "d", squadraB: "c", pA: 0, pB: 0, done: false },
+      { id: "fin", label: "Finale", squadraA: null, squadraB: null, pA: 0, pB: 0, done: false },
+    ],
+  };
+}
+
+/** Estrae la tappa da un esito riuscito (fa fallire il test se l'operazione è stata rifiutata) */
+function nuova(esito: Esito): Tappa {
+  if (!esito.ok) throw new Error(`operazione rifiutata: ${esito.errore}`);
+  return esito.tappa;
+}
+
+/** Estrae il messaggio da un esito rifiutato (fa fallire il test se l'operazione è riuscita) */
+function errore(esito: Esito): string {
+  if (esito.ok) throw new Error("operazione riuscita, ma doveva essere rifiutata");
+  return esito.errore;
+}
+
+describe("sorteggia", () => {
+  it("casuale: distribuisce tutte le squadre nei gironi e genera una partita per girone", () => {
+    const t = nuova(sorteggia(tappaNuova(), "casuale"));
+    expect(t.gironi!.map((g) => g.length)).toEqual([2, 2]);
+    expect(t.gironi!.flat().sort()).toEqual(["a", "b", "c", "d"]);
+    expect(t.partite).toHaveLength(2);
+    expect(t.partite.every((m) => !m.done)).toBe(true);
+  });
+
+  it("ranking: teste di serie a serpentina (1ª e 4ª nel girone A, 2ª e 3ª nel B)", () => {
+    const t = nuova(sorteggia(tappaNuova(), "ranking"));
+    expect(t.gironi).toEqual([["a", "d"], ["b", "c"]]);
+    expect(t.partite.map((m) => [m.g, m.a, m.b])).toEqual([[0, "a", "d"], [1, "b", "c"]]);
+  });
+
+  it("un nuovo sorteggio azzera i risultati già registrati", () => {
+    const t = nuova(sorteggia(tappaGironiConclusi(), "ranking"));
+    expect(t.partite.map((m) => [m.sa, m.sb, m.done])).toEqual([[0, 0, false], [0, 0, false]]);
+  });
+
+  it("non modifica la tappa ricevuta", () => {
+    const originale = tappaNuova();
+    sorteggia(originale, "casuale");
+    expect(originale).toEqual(tappaNuova());
+  });
+
+  it("rifiuta una tappa con meno di 2 squadre", () => {
+    const t = tappaNuova();
+    t.squadre = [t.squadre[0]];
+    expect(errore(sorteggia(t, "casuale"))).toMatch(/2 squadre/);
+  });
+});
+
+describe("registraRisultato (gironi)", () => {
+  it("segna punteggio e partita conclusa, senza toccare le altre partite", () => {
+    const t = nuova(registraRisultato(tappaSorteggiata(), "m1", { sa: 21, sb: 15 }));
+    expect(t.partite[0]).toEqual({ id: "m1", g: 0, a: "a", b: "d", sa: 21, sb: 15, done: true });
+    expect(t.partite[1]).toEqual({ id: "m2", g: 1, a: "b", b: "c", sa: 0, sb: 0, done: false });
+  });
+
+  it("salva le schede statistiche quando sono fornite", () => {
+    const t = nuova(registraRisultato(tappaSorteggiata(), "m1", {
+      sa: 21, sb: 15, pa: { p1: { pt: 21 } }, pb: { p2: { pt: 15, rb: 4 } },
+    }));
+    expect(t.partite[0].pa).toEqual({ p1: { pt: 21 } });
+    expect(t.partite[0].pb).toEqual({ p2: { pt: 15, rb: 4 } });
+  });
+
+  it("senza schede (Coach AI) conserva quelle già presenti", () => {
+    const partenza = tappaSorteggiata();
+    partenza.partite[0].pa = { p1: { pt: 12 } };
+    const t = nuova(registraRisultato(partenza, "m1", { sa: 21, sb: 15 }));
+    expect(t.partite[0].pa).toEqual({ p1: { pt: 12 } });
+  });
+
+  it("rifiuta il pareggio", () => {
+    expect(errore(registraRisultato(tappaSorteggiata(), "m1", { sa: 20, sb: 20 }))).toMatch(/pareggi/);
+  });
+
+  it.each([
+    ["mancante", NaN, 15],
+    ["negativo", 21, -1],
+    ["non intero", 21.5, 15],
+  ])("rifiuta un punteggio %s", (_caso, sa, sb) => {
+    expect(errore(registraRisultato(tappaSorteggiata(), "m1", { sa, sb }))).toMatch(/entrambi i punteggi/);
+  });
+
+  it("accetta fino a 4 punti oltre il target e rifiuta i punteggi più alti", () => {
+    expect(registraRisultato(tappaSorteggiata(), "m1", { sa: 25, sb: 23 }).ok).toBe(true);
+    expect(errore(registraRisultato(tappaSorteggiata(), "m1", { sa: 26, sb: 24 }))).toMatch(/insolito/);
+  });
+
+  it("rifiuta una partita che non esiste", () => {
+    expect(registraRisultato(tappaSorteggiata(), "inesistente", { sa: 21, sb: 15 }).ok).toBe(false);
+  });
+
+  it("non modifica la tappa ricevuta", () => {
+    const originale = tappaSorteggiata();
+    registraRisultato(originale, "m1", { sa: 21, sb: 15 });
+    expect(originale).toEqual(tappaSorteggiata());
+  });
+});
+
+describe("registraRisultatoBracket (fase a eliminazione diretta)", () => {
+  it("registra la semifinale e porta il vincitore nel primo slot libero della finale", () => {
+    const t = nuova(registraRisultatoBracket(tappaConBracket(), "sf1", 21, 17));
+    expect(t.bracket![0]).toMatchObject({ id: "sf1", pA: 21, pB: 17, done: true });
+    expect(t.bracket![2]).toMatchObject({ id: "fin", squadraA: "a", squadraB: null, done: false });
+  });
+
+  it("il vincitore della seconda semifinale completa la finale", () => {
+    const dopoSf1 = nuova(registraRisultatoBracket(tappaConBracket(), "sf1", 21, 17));
+    const t = nuova(registraRisultatoBracket(dopoSf1, "sf2", 15, 21));
+    expect(t.bracket![2]).toMatchObject({ id: "fin", squadraA: "a", squadraB: "c" });
+  });
+
+  it("la finale si registra senza far avanzare nessuno", () => {
+    const partenza = tappaConBracket();
+    const semifinali = [
+      { ...partenza.bracket![0], pA: 21, pB: 17, done: true },
+      { ...partenza.bracket![1], pA: 15, pB: 21, done: true },
+    ];
+    partenza.bracket = [...semifinali, { ...partenza.bracket![2], squadraA: "a", squadraB: "c" }];
+    const t = nuova(registraRisultatoBracket(partenza, "fin", 19, 21));
+    expect(t.bracket![2]).toEqual({ id: "fin", label: "Finale", squadraA: "a", squadraB: "c", pA: 19, pB: 21, done: true });
+    expect(t.bracket!.slice(0, 2)).toEqual(semifinali);
+  });
+
+  it("rifiuta il pareggio", () => {
+    expect(errore(registraRisultatoBracket(tappaConBracket(), "sf1", 21, 21))).toMatch(/pareggi/);
+  });
+
+  it("rifiuta un punteggio mancante", () => {
+    expect(registraRisultatoBracket(tappaConBracket(), "sf1", NaN, 21).ok).toBe(false);
+  });
+
+  it("rifiuta un match con le squadre ancora da definire", () => {
+    expect(registraRisultatoBracket(tappaConBracket(), "fin", 21, 15).ok).toBe(false);
+  });
+
+  it("rifiuta un match già registrato: il vincitore non avanza due volte", () => {
+    const dopoSf1 = nuova(registraRisultatoBracket(tappaConBracket(), "sf1", 21, 17));
+    expect(registraRisultatoBracket(dopoSf1, "sf1", 10, 21).ok).toBe(false);
+  });
+
+  it("rifiuta un match che non esiste", () => {
+    expect(registraRisultatoBracket(tappaConBracket(), "inesistente", 21, 15).ok).toBe(false);
+  });
+
+  it("non modifica la tappa ricevuta", () => {
+    const originale = tappaConBracket();
+    registraRisultatoBracket(originale, "sf1", 21, 17);
+    expect(originale).toEqual(tappaConBracket());
+  });
+});
+
+describe("generaFasiDirette", () => {
+  it("incrocia le prime due di ogni girone: 1ªA-2ªB, 2ªA-1ªB, finale da definire", () => {
+    const t = nuova(generaFasiDirette(tappaGironiConclusi()));
+    expect(t.bracket!.map((m) => [m.label, m.squadraA, m.squadraB, m.done])).toEqual([
+      ["Semifinale 1", "a", "b", false],
+      ["Semifinale 2", "d", "c", false],
+      ["Finale", null, null, false],
+    ]);
+  });
+
+  it("con una sola qualificata per girone genera direttamente la finale", () => {
+    const t = nuova(generaFasiDirette(tappaGironiConclusi(), 1));
+    expect(t.bracket!.map((m) => [m.label, m.squadraA, m.squadraB])).toEqual([["Finale", "a", "c"]]);
+  });
+
+  it("rifiuta se i gironi non sono sorteggiati", () => {
+    expect(generaFasiDirette(tappaNuova()).ok).toBe(false);
+  });
+
+  it("rifiuta se mancano partite dei gironi, indicando quante", () => {
+    expect(errore(generaFasiDirette(tappaSorteggiata()))).toMatch(/2 partite/);
+  });
+
+  it("rifiuta se la fase diretta esiste già", () => {
+    expect(errore(generaFasiDirette(tappaConBracket()))).toMatch(/già/);
+  });
+
+  it("rifiuta con un solo girone: non c'è incrocio possibile", () => {
+    const t = tappaGironiConclusi();
+    t.nGironi = 1;
+    t.gironi = [["a", "d", "b", "c"]];
+    expect(errore(generaFasiDirette(t))).toMatch(/2 gironi/);
+  });
+});
+
+describe("concludi", () => {
+  it("conclude una tappa con tutti i gironi registrati", () => {
+    expect(nuova(concludi(tappaGironiConclusi())).conclusa).toBe(true);
+  });
+
+  it("rifiuta una tappa non sorteggiata", () => {
+    expect(concludi(tappaNuova()).ok).toBe(false);
+  });
+
+  it("rifiuta se mancano partite dei gironi, indicando quante", () => {
+    expect(errore(concludi(tappaSorteggiata()))).toMatch(/2 partite/);
+  });
+
+  it("rifiuta se la fase diretta è stata generata ma non è completa", () => {
+    expect(errore(concludi(tappaConBracket()))).toMatch(/3 match/);
+  });
+
+  it("conclude quando anche la fase diretta è completa", () => {
+    const partenza = tappaConBracket();
+    partenza.bracket = [
+      { ...partenza.bracket![0], pA: 21, pB: 17, done: true },
+      { ...partenza.bracket![1], pA: 15, pB: 21, done: true },
+      { ...partenza.bracket![2], squadraA: "a", squadraB: "c", pA: 19, pB: 21, done: true },
+    ];
+    expect(nuova(concludi(partenza)).conclusa).toBe(true);
+  });
+
+  it("non modifica la tappa ricevuta", () => {
+    const originale = tappaGironiConclusi();
+    concludi(originale);
+    expect(originale.conclusa).toBeUndefined();
+  });
+});

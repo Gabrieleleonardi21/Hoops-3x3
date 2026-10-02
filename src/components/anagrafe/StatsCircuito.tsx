@@ -1,6 +1,5 @@
 /** Statistiche di stagione per ogni giocatore aggregate su tutte le tappe della lega corrente. */
 import { useMemo } from "react";
-import { INK, ORANGE, RULE } from "../../constants/colors";
 import type { StatLine, Tappa } from "../../types";
 
 interface PlayerRow {
@@ -69,40 +68,40 @@ export function StatsCircuito({ tappe }: { tappe: Tappa[] }) {
 
   if (rows.length === 0) {
     return (
-      <p style={{ fontStyle: "italic", fontSize: 15, marginTop: 12 }}>
+      <p className="mt-3 text-[15px] text-chalk-muted">
         Nessuna statistica disponibile: registra i punteggi nelle tappe per vedere le classifiche individuali.
       </p>
     );
   }
 
   const avg = (v: number, g: number) => (g > 0 ? (v / g).toFixed(1) : "—");
+  const HEAD: [string, string][] = [["#", "Posizione"], ["Giocatore", "Giocatore"], ["Squadra", "Squadra"], ["G", "Gare"], ["PT", "Punti"], ["Pt/G", "Punti a gara"], ["RB", "Rimbalzi"], ["Rb/G", "Rimbalzi a gara"], ["AS", "Assist"], ["RU", "Rubate"], ["ST", "Stoppate"]];
 
   return (
-    <div style={{ overflowX: "auto" }}>
-      <table className="standtable" style={{ marginTop: 12 }}>
+    <div className="mt-3 overflow-x-auto rounded border border-asphalt-700">
+      <table className="standtable">
+        <caption className="sr-only">Statistiche di stagione per giocatore</caption>
         <thead>
-          <tr style={{ borderBottom: `2px solid ${INK}` }}>
-            {["#", "Giocatore", "Squadra", "G", "PT", "Pt/G", "RB", "Rb/G", "AS", "RU", "ST"].map((h) => (
-              <th key={h} className="ui" style={{ padding: "5px 8px", fontSize: 11, fontWeight: 700, textAlign: h === "Giocatore" || h === "Squadra" ? "left" : "center" }}>
-                {h}
-              </th>
+          <tr>
+            {HEAD.map(([h, title]) => (
+              <th key={h} scope="col" title={title} className={h === "Giocatore" || h === "Squadra" ? "text-left" : ""}>{h}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {rows.map((r, i) => (
-            <tr key={r.id} style={{ borderBottom: `1px solid ${RULE}`, background: i === 0 ? "var(--card)" : "transparent" }}>
-              <td className="disp tac" style={{ padding: "5px 8px", fontSize: 13, color: i < 3 ? ORANGE : INK, fontWeight: 700 }}>{i + 1}</td>
-              <td className="disp up" style={{ padding: "5px 8px", fontSize: 13 }}>{r.nome}</td>
-              <td className="ui"   style={{ padding: "5px 8px", fontSize: 12, opacity: 0.7 }}>{r.squadra}</td>
-              <td className="ui tac"   style={{ padding: "5px 8px", fontSize: 12 }}>{r.g}</td>
-              <td className="disp tac t-orange" style={{ padding: "5px 8px", fontSize: 14, fontWeight: 700 }}>{r.pt}</td>
-              <td className="ui tac"   style={{ padding: "5px 8px", fontSize: 12, fontWeight: 700 }}>{avg(r.pt, r.g)}</td>
-              <td className="ui tac"   style={{ padding: "5px 8px", fontSize: 12 }}>{r.rb}</td>
-              <td className="ui tac"   style={{ padding: "5px 8px", fontSize: 12 }}>{avg(r.rb, r.g)}</td>
-              <td className="ui tac"   style={{ padding: "5px 8px", fontSize: 12 }}>{r.as}</td>
-              <td className="ui tac"   style={{ padding: "5px 8px", fontSize: 12 }}>{r.ru}</td>
-              <td className="ui tac"   style={{ padding: "5px 8px", fontSize: 12 }}>{r.st}</td>
+            <tr key={r.id} className={i === 0 ? "bg-court/5" : ""}>
+              <td className={`font-display text-base ${i < 3 ? "text-court" : "text-chalk-muted"}`}>{i + 1}</td>
+              <td className="tname font-display text-base">{r.nome}</td>
+              <td className="text-left text-xs text-chalk-muted">{r.squadra}</td>
+              <td className="text-chalk-muted">{r.g}</td>
+              <td className="font-display text-lg text-court">{r.pt}</td>
+              <td className="font-semibold text-chalk">{avg(r.pt, r.g)}</td>
+              <td className="text-chalk-muted">{r.rb}</td>
+              <td className="text-chalk-muted">{avg(r.rb, r.g)}</td>
+              <td className="text-chalk-muted">{r.as}</td>
+              <td className="text-chalk-muted">{r.ru}</td>
+              <td className="text-chalk-muted">{r.st}</td>
             </tr>
           ))}
         </tbody>

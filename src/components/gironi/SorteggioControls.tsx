@@ -1,7 +1,8 @@
 /** Controlli del sorteggio: casuale (Fisher-Yates) o per ranking (teste di serie a serpentina).
  *  Avvisa che un nuovo sorteggio azzera i punteggi già registrati. */
 import { useState } from "react";
-import { RED } from "../../constants/colors";
+import { Button } from "../ui/Button";
+import { Icon } from "../ui/Icon";
 
 interface Props {
   hasGironi: boolean;
@@ -12,21 +13,17 @@ export function SorteggioControls({ hasGironi, onSorteggia }: Props) {
   const [error, setError] = useState<string | null>(null);
   const run = (mode: "casuale" | "ranking") => setError(onSorteggia(mode));
   return (
-    <>
-      <div className="row gap-10 wrap" style={{ marginBottom: 6 }}>
-        <button onClick={() => run("casuale")} className="redbtn">🎲 Sorteggio casuale</button>
-        <button onClick={() => run("ranking")} className="blackbtn">📊 Sorteggio per ranking</button>
-        {hasGironi && (
-          <span className="ui t-red" style={{ fontSize: 12.5, fontWeight: 700 }}>
-            Un nuovo sorteggio azzera i punteggi già registrati.
-          </span>
-        )}
+    <div className="mb-4">
+      <div className="mb-1.5 flex flex-wrap items-center gap-2.5">
+        <Button onClick={() => run("casuale")}><Icon name="dice" size={16} /> Sorteggio casuale</Button>
+        <Button variant="outline" onClick={() => run("ranking")}><Icon name="ranking" size={16} /> Sorteggio per ranking</Button>
+        {hasGironi && <span className="text-xs font-semibold text-court">Un nuovo sorteggio azzera i punteggi già registrati.</span>}
       </div>
-      <p className="ui" style={{ fontSize: 11.5, fontWeight: 600, opacity: 0.75, margin: "0 0 14px" }}>
+      <p className="m-0 text-xs text-chalk-muted">
         Il sorteggio per ranking usa i punti ranking del circuito inseriti nelle card delle squadre:
         le teste di serie vengono distribuite a serpentina per bilanciare i gironi.
       </p>
-      {error && <p className="ui t-red" style={{ fontWeight: 700, fontSize: 13, marginTop: -8 }}>{error}</p>}
-    </>
+      {error && <p className="mt-1.5 text-[13px] font-semibold text-loss" role="alert">{error}</p>}
+    </div>
   );
 }

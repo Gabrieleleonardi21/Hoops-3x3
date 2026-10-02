@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { INK, RED, RULE } from "../../constants/colors";
 import { standings } from "../../utils/standings";
+import { safeUrl } from "../../utils/safeUrl";
 import { ClassificaTable } from "../gironi/ClassificaTable";
+import { ScoreCard } from "../partita/ScoreCard";
 import { StatsView } from "../partita/StatsView";
 import { EventLog } from "../partita/EventLog";
 import { LeaderboardSection } from "../leaderboard/LeaderboardSection";
@@ -9,6 +10,9 @@ import { VideoGrid } from "../video/VideoGrid";
 import { BracketSection } from "../gironi/BracketSection";
 import { GiocatoreAnalisi } from "./GiocatoreAnalisi";
 import { SquadraModal } from "./SquadraModal";
+import { Button } from "../ui/Button";
+import { Icon } from "../ui/Icon";
+import { Section } from "../ui/Section";
 import type { Tappa, SquadraTappa } from "../../types";
 
 /** Vista in sola lettura di una tappa: tappe concluse e archivio del circuito */
@@ -18,6 +22,8 @@ export function ArchivioTappaView({ t, lega, autore }: { t: Tappa; lega?: string
   const [selSquadra, setSelSquadra] = useState<SquadraTappa | null>(null);
   const hasStats = t.partite.some((m) => m.done && (Object.keys(m.pa || {}).length > 0 || Object.keys(m.pb || {}).length > 0));
   const nameOf = (id: string) => t.squadre.find((s) => s.id === id)?.nome || "?";
+  const logoOf = (id: string) => t.squadre.find((s) => s.id === id)?.logo;
+  const logos = Object.fromEntries(t.squadre.map((s) => [s.id, s.logo]));
   const playersOf = (teamId: string) =>
     (t.squadre.find((s) => s.id === teamId)?.giocatori || []).filter((p) => p.nome.trim());
   const playerNameById = (pid: string) => {
@@ -30,115 +36,80 @@ export function ArchivioTappaView({ t, lega, autore }: { t: Tappa; lega?: string
 
   return (
     <div>
-      <div style={{ borderBottom: `4px solid ${INK}`, paddingBottom: 10, marginBottom: 14 }}>
-        <div className="row between wrap gap-8 items-start">
-          <div>
-            <h2 className="disp up" style={{ fontSize: "clamp(20px, 5vw, 28px)", margin: 0 }}>{t.nome}</h2>
-            <span className="ui" style={{ fontSize: 13, fontWeight: 600 }}>
-              {[lega, t.luogo, t.data].filter(Boolean).join(" · ")} · {t.squadre.length} squadre
-              {autore ? ` · organizzata da ${autore}` : ""}
-            </span>
-          </div>
-          <button onClick={() => window.print()} className="blackbtn no-print" style={{ padding: "8px 16px", fontSize: 13 }}>
-            Stampa / PDF
-          </button>
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b border-asphalt-700 pb-3">
+        <div className="min-w-0">
+          <h2 className="font-display text-[clamp(28px,5vw,44px)] text-chalk">{t.nome}</h2>
+          <span className="text-[13px] text-chalk-muted">
+            {[lega, t.luogo, t.data].filter(Boolean).join(" · ")} · {t.squadre.length} squadre
+            {autore ? ` · organizzata da ${autore}` : ""}
+          </span>
         </div>
+        <Button variant="outline" size="sm" className="no-print" onClick={() => window.print()}><Icon name="download" size={14} /> Stampa / PDF</Button>
       </div>
 
-      <h3 className="disp up" style={{ fontSize: 16, margin: "0 0 2px" }}>Squadre e roster</h3>
-      <p className="ui" style={{ fontSize: 12, fontWeight: 600, opacity: 0.75, margin: "0 0 8px" }}>
-        Clicca una squadra per vedere il roster{hasStats ? " e l'analisi dei giocatori" : ""}.
-      </p>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10, marginBottom: 18 }}>
-        {t.squadre.map((s) => (
-          /* div invece di button per poter inserire <a> del logo all'interno */
-          <div
-            key={s.id}
-            role="button"
-            tabIndex={0}
-            onClick={() => setSelSquadra(s)}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setSelSquadra(s); }}
-            className="col items-center gap-8 tal hovercard"
-            style={{
-              background: "var(--card)",
-              border: `1.5px solid ${INK}`,
-              padding: 12,
-              cursor: "pointer",
-            }}
-          >
-            {s.logo ? (
-              /* Logo: il link al sito è nella modale, non qui */
-              <img src={s.logo} alt={`Logo ${s.nome}`}
-                style={{ width: 56, height: 56, objectFit: "contain" }}
-                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-            ) : (
-              <div className="row jc-center" style={{ width: 56, height: 56, background: INK }}>
-                <span style={{ color: "var(--card)", fontSize: 22, fontFamily: "var(--disp)" }}>3×3</span>
-              </div>
-            )}
-            <div className="tac">
-              <div className="disp up" style={{ fontSize: 13, lineHeight: 1.25 }}>{s.nome}</div>
-              {Number(s.rank) > 0 && (
-                <div className="ui t-orange" style={{ fontSize: 10.5, fontWeight: 700, marginTop: 3 }}>
-                  {s.rank} pt ranking
-                </div>
+      <Section title="Squadre e roster" kicker={`Clicca una squadra per vedere il roster${hasStats ? " e l'analisi dei giocatori" : ""}`}>
+        <div className="grid gap-2.5 grid-cols-[repeat(auto-fill,minmax(160px,1fr))]">
+          {t.squadre.map((s) => (
+            /* div invece di button per poter inserire <a> del logo all'interno */
+            <div key={s.id} role="button" tabIndex={0}
+              onClick={() => setSelSquadra(s)}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setSelSquadra(s); }}
+              className="hovercard flex cursor-pointer flex-col items-center gap-2 rounded border border-asphalt-700 bg-asphalt-900 p-3 text-center">
+              {s.logo ? (
+                <img src={safeUrl(s.logo)} alt={`Logo ${s.nome}`} className="h-14 w-14 object-contain"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+              ) : (
+                <div className="flex h-14 w-14 items-center justify-center rounded-sm bg-asphalt-800 font-display text-xl text-chalk-muted">3×3</div>
               )}
-              <div className="ui" style={{ fontSize: 11, opacity: 0.6, marginTop: 4 }}>
-                {(s.giocatori || []).filter((p) => p.nome.trim()).length} giocatori
+              <div>
+                <div className="font-display text-base leading-tight text-chalk">{s.nome}</div>
+                {Number(s.rank) > 0 && <div className="mt-0.5 text-[11px] font-semibold text-court">{s.rank} pt ranking</div>}
+                <div className="mt-0.5 text-[11px] text-chalk-muted">{(s.giocatori || []).filter((p) => p.nome.trim()).length} giocatori</div>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      </Section>
 
       {t.gironi && t.gironi.map((g, gi) => {
         const matches = t.partite.filter((m) => m.g === gi);
         const rows = standings(g, matches, nameOf);
+        const letter = String.fromCharCode(65 + gi);
         return (
-          <section key={gi} style={{ borderTop: `4px solid ${INK}`, marginBottom: 22 }}>
-            <h3 className="h-sec">
-              Girone {String.fromCharCode(65 + gi)}
-            </h3>
-            {matches.map((m) => {
-              const hasDetails =
-                Object.keys(m.pa || {}).length > 0 || Object.keys(m.pb || {}).length > 0 || (m.eventi || []).length > 0;
-              return (
-                <div key={m.id} style={{ borderBottom: `1px dotted ${RULE}`, padding: "8px 0" }}>
-                  <div className="row gap-10 wrap">
-                    <span className="disp tar" style={{ fontSize: 14, flex: "1 1 140px" }}>{nameOf(m.a)}</span>
-                    <span className="disp tac" style={{ fontSize: 19, minWidth: 86 }}>
-                      <span style={{ color: m.sa > m.sb ? INK : RED }}>{m.sa}</span>
-                      {" - "}
-                      <span style={{ color: m.sb > m.sa ? INK : RED }}>{m.sb}</span>
-                    </span>
-                    <span className="disp" style={{ fontSize: 14, flex: "1 1 140px" }}>{nameOf(m.b)}</span>
-                  </div>
-                  {hasDetails && (
-                    <div className="tac" style={{ marginTop: 2 }}>
-                      <button className="linkbtn" style={{ fontSize: 12 }} onClick={() => setOpen(open === m.id ? null : m.id)}>
-                        {open === m.id ? "− Nascondi dettagli" : "+ Statistiche ed eventi"}
-                      </button>
-                    </div>
-                  )}
-                  {open === m.id && (
-                    <div style={{ marginTop: 6 }}>
-                      {m.pa && Object.keys(m.pa).length > 0 && <StatsView teamName={nameOf(m.a)} players={playersOf(m.a)} sheet={m.pa} />}
-                      {m.pb && Object.keys(m.pb).length > 0 && <StatsView teamName={nameOf(m.b)} players={playersOf(m.b)} sheet={m.pb} />}
-                      {(m.eventi || []).length > 0 && (
-                        <div className="ui" style={{ fontSize: 12.5 }}>
-                          <div className="kicker" style={{ margin: "4px 0" }}>
-                            Eventi di gara
+          <Section key={gi} title={`Girone ${letter}`} kicker={g.map(nameOf).join(" · ")}>
+            <div className="flex flex-col gap-2">
+              {matches.map((m, i) => {
+                const hasDetails =
+                  Object.keys(m.pa || {}).length > 0 || Object.keys(m.pb || {}).length > 0 || (m.eventi || []).length > 0;
+                const isOpen = open === m.id;
+                const footer = hasDetails ? (
+                  <div className="flex flex-col gap-2">
+                    <Button variant="link" className="self-start" onClick={() => setOpen(isOpen ? null : m.id)}>
+                      {isOpen ? "Nascondi dettagli" : "Statistiche ed eventi"}
+                    </Button>
+                    {isOpen && (
+                      <div className="grid gap-2">
+                        {m.pa && Object.keys(m.pa).length > 0 && <StatsView teamName={nameOf(m.a)} players={playersOf(m.a)} sheet={m.pa} />}
+                        {m.pb && Object.keys(m.pb).length > 0 && <StatsView teamName={nameOf(m.b)} players={playersOf(m.b)} sheet={m.pb} />}
+                        {(m.eventi || []).length > 0 && (
+                          <div>
+                            <div className="kicker my-1">Eventi di gara</div>
+                            <EventLog eventi={m.eventi || []} nameOf={nameOf} playerNameById={playerNameById} />
                           </div>
-                          <EventLog eventi={m.eventi || []} nameOf={nameOf} playerNameById={playerNameById} />
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-            <ClassificaTable rows={rows} />
-          </section>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ) : undefined;
+                return (
+                  <ScoreCard key={m.id} label={`Partita ${i + 1}`}
+                    a={{ name: nameOf(m.a), logo: logoOf(m.a) }} b={{ name: nameOf(m.b), logo: logoOf(m.b) }}
+                    sa={m.done ? m.sa : null} sb={m.done ? m.sb : null} done={m.done} footer={footer} />
+                );
+              })}
+            </div>
+            <ClassificaTable rows={rows} logos={logos} caption={`Classifica girone ${letter}`} />
+          </Section>
         );
       })}
 
@@ -147,10 +118,11 @@ export function ArchivioTappaView({ t, lega, autore }: { t: Tappa; lega?: string
 
       <LeaderboardSection tappa={t} />
 
-      <section style={{ borderTop: `4px solid ${INK}`, marginBottom: 10 }}>
-        <h3 className="h-sec">Video della tappa</h3>
-        <VideoGrid videos={t.video || []} />
-      </section>
+      {(t.video || []).length > 0 && (
+        <Section title="Video della tappa">
+          <VideoGrid videos={t.video || []} />
+        </Section>
+      )}
 
       {selSquadra && (
         <SquadraModal

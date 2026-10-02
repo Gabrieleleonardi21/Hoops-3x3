@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { storage } from "../services/storage";
+import { archivioApi } from "../services/archivioApi";
+import { isUuid } from "../utils/uid";
 import { ArchivioTappaView } from "../components/archivio/ArchivioTappaView";
 import { Loading } from "../components/ui/Loading";
 import type { PubTappa } from "../types";
@@ -11,17 +12,15 @@ export function TappaViewPage() {
   const [pub, setPub] = useState<PubTappa | null | undefined>(undefined);
 
   useEffect(() => {
-    // Valida il formato dell'id prima di usarlo come chiave storage (evita path-like injection)
-    if (!id || !/^[a-z0-9-]{7,36}$/.test(id)) { setPub(null); return; }
-    storage.get(`pub_${id}`, true)
-      .then((r) => setPub(JSON.parse(r.value)))
-      .catch(() => setPub(null));
+    // Solo UUID nel path: evita di inoltrare al server stringhe arbitrarie
+    if (!id || !isUuid(id)) { setPub(null); return; }
+    archivioApi.get(id).then(setPub).catch(() => setPub(null));
   }, [id]);
 
   if (pub === undefined) return <Loading>Sto caricando la tappa…</Loading>;
   if (pub === null)
     return (
-      <p style={{ fontStyle: "italic" }}>
+      <p className="text-chalk-muted">
         Tappa non trovata nell'archivio. <Link to="/archivio" className="linkbtn">Vai all'archivio</Link>
       </p>
     );

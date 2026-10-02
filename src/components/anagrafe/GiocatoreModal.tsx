@@ -1,9 +1,11 @@
 import { useState } from "react";
-import { INK, RULE } from "../../constants/colors";
+import { Link } from "react-router-dom";
+import { Modal } from "../ui/Modal";
+import { Button } from "../ui/Button";
+import { Icon } from "../ui/Icon";
 import { Input } from "../ui/Input";
 import { REG_ROLES } from "../../constants/roles";
 import { eta } from "../../utils/eta";
-import { useScrollLock } from "../../hooks/useScrollLock";
 import { safeUrl } from "../../utils/safeUrl";
 import type { RegGiocatore, RegSquadra, User } from "../../types";
 
@@ -26,8 +28,6 @@ export function GiocatoreModal({
   onRemove: () => void;
   onUpdate: (updated: RegGiocatore) => void;
 }) {
-  useScrollLock();
-
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<EditDraft>({
     nome: g.nome, cognome: g.cognome, soprannome: g.soprannome,
@@ -46,106 +46,78 @@ export function GiocatoreModal({
   // Cerca il logo della squadra abbinando il nome del giocatore con la lista squadre
   const squadraLogo = squadre?.find((s) => s.nome === g.squadra)?.logo ?? null;
 
+  const row = (label: string, value: React.ReactNode) => (
+    <div className="flex gap-2 text-[13.5px]"><span className="w-28 shrink-0 text-chalk-muted">{label}</span><span className="font-semibold text-chalk">{value}</span></div>
+  );
+
   return (
-    <div
-      onClick={onClose}
-      className="modal-overlay"
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-label={`Scheda giocatore ${g.nome} ${g.cognome}`}
-        className="modal-card"
-        style={{ width: "min(480px, 100%)", maxHeight: "88vh", padding: 24 }}
-      >
-        {/* Pulsante chiudi */}
-        <div className="flex jc-end" style={{ marginBottom: 4 }}>
-          <button onClick={onClose} className="linkbtn t-ink" style={{ fontSize: 22 }} aria-label="Chiudi">×</button>
+    <Modal label={`Scheda giocatore ${g.nome} ${g.cognome}`} onClose={onClose}
+      title={<>{g.nome} {g.cognome}{g.numero && <span className="text-court"> #{g.numero}</span>}</>}
+      subtitle={g.soprannome ? `"${g.soprannome}"` : undefined}>
+      {/* Logo squadra */}
+      {squadraLogo && (
+        <div className="mb-4 flex justify-center">
+          <img src={safeUrl(squadraLogo)} alt="" aria-hidden className="h-20 w-20 object-contain"
+            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
         </div>
+      )}
 
-        {/* Intestazione: logo squadra + nome + numero */}
-        <div className="tac" style={{ borderBottom: `3px solid ${INK}`, paddingBottom: 10, marginBottom: 14 }}>
-          {squadraLogo && (
-            <img src={safeUrl(squadraLogo)} alt="" aria-hidden
-              style={{ width: 80, height: 80, objectFit: "contain", display: "block", margin: "0 auto 8px" }}
-              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-          )}
-          <div className="disp up" style={{ fontSize: 28 }}>
-            {g.nome} {g.cognome}
-            {g.numero && <span className="t-orange"> #{g.numero}</span>}
-          </div>
-          {g.soprannome && (
-            <div className="ui t-orange" style={{ fontSize: 13, fontWeight: 700, marginTop: 2 }}>
-              "{g.soprannome}"
-            </div>
-          )}
+      {/* ── Modalità visualizzazione ── */}
+      {!editing && (
+        <div className="mb-4 flex flex-col gap-1.5">
+          {row("Ruolo", <>{g.ruolo}{g.squadra ? ` · ${g.squadra}` : ""}</>)}
+          {g.nascita && row("Nato il", <>{g.nascita}{age !== null ? ` (${age} anni)` : ""}{g.citta ? ` a ${g.citta}` : ""}</>)}
+          {!g.nascita && g.citta && row("Città", g.citta)}
+          {g.nazionalita && row("Nazionalità", g.nazionalita)}
+          {(g.altezza || g.peso) && row("Fisico", [g.altezza ? `${g.altezza} cm` : "", g.peso ? `${g.peso} kg` : ""].filter(Boolean).join(" · "))}
+          {g.esperienza && row("Esperienza", `${g.esperienza} anni`)}
+          {g.note && <p className="mt-2 mb-0 text-[13.5px] text-chalk-muted">{g.note}</p>}
+          <Link to={`/giocatore/${g.id}`} className="mt-2 inline-flex items-center gap-1 self-start text-[13px] font-semibold text-court hover:underline">
+            Profilo e statistiche <Icon name="chevron" size={12} />
+          </Link>
         </div>
+      )}
 
-        {/* ── Modalità visualizzazione ── */}
-        {!editing && (
-          <div className="ui" style={{ fontSize: 13.5, lineHeight: 2, marginBottom: 14 }}>
-            <div><strong>{g.ruolo}</strong>{g.squadra ? <> · {g.squadra}</> : null}</div>
-            {g.nascita && (
-              <div>
-                Nato il {g.nascita}{age !== null ? ` (${age} anni)` : ""}
-                {g.citta ? ` a ${g.citta}` : ""}
-              </div>
-            )}
-            {!g.nascita && g.citta && <div>Città: {g.citta}</div>}
-            {g.nazionalita && <div>Nazionalità: {g.nazionalita}</div>}
-            {(g.altezza || g.peso) && (
-              <div>
-                {g.altezza ? `${g.altezza} cm` : ""}
-                {g.altezza && g.peso ? " · " : ""}
-                {g.peso ? `${g.peso} kg` : ""}
-              </div>
-            )}
-            {g.esperienza && <div>Esperienza: {g.esperienza} anni</div>}
-            {g.note && <p style={{ fontStyle: "italic", margin: "8px 0 0", fontSize: 13.5 }}>{g.note}</p>}
+      {/* ── Modalità modifica ── */}
+      {editing && (
+        <div className="mb-4 flex flex-col gap-2.5">
+          <div className="grid-auto" style={{ "--min": "140px" }}>
+            <Input label="Nome" value={draft.nome} onChange={set("nome")} />
+            <Input label="Cognome" value={draft.cognome} onChange={set("cognome")} />
+            <Input label="Soprannome" value={draft.soprannome} onChange={set("soprannome")} />
+            <Input label="Data di nascita" type="date" value={draft.nascita} onChange={set("nascita")} />
+            <Input label="Città" value={draft.citta} onChange={set("citta")} />
+            <Input label="Nazionalità" value={draft.nazionalita} onChange={set("nazionalita")} />
+            <Input label="Altezza (cm)" type="number" min={0} value={draft.altezza} onChange={set("altezza")} />
+            <Input label="Peso (kg)" type="number" min={0} value={draft.peso} onChange={set("peso")} />
+            <label className="input-label">
+              Ruolo
+              <select className="statin mt-1" value={draft.ruolo} onChange={set("ruolo")}>
+                {REG_ROLES.map((r) => <option key={r}>{r}</option>)}
+              </select>
+            </label>
+            <Input label="N. maglia" type="number" min={0} value={draft.numero} onChange={set("numero")} />
+            <Input label="Squadra" value={draft.squadra} onChange={set("squadra")} />
+            <Input label="Anni di esperienza" type="number" min={0} value={draft.esperienza} onChange={set("esperienza")} />
           </div>
-        )}
+          <Input label="Note sportive" value={draft.note} onChange={set("note")} placeholder="es. tiratore da fuori" />
+          <div className="mt-1 flex gap-2">
+            <Button onClick={saveEdit}>Salva modifiche</Button>
+            <Button variant="ghost" onClick={() => setEditing(false)}>Annulla</Button>
+          </div>
+        </div>
+      )}
 
-        {/* ── Modalità modifica ── */}
-        {editing && (
-          <div className="col gap-10" style={{ marginBottom: 14 }}>
-            <div className="grid-auto" style={{ "--min": "140px" }}>
-              <Input label="Nome" value={draft.nome} onChange={set("nome")} />
-              <Input label="Cognome" value={draft.cognome} onChange={set("cognome")} />
-              <Input label="Soprannome" value={draft.soprannome} onChange={set("soprannome")} />
-              <Input label="Data di nascita" type="date" value={draft.nascita} onChange={set("nascita")} />
-              <Input label="Città" value={draft.citta} onChange={set("citta")} />
-              <Input label="Nazionalità" value={draft.nazionalita} onChange={set("nazionalita")} />
-              <Input label="Altezza (cm)" type="number" min={0} value={draft.altezza} onChange={set("altezza")} />
-              <Input label="Peso (kg)" type="number" min={0} value={draft.peso} onChange={set("peso")} />
-              <label className="ui" style={{ fontSize: 11, fontWeight: 700 }}>
-                Ruolo
-                <select className="statin" style={{ marginTop: 4 }} value={draft.ruolo} onChange={set("ruolo")}>
-                  {REG_ROLES.map((r) => <option key={r}>{r}</option>)}
-                </select>
-              </label>
-              <Input label="N. maglia" type="number" min={0} value={draft.numero} onChange={set("numero")} />
-              <Input label="Squadra" value={draft.squadra} onChange={set("squadra")} />
-              <Input label="Anni di esperienza" type="number" min={0} value={draft.esperienza} onChange={set("esperienza")} />
-            </div>
-            <Input label="Note sportive" value={draft.note} onChange={set("note")} placeholder="es. tiratore da fuori" />
-            <div className="flex gap-8" style={{ marginTop: 4 }}>
-              <button onClick={saveEdit} className="blackbtn" style={{ padding: "10px 18px" }}>Salva modifiche</button>
-              <button onClick={() => setEditing(false)} className="linkbtn t-ink">Annulla</button>
-            </div>
+      {/* Footer: autore + azioni */}
+      <div className="mt-1 flex flex-wrap items-center justify-between gap-2 border-t border-asphalt-700 pt-3">
+        <span className="text-[10.5px] text-chalk-dim">Registrato da {g.autore}</span>
+        {canEdit && !editing && (
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => setEditing(true)}><Icon name="edit" size={14} /> Modifica</Button>
+            <Button variant="ghost" size="sm" className="text-loss" onClick={handleRemove}><Icon name="trash" size={14} /> Elimina</Button>
           </div>
         )}
-
-        {/* Footer: autore + azioni */}
-        <div className="row between wrap gap-8" style={{ borderTop: `1px solid ${RULE}`, paddingTop: 10, marginTop: 4 }}>
-          <span className="ui" style={{ fontSize: 10.5, opacity: 0.5 }}>Registrato da {g.autore}</span>
-          {canEdit && !editing && (
-            <div className="flex gap-12">
-              <button onClick={() => setEditing(true)} className="linkbtn t-ink">Modifica</button>
-              <button onClick={handleRemove} className="linkbtn t-red">Elimina giocatore</button>
-            </div>
-          )}
-        </div>
       </div>
-    </div>
+    </Modal>
   );
 }
