@@ -10,6 +10,7 @@ import { buildMatches } from "../utils/buildMatches";
 import { buildBracket, nextBracketSlot } from "../utils/buildBracket";
 import { replaceById } from "../utils/replaceById";
 import { uid } from "../utils/uid";
+import { DEFAULT_RULES } from "../constants/rules";
 
 export type ModoSorteggio = "casuale" | "ranking";
 
@@ -22,6 +23,16 @@ export interface Punteggio {
   sb: number;
   pa?: StatSheet;
   pb?: StatSheet;
+}
+
+/** Dati di una tappa da creare. Le squadre le prepara chi la crea: segnaposto «Squadra N» l'interfaccia, prese
+ *  dall'anagrafe il Coach. */
+export interface NuovaTappa {
+  nome: string;
+  luogo: string;
+  data: string;
+  nGironi: number;
+  squadre: SquadraTappa[];
 }
 
 const ok = (tappa: Tappa): Esito => ({ ok: true, tappa });
@@ -44,6 +55,27 @@ function erroreGironi(nSquadre: number, nGironi: number): string | null {
   return `Numero di gironi non valido: con ${nSquadre} squadre deve essere un intero da 1 a ${massimo}.`;
 }
 
+/** Limiti di una tappa, gli stessi per interfaccia e Coach: da 2 a 64 squadre e un numero di gironi intero tra 1 e
+ *  metà delle squadre (al massimo 32). null se vanno bene. Si controllano prima di preparare le squadre: così
+ *  nessuno crea squadre (o le registra in anagrafe) per una tappa che poi verrebbe rifiutata. */
+export function erroreLimitiTappa(nSquadre: number, nGironi: number): string | null {
+  if (!Number.isInteger(nSquadre) || nSquadre < 2 || nSquadre > MAX_SQUADRE) return LIMITE_SQUADRE;
+  return erroreGironi(nSquadre, nGironi);
+}
+
+/** Crea una tappa non ancora sorteggiata, con le regole predefinite: rispetta i limiti di erroreLimitiTappa e, come
+ *  ogni tappa nello store, ha un nome non vuoto. */
+export function creaTappa(dati: NuovaTappa): Esito {
+  const limiti = erroreLimitiTappa(dati.squadre.length, dati.nGironi);
+  if (limiti) return ko(limiti);
+  const nome = dati.nome.trim();
+  if (!nome) return ko(NOME_VUOTO);
+  return ok({
+    id: uid(), nome, luogo: dati.luogo.trim(), data: dati.data, nGironi: dati.nGironi,
+    regole: { ...DEFAULT_RULES }, squadre: dati.squadre, gironi: null, partite: [], video: [],
+  });
+}
+
 /** La tappa senza sorteggio: gironi, calendario e tabellone ripartono da zero. Serve a ogni cambio di struttura
  *  (numero di gironi, squadre): con squadre o gironi diversi né il vecchio calendario né il vecchio tabellone valgono. */
 function senzaSorteggio(tappa: Tappa): Tappa {
@@ -61,7 +93,8 @@ function erroreRisultato(regole: Regole, a: number, b: number): string | null {
  *  Un nuovo sorteggio riparte da zero: i risultati già registrati e il tabellone vanno persi. */
 export function sorteggia(tappa: Tappa, modo: ModoSorteggio): Esito {
   if (tappa.squadre.length < 2) return ko("Servono almeno 2 squadre per sorteggiare i gironi.");
-  // Le tappe salvate prima di questi controlli possono avere un numero di gironi che i gironi non sanno costruire
+  // Una tappa salvata prima di questi controlli può avere un numero di gironi non valido (2.5, o più di metà delle
+  // squadre): costruire i gironi andrebbe in errore o lascerebbe gironi con una squadra sola
   const gironiNonValidi = erroreGironi(tappa.squadre.length, tappa.nGironi);
   if (gironiNonValidi) return ko(gironiNonValidi);
   let gironi: string[][];

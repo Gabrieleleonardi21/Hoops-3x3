@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   sorteggia, registraRisultato, registraRisultatoBracket, generaFasiDirette, concludi,
   aggiungiSquadra, rimuoviSquadra, impostaNumeroGironi, perditaRisultati, annullaRisultato, rinominaTappa,
+  erroreLimitiTappa, creaTappa,
 } from "../../src/domain/tappaOps";
 import type { Esito } from "../../src/domain/tappaOps";
 import type { Tappa } from "../../src/types";
@@ -385,6 +386,38 @@ describe("perditaRisultati: che cosa cancellano un nuovo sorteggio o un cambio d
       ...partenza.bracket!.slice(1),
     ];
     expect(perditaRisultati(partenza)).toBe("Verranno eliminati il sorteggio, la fase finale e 3 risultati.");
+  });
+});
+
+describe("creazione della tappa: stessi limiti per interfaccia e Coach (R8)", () => {
+  /** Dati di una tappa nuova con `n` squadre segnaposto */
+  const dati = (n: number, nGironi: number) => ({ nome: "Napoli Open", luogo: " Napoli ", data: "2026-07-01", nGironi, squadre: tappaCon(n).squadre });
+
+  it("da 2 a 64 squadre e un numero di gironi intero tra 1 e metà delle squadre", () => {
+    expect(erroreLimitiTappa(2, 1)).toBeNull();
+    expect(erroreLimitiTappa(64, 32)).toBeNull();
+    expect(erroreLimitiTappa(1, 1)).toMatch(/da 2 a 64 squadre/);
+    expect(erroreLimitiTappa(65, 2)).toMatch(/da 2 a 64 squadre/);
+    expect(erroreLimitiTappa(8.5, 2)).toMatch(/da 2 a 64 squadre/);
+    expect(erroreLimitiTappa(8, 2.5)).toMatch(/Numero di gironi non valido: con 8 squadre deve essere un intero da 1 a 4/);
+    expect(erroreLimitiTappa(8, 5)).toMatch(/da 1 a 4/);
+  });
+
+  it("crea una tappa non sorteggiata, con le regole predefinite", () => {
+    const t = nuova(creaTappa(dati(8, 2)));
+    expect(t).toMatchObject({
+      nome: "Napoli Open", luogo: "Napoli", data: "2026-07-01", nGironi: 2,
+      regole: { target: 21, durata: 10, ot: 2, shot: 12 }, gironi: null, partite: [], video: [],
+    });
+    expect(t.squadre).toHaveLength(8);
+    expect(t.id).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it("rifiuta squadre fuori dai limiti, un numero di gironi non intero e un nome vuoto", () => {
+    expect(errore(creaTappa(dati(1, 1)))).toMatch(/da 2 a 64 squadre/);
+    expect(errore(creaTappa(dati(65, 2)))).toMatch(/da 2 a 64 squadre/);
+    expect(errore(creaTappa(dati(8, 2.5)))).toMatch(/Numero di gironi non valido/);
+    expect(errore(creaTappa({ ...dati(8, 2), nome: "  " }))).toMatch(/non può essere vuoto/);
   });
 });
 

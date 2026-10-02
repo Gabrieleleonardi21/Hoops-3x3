@@ -2,6 +2,7 @@
 import { useMemo, useRef } from "react";
 import { Navigate, useNavigate, Link } from "react-router-dom";
 import { useLega } from "../hooks/useLega";
+import type { NuovaTappaInput } from "../hooks/useLega";
 import { TappaForm } from "../components/tappa/TappaForm";
 import { TappaCard } from "../components/tappa/TappaCard";
 import { GuestBanner } from "../components/auth/GuestBanner";
@@ -18,6 +19,14 @@ export function LegaPage() {
   const importLega = useAppStore((s) => s.importLega);
   const navigate  = useNavigate();
   const fileRef   = useRef<HTMLInputElement>(null);
+
+  /** Crea la tappa e la apre; se i dati sono fuori dai limiti restituisce il motivo, che il form mostra */
+  const creaEApri = (input: NuovaTappaInput) => {
+    const esito = createTappa(input);
+    if (!esito.ok) return esito.errore;
+    navigate(`/lega/tappa/${esito.tappa.id}`);
+    return null;
+  };
 
   /** Scarica la lega corrente come file JSON. */
   const esportaLega = () => {
@@ -111,7 +120,7 @@ export function LegaPage() {
         </div>
       </div>
 
-      <TappaForm onCreate={(input) => { const t = createTappa(input); navigate(`/lega/tappa/${t.id}`); }} />
+      <TappaForm onCreate={creaEApri} />
 
       <Section title="Le tappe del circuito" kicker={`${tappe.length} ${tappe.length === 1 ? "tappa" : "tappe"}`}>
         {tappe.length > 0 ? (
