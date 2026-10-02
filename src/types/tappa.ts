@@ -17,6 +17,9 @@ export interface BracketMatch {
   pA: number;
   pB: number;
   done: boolean;
+  /** Turno superato d'ufficio: c'è una sola squadra, che passa al turno dopo senza giocare (match già `done`).
+   *  Assente nei tabelloni salvati prima di questo campo. */
+  bye?: boolean;
 }
 
 export interface Tappa {
