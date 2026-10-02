@@ -19,8 +19,10 @@ const store = () => useAppStore.getState();
 const registrato: User = { id: "u1", name: "Anna", email: "anna@example.it", guest: false };
 
 /** Partita del girone `g` tra `a` e `b`, giocata (21-15) oppure no */
-const partita = (id: string, g: number, a: string, b: string, done: boolean): Partita =>
-  ({ id, g, a, b, sa: done ? 21 : 0, sb: done ? 15 : 0, done });
+const partita = (id: string, g: number, a: string, b: string, done: boolean): Partita => {
+  if (!done) return { id, g, a, b, sa: 0, sb: 0, done };
+  return { id, g, a, b, sa: 21, sb: 15, done };
+};
 
 /** Quattro squadre in due gironi già sorteggiati; `giocate` dice se le due partite hanno il risultato */
 const tappa = (giocate: boolean): Tappa => ({
