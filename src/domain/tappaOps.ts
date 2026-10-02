@@ -80,6 +80,16 @@ export function creaTappa(dati: NuovaTappa): Esito {
   });
 }
 
+/** Cambia il nome della tappa, senza spazi ai lati. Un nome vuoto è rifiutato: arrivato al server, farebbe fallire
+ *  ogni salvataggio della tappa. Lo stesso nome non cambia niente (restituisce la tappa ricevuta). */
+export function rinominaTappa(tappa: Tappa, nome: string): Esito {
+  if (tappa.conclusa) return ko(CONCLUSA);
+  const pulito = nome.trim();
+  if (!pulito) return ko(NOME_VUOTO);
+  if (pulito === tappa.nome) return ok(tappa);
+  return ok({ ...tappa, nome: pulito });
+}
+
 /** La tappa senza sorteggio: gironi, calendario e tabellone ripartono da zero. Serve a ogni cambio di struttura
  *  (numero di gironi, squadre): con squadre o gironi diversi né il vecchio calendario né il vecchio tabellone valgono. */
 function senzaSorteggio(tappa: Tappa): Tappa {
@@ -109,16 +119,6 @@ export function sorteggia(tappa: Tappa, modo: ModoSorteggio): Esito {
     gironi = buildGironi(tappa.squadre.map((s) => s.id), tappa.nGironi);
   }
   return ok({ ...senzaSorteggio(tappa), gironi, partite: buildMatches(gironi) });
-}
-
-/** Cambia il nome della tappa, senza spazi ai lati. Un nome vuoto è rifiutato: arrivato al server, farebbe fallire
- *  ogni salvataggio della tappa. Lo stesso nome non cambia niente (restituisce la tappa ricevuta). */
-export function rinominaTappa(tappa: Tappa, nome: string): Esito {
-  if (tappa.conclusa) return ko(CONCLUSA);
-  const pulito = nome.trim();
-  if (!pulito) return ko(NOME_VUOTO);
-  if (pulito === tappa.nome) return ok(tappa);
-  return ok({ ...tappa, nome: pulito });
 }
 
 /** Che cosa cancellano un nuovo sorteggio o un cambio di struttura (numero di gironi, squadre): il testo da mostrare

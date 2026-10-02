@@ -389,6 +389,32 @@ describe("perditaRisultati: che cosa cancellano un nuovo sorteggio o un cambio d
   });
 });
 
+describe("numero di gironi: intero tra 1 e metà delle squadre, al massimo 32 (R3)", () => {
+  it("sonda: lo stesso numero non cambia niente, sorteggio e risultati restano", () => {
+    const partenza = tappaConBracket();
+    expect(nuova(impostaNumeroGironi(partenza, 2))).toBe(partenza);
+  });
+
+  it.each([
+    ["non intero", 2.5],
+    ["zero", 0],
+    ["oltre metà delle squadre", 3],
+    ["mancante", NaN],
+  ])("rifiuta un numero %s", (_caso, n) => {
+    expect(errore(impostaNumeroGironi(tappaNuova(), n))).toMatch(/Numero di gironi non valido: con 4 squadre deve essere un intero da 1 a 2/);
+  });
+
+  it("al massimo 32 gironi, anche con più di 64 squadre (tappe di prima)", () => {
+    expect(nuova(impostaNumeroGironi(tappaCon(70), 32)).nGironi).toBe(32);
+    expect(errore(impostaNumeroGironi(tappaCon(70), 33))).toMatch(/da 1 a 32/);
+  });
+
+  it("togliendo squadre il numero di gironi scende, se serve, a metà delle squadre", () => {
+    expect(nuova(rimuoviSquadra(tappaNuova(), "d")).nGironi).toBe(1);
+    expect(nuova(rimuoviSquadra({ ...tappaCon(6), nGironi: 2 }, "q0")).nGironi).toBe(2);
+  });
+});
+
 describe("una tappa conclusa non si modifica (R5)", () => {
   /** La stessa tappa, conclusa e pubblicata */
   const conclusa = (t: Tappa): Tappa => ({ ...t, conclusa: true });
@@ -407,6 +433,19 @@ describe("una tappa conclusa non si modifica (R5)", () => {
     ["rinominaTappa", () => rinominaTappa(conclusa(tappaGironiConclusi()), "Milano Open")],
   ])("%s è rifiutata", (_operazione, esegui) => {
     expect(errore(esegui())).toBe("La tappa è conclusa: riaprila per modificarla.");
+  });
+});
+
+describe("rinominaTappa: il nome della tappa non è mai vuoto (R7)", () => {
+  it("rifiuta un nome vuoto o di soli spazi", () => {
+    expect(errore(rinominaTappa(tappaNuova(), ""))).toMatch(/non può essere vuoto/);
+    expect(errore(rinominaTappa(tappaNuova(), "   "))).toMatch(/non può essere vuoto/);
+  });
+
+  it("salva il nome senza spazi ai lati; lo stesso nome non cambia niente", () => {
+    expect(nuova(rinominaTappa(tappaNuova(), "  Milano Open ")).nome).toBe("Milano Open");
+    const partenza = tappaNuova();
+    expect(nuova(rinominaTappa(partenza, "Roma Open"))).toBe(partenza);
   });
 });
 
@@ -439,44 +478,5 @@ describe("creazione della tappa: stessi limiti per interfaccia e Coach (R8)", ()
     expect(errore(creaTappa(dati(65, 2)))).toMatch(/da 2 a 64 squadre/);
     expect(errore(creaTappa(dati(8, 2.5)))).toMatch(/Numero di gironi non valido/);
     expect(errore(creaTappa({ ...dati(8, 2), nome: "  " }))).toMatch(/non può essere vuoto/);
-  });
-});
-
-describe("rinominaTappa: il nome della tappa non è mai vuoto (R7)", () => {
-  it("rifiuta un nome vuoto o di soli spazi", () => {
-    expect(errore(rinominaTappa(tappaNuova(), ""))).toMatch(/non può essere vuoto/);
-    expect(errore(rinominaTappa(tappaNuova(), "   "))).toMatch(/non può essere vuoto/);
-  });
-
-  it("salva il nome senza spazi ai lati; lo stesso nome non cambia niente", () => {
-    expect(nuova(rinominaTappa(tappaNuova(), "  Milano Open ")).nome).toBe("Milano Open");
-    const partenza = tappaNuova();
-    expect(nuova(rinominaTappa(partenza, "Roma Open"))).toBe(partenza);
-  });
-});
-
-describe("numero di gironi: intero tra 1 e metà delle squadre, al massimo 32 (R3)", () => {
-  it("sonda: lo stesso numero non cambia niente, sorteggio e risultati restano", () => {
-    const partenza = tappaConBracket();
-    expect(nuova(impostaNumeroGironi(partenza, 2))).toBe(partenza);
-  });
-
-  it.each([
-    ["non intero", 2.5],
-    ["zero", 0],
-    ["oltre metà delle squadre", 3],
-    ["mancante", NaN],
-  ])("rifiuta un numero %s", (_caso, n) => {
-    expect(errore(impostaNumeroGironi(tappaNuova(), n))).toMatch(/Numero di gironi non valido: con 4 squadre deve essere un intero da 1 a 2/);
-  });
-
-  it("al massimo 32 gironi, anche con più di 64 squadre (tappe di prima)", () => {
-    expect(nuova(impostaNumeroGironi(tappaCon(70), 32)).nGironi).toBe(32);
-    expect(errore(impostaNumeroGironi(tappaCon(70), 33))).toMatch(/da 1 a 32/);
-  });
-
-  it("togliendo squadre il numero di gironi scende, se serve, a metà delle squadre", () => {
-    expect(nuova(rimuoviSquadra(tappaNuova(), "d")).nGironi).toBe(1);
-    expect(nuova(rimuoviSquadra({ ...tappaCon(6), nGironi: 2 }, "q0")).nGironi).toBe(2);
   });
 });

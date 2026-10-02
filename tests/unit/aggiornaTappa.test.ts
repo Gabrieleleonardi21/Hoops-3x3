@@ -44,6 +44,10 @@ const giocata = (id: string): Partita => ({ id, g: 0, a: "s1", b: "s2", sa: 21, 
 const daGiocare = (id: string): Partita => ({ ...giocata(id), sa: 0, sb: 0, done: false });
 /** La tappa già sorteggiata (un girone con le prime due squadre) con queste partite */
 const sorteggiata = (partite: Partita[], base: Tappa = tappa()): Tappa => ({ ...base, gironi: [["s1", "s2"]], partite });
+/** La tappa con la fase finale già generata: la sola finale tra le prime due squadre, da giocare */
+const conFinale = (t: Tappa): Tappa => ({
+  ...t, bracket: [{ id: "fin", label: "Finale", squadraA: "s1", squadraB: "s2", pA: 0, pB: 0, done: false }],
+});
 /** La tappa con tre giocatori con il nome in ogni squadra (roster completi) */
 const conRoster = (t: Tappa): Tappa => ({
   ...t,
@@ -273,6 +277,14 @@ describe("useTappa: le modifiche partono dalla tappa com'è adesso, non da quell
       expect(store().inSospeso).toBe(0);
       expect(api.putTappa).not.toHaveBeenCalled();
     });
+
+    it("R5: salta una tappa conclusa, pubblicata così com'era", async () => {
+      useAppStore.setState({ tappe: [{ ...tappa(), squadre: [squadra("s1", "Alfa"), squadra("s2", "Squadra 2")], conclusa: true }] });
+      const prima = store().tappe[0];
+      const { result } = renderHook(() => useTappa("t1"));
+      fai(() => result.current.syncFromAnagrafe([regAlfa]));
+      await nienteSalvato(prima);
+    });
   });
 });
 
@@ -333,8 +345,7 @@ describe("useTappa: le operazioni di tappaOps si applicano alla tappa di adesso"
   });
 
   it("R1: aggiungere una squadra cancella anche il tabellone", () => {
-    const finale = { id: "fin", label: "Finale", squadraA: "s1", squadraB: "s2", pA: 0, pB: 0, done: false };
-    useAppStore.setState({ tappe: [{ ...sorteggiata([giocata("m1")]), bracket: [finale] }] });
+    useAppStore.setState({ tappe: [conFinale(sorteggiata([giocata("m1")]))] });
     const { result } = renderHook(() => useTappa("t1"));
     fai(() => result.current.addTeam());
     expect(store().tappe[0]).toMatchObject({ gironi: null, partite: [], bracket: undefined });
@@ -354,8 +365,7 @@ describe("useTappa: le operazioni di tappaOps si applicano alla tappa di adesso"
   });
 
   it("R6: «Correggi» con la fase finale generata è rifiutato con un messaggio e non salva niente", async () => {
-    const finale = { id: "fin", label: "Finale", squadraA: "s1", squadraB: "s2", pA: 0, pB: 0, done: false };
-    useAppStore.setState({ tappe: [{ ...sorteggiata([giocata("m1")]), bracket: [finale] }] });
+    useAppStore.setState({ tappe: [conFinale(sorteggiata([giocata("m1")]))] });
     const prima = store().tappe[0];
     const { result } = renderHook(() => useTappa("t1"));
     let errore: string | null = null;
@@ -373,14 +383,6 @@ describe("useTappa: le operazioni di tappaOps si applicano alla tappa di adesso"
     const primo = store().tappe[0].video[0];
     fai(() => h.removeVideo(primo.id));
     expect(store().tappe[0].video.map((v) => v.titolo)).toEqual(["Semifinale"]);
-  });
-
-  it("R5: la sincronizzazione con l'anagrafe salta una tappa conclusa", async () => {
-    useAppStore.setState({ tappe: [{ ...tappa(), squadre: [squadra("s1", "Alfa"), squadra("s2", "Squadra 2")], conclusa: true }] });
-    const prima = store().tappe[0];
-    const { result } = renderHook(() => useTappa("t1"));
-    fai(() => result.current.syncFromAnagrafe([regAlfa]));
-    await nienteSalvato(prima);
   });
 
   it("su una tappa conclusa il video aggiunto viene ripubblicato nell'archivio", () => {
