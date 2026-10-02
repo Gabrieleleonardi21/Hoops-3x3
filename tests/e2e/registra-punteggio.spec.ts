@@ -1,8 +1,8 @@
 import { test, expect } from "@playwright/test";
+import { ospiteConLega } from "./helpers";
 
 test("registrazione punteggio valido 3x3", async ({ page }) => {
-  await page.goto("/");
-  await page.getByRole("button", { name: /Continua come Ospite/i }).click();
+  await ospiteConLega(page);
   await page.getByRole("button", { name: /Crea la tappa/i }).click();
   await page.getByRole("button", { name: /Sorteggio casuale/i }).click();
   // I due input del punteggio della prima partita (classe .scorein, in ordine DOM)
