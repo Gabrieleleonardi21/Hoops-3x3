@@ -1,0 +1,102 @@
+// @vitest-environment jsdom
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { BracketSection } from "../../src/components/gironi/BracketSection";
+import { useAppStore } from "../../src/stores/useAppStore";
+import { generaFasiDirette, registraRisultatoBracket } from "../../src/domain/tappaOps";
+import { DEFAULT_RULES } from "../../src/constants/rules";
+import type { Tappa, User } from "../../src/types";
+
+const store = () => useAppStore.getState();
+const ospite: User = { name: "Ospite", guest: true };
+
+/** Quattro squadre, due gironi già conclusi (Alfa batte Delta, Gamma batte Beta), nessun tabellone */
+const tappaGironiConclusi = (): Tappa => ({
+  id: "t1", nome: "Roma Open", luogo: "", data: "", nGironi: 2, regole: { ...DEFAULT_RULES },
+  squadre: [
+    { id: "a", nome: "Alfa", giocatori: [], rank: 40 },
+    { id: "b", nome: "Beta", giocatori: [], rank: 30 },
+    { id: "c", nome: "Gamma", giocatori: [], rank: 20 },
+    { id: "d", nome: "Delta", giocatori: [], rank: 10 },
+  ],
+  gironi: [["a", "d"], ["b", "c"]],
+  partite: [
+    { id: "m1", g: 0, a: "a", b: "d", sa: 21, sb: 15, done: true },
+    { id: "m2", g: 1, a: "b", b: "c", sa: 18, sb: 21, done: true },
+  ],
+  video: [],
+});
+
+/** La stessa tappa con il tabellone già generato (due semifinali e la finale, ancora da giocare) */
+function tappaConTabellone(): Tappa {
+  const esito = generaFasiDirette(tappaGironiConclusi());
+  if (!esito.ok) throw new Error(esito.errore);
+  return esito.tappa;
+}
+
+/** La tappa com'è adesso nello store */
+const nelloStore = () => store().tappe[0];
+
+/** Mostra BracketSection con la tappa `vista` e mette nello store `inStore`. La sezione non si aggiorna: come un
+ *  componente che ha letto la tappa prima che cambiasse qualcosa, e il clic arriva dopo. */
+function mostra(vista: Tappa, inStore: Tappa = vista) {
+  useAppStore.setState({ user: ospite, legaId: "l1", leghe: [{ id: "l1", nome: "Lega", ts: 1, nTappe: 1 }], tappe: [inStore] });
+  render(<BracketSection tappa={vista} />);
+}
+
+beforeEach(() => {
+  localStorage.clear();
+});
+
+afterEach(() => {
+  cleanup(); // senza le globali di Vitest, Testing Library non smonta da sola
+  store().reset();
+  localStorage.clear();
+});
+
+describe("BracketSection: le operazioni partono dalla tappa com'è adesso nello store", () => {
+  it("«Genera bracket» non cancella ciò che è cambiato dopo che la sezione ha letto la tappa", () => {
+    mostra(tappaGironiConclusi());
+    act(() => { store().updateTappa("t1", { luogo: "Roma" }); }); // un'altra modifica, mentre la sezione resta com'era
+    fireEvent.click(screen.getByRole("button", { name: "Genera bracket eliminazione diretta" }));
+    expect(nelloStore().bracket).toHaveLength(3);
+    expect(nelloStore().luogo).toBe("Roma");
+  });
+
+  it("«Salva» di un match non cancella ciò che è cambiato dopo che la sezione ha letto la tappa", () => {
+    mostra(tappaConTabellone());
+    act(() => { store().updateTappa("t1", { luogo: "Roma" }); });
+    const [puntiA, puntiB] = screen.getAllByRole("spinbutton"); // i campi della prima semifinale
+    fireEvent.change(puntiA, { target: { value: "21" } });
+    fireEvent.change(puntiB, { target: { value: "15" } });
+    fireEvent.click(screen.getAllByRole("button", { name: "Salva" })[0]);
+    expect(nelloStore().bracket?.[0]).toMatchObject({ pA: 21, pB: 15, done: true });
+    expect(nelloStore().luogo).toBe("Roma");
+  });
+
+  it("un risultato registrato altrove resta, e i due vincitori arrivano in finale", () => {
+    // La sezione ha ancora le due semifinali da giocare; nello store la prima è già registrata (per esempio dal Coach)
+    const vista = tappaConTabellone();
+    const esito = registraRisultatoBracket(vista, vista.bracket?.[0].id ?? "", 21, 15);
+    if (!esito.ok) throw new Error(esito.errore);
+    mostra(vista, esito.tappa);
+    const [, , puntiA, puntiB] = screen.getAllByRole("spinbutton"); // campi della seconda semifinale
+    fireEvent.change(puntiA, { target: { value: "21" } });
+    fireEvent.change(puntiB, { target: { value: "10" } });
+    fireEvent.click(screen.getAllByRole("button", { name: "Salva" })[1]);
+    const [prima, seconda, finale] = nelloStore().bracket ?? [];
+    expect([prima.done, seconda.done]).toEqual([true, true]);
+    expect(finale.squadraA).not.toBeNull();
+    expect(finale.squadraB).not.toBeNull();
+  });
+
+  it("un punteggio non valido non cambia niente", () => {
+    mostra(tappaConTabellone());
+    const prima = nelloStore();
+    const [puntiA, puntiB] = screen.getAllByRole("spinbutton");
+    fireEvent.change(puntiA, { target: { value: "15" } });
+    fireEvent.change(puntiB, { target: { value: "15" } }); // pareggio: nel 3x3 non esiste
+    fireEvent.click(screen.getAllByRole("button", { name: "Salva" })[0]);
+    expect(nelloStore()).toBe(prima);
+  });
+});

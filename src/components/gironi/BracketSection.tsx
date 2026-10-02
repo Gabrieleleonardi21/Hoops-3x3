@@ -5,7 +5,7 @@ import { Bracket } from "./Bracket";
 import { Button } from "../ui/Button";
 import { Section } from "../ui/Section";
 import type { BracketMatch, Tappa } from "../../types";
-import { useAppStore } from "../../stores/useAppStore";
+import { useAppStore, tappaCorrente } from "../../stores/useAppStore";
 import { generaFasiDirette, registraRisultatoBracket } from "../../domain/tappaOps";
 import { splitRounds } from "../../utils/buildBracket";
 
@@ -26,17 +26,24 @@ export function BracketSection({ tappa, readOnly = false }: Props) {
   const allGironiDone = tappa.gironi !== null &&
     tappa.partite.every((m) => m.done);
 
+  // Le due operazioni partono dalla tappa di adesso e non dalla prop `tappa`, che può essere vecchia (per esempio
+  // se nel frattempo il Coach ha registrato un altro match): salvarne un derivato cancellerebbe quelle modifiche.
+
   /** Genera il bracket dalla classifica dei gironi (regole in tappaOps) */
   const generaBracket = () => {
-    const esito = generaFasiDirette(tappa);
+    const corrente = tappaCorrente(tappa.id);
+    if (!corrente) return;
+    const esito = generaFasiDirette(corrente);
     if (esito.ok) replaceTappa(esito.tappa);
   };
 
   /** Registra il risultato di un match del bracket: validazione e avanzamento del vincitore
    *  sono in tappaOps (stessa logica del Coach AI). */
   const registraRisultato = (match: BracketMatch) => {
+    const corrente = tappaCorrente(tappa.id);
+    if (!corrente) return;
     const sc = scores[match.id] ?? { a: "", b: "" };
-    const esito = registraRisultatoBracket(tappa, match.id, parseInt(sc.a, 10), parseInt(sc.b, 10));
+    const esito = registraRisultatoBracket(corrente, match.id, parseInt(sc.a, 10), parseInt(sc.b, 10));
     if (!esito.ok) return; // punteggio non valido: come prima, non succede nulla
     replaceTappa(esito.tappa);
     setScores((prev) => ({ ...prev, [match.id]: { a: "", b: "" } }));
