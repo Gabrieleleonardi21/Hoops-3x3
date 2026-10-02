@@ -456,3 +456,27 @@ describe("useTappa: sorteggio, punteggio e conclusione rifiutati restituiscono i
     expect(archivio.pubblica).not.toHaveBeenCalled();
   });
 });
+
+describe("useTappa: «Concludi» con la pubblicazione non riuscita", () => {
+  it("il messaggio dice come ripubblicare, e la strada indicata funziona: «Riapri» e poi «Concludi»", async () => {
+    useAppStore.setState({ tappe: [sorteggiata([giocata("m1")])] });
+    archivio.pubblica.mockRejectedValueOnce(new Error("rete assente"));
+    archivio.rimuovi.mockResolvedValue(undefined);
+    const { result } = renderHook(() => useTappa("t1"));
+    let errore: string | null = null;
+    await act(async () => { errore = await result.current.concludi(); });
+    expect(errore).toBe("Tappa conclusa, ma pubblicazione non riuscita: riprova con «Riapri» e poi «Concludi».");
+    expect(store().tappe[0].conclusa).toBe(true);
+
+    // «Concludi» da solo non ripubblica: la tappa è già conclusa (R5)
+    await act(async () => { errore = await result.current.concludi(); });
+    expect(errore).toBe("La tappa è conclusa: riaprila per modificarla.");
+
+    // «Riapri» e poi «Concludi»: la pubblicazione riparte e questa volta riesce
+    await act(async () => { await result.current.riapri(); });
+    await act(async () => { errore = await result.current.concludi(); });
+    expect(errore).toBeNull();
+    expect(archivio.pubblica).toHaveBeenCalledTimes(2);
+    expect(store().tappe[0].conclusa).toBe(true);
+  });
+});

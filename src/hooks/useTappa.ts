@@ -252,7 +252,8 @@ export function useTappa(id: string | undefined) {
       await archivioApi.pubblica(esito.tappa, legaName);
       return null;
     } catch {
-      return "Tappa conclusa, ma pubblicazione non riuscita: riprova da 'Concludi'.";
+      // La tappa resta conclusa e una tappa conclusa non si conclude di nuovo: per ripubblicare va riaperta
+      return "Tappa conclusa, ma pubblicazione non riuscita: riprova con «Riapri» e poi «Concludi».";
     }
   };
 
