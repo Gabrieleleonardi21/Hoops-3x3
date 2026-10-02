@@ -389,6 +389,27 @@ describe("perditaRisultati: che cosa cancellano un nuovo sorteggio o un cambio d
   });
 });
 
+describe("una tappa conclusa non si modifica (R5)", () => {
+  /** La stessa tappa, conclusa e pubblicata */
+  const conclusa = (t: Tappa): Tappa => ({ ...t, conclusa: true });
+
+  // Ogni operazione, sulla stessa tappa non conclusa, riuscirebbe: l'unico motivo del rifiuto è la conclusione
+  it.each<[string, () => Esito]>([
+    ["sorteggia (sonda: sorteggio su una tappa conclusa)", () => sorteggia(conclusa(tappaGironiConclusi()), "casuale")],
+    ["registraRisultato", () => registraRisultato(conclusa(tappaSorteggiata()), "m1", { sa: 21, sb: 15 })],
+    ["annullaRisultato", () => annullaRisultato(conclusa(tappaGironiConclusi()), "m1")],
+    ["registraRisultatoBracket", () => registraRisultatoBracket(conclusa(tappaConBracket()), "sf1", 21, 17)],
+    ["generaFasiDirette", () => generaFasiDirette(conclusa(tappaGironiConclusi()))],
+    ["concludi", () => concludi(conclusa(tappaGironiConclusi()))],
+    ["aggiungiSquadra", () => aggiungiSquadra(conclusa(tappaGironiConclusi()))],
+    ["rimuoviSquadra", () => rimuoviSquadra(conclusa(tappaGironiConclusi()), "b")],
+    ["impostaNumeroGironi", () => impostaNumeroGironi(conclusa(tappaGironiConclusi()), 1)],
+    ["rinominaTappa", () => rinominaTappa(conclusa(tappaGironiConclusi()), "Milano Open")],
+  ])("%s è rifiutata", (_operazione, esegui) => {
+    expect(errore(esegui())).toBe("La tappa è conclusa: riaprila per modificarla.");
+  });
+});
+
 describe("creazione della tappa: stessi limiti per interfaccia e Coach (R8)", () => {
   /** Dati di una tappa nuova con `n` squadre segnaposto */
   const dati = (n: number, nGironi: number) => ({ nome: "Napoli Open", luogo: " Napoli ", data: "2026-07-01", nGironi, squadre: tappaCon(n).squadre });

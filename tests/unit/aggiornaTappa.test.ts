@@ -375,6 +375,14 @@ describe("useTappa: le operazioni di tappaOps si applicano alla tappa di adesso"
     expect(store().tappe[0].video.map((v) => v.titolo)).toEqual(["Semifinale"]);
   });
 
+  it("R5: la sincronizzazione con l'anagrafe salta una tappa conclusa", async () => {
+    useAppStore.setState({ tappe: [{ ...tappa(), squadre: [squadra("s1", "Alfa"), squadra("s2", "Squadra 2")], conclusa: true }] });
+    const prima = store().tappe[0];
+    const { result } = renderHook(() => useTappa("t1"));
+    fai(() => result.current.syncFromAnagrafe([regAlfa]));
+    await nienteSalvato(prima);
+  });
+
   it("su una tappa conclusa il video aggiunto viene ripubblicato nell'archivio", () => {
     useAppStore.setState({ tappe: [{ ...tappa(), conclusa: true }] });
     const { result } = renderHook(() => useTappa("t1"));
@@ -383,5 +391,49 @@ describe("useTappa: le operazioni di tappaOps si applicano alla tappa di adesso"
       expect.objectContaining({ id: "t1", conclusa: true, video: [expect.objectContaining({ titolo: "Finale" })] }),
       expect.anything(),
     );
+  });
+});
+
+describe("useTappa: sorteggio, punteggio e conclusione rifiutati restituiscono il messaggio e non salvano niente", () => {
+  /** Esegue l'operazione dell'hook e restituisce il messaggio che dà */
+  async function messaggio(operazione: (h: ReturnType<typeof useTappa>) => string | null | Promise<string | null>) {
+    const { result } = renderHook(() => useTappa("t1"));
+    let errore: string | null = null;
+    await act(async () => { errore = await operazione(result.current); });
+    return errore;
+  }
+
+  it("sorteggio con roster incompleti", async () => {
+    const prima = store().tappe[0];
+    expect(await messaggio((h) => h.sorteggia("casuale"))).toMatch(/Roster incompleti: Squadra 1, Squadra 2/);
+    await nienteSalvato(prima);
+  });
+
+  it("punteggio in parità", async () => {
+    useAppStore.setState({ tappe: [sorteggiata([daGiocare("m1")], conRoster(tappa()))] });
+    const prima = store().tappe[0];
+    expect(await messaggio((h) => h.saveScore(prima.partite[0], { ...bozza21a15, sb: "21" }))).toMatch(/pareggi/);
+    await nienteSalvato(prima);
+  });
+
+  it("«Concludi» con partite da giocare: non salva e non pubblica", async () => {
+    useAppStore.setState({ tappe: [sorteggiata([daGiocare("m1")])] });
+    const prima = store().tappe[0];
+    expect(await messaggio((h) => h.concludi())).toMatch(/Mancano ancora 1 partite/);
+    await nienteSalvato(prima);
+    expect(archivio.pubblica).not.toHaveBeenCalled();
+  });
+
+  // Roster completi e, per il punteggio, una partita da giocare: senza la conclusione tutte e tre riuscirebbero
+  it.each<[string, Partita, (h: ReturnType<typeof useTappa>) => string | null | Promise<string | null>]>([
+    ["sorteggio", giocata("m1"), (h) => h.sorteggia("casuale")],
+    ["punteggio", daGiocare("m1"), (h) => h.saveScore(store().tappe[0].partite[0], bozza21a15)],
+    ["«Concludi»", giocata("m1"), (h) => h.concludi()],
+  ])("R5: %s su una tappa conclusa", async (_operazione, partita, operazione) => {
+    useAppStore.setState({ tappe: [{ ...sorteggiata([partita], conRoster(tappa())), conclusa: true }] });
+    const prima = store().tappe[0];
+    expect(await messaggio(operazione)).toBe("La tappa è conclusa: riaprila per modificarla.");
+    await nienteSalvato(prima);
+    expect(archivio.pubblica).not.toHaveBeenCalled();
   });
 });

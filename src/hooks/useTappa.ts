@@ -116,11 +116,13 @@ export function useTappa(id: string | undefined) {
 
   /** Sincronizza tutte le squadre della tappa con l'anagrafe (usato all'apertura della pagina).
    *  Cerca prima per regId, poi per nome case-insensitive.
-   *  Non tocca le squadre con nome placeholder ("Squadra N"). */
+   *  Non tocca le squadre con nome placeholder ("Squadra N") né le tappe concluse. */
   const syncFromAnagrafe = (regs: RegSquadra[]) => {
     if (!tappa) return;
     /** La tappa con le squadre allineate all'anagrafe; la stessa tappa se non c'è niente da cambiare */
     const allinea = (t: Tappa): Tappa => {
+      // Una tappa conclusa è pubblicata così com'era: un'anagrafe cambiata dopo non la riscrive
+      if (t.conclusa) return t;
       let changed = false;
       const updated = t.squadre.map((s) => {
         if (/^Squadra \d+$/.test(s.nome.trim())) return s; // placeholder, skip
