@@ -34,11 +34,13 @@ interface StatoChat {
   conferma: RichiestaConferma | null;
 }
 
-/** Chi usa la chat: l'id del registrato, «ospite» per l'ospite, null senza utente */
+/** Chi usa la chat: «ospite» per l'ospite; per il registrato l'id, o l'email (e il nome) se la sessione è salvata senza
+ *  id, perché User.id è facoltativo; null solo senza utente. Chi c'è non ha mai la chiave di «nessuno»: altrimenti
+ *  il logout non cancellerebbe la chat e una ricarica senza utente la ripristinerebbe */
 function autore(u: User | null): string | null {
   if (!u) return null;
   if (u.guest) return "ospite";
-  return u.id ?? null;
+  return u.id ?? u.email ?? u.name;
 }
 
 /** Cronologia della scheda (sessionStorage, si azzera chiudendola), solo se l'ha scritta chi c'è adesso: dopo una

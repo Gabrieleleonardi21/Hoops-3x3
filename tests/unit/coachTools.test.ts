@@ -735,6 +735,26 @@ describe("Coach AI: la chat appartiene a chi l'ha scritta", () => {
     expect(c.current.msgs).toEqual([]);
   });
 
+  /** Registrata con una sessione salvata senza id (User.id è facoltativo) */
+  const carla: User = { name: "Carla", email: "carla@example.it", guest: false };
+
+  it("un registrato senza id: al logout la chat si cancella", async () => {
+    act(() => { useAppStore.setState({ user: carla }); });
+    modello(testo("Ciao Carla!"));
+    const c = coach();
+    await chiedi(c, "Ciao coach");
+    await esci();
+    expect(c.current.msgs).toEqual([]);
+  });
+
+  it("un registrato senza id: dopo una ricarica senza utente la chat di prima non compare", async () => {
+    act(() => { useAppStore.setState({ user: carla }); });
+    modello(testo("Ciao Carla!"));
+    await chiedi(coach(), "Ciao coach");
+    const c = await ricarica(null);
+    expect(c.current.msgs).toEqual([]);
+  });
+
   it("quando entra qualcuno, la chat scritta prima senza utente si cancella", async () => {
     act(() => { useAppStore.setState({ user: null }); });
     const c = coach();
