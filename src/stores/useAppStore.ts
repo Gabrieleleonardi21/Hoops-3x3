@@ -453,3 +453,10 @@ export const useAppStore = create<AppState>((set, get) => {
     },
   };
 });
+
+/** La tappa com'è adesso nello store. Chi calcola una nuova versione con le funzioni di tappaOps parte da qui e non
+ *  dalla copia vista dal componente: dopo un'attesa, o se nel frattempo è cambiato qualcosa, quella copia è vecchia
+ *  e salvarne un derivato cancellerebbe le modifiche arrivate nel frattempo. */
+export function tappaCorrente(id: string | undefined): Tappa | null {
+  return useAppStore.getState().tappe.find((t) => t.id === id) ?? null;
+}

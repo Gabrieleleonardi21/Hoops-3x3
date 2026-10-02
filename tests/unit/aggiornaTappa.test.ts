@@ -3,7 +3,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { useAppStore } from "../../src/stores/useAppStore";
 import { useTappa } from "../../src/hooks/useTappa";
+import type { MatchDraft } from "../../src/hooks/useTappa";
 import { legheApi } from "../../src/services/legheApi";
+import { archivioApi } from "../../src/services/archivioApi";
 import { DEFAULT_RULES } from "../../src/constants/rules";
 import type { Partita, RegSquadra, SquadraTappa, Tappa, User } from "../../src/types";
 
@@ -15,7 +17,13 @@ vi.mock("../../src/services/legheApi", () => ({
   },
 }));
 
+// Anche l'archivio è solo rete: si controlla che cosa viene pubblicato
+vi.mock("../../src/services/archivioApi", () => ({
+  archivioApi: { list: vi.fn(), get: vi.fn(), pubblica: vi.fn(), rimuovi: vi.fn() },
+}));
+
 const api = vi.mocked(legheApi);
+const archivio = vi.mocked(archivioApi);
 const store = () => useAppStore.getState();
 const registrato: User = { id: "u1", name: "Anna", email: "anna@example.it", guest: false };
 const ospite: User = { name: "Ospite", guest: true };
@@ -32,6 +40,21 @@ const squadre = () => store().tappe[0].squadre;
 const partite = () => store().tappe[0].partite;
 /** Partita già giocata (21-15) tra le prime due squadre */
 const giocata = (id: string): Partita => ({ id, g: 0, a: "s1", b: "s2", sa: 21, sb: 15, done: true });
+/** Partita ancora da giocare tra le prime due squadre */
+const dagiocare = (id: string): Partita => ({ ...giocata(id), sa: 0, sb: 0, done: false });
+/** La tappa con tre giocatori con il nome in ogni squadra (roster completi) */
+const conRoster = (t: Tappa): Tappa => ({
+  ...t,
+  squadre: t.squadre.map((s) => ({
+    ...s, giocatori: [1, 2, 3].map((n) => ({ id: `${s.id}g${n}`, nome: `Giocatore ${n}` })),
+  })),
+});
+/** Bozza del punteggio come la scrive l'utente: 21 per la prima squadra (7+7+7), 15 per la seconda (5+5+5) */
+const bozza21a15: MatchDraft = {
+  sa: "21", sb: "15",
+  pa: { s1g1: { pt: "7" }, s1g2: { pt: "7" }, s1g3: { pt: "7" } },
+  pb: { s2g1: { pt: "5" }, s2g2: { pt: "5" }, s2g3: { pt: "5" } },
+};
 
 /** La squadra «Alfa» come la restituisce l'anagrafe */
 const regAlfa: RegSquadra = {
@@ -53,6 +76,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.resetAllMocks();
   api.putTappa.mockImplementation(async (t) => t);
+  archivio.pubblica.mockImplementation(async (t, lega) => ({ tappa: t, lega, autore: "Anna", ts: 1 }));
   useAppStore.setState({
     user: registrato, legaId: "l1", leghe: [{ id: "l1", nome: "Lega", ts: 1, nTappe: 1 }], tappe: [tappa()],
   });
@@ -231,5 +255,85 @@ describe("useTappa: le modifiche partono dalla tappa com'è adesso, non da quell
       expect(store().inSospeso).toBe(0);
       expect(api.putTappa).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("useTappa: le operazioni di tappaOps si applicano alla tappa di adesso", () => {
+  it("il sorteggio comprende le squadre aggiunte dopo che la vista ha letto la tappa", () => {
+    useAppStore.setState({ user: ospite });
+    const { result } = renderHook(() => useTappa("t1"));
+    const h = result.current; // vista con 2 squadre
+    fai(() => result.current.addTeam());
+    let errore: string | null = "non eseguito";
+    fai(() => { errore = h.sorteggia("casuale"); });
+    expect(errore).toBeNull();
+    expect(squadre()).toHaveLength(3);
+    expect(store().tappe[0].gironi?.flat().sort()).toEqual(squadre().map((s) => s.id).sort());
+  });
+
+  it("registrato: il sorteggio controlla i roster di adesso, non quelli della vista", () => {
+    const { result } = renderHook(() => useTappa("t1"));
+    const h = result.current; // roster ancora vuoti
+    act(() => { useAppStore.setState({ tappe: [conRoster(tappa())] }); });
+    let errore: string | null = "non eseguito";
+    fai(() => { errore = h.sorteggia("casuale"); });
+    expect(errore).toBeNull();
+    expect(store().tappe[0].gironi).not.toBeNull();
+  });
+
+  it("due risultati registrati di seguito restano entrambi", () => {
+    useAppStore.setState({
+      user: ospite, tappe: [{ ...tappa(), gironi: [["s1", "s2"]], partite: [dagiocare("m1"), dagiocare("m2")] }],
+    });
+    const { result } = renderHook(() => useTappa("t1"));
+    const h = result.current;
+    const [m1, m2] = partite();
+    fai(() => h.saveScore(m1, { sa: "21", sb: "15", pa: {}, pb: {} }));
+    fai(() => h.saveScore(m2, { sa: "10", sb: "21", pa: {}, pb: {} }));
+    expect(partite().map((m) => [m.sa, m.sb, m.done])).toEqual([[21, 15, true], [10, 21, true]]);
+  });
+
+  it("registrato: il punteggio si controlla sui roster di adesso, non su quelli della vista", () => {
+    useAppStore.setState({ tappe: [{ ...tappa(), gironi: [["s1", "s2"]], partite: [dagiocare("m1")] }] });
+    const { result } = renderHook(() => useTappa("t1"));
+    const h = result.current; // roster ancora vuoti
+    act(() => { useAppStore.setState({ tappe: [{ ...conRoster(tappa()), gironi: [["s1", "s2"]], partite: [dagiocare("m1")] }] }); });
+    let errore: string | null = "non eseguito";
+    fai(() => { errore = h.saveScore(partite()[0], bozza21a15); });
+    expect(errore).toBeNull();
+    expect(partite()[0]).toMatchObject({ sa: 21, sb: 15, done: true });
+  });
+
+  it("registrato: «Concludi» vede i risultati registrati dopo che la vista ha letto la tappa", async () => {
+    useAppStore.setState({ tappe: [{ ...tappa(), gironi: [["s1", "s2"]], partite: [dagiocare("m1")] }] });
+    const { result } = renderHook(() => useTappa("t1"));
+    const h = result.current; // partita ancora da giocare
+    act(() => { useAppStore.setState({ tappe: [{ ...tappa(), gironi: [["s1", "s2"]], partite: [giocata("m1")] }] }); });
+    let errore: string | null = "non eseguito";
+    await act(async () => { errore = await h.concludi(); });
+    expect(errore).toBeNull();
+    expect(store().tappe[0].conclusa).toBe(true);
+    expect(archivio.pubblica).toHaveBeenCalledWith(expect.objectContaining({ id: "t1", conclusa: true }), expect.anything());
+  });
+
+  it("video aggiunti e tolti di seguito si sommano", () => {
+    const { result } = renderHook(() => useTappa("t1"));
+    const h = result.current;
+    fai(() => h.addVideo("Finale", "https://youtu.be/a"));
+    fai(() => h.addVideo("Semifinale", "https://youtu.be/b"));
+    expect(store().tappe[0].video.map((v) => v.titolo)).toEqual(["Finale", "Semifinale"]);
+    const primo = store().tappe[0].video[0];
+    fai(() => h.removeVideo(primo.id));
+    expect(store().tappe[0].video.map((v) => v.titolo)).toEqual(["Semifinale"]);
+  });
+
+  it("su una tappa conclusa il video aggiunto viene ripubblicato nell'archivio", () => {
+    useAppStore.setState({ tappe: [{ ...tappa(), conclusa: true }] });
+    const { result } = renderHook(() => useTappa("t1"));
+    fai(() => result.current.addVideo("Finale", "https://youtu.be/a"));
+    expect(archivio.pubblica).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "t1", conclusa: true, video: [expect.objectContaining({ titolo: "Finale" })] }),
+      expect.anything(),
+    );
   });
 });
