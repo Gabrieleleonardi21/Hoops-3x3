@@ -21,8 +21,9 @@ import { GiocatorePage } from "./pages/GiocatorePage";
 import { CampettiPage } from "./pages/CampettiPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 
-/** All'avvio, per un utente registrato: verifica il token e carica le leghe dal server.
- *  Token scaduto o utente cancellato → logout silenzioso (torna alla home con il form). */
+/** All'avvio, per un utente registrato: verifica la sessione e carica le leghe dal server
+ *  (un JWT scaduto si rinnova da solo dentro api()). Sessione finita, utente cancellato o server
+ *  che non risponde → logout silenzioso (torna alla home con il form). */
 function useBootstrap() {
   const user = useAppStore((s) => s.user);
   const rehydrate = useAppStore((s) => s.rehydrate);

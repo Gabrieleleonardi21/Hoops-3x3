@@ -16,7 +16,7 @@ App web per la gestione di un circuito italiano di basket 3x3: tornei, gironi, s
 - **Home dashboard** — tappa in corso, classifica live, ultimo risultato, prossime partite e leader
 - **Profilo giocatore** — pagina `/giocatore/:id` con statistiche aggregate, andamento punti e storico tappe
 - **Campetti** — ricerca campi con filtri e mappa schematica (*dati di esempio*, senza persistenza)
-- **Sessione persistente** — login e dati salvati nel browser; gli ospiti hanno dati locali separati
+- **Sessione persistente** — login e dati salvati nel browser; la sessione si rinnova da sola e «Esci» la chiude anche sul server; gli ospiti hanno dati locali separati
 
 ### Regole FIBA 3x3 (default)
 | Parametro | Valore |
@@ -35,7 +35,7 @@ App web per la gestione di un circuito italiano di basket 3x3: tornei, gironi, s
 - [React Hook Form](https://react-hook-form.com/) + [Zod](https://zod.dev/) — form e validazione
 - [Tailwind CSS 4](https://tailwindcss.com/) — styling; i token del design system "Asphalt" sono in `src/index.css` (`@theme`), documentati in `docs/design-system.md`
 - Backend [Spring Boot 4](https://spring.io/projects/spring-boot) (Java 17+) con Spring Security + JWT, JPA/Hibernate e PostgreSQL — repo separato [hoop3x3-backend](https://github.com/Gabrieleleonardi21/hoop3x3-backend)
-- `localStorage` — solo per la modalità Ospite (dati che restano nel browser)
+- `localStorage` — lega dell'Ospite, JWT di accesso e utente di sessione (dati che restano nel browser)
 
 ## Avvio rapido
 
@@ -57,7 +57,9 @@ npm install
 npm run dev
 ```
 
-L'app è disponibile su `http://localhost:5173`; in sviluppo le chiamate a `/api` passano dal proxy di Vite verso il backend. In produzione imposta `VITE_API_URL` (vedi `.env.example`).
+L'app è disponibile su `http://localhost:5173`; in sviluppo le chiamate a `/api` passano dal proxy di Vite verso il backend.
+
+In produzione la strada più semplice è un reverse proxy che serve frontend e API sulla stessa origine: lascia `VITE_API_URL` vuoto e la sessione si rinnova da sola (nel backend servono solo `CORS_ORIGINS` con l'origine pubblica del frontend e, con HTTPS, `AUTH_COOKIE_SECURE=true`). Se invece il backend ha un'origine propria, imposta `VITE_API_URL` con quell'origine (vedi `.env.example`) e metti l'origine del frontend in `CORS_ORIGINS` del backend: il login funziona, ma il cookie di refresh non viaggia e la sessione dura quanto il JWT (30 minuti) finché non si completano i passi di «Sessioni e refresh token» nel README di [hoop3x3-backend](https://github.com/Gabrieleleonardi21/hoop3x3-backend).
 
 ## Script disponibili
 
@@ -86,8 +88,10 @@ Tutte le risposte di errore hanno il formato `{ "message": "...", "timestamp": "
 
 | Metodo | Endpoint | Accesso | Descrizione |
 |---|---|---|---|
-| POST | `/api/auth/register` | pubblico | Crea l'account (ruolo `USER`) e restituisce token + utente |
-| POST | `/api/auth/login` | pubblico | Login, restituisce token + utente |
+| POST | `/api/auth/register` | pubblico | Crea l'account (ruolo `USER`), imposta il cookie di refresh e restituisce token + utente |
+| POST | `/api/auth/login` | pubblico | Login, imposta il cookie di refresh e restituisce token + utente |
+| POST | `/api/auth/refresh` | pubblico, con il cookie di refresh | Ruota il refresh token e restituisce un nuovo token + utente |
+| POST | `/api/auth/logout` | pubblico | Revoca il refresh token e cancella il cookie (204) |
 | GET | `/api/auth/me` | login | Utente del token corrente |
 | GET | `/api/utenti` | ADMIN | Elenco utenti |
 | GET/POST | `/api/leghe` | login | Indice leghe dell'utente / nuova lega (anche import con `tappe`) |
@@ -144,6 +148,7 @@ accessibilità sono in [`docs/design-system.md`](docs/design-system.md). I mocku
 
 - **Utente registrato**: leghe e tappe sono sul server (`leghe`, `tappe`), l'anagrafe e l'archivio sono condivisi tra tutti gli utenti. Lo store aggiorna subito lo stato in memoria e salva in background (le modifiche a una tappa sono raggruppate con un debounce di 400 ms); un salvataggio fallito è segnalato da una barra in alto.
 - **Ospite**: la lega resta nel `localStorage` del browser; anagrafe e archivio sono consultabili in sola lettura.
+- **Sessione**: il JWT di 30 minuti è in `localStorage`. `api.ts` lo rinnova da solo con il refresh token, che il server imposta e il browser conserva in un cookie httpOnly (30 giorni, ruotato a ogni rinnovo): in anticipo quando sta per scadere, oppure dopo un 401 ripetendo la richiesta una sola volta. Le schede dello stesso browser condividono la sessione e rinnovano una alla volta (con le Web Locks API). Il logout cancella subito il JWT e revoca il refresh token sul server. Limiti noti: il logout chiude la sessione di questo browser (un JWT già emesso resta valido fino a 30 minuti, gli altri dispositivi non vengono toccati); con il JWT già scaduto, cioè se nessuna richiesta è partita negli ultimi 2 minuti della sua vita (può bastare una pausa di pochi minuti), una modifica va persa se la pagina si chiude entro 400 ms più il tempo del rinnovo, perché il salvataggio deve prima aspettare il rinnovo.
 - **Anagrafe**: viene scaricata una sola volta e tenuta in cache nello store (`useAnagrafeStore`), non a ogni apertura di pagina; ogni scrittura (dalle pagine o dal Coach AI) aggiorna server e cache. Le modifiche di altri utenti si vedono ricaricando la pagina.
 
 Schema del database in `db/schema.sql` del repo backend. Con `SEED_DEMO=true` in `env.properties` il primo avvio carica i dati di prova del circuito Estathé 2025 (32 giocatori, 8 squadre, lega con 4 tappe concluse e archivio) intestandoli all'admin; gli avvii successivi non li duplicano.

@@ -39,10 +39,11 @@ export function useAuth() {
     await rehydrate(); // ripristina eventuale lega ospite precedente
   };
 
-  const logout = () => {
-    authService.logout();
+  /** Uscita: prima lo stato locale, così l'interfaccia non aspetta la rete; poi la revoca sul server */
+  const logout = async () => {
     clearSession();
     reset();
+    await authService.logout();
   };
 
   return { user, register, login, enterGuest, logout };
