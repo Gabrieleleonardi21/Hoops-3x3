@@ -9,8 +9,8 @@ import { uid } from "../utils/uid";
 import { DEFAULT_RULES } from "../constants/rules";
 import { buildCoachContext } from "../utils/buildCoachContext";
 import {
-  concludi, creaTappa, erroreLimitiTappa, generaFasiDirette, registraRisultato, registraRisultatoBracket, sorteggia,
-  type Esito, type ModoSorteggio,
+  annullaRisultato, concludi, creaTappa, erroreLimitiTappa, generaFasiDirette, registraRisultato,
+  registraRisultatoBracket, sorteggia, type Esito, type ModoSorteggio,
 } from "../domain/tappaOps";
 import type { Tappa, RegSquadra, RegGiocatore, SquadraTappa, GiocatoreRoster } from "../types";
 
@@ -569,23 +569,14 @@ export function useCoachAI() {
       if (!tappa.gironi) throw new Error(`La tappa "${tappa.nome}" non è ancora sorteggiata.`);
 
       // Cerca la partita (già conclusa) tra le due squadre
-      const partita = tappa.partite.find((m) => {
-        const sA = tappa.squadre.find((s) => s.id === m.a);
-        const sB = tappa.squadre.find((s) => s.id === m.b);
-        if (!sA || !sB || !m.done) return false;
-        const naL = nomeA.toLowerCase();
-        const nbL = nomeB.toLowerCase();
-        return (
-          (sA.nome.toLowerCase().includes(naL) && sB.nome.toLowerCase().includes(nbL)) ||
-          (sA.nome.toLowerCase().includes(nbL) && sB.nome.toLowerCase().includes(naL))
-        );
-      });
+      const nomeOf = (id: string) => tappa.squadre.find((s) => s.id === id)?.nome ?? "";
+      const partita = tappa.partite.find((m) => m.done && coppiaCombacia(nomeOf(m.a), nomeOf(m.b), nomeA, nomeB));
       if (!partita) throw new Error(`Partita già conclusa tra "${nomeA}" e "${nomeB}" non trovata nella tappa "${tappa.nome}".`);
 
-      useAppStore.getState().updateTappaPartita(tappa.id, partita.id, { done: false, sa: 0, sb: 0 });
-      const sA = tappa.squadre.find((s) => s.id === partita.a)!;
-      const sB = tappa.squadre.find((s) => s.id === partita.b)!;
-      return `Risultato di "${sA.nome}" vs "${sB.nome}" annullato: la partita è tornata a non disputata.`;
+      // Le regole sono quelle di «Correggi» (tappaOps): no su una tappa conclusa (R5) né con la fase finale generata da
+      // questi risultati (R6); i punteggi restano come bozza e la partita non conta più in classifica
+      applica(tappa, (t) => annullaRisultato(t, partita.id));
+      return `Risultato di "${nomeOf(partita.a)}" vs "${nomeOf(partita.b)}" annullato: la partita è tornata a non disputata.`;
     }
 
     if (name === "aggiorna_squadra") {

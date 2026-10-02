@@ -117,6 +117,10 @@ const romaOpenGiocata = (): Tappa => ({
   ...romaOpen(),
   partite: [giocata("m1", "s1", "s2", 21, 15), giocata("m2", "s1", "s3", 21, 18), giocata("m3", "s2", "s3", 19, 21)],
 });
+/** La tappa con la fase finale generata: la sola finale Alfa-Gamma, da giocare */
+const conFinale = (t: Tappa): Tappa => ({
+  ...t, bracket: [{ id: "fin", label: "Finale", squadraA: "s1", squadraB: "s3", pA: 0, pB: 0, done: false }],
+});
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -280,11 +284,31 @@ describe("Coach AI: argomenti mancanti o non validi → nessuna azione, il model
     expect(store().tappe[1]).toMatchObject({ nome: "Tappa 2", nGironi });
   });
 
+  it.each<[string, () => Tappa, RegExp]>([
+    ["sulla tappa conclusa (R5)", () => ({ ...romaOpenGiocata(), conclusa: true }), /La tappa è conclusa: riaprila per modificarla/],
+    ["con la fase finale generata (R6)", () => conFinale(romaOpenGiocata()), /elimina prima la fase finale/],
+  ])("annulla_risultato %s è rifiutato e la partita resta giocata", async (_caso, base, motivo) => {
+    useAppStore.setState({ tappe: [base()] });
+    const prima = store().tappe[0];
+    await rifiutato("annulla_risultato", { squadra_a: "Alfa", squadra_b: "Beta" }, motivo);
+    expect(store().tappe[0]).toBe(prima);
+  });
+
   it("FC-3: senza tappa indicata il sorteggio non tocca l'ultima tappa se è conclusa", async () => {
     useAppStore.setState({ tappe: [{ ...romaOpenGiocata(), conclusa: true }] });
     const prima = store().tappe[0];
     await rifiutato("sorteggia_gironi", {}, /La tappa è conclusa: riaprila per modificarla/);
     expect(store().tappe[0]).toBe(prima);
+  });
+});
+
+describe("Coach AI: annulla_risultato usa tappaOps", () => {
+  it("la partita torna da giocare e i punteggi restano come bozza, come «Correggi» nella pagina", async () => {
+    modello(strumenti(["annulla_risultato", { squadra_a: "Beta", squadra_b: "Alfa" }]), testo("Risultato annullato."));
+    const c = coach();
+    await chiedi(c, "Annulla il risultato di Alfa-Beta");
+    expect(store().tappe[0].partite[0]).toEqual({ id: "m1", g: 0, a: "s1", b: "s2", sa: 21, sb: 15, done: false });
+    expect(c.current.msgs.at(-1)?.tools).toEqual(["annulla_risultato"]);
   });
 });
 
