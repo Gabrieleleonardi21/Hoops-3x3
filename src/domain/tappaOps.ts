@@ -63,8 +63,10 @@ export function registraRisultato(tappa: Tappa, partitaId: string, punteggio: Pu
   return ok({ ...tappa, partite: replaceById(tappa.partite, aggiornata) });
 }
 
-/** Registra il risultato di un match della fase a eliminazione diretta e fa avanzare il vincitore
- *  nel primo slot libero dei round successivi (dopo la finale non avanza nessuno). */
+/** Registra il risultato di un match della fase a eliminazione diretta e fa avanzare il vincitore nella
+ *  gara del turno successivo che gli spetta per posizione, qualunque sia l'ordine dei risultati (vedi
+ *  nextBracketSlot; solo i tabelloni nati con la vecchia logica ricadono sul primo posto libero).
+ *  Dopo la finale non avanza nessuno. */
 export function registraRisultatoBracket(tappa: Tappa, matchId: string, pA: number, pB: number): Esito {
   const bracket = tappa.bracket ?? [];
   const match = bracket.find((m) => m.id === matchId);
