@@ -669,7 +669,7 @@ describe("Coach AI: la chat", () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
-  it("uno strumento già partito si ferma: crea_tappa che aspetta l'anagrafe non crea la tappa dopo «Cancella»", async () => {
+  it("uno strumento già partito si ferma: crea_tappa che aspetta l'anagrafe non registra squadre e non crea la tappa dopo «Cancella»", async () => {
     const anagrafe = differita<RegSquadra[]>();
     vi.mocked(anagrafeApi.listSquadre).mockReturnValue(anagrafe.p);
     modello(strumenti(["crea_tappa", { nome: "Tappa 2", squadre: ["Alfa", "Beta"] }]), testo("Fatto."));
@@ -681,8 +681,28 @@ describe("Coach AI: la chat", () => {
       anagrafe.ok([]);
       await invio;
     });
+    // Alfa e Beta non finiscono nell'anagrafe condivisa per una tappa che non esisterà
+    expect(anagrafeApi.createSquadra).not.toHaveBeenCalled();
     expect(store().tappe.map((t) => t.nome)).toEqual(["Roma Open"]);
     expect(store().inSospeso).toBe(0);
+  });
+
+  it("uno strumento già partito si ferma: aggiorna_squadra che legge l'anagrafe non scrive dopo «Cancella»", async () => {
+    const anagrafe = differita<RegSquadra[]>();
+    vi.mocked(anagrafeApi.listSquadre).mockReturnValue(anagrafe.p);
+    modello(strumenti(["aggiorna_squadra", { nome: "Alfa", citta: "Roma" }]), testo("Fatto."));
+    const c = coach();
+    const invio = inviaSenzaAspettare(c, "La squadra Alfa è di Roma");
+    await waitFor(() => expect(anagrafeApi.listSquadre).toHaveBeenCalled());
+    act(() => { c.current.clearChat(); });
+    await act(async () => {
+      anagrafe.ok([{
+        id: "r1", nome: "Alfa", citta: "", anno: "", rank: "", referente: "", roster: [], logo: "", website: "", instagram: "",
+        note: "", autore: "Anna", ts: 1,
+      }]);
+      await invio;
+    });
+    expect(anagrafeApi.updateSquadra).not.toHaveBeenCalled();
   });
 });
 

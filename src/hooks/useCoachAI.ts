@@ -68,7 +68,8 @@ function salvaChat(msgs: ChatMsg[]) {
 }
 
 /** Richiesta al Coach in corso. Cancellando la chat si interrompe: la sua risposta non riempie di nuovo la chat, il
- *  modello non viene più chiamato e nessuno strumento agisce più (askCoachWithTools e crea_tappa guardano il segnale) */
+ *  modello non viene più chiamato e nessuno strumento agisce più (guardano il segnale askCoachWithTools e gli strumenti
+ *  che leggono l'anagrafe prima di scrivere, crea_tappa e aggiorna_squadra) */
 let richiestaInCorso: AbortController | null = null;
 
 /** Cancella la chat («Cancella» e logout) e abbandona la richiesta in corso, compresa una conferma in attesa */
@@ -323,6 +324,12 @@ function obbligatorio(args: Record<string, unknown>, key: string, cosa: string):
   return valore;
 }
 
+/** La chat è stata cancellata (o l'utente è uscito) mentre lo strumento aspettava una lettura: la richiesta è
+ *  abbandonata e lo strumento non scrive niente. Le scritture già spedite al server finiscono comunque */
+function fermaSeCancellata(segnale: AbortSignal) {
+  if (segnale.aborted) throw new Error("La chat è stata cancellata: azione non eseguita.");
+}
+
 /** true se il modello ha passato l'argomento facoltativo (null vale come assente): se c'è va controllato, non ignorato */
 function presente(args: Record<string, unknown>, key: string): boolean {
   return args[key] !== undefined && args[key] !== null;
@@ -484,6 +491,8 @@ export function useCoachAI() {
 
       // Carica anagrafe in parallelo
       const [tutteSquadre, tuttiGiocatori] = await Promise.all([fetchSquadre(), fetchGiocatori()]);
+      // Chat cancellata durante la lettura: nessuna squadra registrata nell'anagrafe condivisa per una tappa che non ci sarà
+      fermaSeCancellata(segnale);
 
       // Abbina ogni nome richiesto a una squadra in anagrafe; se non trovata, la registra in automatico
       const autoRegistrate: string[] = [];
@@ -526,9 +535,8 @@ export function useCoachAI() {
         })
       );
 
-      // Durante le attese dell'anagrafe la chat può essere stata cancellata (o l'utente è uscito): la richiesta è
-      // abbandonata e la tappa non va creata
-      if (segnale.aborted) throw new Error("La chat è stata cancellata: tappa non creata.");
+      // Chat cancellata durante le registrazioni (già spedite, finiscono comunque): la tappa non va creata
+      fermaSeCancellata(segnale);
       // Oppure l'utente ha aperto un'altra lega: addTappa metterebbe la tappa lì
       if (useAppStore.getState().legaId !== legaId) {
         let motivo = "La lega aperta è cambiata mentre la tappa veniva preparata: tappa non creata.";
@@ -720,6 +728,8 @@ export function useCoachAI() {
     if (name === "aggiorna_squadra") {
       const nomeRicerca = obbligatorio(args, "nome", "il nome della squadra da aggiornare");
       const tutteSquadre = await fetchSquadre();
+      // Chat cancellata durante la lettura: niente scrittura nell'anagrafe condivisa
+      fermaSeCancellata(segnale);
       const nl = nomeRicerca.toLowerCase();
       const reg = tutteSquadre.find(
         (s) => s.nome.toLowerCase() === nl || s.nome.toLowerCase().includes(nl),
