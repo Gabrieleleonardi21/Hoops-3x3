@@ -418,6 +418,23 @@ describe("useTappa: sorteggio, punteggio e conclusione rifiutati restituiscono i
     await nienteSalvato(prima);
   });
 
+  it("punteggio con un roster di adesso sotto i 3 giocatori, anche se la vista lo aveva completo", async () => {
+    const completa = sorteggiata([daGiocare("m1")], conRoster(tappa()));
+    useAppStore.setState({ tappe: [completa] });
+    const { result } = renderHook(() => useTappa("t1"));
+    const h = result.current; // vista con i roster completi
+    // Nel frattempo alla prima squadra restano 2 giocatori: il controllo deve guardare la tappa di adesso
+    const [prima2, ...altre] = completa.squadre;
+    act(() => {
+      useAppStore.setState({ tappe: [{ ...completa, squadre: [{ ...prima2, giocatori: prima2.giocatori.slice(0, 2) }, ...altre] }] });
+    });
+    const prima = store().tappe[0];
+    let errore: string | null = null;
+    fai(() => { errore = h.saveScore(prima.partite[0], bozza21a15); });
+    expect(errore).toBe("Squadra 1 non ha un roster valido (minimo 3 giocatori).");
+    await nienteSalvato(prima);
+  });
+
   it("«Concludi» con partite da giocare: non salva e non pubblica", async () => {
     useAppStore.setState({ tappe: [sorteggiata([daGiocare("m1")])] });
     const prima = store().tappe[0];
