@@ -16,7 +16,12 @@ export function Modal({ title, subtitle, label, width = 480, onClose, children }
   }, [onClose]);
 
   return (
+    // Lo sfondo chiude la modale al clic: è una scorciatoia solo per il mouse,
+    // da tastiera ci sono Esc (sopra) e il pulsante «Chiudi» nell'intestazione
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- scorciatoia per il mouse, vedi sopra
     <div onClick={onClose} className="modal-overlay">
+      {/* Il clic dentro la card non deve arrivare allo sfondo, altrimenti la chiuderebbe */}
+      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- ferma solo la propagazione del clic */}
       <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={label}
         className="modal-card flex max-h-[88vh] w-full flex-col" style={{ maxWidth: width }}>
         <div className="flex items-start justify-between gap-3 border-b border-asphalt-700 px-5 py-3">

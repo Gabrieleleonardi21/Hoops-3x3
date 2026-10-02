@@ -7,27 +7,11 @@ import { Section } from "../ui/Section";
 import type { BracketMatch, Tappa } from "../../types";
 import { useAppStore } from "../../stores/useAppStore";
 import { generaFasiDirette, registraRisultatoBracket } from "../../domain/tappaOps";
-import { standings } from "../../utils/standings";
 
 /** Divide il bracket in round in base alla struttura ad albero:
  *  il primo round ha N match, il secondo N/2, il terzo N/4, ecc. */
 function splitRounds(matches: BracketMatch[]): BracketMatch[][] {
   const rounds: BracketMatch[][] = [];
-  let left = matches.length;
-  let idx  = 0;
-  // Calcola la dimensione del primo round (più grande potenza di 2 che divide left+1)
-  let firstSize = 1;
-  while (firstSize * 2 <= left) firstSize *= 2;
-  // Se non è una potenza di 2 perfetta, prende la metà superiore
-  let size = left - (left >> 1); // ceil(left/2)... in realtà più semplice:
-  // Divide semplicemente dimezzando ogni volta
-  size = Math.ceil(left / 2);
-  // Ricostruisce: il primo round è la metà superiore (le prime coppie)
-  // Approccio diretto: ricostruisce i round dal totale
-  let roundSize = 1;
-  while (roundSize < left) roundSize *= 2;
-  // roundSize è la dimensione totale dell'albero; il primo round è roundSize/2
-  // Ma i match reali possono essere meno (bye)
   // Approccio semplificato: usa le etichette per raggruppare
   const byLabel: Record<string, BracketMatch[]> = {};
   for (const m of matches) {

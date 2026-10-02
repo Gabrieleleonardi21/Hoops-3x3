@@ -9,7 +9,6 @@ import { Input } from "../components/ui/Input";
 import { Button } from "../components/ui/Button";
 import { Icon } from "../components/ui/Icon";
 import { Section } from "../components/ui/Section";
-import { StandingsTable } from "../components/leaderboard/StandingsTable";
 import { useAppStore } from "../stores/useAppStore";
 import type { Tappa } from "../types";
 
