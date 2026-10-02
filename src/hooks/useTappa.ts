@@ -204,7 +204,8 @@ export function useTappa(id: string | undefined) {
     return null;
   };
 
-  const reopenScore = (matchId: string) => aggiornaPartita(matchId, (m) => ({ ...m, done: false }));
+  /** «Correggi»: la partita torna da giocare (tappaOps la rifiuta se la fase finale è già stata generata) */
+  const reopenScore = (matchId: string) => applica((t) => ops.annullaRisultato(t, matchId));
 
   /* ── eventi di gara ── */
   const addEvent = (matchId: string, ev: Omit<EventoGara, "id">) =>

@@ -154,3 +154,16 @@ describe("TappaPage: conferma prima di cancellare i risultati (R2)", () => {
     expect(store().tappe[0].gironi).toBeNull();
   });
 });
+
+describe("TappaPage: risultati dei gironi con la fase finale già generata (R6)", () => {
+  it("«Correggi» mostra il messaggio e non cambia niente", () => {
+    const giocate = conUnRisultato().partite.map((m) => ({ ...m, sa: 21, sb: 15, done: true }));
+    const finale = { id: "fin", label: "Finale", squadraA: "s1", squadraB: "s2", pA: 0, pB: 0, done: false };
+    useAppStore.setState({ tappe: [{ ...conUnRisultato(), partite: giocate, bracket: [finale] }] });
+    apriPagina({});
+    const prima = store().tappe[0];
+    fireEvent.click(screen.getAllByRole("button", { name: "Correggi" })[0]);
+    expect(screen.getByRole("alert").textContent).toMatch(/elimina prima la fase finale/);
+    expect(store().tappe[0]).toBe(prima);
+  });
+});

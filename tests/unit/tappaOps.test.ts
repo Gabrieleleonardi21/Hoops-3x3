@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   sorteggia, registraRisultato, registraRisultatoBracket, generaFasiDirette, concludi,
-  aggiungiSquadra, rimuoviSquadra, impostaNumeroGironi, perditaRisultati,
+  aggiungiSquadra, rimuoviSquadra, impostaNumeroGironi, perditaRisultati, annullaRisultato,
 } from "../../src/domain/tappaOps";
 import type { Esito } from "../../src/domain/tappaOps";
 import type { Tappa } from "../../src/types";
@@ -171,6 +171,34 @@ describe("registraRisultato (gironi)", () => {
     const originale = tappaSorteggiata();
     registraRisultato(originale, "m1", { sa: 21, sb: 15 });
     expect(originale).toEqual(tappaSorteggiata());
+  });
+});
+
+describe("annullaRisultato (gironi): «Correggi» dell'interfaccia e annulla_risultato del Coach", () => {
+  it("riporta la partita a da giocare, senza toccare le altre", () => {
+    const t = nuova(annullaRisultato(tappaGironiConclusi(), "m1"));
+    expect(t.partite[0]).toMatchObject({ id: "m1", done: false });
+    expect(t.partite[1]).toEqual(tappaGironiConclusi().partite[1]);
+  });
+
+  it("rifiuta una partita che non esiste", () => {
+    expect(errore(annullaRisultato(tappaGironiConclusi(), "inesistente"))).toMatch(/non trovata/);
+  });
+
+  it("non modifica la tappa ricevuta", () => {
+    const originale = tappaGironiConclusi();
+    annullaRisultato(originale, "m1");
+    expect(originale).toEqual(tappaGironiConclusi());
+  });
+});
+
+describe("risultati dei gironi con la fase finale già generata (R6)", () => {
+  it("annullare un risultato è rifiutato: prima va eliminata la fase finale", () => {
+    expect(errore(annullaRisultato(tappaConBracket(), "m1"))).toMatch(/elimina prima la fase finale/);
+  });
+
+  it("anche correggerlo registrandolo di nuovo è rifiutato", () => {
+    expect(errore(registraRisultato(tappaConBracket(), "m1", { sa: 21, sb: 10 }))).toMatch(/elimina prima la fase finale/);
   });
 });
 

@@ -353,6 +353,17 @@ describe("useTappa: le operazioni di tappaOps si applicano alla tappa di adesso"
     await nienteSalvato(prima);
   });
 
+  it("R6: «Correggi» con la fase finale generata è rifiutato con un messaggio e non salva niente", async () => {
+    const finale = { id: "fin", label: "Finale", squadraA: "s1", squadraB: "s2", pA: 0, pB: 0, done: false };
+    useAppStore.setState({ tappe: [{ ...sorteggiata([giocata("m1")]), bracket: [finale] }] });
+    const prima = store().tappe[0];
+    const { result } = renderHook(() => useTappa("t1"));
+    let errore: string | null = null;
+    fai(() => { errore = result.current.reopenScore("m1"); });
+    expect(errore).toMatch(/elimina prima la fase finale/);
+    await nienteSalvato(prima);
+  });
+
   it("video aggiunti e tolti di seguito si sommano", () => {
     const { result } = renderHook(() => useTappa("t1"));
     const h = result.current;

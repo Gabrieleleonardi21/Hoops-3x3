@@ -109,10 +109,18 @@ export function impostaNumeroGironi(tappa: Tappa, nGironi: number): Esito {
   return ok(senzaSorteggio({ ...tappa, nGironi }));
 }
 
+/** Con la fase finale generata i risultati dei gironi non cambiano più: il tabellone è nato da quelle classifiche */
+function erroreFaseFinale(tappa: Tappa): string | null {
+  if (!tappa.bracket?.length) return null;
+  return "Per correggere o annullare un risultato dei gironi elimina prima la fase finale, generata da questi risultati.";
+}
+
 /** Registra il risultato di una partita dei gironi */
 export function registraRisultato(tappa: Tappa, partitaId: string, punteggio: Punteggio): Esito {
   const partita = tappa.partite.find((m) => m.id === partitaId);
   if (!partita) return ko("Partita non trovata.");
+  const faseFinale = erroreFaseFinale(tappa);
+  if (faseFinale) return ko(faseFinale);
   const { sa, sb, pa, pb } = punteggio;
   const errore = erroreRisultato(tappa.regole, sa, sb);
   if (errore) return ko(errore);
@@ -124,6 +132,16 @@ export function registraRisultato(tappa: Tappa, partitaId: string, punteggio: Pu
   if (pa) aggiornata.pa = pa;
   if (pb) aggiornata.pb = pb;
   return ok({ ...tappa, partite: replaceById(tappa.partite, aggiornata) });
+}
+
+/** Annulla il risultato di una partita dei gironi: la partita torna da giocare e non conta più in classifica. Serve sia
+ *  per correggerlo («Correggi» nell'interfaccia: punteggi e schede restano come bozza) sia per annullarlo (Coach). */
+export function annullaRisultato(tappa: Tappa, partitaId: string): Esito {
+  const partita = tappa.partite.find((m) => m.id === partitaId);
+  if (!partita) return ko("Partita non trovata.");
+  const faseFinale = erroreFaseFinale(tappa);
+  if (faseFinale) return ko(faseFinale);
+  return ok({ ...tappa, partite: replaceById(tappa.partite, { ...partita, done: false }) });
 }
 
 /** Registra il risultato di un match della fase a eliminazione diretta e fa avanzare il vincitore nella
