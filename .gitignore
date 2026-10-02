@@ -1,5 +1,7 @@
 node_modules
 dist
+# Cache di tsc -b
+*.tsbuildinfo
 .env
 *.local
 

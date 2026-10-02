@@ -1,7 +1,8 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  readonly VITE_ANTHROPIC_API_KEY?: string;
+  /** Origine del backend in produzione; vuota in sviluppo (proxy di Vite) e dietro un reverse proxy */
+  readonly VITE_API_URL?: string;
 }
 
 interface ImportMeta {
