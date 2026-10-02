@@ -7,21 +7,7 @@ import { Section } from "../ui/Section";
 import type { BracketMatch, Tappa } from "../../types";
 import { useAppStore } from "../../stores/useAppStore";
 import { generaFasiDirette, registraRisultatoBracket } from "../../domain/tappaOps";
-
-/** Divide il tabellone nei round in base alla posizione: i match sono un array piatto, un round dopo
- *  l'altro, e ogni round ha la metà delle gare del precedente fino alla finale (1 gara). Si parte dalla
- *  fine, così anche un tabellone salvato con la vecchia logica (primo round incompleto) mostra tutti i match. */
-function splitRounds(matches: BracketMatch[]): BracketMatch[][] {
-  const rounds: BracketMatch[][] = [];
-  let fine = matches.length; // dove finisce il round che si sta ritagliando
-  let gare = 1;              // la finale ha 1 gara, il round prima 2, poi 4…
-  while (fine > 0) {
-    rounds.unshift(matches.slice(Math.max(fine - gare, 0), fine));
-    fine -= gare;
-    gare *= 2;
-  }
-  return rounds;
-}
+import { splitRounds } from "../../utils/buildBracket";
 
 interface Props {
   tappa: Tappa;

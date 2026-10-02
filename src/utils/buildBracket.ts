@@ -139,6 +139,22 @@ export function buildBracket(gironi: string[][], partite: Partita[], squadre: Sq
   return bracket;
 }
 
+/** Divide il tabellone nei round in base alla posizione: i match sono un array piatto, un round dopo
+ *  l'altro, e ogni round ha la metà delle gare del precedente fino alla finale (1 gara). Si parte dalla
+ *  fine, così anche un tabellone salvato con la vecchia logica (primo round incompleto) mostra tutti i match.
+ *  La usano l'interfaccia (una colonna per round) e nextBracketSlot (per trovare il round successivo). */
+export function splitRounds(matches: BracketMatch[]): BracketMatch[][] {
+  const rounds: BracketMatch[][] = [];
+  let fine = matches.length; // dove finisce il round che si sta ritagliando
+  let gare = 1;              // la finale ha 1 gara, il round prima 2, poi 4…
+  while (fine > 0) {
+    rounds.unshift(matches.slice(Math.max(fine - gare, 0), fine));
+    fine -= gare;
+    gare *= 2;
+  }
+  return rounds;
+}
+
 /**
  * Indica dove far avanzare il vincitore di un match: la gara del turno successivo e il posto (A o B).
  * La gara i-esima di un turno alimenta la gara ⌊i/2⌋ del turno dopo: posto A se i è pari, B se dispari.
