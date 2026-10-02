@@ -3,14 +3,17 @@ import type { Lega, LegaMeta, Partita, Tappa, User } from "../types";
 import { uid, isUuid } from "../utils/uid";
 import { legheApi } from "../services/legheApi";
 import { ApiError } from "../services/api";
+import { createSaveQueue } from "./saveQueue";
 
 /**
  * Store globale: utente, indice leghe e lega attiva con le sue tappe.
  * Le azioni aggiornano SUBITO lo stato in memoria (la UI resta reattiva) e poi persistono:
  *  - ospite  → localStorage, come nelle versioni precedenti
- *  - registrato → backend REST (legheApi); le modifiche alle tappe sono raggruppate
- *    con un debounce per tappa, così una raffica di input non genera una PUT per tasto.
- * Gli errori di salvataggio finiscono in `syncError` (mostrato da SyncBanner in App).
+ *  - registrato → backend REST (legheApi); creazione e modifiche delle tappe passano dalla coda
+ *    dei salvataggi (saveQueue.ts): una raffica di input diventa un solo invio, mai due richieste
+ *    insieme per la stessa tappa, nuovi tentativi se la rete o il server hanno un problema temporaneo.
+ * Gli errori finiscono in `syncError`, le tappe non ancora salvate in `inSospeso` ed `erroreSalvataggio`
+ * (tutti mostrati da SyncBanner in App).
  */
 interface AppState {
   user: User | null;
@@ -21,8 +24,16 @@ interface AppState {
   /** false mentre si caricano i dati dal server dopo login/reload (per i registrati) */
   ready: boolean;
   syncError: string | null;
+  /** Tappe con modifiche non ancora confermate dal server (coda dei salvataggi) */
+  inSospeso: number;
+  /** Motivo dell'ultimo salvataggio non riuscito per un problema temporaneo (rete, sessione, server):
+   *  torna null da solo quando la coda ha salvato tutto */
+  erroreSalvataggio: string | null;
   setUser: (u: User | null) => void;
   clearSyncError: () => void;
+  /** Salva subito le modifiche in attesa e aspetta le richieste in corso (logout, «Riprova ora»).
+   *  @returns quante tappe hanno ancora modifiche non salvate */
+  salvaTutto: () => Promise<number>;
   createLega: (nome: string) => Promise<string>;
   selectLega: (id: string) => Promise<void>;
   deleteLega: (id: string) => Promise<void>;
@@ -88,10 +99,24 @@ function getInitialState(): Pick<AppState, "user" | "legaId" | "leghe" | "legaNa
   return { user, legaId: activeId, leghe, legaName: lega.nome || "", tappe: lega.tappe || [], ready: true };
 }
 
-/* ── Debounce dei salvataggi tappa (registrati) ───────────────────────────── */
+/* ── Salvataggi sul server (registrati) ───────────────────────────────────── */
 
+/** Attesa dopo l'ultima modifica prima di salvare una tappa o rinominare la lega */
 const SAVE_DELAY = 400;
-const pending = new Map<string, { tappa: Tappa; timer: number }>();
+
+/** Testo dell'errore per l'utente: il messaggio del server o della rete, altrimenti uno generico */
+function testoErrore(e: unknown): string {
+  if (e instanceof ApiError) return e.message;
+  return "errore imprevisto";
+}
+
+/** Errori temporanei, per cui la coda riprova: rete assente (status 0), guasto del server (5xx) e JWT respinto
+ *  senza un rinnovo riuscito (401). Con il 401 la modifica resta in attesa invece di essere scartata: il rinnovo
+ *  può essere fallito solo per la rete e, se la sessione è finita davvero, il logout la conta tra quelle perse.
+ *  Gli altri rifiuti riguardano i dati: ripetere la stessa richiesta non servirebbe. */
+function riprovabile(e: unknown): boolean {
+  return e instanceof ApiError && (e.status === 0 || e.status === 401 || e.status >= 500);
+}
 
 /** Sostituisce gli id non-UUID (versioni vecchie / file importati) prima di mandare la tappa al server */
 function withUuid(t: Tappa): Tappa {
@@ -108,8 +133,7 @@ export const useAppStore = create<AppState>((set, get) => {
   };
 
   const reportError = (e: unknown, cosa: string) => {
-    const msg = e instanceof ApiError ? e.message : "errore imprevisto";
-    set({ syncError: `${cosa}: ${msg}` });
+    set({ syncError: `${cosa}: ${testoErrore(e)}` });
   };
 
   /** Ospite: salva la lega attiva su localStorage e aggiorna nTappe/ts nell'indice */
@@ -124,23 +148,56 @@ export const useAppStore = create<AppState>((set, get) => {
     set({ leghe });
   };
 
-  /** Registrato: PUT dell'ultima versione della tappa dopo SAVE_DELAY ms di quiete */
-  const scheduleSave = (tappaId: string) => {
-    const t = get().tappe.find((x) => x.id === tappaId);
-    if (!t) return;
-    const prev = pending.get(tappaId);
-    if (prev) window.clearTimeout(prev.timer);
-    const timer = window.setTimeout(() => {
-      pending.delete(tappaId);
-      legheApi.putTappa(t).catch((e) => reportError(e, "Salvataggio tappa non riuscito"));
-    }, SAVE_DELAY);
-    pending.set(tappaId, { tappa: t, timer });
+  /** Tappe aggiunte la cui POST non è ancora confermata dal server: id → id della lega */
+  const daCreare = new Map<string, string>();
+  /** Tappe eliminate prima che il server confermasse la creazione: se la POST era già in volo e riesce,
+   *  la tappa va cancellata subito dopo (una DELETE partita prima arriverebbe su una tappa ancora da creare) */
+  const eliminatePrimaDellaCreazione = new Set<string>();
+
+  const eliminaSulServer = (id: string) => {
+    legheApi.removeTappa(id).catch((e) => reportError(e, "Eliminazione tappa non riuscita"));
   };
 
-  /** Dopo una modifica alle tappe: localStorage per l'ospite, PUT differita per il registrato */
+  /** Invio di una versione della tappa (lo chiama la coda): POST finché la creazione non è confermata, poi PUT.
+   *  Un 409 sulla POST vuol dire che la tappa esiste già, perché la risposta di una POST precedente si è persa:
+   *  si passa alla PUT con questa versione, che è la più recente. */
+  const salvaSulServer = async (t: Tappa) => {
+    const legaId = daCreare.get(t.id);
+    if (legaId === undefined) {
+      await legheApi.putTappa(t);
+      return;
+    }
+    try {
+      await legheApi.addTappa(legaId, t);
+    } catch (e) {
+      if (!(e instanceof ApiError && e.status === 409)) throw e;
+      await legheApi.putTappa(t);
+    }
+    daCreare.delete(t.id);
+    if (eliminatePrimaDellaCreazione.delete(t.id)) eliminaSulServer(t.id);
+  };
+
+  const coda = createSaveQueue({
+    salva: salvaSulServer,
+    riprovabile,
+    ritardo: SAVE_DELAY,
+    onErrore: (e, definitivo) => {
+      if (definitivo) { reportError(e, "Salvataggio tappa non riuscito"); return; }
+      set({ erroreSalvataggio: testoErrore(e) });
+    },
+    // Coda vuota = tutto confermato dal server: l'avviso del salvataggio non riuscito sparisce da solo
+    onInSospeso: (inSospeso) => {
+      if (inSospeso === 0) { set({ inSospeso, erroreSalvataggio: null }); return; }
+      set({ inSospeso });
+    },
+  });
+
+  /** Punto d'ingresso unico per «questa tappa è cambiata, salvala»: localStorage per l'ospite,
+   *  coda dei salvataggi per il registrato, con la versione della tappa presente adesso nello stato */
   const afterTappaChange = (tappaId: string) => {
-    if (isRemote()) { scheduleSave(tappaId); return; }
-    persistLocal();
+    if (!isRemote()) { persistLocal(); return; }
+    const t = get().tappe.find((x) => x.id === tappaId);
+    if (t) coda.accoda(t);
   };
 
   /** Aggiorna nTappe/ts della lega attiva nell'indice in memoria (il server lo fa da sé) */
@@ -149,13 +206,17 @@ export const useAppStore = create<AppState>((set, get) => {
     set({ leghe: s.leghe.map((m) => m.id === s.legaId ? { ...m, nTappe: s.tappe.length, ts: Date.now() } : m) });
   };
 
-  // Chiusura pagina: le PUT in attesa partono subito (keepalive)
+  // Chiusura pagina: le versioni in attesa partono subito con keepalive (POST per le tappe non ancora create).
+  // Restano in coda: se la pagina torna dalla cache del browser vengono rinviate, e rinviarle non fa danni
   if (typeof window !== "undefined") {
     window.addEventListener("pagehide", () => {
-      for (const [id, p] of pending) {
-        window.clearTimeout(p.timer);
-        pending.delete(id);
-        legheApi.putTappa(p.tappa, true).catch(() => {});
+      for (const t of coda.inAttesa()) {
+        const legaId = daCreare.get(t.id);
+        if (legaId === undefined) {
+          legheApi.putTappa(t, true).catch(() => {});
+          continue;
+        }
+        legheApi.addTappa(legaId, t, true).catch(() => {});
       }
     });
   }
@@ -165,9 +226,16 @@ export const useAppStore = create<AppState>((set, get) => {
   return {
     ...initial,
     syncError: null,
+    inSospeso: 0,
+    erroreSalvataggio: null,
 
     setUser: (user) => set({ user }),
     clearSyncError: () => set({ syncError: null }),
+
+    salvaTutto: async () => {
+      await coda.svuota();
+      return coda.inAttesa().length;
+    },
 
     createLega: async (nome) => {
       const trimmed = nome.trim() || "Nuova lega";
@@ -242,10 +310,9 @@ export const useAppStore = create<AppState>((set, get) => {
       set((s) => ({ tappe: [...s.tappe, t] }));
       if (isRemote()) {
         touchIndex();
-        legheApi.addTappa(get().legaId!, t).catch((e) => reportError(e, "Creazione tappa non riuscita"));
-        return;
+        daCreare.set(t.id, get().legaId!); // il primo invio della coda sarà la POST di creazione
       }
-      persistLocal();
+      afterTappaChange(t.id);
     },
 
     updateTappa: (id, patch) => {
@@ -291,17 +358,24 @@ export const useAppStore = create<AppState>((set, get) => {
     removeTappa: (id) => {
       set((s) => ({ tappe: s.tappe.filter((t) => t.id !== id) }));
       if (isRemote()) {
-        // Una PUT in coda su una tappa eliminata darebbe 404: si annulla
-        const p = pending.get(id);
-        if (p) { window.clearTimeout(p.timer); pending.delete(id); }
+        coda.annulla(id); // un salvataggio ancora in attesa su una tappa eliminata darebbe 404
         touchIndex();
-        legheApi.removeTappa(id).catch((e) => reportError(e, "Eliminazione tappa non riuscita"));
+        // Creazione non ancora confermata: niente DELETE, la tappa potrebbe non essere mai arrivata al server
+        if (daCreare.delete(id)) {
+          eliminatePrimaDellaCreazione.add(id);
+          return;
+        }
+        eliminaSulServer(id);
         return;
       }
       persistLocal();
     },
 
     reset: () => {
+      // Chi esce rinuncia a ciò che non è stato salvato: nessun invio parte più dopo il logout
+      coda.azzera();
+      daCreare.clear();
+      eliminatePrimaDellaCreazione.clear();
       localStorage.removeItem(ACTIVE_KEY);
       set({ user: null, legaId: null, leghe: [], legaName: "", tappe: [], ready: true, syncError: null });
     },

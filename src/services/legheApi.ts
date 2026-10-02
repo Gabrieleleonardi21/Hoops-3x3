@@ -18,8 +18,9 @@ export const legheApi = {
     api<LegaMeta>(`/api/leghe/${id}`, { method: "PATCH", body: { nome } }),
   remove: (id: string) => api<void>(`/api/leghe/${id}`, { method: "DELETE" }),
 
-  addTappa: (legaId: string, t: Tappa) =>
-    api<Tappa>(`/api/leghe/${legaId}/tappe`, { method: "POST", body: t }),
+  /** keepalive per il flush in chiusura pagina di una tappa non ancora creata sul server */
+  addTappa: (legaId: string, t: Tappa, keepalive = false) =>
+    api<Tappa>(`/api/leghe/${legaId}/tappe`, { method: "POST", body: t, keepalive }),
   /** Sostituzione completa; keepalive per il flush in chiusura pagina */
   putTappa: (t: Tappa, keepalive = false) =>
     api<Tappa>(`/api/tappe/${t.id}`, { method: "PUT", body: t, keepalive }),
