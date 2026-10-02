@@ -13,6 +13,7 @@ export interface ToolParamProp {
   type: string;
   description: string;
   items?: { type: string }; // usato quando type === "array"
+  enum?: string[];          // valori ammessi (es. la modalità di sorteggio)
 }
 
 /** Definizione di uno strumento che l'AI può invocare (formato OpenAI function calling). */

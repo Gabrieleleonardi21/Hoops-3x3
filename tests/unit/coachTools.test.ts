@@ -138,6 +138,16 @@ const romaOpenGiocata = (): Tappa => ({
 const conFinale = (t: Tappa): Tappa => ({
   ...t, bracket: [{ id: "fin", label: "Finale", squadraA: "s1", squadraB: "s3", pA: 0, pB: 0, done: false }],
 });
+/** 3 gironi da 2 squadre con le gare giocate: si può generare la fase finale (6 qualificate in un tabellone da 8 posti) */
+const treGironi = (): Tappa => ({
+  ...romaOpen(), nGironi: 3,
+  squadre: ["Alfa", "Beta", "Gamma", "Delta", "Epsilon", "Zeta"].map((nome, i) => squadra(`s${i + 1}`, nome)),
+  gironi: [["s1", "s2"], ["s3", "s4"], ["s5", "s6"]],
+  partite: [
+    { ...giocata("m1", "s1", "s2", 21, 15), g: 0 }, { ...giocata("m2", "s3", "s4", 21, 10), g: 1 },
+    { ...giocata("m3", "s5", "s6", 21, 12), g: 2 },
+  ],
+});
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -321,6 +331,28 @@ describe("Coach AI: argomenti mancanti o non validi, o azione vietata da tappaOp
     expect(store().tappe[0]).toBe(prima);
   });
 
+  it.each<unknown>([0, -1, 2.5, "due"])("genera_fasi_dirette con qualificate non valide (%s) non genera il tabellone", async (qualificate) => {
+    useAppStore.setState({ tappe: [treGironi()] });
+    const prima = store().tappe[0];
+    await rifiutato("genera_fasi_dirette", { qualificate }, /Numero di qualificate per girone non valido/);
+    expect(store().tappe[0]).toBe(prima);
+  });
+
+  it.each<unknown>(["serpentina", "", 3])("sorteggia_gironi con una modalità non valida (%s) non sorteggia", async (mode) => {
+    // Senza risultati il sorteggio non chiede conferma: con la modalità sbagliata partirebbe subito
+    useAppStore.setState({ tappe: [{ ...romaOpen(), gironi: null, partite: [] }] });
+    const prima = store().tappe[0];
+    await rifiutato("sorteggia_gironi", { mode }, /Modalità di sorteggio non valida/);
+    expect(store().tappe[0]).toBe(prima);
+  });
+
+  it("sorteggia_gironi riconosce la modalità anche con le maiuscole: «Ranking» è il sorteggio per ranking", async () => {
+    useAppStore.setState({ tappe: [{ ...romaOpen(), gironi: null, partite: [] }] });
+    const richieste = modello(strumenti(["sorteggia_gironi", { mode: "Ranking" }]), testo("Sorteggio per ranking fatto."));
+    await chiedi(coach(), "Sorteggia per ranking");
+    expect(esiti(richieste)[0]).toContain('Sorteggio "ranking" completato');
+  });
+
   it("FC-3: senza tappa indicata il sorteggio non tocca l'ultima tappa se è conclusa", async () => {
     useAppStore.setState({ tappe: [{ ...romaOpenGiocata(), conclusa: true }] });
     const prima = store().tappe[0];
@@ -331,17 +363,8 @@ describe("Coach AI: argomenti mancanti o non validi, o azione vietata da tappaOp
 
 describe("Coach AI: fase finale", () => {
   it("genera_fasi_dirette conta solo i match da giocare, non i turni superati d'ufficio (bye)", async () => {
-    // 3 gironi da 2 squadre, gare giocate: 6 qualificate in un tabellone da 8 posti, cioè 2 bye al primo turno
-    const nomi = ["Alfa", "Beta", "Gamma", "Delta", "Epsilon", "Zeta"];
-    useAppStore.setState({ tappe: [{
-      ...romaOpen(), nGironi: 3,
-      squadre: nomi.map((nome, i) => squadra(`s${i + 1}`, nome)),
-      gironi: [["s1", "s2"], ["s3", "s4"], ["s5", "s6"]],
-      partite: [
-        { ...giocata("m1", "s1", "s2", 21, 15), g: 0 }, { ...giocata("m2", "s3", "s4", 21, 10), g: 1 },
-        { ...giocata("m3", "s5", "s6", 21, 12), g: 2 },
-      ],
-    }] });
+    // 6 qualificate in un tabellone da 8 posti: 2 bye al primo turno
+    useAppStore.setState({ tappe: [treGironi()] });
     const richieste = modello(strumenti(["genera_fasi_dirette", {}]), testo("Il tabellone è pronto."));
     await chiedi(coach(), "Genera le fasi dirette");
     expect(store().tappe[0].bracket).toHaveLength(7); // 4 gare al primo turno (2 bye), 2 semifinali, la finale

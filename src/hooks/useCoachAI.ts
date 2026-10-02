@@ -225,7 +225,7 @@ const COACH_TOOLS: ToolDef[] = [
         type: "object",
         properties: {
           tappa_nome: { type: "string", description: "Nome (o parte del nome) della tappa su cui sorteggiare. Ometti per usare l'ultima tappa." },
-          mode:       { type: "string", description: "Modalità: 'casuale' (default) oppure 'ranking' (distribuzione a serpentina per ranking)" },
+          mode:       { type: "string", enum: ["casuale", "ranking"], description: "Modalità: 'casuale' (default) oppure 'ranking' (distribuzione a serpentina per ranking)" },
         },
         required: [],
       },
@@ -240,7 +240,7 @@ const COACH_TOOLS: ToolDef[] = [
         type: "object",
         properties: {
           tappa_nome:  { type: "string", description: "Nome (o parte del nome) della tappa. Ometti per usare l'ultima tappa." },
-          qualificate: { type: "number", description: "Quante squadre per girone si qualificano (default 2)" },
+          qualificate: { type: "number", description: "Quante squadre per girone si qualificano: un intero da 1 in su (default 2)" },
         },
         required: [],
       },
@@ -310,6 +310,11 @@ function obbligatorio(args: Record<string, unknown>, key: string, cosa: string):
   return valore;
 }
 
+/** true se il modello ha passato l'argomento facoltativo (null vale come assente): se c'è va controllato, non ignorato */
+function presente(args: Record<string, unknown>, key: string): boolean {
+  return args[key] !== undefined && args[key] !== null;
+}
+
 /** Campo numerico: un numero, oppure un testo che lo contiene ("21"); NaN se manca. Number e non parseInt: "21.5"
  *  resta decimale e tappaOps lo rifiuta, invece di diventare 21 */
 function numero(args: Record<string, unknown>, key: string): number {
@@ -334,9 +339,27 @@ function nomiSquadre(args: Record<string, unknown>): string[] {
 /** Numero di gironi di crea_tappa: quello indicato (erroreLimitiTappa vuole un intero), altrimenti 2, oppure 1 con meno
  *  di 4 squadre (ogni girone ne vuole almeno 2) */
 function gironiRichiesti(args: Record<string, unknown>, nSquadre: number): number {
-  if (args.nGironi !== undefined && args.nGironi !== null) return numero(args, "nGironi");
+  if (presente(args, "nGironi")) return numero(args, "nGironi");
   if (nSquadre < 4) return 1;
   return 2;
+}
+
+/** Modalità di sorteggio: «casuale» se non è indicata. Un valore diverso da casuale o ranking (maiuscole a parte) è un
+ *  errore: prima diventava un sorteggio casuale, fatto senza conferma se la tappa non aveva risultati */
+function modoSorteggio(args: Record<string, unknown>): ModoSorteggio {
+  if (!presente(args, "mode")) return "casuale";
+  const modo = str(args, "mode").toLowerCase();
+  if (modo === "casuale" || modo === "ranking") return modo;
+  throw new Error("Modalità di sorteggio non valida: usa «casuale» o «ranking».");
+}
+
+/** Squadre per girone che passano alla fase finale: 2 se non è indicato (come l'interfaccia), altrimenti un intero da
+ *  1 in su. Prima un valore sbagliato diventava 2 in silenzio, e un tabellone generato non si rigenera */
+function qualificateRichieste(args: Record<string, unknown>): number {
+  if (!presente(args, "qualificate")) return 2;
+  const n = numero(args, "qualificate");
+  if (!Number.isInteger(n) || n < 1) throw new Error("Numero di qualificate per girone non valido: serve un intero da 1 in su.");
+  return n;
 }
 
 /** Trova una tappa per nome (parziale, case-insensitive); se omesso restituisce l'ultima. */
@@ -548,10 +571,8 @@ export function useCoachAI() {
     }
 
     if (name === "sorteggia_gironi") {
+      const modo = modoSorteggio(args);
       const tappa = tappaRichiesta(args);
-
-      let modo: ModoSorteggio = "casuale";
-      if (str(args, "mode") === "ranking") modo = "ranking";
       const sorteggio = (t: Tappa) => sorteggia(t, modo);
       // D4: con dei risultati registrati il nuovo sorteggio li cancella e decide l'utente; prima però si prova, così
       // una tappa conclusa è rifiutata senza chiedere niente
@@ -703,11 +724,8 @@ export function useCoachAI() {
     }
 
     if (name === "genera_fasi_dirette") {
+      const nPass = qualificateRichieste(args);
       const tappa = tappaRichiesta(args);
-
-      // qualificate per girone (default 2, come la UI)
-      let nPass = 2;
-      if (typeof args.qualificate === "number" && args.qualificate >= 1) nPass = Math.floor(args.qualificate);
 
       const nuova = applica(tappa, (t) => generaFasiDirette(t, nPass));
       navigate(`/lega/tappa/${tappa.id}`);
