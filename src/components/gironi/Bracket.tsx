@@ -1,5 +1,6 @@
 /** Vista tabellone a eliminazione diretta, puramente presentazionale: una colonna per round
  *  (su mobile i round si impilano), ogni match una card con due righe squadra/punteggio.
+ *  In un match `bye` (turno superato d'ufficio) la seconda riga dice «Passa il turno».
  *  I controlli di inserimento arrivano da `renderControls` così la logica resta nel chiamante. */
 import type { BracketMatch } from "../../types";
 import { safeUrl } from "../../utils/safeUrl";
@@ -31,6 +32,18 @@ function Row({ name, logo, score, winner, loser, tbd }: {
   );
 }
 
+/** Righe di un match bye: la squadra presente (`id`) passa il turno senza giocare e, al posto
+ *  dell'avversaria, c'è la dicitura. Niente punteggio: il match non si gioca. */
+function ByeRows({ id, nameOf, logoOf }: { id: string | null } & Pick<Props, "nameOf" | "logoOf">) {
+  return (
+    <>
+      <Row name={nameOf(id)} logo={logoOf?.(id)} score={null} winner loser={false} tbd={false} />
+      <div className="border-t border-asphalt-700" />
+      <div className="flex h-9 items-center px-3 text-[13px] text-chalk-dim">Passa il turno</div>
+    </>
+  );
+}
+
 export function Bracket({ rounds, nameOf, logoOf, renderControls }: Props) {
   return (
     <div className="grid gap-4 md:grid-flow-col md:auto-cols-fr">
@@ -50,11 +63,17 @@ export function Bracket({ rounds, nameOf, logoOf, renderControls }: Props) {
                     <span className="text-[10.5px] font-semibold uppercase tracking-[0.06em] text-chalk-muted">{m.label}</span>
                     {champion && <Badge tone="gold"><Icon name="trophy" size={11} /> Campione</Badge>}
                   </div>
-                  <Row name={nameOf(m.squadraA)} logo={logoOf?.(m.squadraA)} score={m.done ? m.pA : null}
-                    winner={m.done && m.pA > m.pB} loser={m.done && m.pA < m.pB} tbd={!m.squadraA} />
-                  <div className="border-t border-asphalt-700" />
-                  <Row name={nameOf(m.squadraB)} logo={logoOf?.(m.squadraB)} score={m.done ? m.pB : null}
-                    winner={m.done && m.pB > m.pA} loser={m.done && m.pB < m.pA} tbd={!m.squadraB} />
+                  {/* bye: una sola squadra (di norma la A), l'altra posizione è vuota */}
+                  {m.bye && <ByeRows id={m.squadraA ?? m.squadraB} nameOf={nameOf} logoOf={logoOf} />}
+                  {!m.bye && (
+                    <>
+                      <Row name={nameOf(m.squadraA)} logo={logoOf?.(m.squadraA)} score={m.done ? m.pA : null}
+                        winner={m.done && m.pA > m.pB} loser={m.done && m.pA < m.pB} tbd={!m.squadraA} />
+                      <div className="border-t border-asphalt-700" />
+                      <Row name={nameOf(m.squadraB)} logo={logoOf?.(m.squadraB)} score={m.done ? m.pB : null}
+                        winner={m.done && m.pB > m.pA} loser={m.done && m.pB < m.pA} tbd={!m.squadraB} />
+                    </>
+                  )}
                   {renderControls && !m.done && m.squadraA && m.squadraB && (
                     <div className="border-t border-asphalt-700 px-3 py-2">{renderControls(m)}</div>
                   )}
