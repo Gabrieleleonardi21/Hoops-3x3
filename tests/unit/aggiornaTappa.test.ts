@@ -41,7 +41,9 @@ const partite = () => store().tappe[0].partite;
 /** Partita già giocata (21-15) tra le prime due squadre */
 const giocata = (id: string): Partita => ({ id, g: 0, a: "s1", b: "s2", sa: 21, sb: 15, done: true });
 /** Partita ancora da giocare tra le prime due squadre */
-const dagiocare = (id: string): Partita => ({ ...giocata(id), sa: 0, sb: 0, done: false });
+const daGiocare = (id: string): Partita => ({ ...giocata(id), sa: 0, sb: 0, done: false });
+/** La tappa già sorteggiata (un girone con le prime due squadre) con queste partite */
+const sorteggiata = (partite: Partita[], base: Tappa = tappa()): Tappa => ({ ...base, gironi: [["s1", "s2"]], partite });
 /** La tappa con tre giocatori con il nome in ogni squadra (roster completi) */
 const conRoster = (t: Tappa): Tappa => ({
   ...t,
@@ -212,7 +214,7 @@ describe("useTappa: le modifiche partono dalla tappa com'è adesso, non da quell
   });
 
   it("partite riaperte di seguito si sommano", () => {
-    useAppStore.setState({ tappe: [{ ...tappa(), gironi: [["s1", "s2"]], partite: [giocata("m1"), giocata("m2")] }] });
+    useAppStore.setState({ tappe: [sorteggiata([giocata("m1"), giocata("m2")])] });
     const { result } = renderHook(() => useTappa("t1"));
     const h = result.current;
     fai(() => h.reopenScore("m1"));
@@ -221,7 +223,7 @@ describe("useTappa: le modifiche partono dalla tappa com'è adesso, non da quell
   });
 
   it("eventi di gara aggiunti e tolti di seguito si sommano", () => {
-    useAppStore.setState({ tappe: [{ ...tappa(), gironi: [["s1", "s2"]], partite: [giocata("m1")] }] });
+    useAppStore.setState({ tappe: [sorteggiata([giocata("m1")])] });
     const { result } = renderHook(() => useTappa("t1"));
     const h = result.current;
     const fallo = { tipo: "fallo", teamId: "s1", pid: null, min: "3", nota: "" };
@@ -290,9 +292,7 @@ describe("useTappa: le operazioni di tappaOps si applicano alla tappa di adesso"
   });
 
   it("due risultati registrati di seguito restano entrambi", () => {
-    useAppStore.setState({
-      user: ospite, tappe: [{ ...tappa(), gironi: [["s1", "s2"]], partite: [dagiocare("m1"), dagiocare("m2")] }],
-    });
+    useAppStore.setState({ user: ospite, tappe: [sorteggiata([daGiocare("m1"), daGiocare("m2")])] });
     const { result } = renderHook(() => useTappa("t1"));
     const h = result.current;
     const [m1, m2] = partite();
@@ -302,10 +302,10 @@ describe("useTappa: le operazioni di tappaOps si applicano alla tappa di adesso"
   });
 
   it("registrato: il punteggio si controlla sui roster di adesso, non su quelli della vista", () => {
-    useAppStore.setState({ tappe: [{ ...tappa(), gironi: [["s1", "s2"]], partite: [dagiocare("m1")] }] });
+    useAppStore.setState({ tappe: [sorteggiata([daGiocare("m1")])] });
     const { result } = renderHook(() => useTappa("t1"));
     const h = result.current; // roster ancora vuoti
-    act(() => { useAppStore.setState({ tappe: [{ ...conRoster(tappa()), gironi: [["s1", "s2"]], partite: [dagiocare("m1")] }] }); });
+    act(() => { useAppStore.setState({ tappe: [sorteggiata([daGiocare("m1")], conRoster(tappa()))] }); });
     let errore: string | null = "non eseguito";
     fai(() => { errore = h.saveScore(partite()[0], bozza21a15); });
     expect(errore).toBeNull();
@@ -313,10 +313,10 @@ describe("useTappa: le operazioni di tappaOps si applicano alla tappa di adesso"
   });
 
   it("registrato: «Concludi» vede i risultati registrati dopo che la vista ha letto la tappa", async () => {
-    useAppStore.setState({ tappe: [{ ...tappa(), gironi: [["s1", "s2"]], partite: [dagiocare("m1")] }] });
+    useAppStore.setState({ tappe: [sorteggiata([daGiocare("m1")])] });
     const { result } = renderHook(() => useTappa("t1"));
     const h = result.current; // partita ancora da giocare
-    act(() => { useAppStore.setState({ tappe: [{ ...tappa(), gironi: [["s1", "s2"]], partite: [giocata("m1")] }] }); });
+    act(() => { useAppStore.setState({ tappe: [sorteggiata([giocata("m1")])] }); });
     let errore: string | null = "non eseguito";
     await act(async () => { errore = await h.concludi(); });
     expect(errore).toBeNull();
