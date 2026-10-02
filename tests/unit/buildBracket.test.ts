@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { buildBracket, nextBracketSlot } from "../../src/utils/buildBracket";
 import { buildMatches } from "../../src/utils/buildMatches";
-import type { BracketMatch, Partita, SquadraTappa } from "../../src/types";
+import { registraRisultatoBracket } from "../../src/domain/tappaOps";
+import type { Esito } from "../../src/domain/tappaOps";
+import type { BracketMatch, Partita, SquadraTappa, Tappa } from "../../src/types";
 
 const sq = (id: string): SquadraTappa => ({ id, nome: id.toUpperCase(), giocatori: [], rank: "" });
 
@@ -116,5 +118,25 @@ describe("nextBracketSlot (avanzamento per posizione)", () => {
       { id: "fin", label: "Finale", squadraA: "2A", squadraB: null, pA: 0, pB: 0, done: false }, // la vecchia logica ha messo 2A nel posto A
     ];
     expect(nextBracketSlot(vecchio, "sf1", "1A")).toEqual({ id: "fin", patch: { squadraB: "1A" } });
+  });
+});
+
+describe("match bye (turno superato d'ufficio)", () => {
+  it("non si gioca: registraRisultatoBracket rifiuta qualsiasi risultato", () => {
+    // 3 gironi, 2 qualificate: il tabellone da 8 posti ha 2 match bye al primo turno
+    const t = torneo(3, 4);
+    const bracket = buildBracket(t.gironi, t.partite, t.squadre);
+    const tappa: Tappa = {
+      id: "t1", nome: "Prova", luogo: "Roma", data: "2026-06-01", nGironi: 3,
+      regole: { target: 21, durata: 10, ot: 2, shot: 12 },
+      squadre: t.squadre, gironi: t.gironi, partite: t.partite, video: [], bracket,
+    };
+    const bye = bracket.filter((m) => m.bye);
+    expect(bye).toHaveLength(2);
+    bye.forEach((m) => {
+      const esito: Esito = registraRisultatoBracket(tappa, m.id, 21, 10);
+      // rifiutato: nessuna nuova tappa, solo il messaggio d'errore (il testo non è vincolato)
+      expect(esito).toEqual({ ok: false, errore: expect.any(String) });
+    });
   });
 });
