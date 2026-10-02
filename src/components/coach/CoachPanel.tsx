@@ -41,7 +41,7 @@ function riepilogoTool(tools: string[]): Array<{ label: string; count: number; c
 }
 
 export function CoachPanel({ onClose }: { onClose: () => void }) {
-  const { msgs, loading, send, clearChat } = useCoachAI();
+  const { msgs, loading, conferma, send, clearChat } = useCoachAI();
   const [input, setInput] = useState("");
 
   const submit = () => {
@@ -84,7 +84,18 @@ export function CoachPanel({ onClose }: { onClose: () => void }) {
             )}
           </div>
         ))}
-        {loading && <div className="bubble-a pulse">Il coach sta pensando…</div>}
+        {/* D4: l'azione distruttiva aspetta qui, nella chat dove l'utente sta guardando, e parte solo con «Conferma» */}
+        {conferma && (
+          <div role="group" aria-label={conferma.titolo} className="bubble-a border-court">
+            <p className="m-0 font-semibold text-chalk">{conferma.titolo}</p>
+            <p className="m-0 mt-1 text-chalk-muted">{conferma.testo}</p>
+            <div className="mt-2 flex justify-end gap-2">
+              <Button variant="ghost" size="sm" onClick={() => conferma.rispondi(false)}>Annulla</Button>
+              <Button size="sm" onClick={() => conferma.rispondi(true)}>Conferma</Button>
+            </div>
+          </div>
+        )}
+        {loading && !conferma && <div className="bubble-a pulse">Il coach sta pensando…</div>}
       </div>
       <div className="flex gap-2 border-t border-asphalt-700 p-2.5">
         <input className="statin flex-1" value={input}

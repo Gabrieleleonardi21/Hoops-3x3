@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { create } from "zustand";
 import { askCoachWithTools, AiError, type ChatMsg, type ToolDef } from "../services/aiService";
-import { useAppStore } from "../stores/useAppStore";
+import { useAppStore, tappaCorrente } from "../stores/useAppStore";
 import { useAnagrafeStore } from "../stores/useAnagrafeStore";
 import { anagrafeApi } from "../services/anagrafeApi";
 import { archivioApi } from "../services/archivioApi";
@@ -9,7 +9,7 @@ import { uid } from "../utils/uid";
 import { DEFAULT_RULES } from "../constants/rules";
 import { buildCoachContext } from "../utils/buildCoachContext";
 import {
-  annullaRisultato, concludi, creaTappa, erroreLimitiTappa, generaFasiDirette, registraRisultato,
+  annullaRisultato, concludi, creaTappa, erroreLimitiTappa, generaFasiDirette, perditaRisultati, registraRisultato,
   registraRisultatoBracket, sorteggia, type Esito, type ModoSorteggio,
 } from "../domain/tappaOps";
 import type { Tappa, RegSquadra, RegGiocatore, SquadraTappa, GiocatoreRoster } from "../types";
@@ -19,9 +19,19 @@ const CHAT_KEY = "coach_chat";
  *  quelli degli strumenti) o 100.000 caratteri */
 const MAX_MESSAGGI = 30;
 
+/** Azione distruttiva che aspetta la scelta dell'utente nel pannello (decisione D4) */
+export interface RichiestaConferma {
+  titolo: string;
+  /** Che cosa succede o che cosa si perde */
+  testo: string;
+  /** true = «Conferma», false = «Annulla» */
+  rispondi: (conferma: boolean) => void;
+}
+
 interface StatoChat {
   msgs: ChatMsg[];
   loading: boolean;
+  conferma: RichiestaConferma | null;
 }
 
 /** Cronologia della scheda (sessionStorage): si azzera chiudendola */
@@ -37,7 +47,7 @@ function cronologiaSalvata(): ChatMsg[] {
 
 /** La chat vive qui e non nel pannello: il pannello si smonta quando si chiude, e una risposta arrivata nel frattempo
  *  andava persa */
-const useChat = create<StatoChat>(() => ({ msgs: cronologiaSalvata(), loading: false }));
+const useChat = create<StatoChat>(() => ({ msgs: cronologiaSalvata(), loading: false, conferma: null }));
 
 /** Scrive la chat (solo gli ultimi MAX_MESSAGGI) nello store e nella sessionStorage */
 function salvaChat(msgs: ChatMsg[]) {
@@ -52,13 +62,32 @@ function salvaChat(msgs: ChatMsg[]) {
  *  strumenti che chiede da lì in poi non agiscono */
 let conversazione = 0;
 
-/** Cancella la chat («Cancella» e logout) e abbandona la richiesta in corso */
+/** Cancella la chat («Cancella» e logout) e abbandona la richiesta in corso, compresa una conferma in attesa */
 function cancellaChat() {
   conversazione++;
-  useChat.setState({ msgs: [], loading: false });
+  useChat.getState().conferma?.rispondi(false);
+  useChat.setState({ msgs: [], loading: false, conferma: null });
   try {
     sessionStorage.removeItem(CHAT_KEY);
   } catch { /* storage non disponibile */ }
+}
+
+/** Mostra nel pannello la richiesta di conferma (D4) e aspetta la scelta dell'utente. Il pannello può anche essere
+ *  chiuso: la richiesta resta nello store e ricompare alla riapertura */
+function chiediConferma(titolo: string, testo: string): Promise<boolean> {
+  return new Promise((risolvi) => {
+    const rispondi = (conferma: boolean) => {
+      useChat.setState({ conferma: null });
+      risolvi(conferma);
+    };
+    useChat.setState({ conferma: { titolo, testo, rispondi } });
+  });
+}
+
+/** D4: un'azione distruttiva parte solo con «Conferma»; con «Annulla» lo strumento si ferma e il modello lo sa */
+async function confermata(titolo: string, testo: string) {
+  if (await chiediConferma(titolo, testo)) return;
+  throw new Error("L'utente ha annullato: azione non eseguita. Non riprovarla se non te lo chiede di nuovo.");
 }
 
 // Al logout lo store torna senza utente (reset): la chat non resta a chi usa la scheda dopo, né in memoria né nella
@@ -329,12 +358,23 @@ function erroreTappa(tappa: Tappa, errore: string): string {
   return `Tappa "${tappa.nome}": ${errore}`;
 }
 
-/** Applica un'operazione di tappaOps alla tappa e salva la nuova versione; se tappaOps la rifiuta, errore con il motivo */
-function applica(tappa: Tappa, operazione: (t: Tappa) => Esito): Tappa {
+/** La tappa che darebbe un'operazione di tappaOps, senza salvarla; se tappaOps la rifiuta, errore con il motivo.
+ *  Da sola serve prima di una conferma (D4): l'utente non conferma un'azione che poi verrebbe rifiutata */
+function prova(tappa: Tappa, operazione: (t: Tappa) => Esito): Tappa {
   const esito = operazione(tappa);
   if (!esito.ok) throw new Error(erroreTappa(tappa, esito.errore));
-  useAppStore.getState().replaceTappa(esito.tappa);
   return esito.tappa;
+}
+
+/** Applica un'operazione di tappaOps alla tappa com'è adesso nello store e salva la nuova versione. La tappa si rilegge
+ *  per id: dopo l'attesa di una conferma può essere cambiata. Se non è più nella lega aperta (un'altra lega aperta, la
+ *  tappa eliminata) è un errore: replaceTappa la ignorerebbe in silenzio e lo strumento direbbe di esserci riuscito */
+function applica(tappa: Tappa, operazione: (t: Tappa) => Esito): Tappa {
+  const corrente = tappaCorrente(tappa.id);
+  if (!corrente) throw new Error(`La tappa "${tappa.nome}" non è più nella lega aperta: azione non eseguita.`);
+  const nuova = prova(corrente, operazione);
+  useAppStore.getState().replaceTappa(nuova);
+  return nuova;
 }
 
 /** Verifica che i due nomi squadra (parziali, in qualunque ordine) combacino con la coppia indicata. */
@@ -367,6 +407,7 @@ async function fetchGiocatori(): Promise<RegGiocatore[]> {
 export function useCoachAI() {
   const msgs = useChat((s) => s.msgs);
   const loading = useChat((s) => s.loading);
+  const conferma = useChat((s) => s.conferma);
   // Lega, tappe e utente NON si leggono qui: una copia presa al render è vecchia quando lo strumento parte (dopo
   // le attese del modello, o dopo gli strumenti precedenti della stessa richiesta). Ogni strumento li legge con
   // useAppStore.getState() nel momento in cui agisce.
@@ -511,7 +552,15 @@ export function useCoachAI() {
 
       let modo: ModoSorteggio = "casuale";
       if (str(args, "mode") === "ranking") modo = "ranking";
-      const nuova = applica(tappa, (t) => sorteggia(t, modo));
+      const sorteggio = (t: Tappa) => sorteggia(t, modo);
+      // D4: con dei risultati registrati il nuovo sorteggio li cancella e decide l'utente; prima però si prova, così
+      // una tappa conclusa è rifiutata senza chiedere niente
+      const perdita = perditaRisultati(tappa);
+      if (perdita) {
+        prova(tappa, sorteggio);
+        await confermata(`Rifare il sorteggio di "${tappa.nome}"?`, perdita);
+      }
+      const nuova = applica(tappa, sorteggio);
       navigate(`/lega/tappa/${tappa.id}`);
 
       return `Sorteggio "${modo}" completato per "${tappa.nome}": ${(nuova.gironi ?? []).length} gironi, ${nuova.partite.length} partite generate.`;
@@ -610,8 +659,22 @@ export function useCoachAI() {
       if (!partita) throw new Error(`Partita già conclusa tra "${nomeA}" e "${nomeB}" non trovata nella tappa "${tappa.nome}".`);
 
       // Le regole sono quelle di «Correggi» (tappaOps): no su una tappa conclusa (R5) né con la fase finale generata da
-      // questi risultati (R6); i punteggi restano come bozza e la partita non conta più in classifica
-      applica(tappa, (t) => annullaRisultato(t, partita.id));
+      // questi risultati (R6); i punteggi restano come bozza e la partita non conta più in classifica. Una partita già
+      // da giocare (riaperta nella pagina mentre si aspettava la conferma) non si annulla di nuovo: annullaRisultato
+      // darebbe comunque una tappa nuova e partirebbe un salvataggio identico
+      const annulla = (t: Tappa): Esito => {
+        if (!t.partite.some((m) => m.id === partita.id && m.done)) {
+          return { ok: false, errore: `la partita ${nomeOf(partita.a)}-${nomeOf(partita.b)} è già da giocare, non c'è niente da annullare.` };
+        }
+        return annullaRisultato(t, partita.id);
+      };
+      // D4: si prova prima di chiedere, poi decide l'utente
+      prova(tappa, annulla);
+      await confermata(
+        `Annullare il risultato ${nomeOf(partita.a)} ${partita.sa}-${partita.sb} ${nomeOf(partita.b)}?`,
+        `La partita di "${tappa.nome}" torna da giocare e non conta più in classifica.`,
+      );
+      applica(tappa, annulla);
       return `Risultato di "${nomeOf(partita.a)}" vs "${nomeOf(partita.b)}" annullato: la partita è tornata a non disputata.`;
     }
 
@@ -656,7 +719,12 @@ export function useCoachAI() {
       const { user } = useAppStore.getState();
       if (!user || user.guest) throw new Error("La conclusione nell'Archivio circuito richiede un account registrato (non ospite).");
 
-      // Gironi tutti registrati e fase diretta completa (se generata): lo verifica tappaOps
+      // Gironi tutti registrati e fase diretta completa (se generata): lo verifica tappaOps, prima di chiedere (D4)
+      prova(tappa, concludi);
+      await confermata(
+        `Concludere "${tappa.nome}"?`,
+        "La tappa viene pubblicata nell'Archivio circuito e da lì non si modifica più: per cambiarla andrà riaperta.",
+      );
       const conclusa = applica(tappa, concludi);
       try {
         // Il nome della lega di adesso: può essere cambiato dopo l'invio del messaggio
@@ -726,5 +794,5 @@ export function useCoachAI() {
     }
   };
 
-  return { msgs, loading, send, clearChat: cancellaChat };
+  return { msgs, loading, conferma, send, clearChat: cancellaChat };
 }

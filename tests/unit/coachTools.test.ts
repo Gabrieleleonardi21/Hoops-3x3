@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, renderHook, screen, waitFor, within } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { useCoachAI } from "../../src/hooks/useCoachAI";
@@ -96,6 +96,21 @@ function inviaSenzaAspettare(c: Coach, messaggio: string) {
   let invio!: Promise<void>;
   act(() => { invio = c.current.send(messaggio); });
   return invio;
+}
+/** Scrive al Coach, risponde alla richiesta di conferma come farebbe l'utente e aspetta la fine.
+ *  Restituisce la richiesta che il pannello ha mostrato */
+async function chiediEConferma(c: Coach, messaggio: string, conferma: boolean) {
+  const invio = inviaSenzaAspettare(c, messaggio);
+  await waitFor(() => expect(c.current.conferma).toBeTruthy());
+  const richiesta = c.current.conferma!;
+  act(() => { richiesta.rispondi(conferma); });
+  await act(async () => { await invio; });
+  return richiesta;
+}
+/** Esce come farebbe «Esci» nell'intestazione */
+async function esci() {
+  const auth = renderHook(() => useAuth()).result;
+  await act(async () => { await auth.current.logout(); });
 }
 
 /* ── Dati ── */
@@ -206,10 +221,10 @@ describe("Coach AI: gli strumenti leggono lega, tappe e utente al momento dell'e
     const invio = inviaSenzaAspettare(c, "Concludi Roma Open");
     // Mentre il modello pensa, la lega cambia nome
     act(() => { useAppStore.setState({ legaName: "Circuito Lazio" }); });
-    await act(async () => {
-      risposta.ok(strumenti(["concludi_tappa", { tappa_nome: "Roma Open" }]));
-      await invio;
-    });
+    await act(async () => { risposta.ok(strumenti(["concludi_tappa", { tappa_nome: "Roma Open" }])); });
+    await waitFor(() => expect(c.current.conferma).toBeTruthy());
+    act(() => { c.current.conferma!.rispondi(true); });
+    await act(async () => { await invio; });
     expect(archivioApi.pubblica).toHaveBeenCalledWith(expect.objectContaining({ id: "t1", conclusa: true }), "Circuito Lazio");
   });
 });
@@ -304,13 +319,142 @@ describe("Coach AI: argomenti mancanti o non validi → nessuna azione, il model
   });
 });
 
-describe("Coach AI: annulla_risultato usa tappaOps", () => {
-  it("la partita torna da giocare e i punteggi restano come bozza, come «Correggi» nella pagina", async () => {
+describe("Coach AI: conferma nel pannello prima delle azioni distruttive (D4)", () => {
+  const rifaiSorteggio = strumenti(["sorteggia_gironi", { tappa_nome: "Roma Open" }]);
+
+  it("sorteggio su una tappa con risultati: chiede conferma dicendo che cosa si perde; «Annulla» non tocca niente", async () => {
+    const prima = store().tappe[0];
+    const richieste = modello(rifaiSorteggio, testo("Va bene, il sorteggio resta quello."));
+    const c = coach();
+    const richiesta = await chiediEConferma(c, "Rifai il sorteggio di Roma Open", false);
+    expect(richiesta).toMatchObject({
+      titolo: 'Rifare il sorteggio di "Roma Open"?', testo: "Verranno eliminati il sorteggio e 1 risultato.",
+    });
+    expect(store().tappe[0]).toBe(prima);
+    expect(esiti(richieste)[0]).toMatch(/L'utente ha annullato/);
+    expect(c.current.msgs.at(-1)?.tools).toBeUndefined();
+    expect(c.current.conferma).toBeNull();
+  });
+
+  it("sorteggio con «Conferma»: riparte da zero", async () => {
+    modello(rifaiSorteggio, testo("Sorteggio rifatto."));
+    const c = coach();
+    await chiediEConferma(c, "Rifai il sorteggio di Roma Open", true);
+    expect(store().tappe[0].partite.filter((m) => m.done)).toEqual([]);
+    expect(c.current.msgs.at(-1)?.tools).toEqual(["sorteggia_gironi"]);
+  });
+
+  it("sorteggio su una tappa senza risultati: niente da perdere, nessuna conferma", async () => {
+    useAppStore.setState({ tappe: [{ ...romaOpen(), gironi: null, partite: [] }] });
+    modello(strumenti(["sorteggia_gironi", {}]), testo("Gironi sorteggiati."));
+    const c = coach();
+    await chiedi(c, "Sorteggia i gironi");
+    expect(store().tappe[0].gironi).not.toBeNull();
+    expect(c.current.msgs.at(-1)?.tools).toEqual(["sorteggia_gironi"]);
+  });
+
+  it("annulla_risultato chiede conferma; con «Conferma» la partita torna da giocare e i punteggi restano come bozza", async () => {
     modello(strumenti(["annulla_risultato", { squadra_a: "Beta", squadra_b: "Alfa" }]), testo("Risultato annullato."));
     const c = coach();
-    await chiedi(c, "Annulla il risultato di Alfa-Beta");
+    const richiesta = await chiediEConferma(c, "Annulla il risultato di Alfa-Beta", true);
+    expect(richiesta.titolo).toBe("Annullare il risultato Alfa 21-15 Beta?");
+    // Come «Correggi» nella pagina (tappaOps): i punteggi restano come bozza, la partita non conta più
     expect(store().tappe[0].partite[0]).toEqual({ id: "m1", g: 0, a: "s1", b: "s2", sa: 21, sb: 15, done: false });
     expect(c.current.msgs.at(-1)?.tools).toEqual(["annulla_risultato"]);
+  });
+
+  it("annulla_risultato con «Annulla»: il risultato resta", async () => {
+    const prima = store().tappe[0];
+    modello(strumenti(["annulla_risultato", { squadra_a: "Alfa", squadra_b: "Beta" }]), testo("Il risultato resta."));
+    const c = coach();
+    await chiediEConferma(c, "Annulla il risultato di Alfa-Beta", false);
+    expect(store().tappe[0]).toBe(prima);
+    expect(c.current.msgs.at(-1)?.tools).toBeUndefined();
+  });
+
+  it("concludi_tappa chiede conferma; con «Conferma» conclude e pubblica", async () => {
+    useAppStore.setState({ tappe: [romaOpenGiocata()] });
+    modello(strumenti(["concludi_tappa", { tappa_nome: "Roma Open" }]), testo("Roma Open è nell'archivio."));
+    const c = coach();
+    const richiesta = await chiediEConferma(c, "Concludi Roma Open", true);
+    expect(richiesta.titolo).toBe('Concludere "Roma Open"?');
+    expect(store().tappe[0].conclusa).toBe(true);
+    expect(archivioApi.pubblica).toHaveBeenCalledWith(expect.objectContaining({ id: "t1", conclusa: true }), "Circuito");
+  });
+
+  it("concludi_tappa con «Annulla»: niente conclusione e niente pubblicazione", async () => {
+    useAppStore.setState({ tappe: [romaOpenGiocata()] });
+    const prima = store().tappe[0];
+    modello(strumenti(["concludi_tappa", { tappa_nome: "Roma Open" }]), testo("La tappa resta aperta."));
+    const c = coach();
+    await chiediEConferma(c, "Concludi Roma Open", false);
+    expect(store().tappe[0]).toBe(prima);
+    expect(archivioApi.pubblica).not.toHaveBeenCalled();
+  });
+
+  it("un'azione che verrebbe rifiutata non chiede conferma: concludere con gare da giocare", async () => {
+    const prima = store().tappe[0];
+    const richieste = modello(strumenti(["concludi_tappa", {}]), testo("Mancano due partite."));
+    const c = coach();
+    await chiedi(c, "Concludi la tappa");
+    expect(esiti(richieste)[0]).toMatch(/Mancano ancora 2 partite/);
+    expect(store().tappe[0]).toBe(prima);
+  });
+
+  /** Scrive al Coach e, mentre la richiesta di conferma aspetta, cambia lo store come farebbe la pagina; poi conferma */
+  async function confermaDopo(c: Coach, messaggio: string, nelFrattempo: () => void) {
+    const invio = inviaSenzaAspettare(c, messaggio);
+    await waitFor(() => expect(c.current.conferma).toBeTruthy());
+    act(nelFrattempo);
+    act(() => { c.current.conferma!.rispondi(true); });
+    await act(async () => { await invio; });
+  }
+
+  it("dopo la conferma l'azione parte dalla tappa di adesso: un risultato registrato nel frattempo resta", async () => {
+    modello(strumenti(["annulla_risultato", { squadra_a: "Alfa", squadra_b: "Beta" }]), testo("Risultato annullato."));
+    const c = coach();
+    await confermaDopo(c, "Annulla il risultato di Alfa-Beta", () => {
+      // Intanto nella pagina viene registrato Alfa-Gamma
+      useAppStore.setState({ tappe: [{ ...romaOpen(), partite: [
+        giocata("m1", "s1", "s2", 21, 15), giocata("m2", "s1", "s3", 21, 18), daGiocare("m3", "s2", "s3"),
+      ] }] });
+    });
+    expect(store().tappe[0].partite.map((m) => m.done)).toEqual([false, true, false]);
+  });
+
+  it("se alla conferma la tappa non è più nella lega aperta, il modello riceve un errore leggibile e niente si salva", async () => {
+    const richieste = modello(rifaiSorteggio, testo("La tappa non è più aperta."));
+    const c = coach();
+    await confermaDopo(c, "Rifai il sorteggio di Roma Open", () => {
+      useAppStore.setState({ legaId: "l2", legaName: "Altra lega", tappe: [] });
+    });
+    expect(esiti(richieste)[0]).toMatch(/non è più nella lega aperta/);
+    expect(store().inSospeso).toBe(0);
+    expect(c.current.msgs.at(-1)?.tools).toBeUndefined();
+  });
+
+  it("annulla_risultato: se alla conferma la partita è già tornata da giocare, non salva una copia identica", async () => {
+    const richieste = modello(strumenti(["annulla_risultato", { squadra_a: "Alfa", squadra_b: "Beta" }]), testo("Era già da giocare."));
+    const c = coach();
+    // Intanto nella pagina la stessa partita torna da giocare con «Correggi»
+    const riaperta: Tappa = { ...romaOpen(), partite: [
+      { ...giocata("m1", "s1", "s2", 21, 15), done: false }, daGiocare("m2", "s1", "s3"), daGiocare("m3", "s2", "s3"),
+    ] };
+    await confermaDopo(c, "Annulla il risultato di Alfa-Beta", () => { useAppStore.setState({ tappe: [riaperta] }); });
+    expect(store().tappe[0]).toBe(riaperta);
+    expect(store().inSospeso).toBe(0);
+    expect(esiti(richieste)[0]).toMatch(/è già da giocare/);
+  });
+
+  it("se si esce mentre la conferma aspetta, la richiesta sparisce e la richiesta al Coach finisce", async () => {
+    modello(rifaiSorteggio, testo("Non usata: la chat è stata cancellata."));
+    const c = coach();
+    const invio = inviaSenzaAspettare(c, "Rifai il sorteggio di Roma Open");
+    await waitFor(() => expect(c.current.conferma).toBeTruthy());
+    await esci();
+    await act(async () => { await invio; });
+    expect(c.current.conferma).toBeNull();
+    expect(c.current.msgs).toEqual([]);
   });
 });
 
@@ -365,12 +509,6 @@ describe("Coach AI: uno strumento che fallisce non interrompe la richiesta", () 
 });
 
 describe("Coach AI: la chat", () => {
-  /** Esce come farebbe «Esci» nell'intestazione */
-  async function esci() {
-    const auth = renderHook(() => useAuth()).result;
-    await act(async () => { await auth.current.logout(); });
-  }
-
   it("tiene gli ultimi 30 messaggi, e il modello riceve solo quelli", async () => {
     const richieste = modello(...Array.from({ length: 16 }, (_, i) => testo(`risposta ${i + 1}`)));
     const c = coach();
@@ -441,6 +579,20 @@ describe("CoachPanel", () => {
     apriPannello();
     expect(await screen.findByText("10 minuti, oppure fino a 21 punti.")).toBeTruthy();
     expect(screen.getByText("Quanto dura una gara?")).toBeTruthy();
+  });
+
+  it("D4: la richiesta di conferma compare dentro il pannello con «Conferma» e «Annulla», non in una finestra a parte", async () => {
+    modello(strumenti(["sorteggia_gironi", { tappa_nome: "Roma Open" }]), testo("Sorteggio rifatto."));
+    apriPannello();
+    scriviEInvia("Rifai il sorteggio di Roma Open");
+    const richiesta = await screen.findByRole("group", { name: 'Rifare il sorteggio di "Roma Open"?' });
+    expect(richiesta.textContent).toContain("Verranno eliminati il sorteggio e 1 risultato.");
+    expect(within(richiesta).getByRole("button", { name: "Annulla" })).toBeTruthy();
+    expect(screen.getAllByRole("dialog")).toHaveLength(1); // solo il pannello del Coach
+    fireEvent.click(within(richiesta).getByRole("button", { name: "Conferma" }));
+    await screen.findByText("Sorteggio rifatto.");
+    expect(screen.queryByRole("group")).toBeNull();
+    expect(store().tappe[0].partite.filter((m) => m.done)).toEqual([]);
   });
 
   it("premendo Invio durante l'attesa il testo scritto resta nel campo e non parte", async () => {
