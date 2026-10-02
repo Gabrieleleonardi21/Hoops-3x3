@@ -12,12 +12,22 @@ const BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? "";
 const TOKEN_KEY = "hoop3x3_token";
 /** Secondi prima della scadenza entro cui il JWT viene rinnovato in anticipo */
 const MARGINE_SCADENZA = 120;
+/** Tempo massimo di una richiesta, lettura della risposta compresa (ms) */
+const TEMPO_MASSIMO = 15_000;
 
-/** Errore HTTP con lo status del server; status 0 = rete assente / server spento */
+/** Errore HTTP con lo status del server; status 0 = rete assente, server spento o che non risponde entro TEMPO_MASSIMO */
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
   }
+}
+
+/** La richiesta non ha avuto risposta: tempo massimo scaduto, rete assente o server spento */
+function erroreDiRete(e: unknown): ApiError {
+  if (e instanceof DOMException && e.name === "TimeoutError") {
+    return new ApiError(0, "Il server non risponde: controlla la connessione e riprova.");
+  }
+  return new ApiError(0, "Server non raggiungibile: controlla la connessione o avvia il backend.");
 }
 
 /** Token JWT in localStorage: sopravvive al reload, sparisce al logout.
@@ -74,6 +84,11 @@ async function chiama<T>(path: string, opts: Options, conBearer: boolean): Promi
   if (opts.body !== undefined) headers["Content-Type"] = "application/json";
   const t = token.get();
   if (conBearer && t) headers.Authorization = `Bearer ${t}`;
+  // Tempo massimo su ogni richiesta, rinnovo compreso: una risposta che non arriva non tiene più in attesa le richieste
+  // che aspettano il rinnovo, né le altre schede ferme sul suo lock. I salvataggi in chiusura pagina (keepalive)
+  // restano senza limite: devono arrivare al server anche se è lento
+  let signal: AbortSignal | undefined;
+  if (!opts.keepalive) signal = AbortSignal.timeout(TEMPO_MASSIMO);
 
   let res: Response;
   try {
@@ -82,9 +97,10 @@ async function chiama<T>(path: string, opts: Options, conBearer: boolean): Promi
       headers,
       body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
       keepalive: opts.keepalive,
+      signal,
     });
-  } catch {
-    throw new ApiError(0, "Server non raggiungibile: controlla la connessione o avvia il backend.");
+  } catch (e) {
+    throw erroreDiRete(e);
   }
 
   if (!res.ok) {
@@ -97,8 +113,16 @@ async function chiama<T>(path: string, opts: Options, conBearer: boolean): Promi
     throw new ApiError(res.status, message);
   }
 
+  // 204: nessun corpo (DELETE, logout). Le altre risposte riuscite hanno sempre un corpo JSON
   if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
+  try {
+    return (await res.json()) as T;
+  } catch (e) {
+    // Corpo non JSON, anche vuoto: chi chiama riceve un ApiError come per ogni altro errore, non un SyntaxError.
+    // Una lettura interrotta dal tempo massimo resta invece un errore di rete
+    if (e instanceof SyntaxError) throw new ApiError(res.status, "Risposta del server non valida");
+    throw erroreDiRete(e);
+  }
 }
 
 /** Esegue il rinnovo tenendo il lock condiviso tra le schede (Web Locks API); dove manca
@@ -114,7 +138,7 @@ let rinnovoInCorso: Promise<boolean> | null = null;
 /** Chiede un nuovo JWT con il cookie di refresh. Una sola chiamata in volo per scheda (promise condivisa)
  *  e una sola per browser (lock): se nel frattempo un'altra scheda ha rinnovato, si usa il suo JWT.
  *  Non lancia mai eccezioni. false = sessione finita (401 dal server: token cancellato), sessione chiusa
- *  da un logout nel frattempo, oppure rinnovo non riuscito per rete, gara o lock non utilizzabile
+ *  da un logout nel frattempo, oppure rinnovo non riuscito per rete, tempo massimo, gara o lock non utilizzabile
  *  (token lasciato). */
 function rinnova(): Promise<boolean> {
   if (!rinnovoInCorso) {

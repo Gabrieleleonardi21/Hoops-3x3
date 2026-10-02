@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { api, token } from "../../src/services/api";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { api, token, ApiError } from "../../src/services/api";
 
 /** localStorage e fetch non esistono nell'ambiente node: si sostituiscono con versioni in memoria */
 const memoria = new Map<string, string>();
@@ -309,5 +309,115 @@ describe("api: più schede, logout e lock", () => {
     await expect(api("/api/leghe")).rejects.toMatchObject({ status: 401 });
     expect(fetchFinto).toHaveBeenCalledTimes(1);
     expect(chiamata(0).url).toBe("/api/leghe");
+  });
+});
+
+describe("api: tempo massimo delle richieste", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    // AbortSignal.timeout di Node non segue i timer finti: lo si sostituisce con lo stesso segnale costruito su setTimeout
+    vi.spyOn(AbortSignal, "timeout").mockImplementation((ms: number) => {
+      const controllo = new AbortController();
+      setTimeout(() => controllo.abort(new DOMException("The operation timed out.", "TimeoutError")), ms);
+      return controllo.signal;
+    });
+  });
+
+  afterEach(() => {
+    vi.mocked(AbortSignal.timeout).mockRestore();
+    vi.useRealTimers();
+  });
+
+  it("se il rinnovo non risponde, dopo 15 secondi la richiesta fallisce con ApiError e il token resta", async () => {
+    const vecchio = jwt(3600);
+    token.set(vecchio);
+    let sblocca = () => {};
+    fetchFinto.mockImplementation((url: string, init: RequestInit) => {
+      if (url !== "/api/auth/refresh") return Promise.resolve(errore(401, SCADUTO));
+      // Rinnovo senza risposta: come la fetch vera si interrompe solo quando scade il segnale
+      // (sblocca serve solo a non lasciare la promessa appesa se il segnale non arriva)
+      return new Promise<Response>((_risolvi, rifiuta) => {
+        sblocca = () => rifiuta(new TypeError("Failed to fetch"));
+        init.signal?.addEventListener("abort", () => rifiuta(init.signal!.reason));
+      });
+    });
+    let esito: unknown = "in attesa";
+    const richiesta = api("/api/leghe").then(() => { esito = "riuscita"; }, (e: unknown) => { esito = e; });
+    try {
+      await vi.advanceTimersByTimeAsync(14_999);
+      expect(esito).toBe("in attesa");
+      await vi.advanceTimersByTimeAsync(1);
+      expect(esito).toBeInstanceOf(ApiError);
+      expect(esito).toMatchObject({ status: 401, message: SCADUTO });
+      expect(token.get()).toBe(vecchio);
+      expect(AbortSignal.timeout).toHaveBeenCalledWith(15_000);
+    } finally {
+      sblocca();
+      await richiesta;
+    }
+  });
+
+  it("con il JWT scaduto e il rinnovo senza risposta, le richieste che lo aspettano falliscono invece di restare in attesa", async () => {
+    token.set(jwt(-10));
+    // Server che non risponde mai al rinnovo; il JWT scaduto viene respinto
+    fetchFinto.mockImplementation((url: string, init: RequestInit) => {
+      if (url !== "/api/auth/refresh") return Promise.resolve(errore(401, SCADUTO));
+      return new Promise<Response>((_risolvi, rifiuta) => {
+        init.signal?.addEventListener("abort", () => rifiuta(init.signal!.reason));
+      });
+    });
+    const esiti = Promise.allSettled([api("/api/a"), api("/api/b")]);
+    // Primo rinnovo (in anticipo) interrotto dopo 15 secondi, secondo (dopo il 401) dopo altri 15
+    await vi.advanceTimersByTimeAsync(30_000);
+    const [a, b] = await esiti;
+    expect(a).toMatchObject({ status: "rejected", reason: { status: 401 } });
+    expect(b).toMatchObject({ status: "rejected", reason: { status: 401 } });
+    expect(token.get()).not.toBeNull();
+  });
+
+  it("una richiesta senza risposta fallisce dopo 15 secondi con ApiError e status 0, come senza rete", async () => {
+    token.set(jwt(3600));
+    fetchFinto.mockImplementation((_url: string, init: RequestInit) => new Promise<Response>((_risolvi, rifiuta) => {
+      init.signal?.addEventListener("abort", () => rifiuta(init.signal!.reason));
+    }));
+    const esito = api("/api/leghe").catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(await esito).toMatchObject({ status: 0, message: "Il server non risponde: controlla la connessione e riprova." });
+  });
+
+  it("anche una risposta che non finisce di arrivare entro 15 secondi è un errore di rete, non una risposta non valida", async () => {
+    token.set(jwt(3600));
+    // Intestazioni arrivate, corpo fermo: come nella fetch vera, il segnale interrompe anche la lettura
+    fetchFinto.mockImplementation(async (_url: string, init: RequestInit) => new Response(new ReadableStream({
+      start(flusso) { init.signal?.addEventListener("abort", () => flusso.error(init.signal!.reason)); },
+    }), { status: 200 }));
+    const esito = api("/api/leghe").catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(await esito).toMatchObject({ status: 0 });
+  });
+
+  it("i salvataggi in chiusura pagina (keepalive) partono senza tempo massimo", async () => {
+    token.set(jwt(3600));
+    fetchFinto.mockImplementation(async () => ok({ id: "t1" }));
+    await api("/api/tappe/t1", { method: "PUT", body: { id: "t1" }, keepalive: true });
+    await api("/api/leghe");
+    expect(chiamata(0).init.signal).toBeUndefined();
+    expect(chiamata(1).init.signal).toBeInstanceOf(AbortSignal);
+  });
+});
+
+describe("api: risposte senza corpo JSON", () => {
+  it("200 con corpo vuoto: ApiError invece di SyntaxError", async () => {
+    token.set(jwt(3600));
+    fetchFinto.mockResolvedValueOnce(new Response("", { status: 200 }));
+    const errore = await api("/api/leghe").catch((e: unknown) => e);
+    expect(errore).toBeInstanceOf(ApiError);
+    expect(errore).toMatchObject({ status: 200, message: "Risposta del server non valida" });
+  });
+
+  it("204 senza corpo continua a funzionare (DELETE e logout)", async () => {
+    token.set(jwt(3600));
+    fetchFinto.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await expect(api("/api/tappe/t1", { method: "DELETE" })).resolves.toBeUndefined();
   });
 });
