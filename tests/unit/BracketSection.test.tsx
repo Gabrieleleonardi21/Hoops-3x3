@@ -100,3 +100,22 @@ describe("BracketSection: le operazioni partono dalla tappa com'è adesso nello 
     expect(nelloStore()).toBe(prima);
   });
 });
+
+describe("BracketSection: punteggio non valido (R4)", () => {
+  it("sonda: «Salva» con un punteggio non valido mostra il messaggio di registraRisultatoBracket", () => {
+    mostra(tappaConTabellone());
+    const [puntiA, puntiB] = screen.getAllByRole("spinbutton");
+    fireEvent.change(puntiA, { target: { value: "15" } });
+    fireEvent.change(puntiB, { target: { value: "15" } });
+    fireEvent.click(screen.getAllByRole("button", { name: "Salva" })[0]);
+    expect(screen.getByRole("alert").textContent).toBe("Nel 3x3 non esistono pareggi: si gioca il supplementare (primo a 2 punti).");
+  });
+
+  it("senza punteggio dice di inserirlo; il messaggio sparisce quando si corregge", () => {
+    mostra(tappaConTabellone());
+    fireEvent.click(screen.getAllByRole("button", { name: "Salva" })[0]);
+    expect(screen.getByRole("alert").textContent).toBe("Inserisci entrambi i punteggi.");
+    fireEvent.change(screen.getAllByRole("spinbutton")[0], { target: { value: "21" } });
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+});

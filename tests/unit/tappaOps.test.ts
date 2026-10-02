@@ -203,8 +203,8 @@ describe("registraRisultatoBracket (fase a eliminazione diretta)", () => {
     expect(errore(registraRisultatoBracket(tappaConBracket(), "sf1", 21, 21))).toMatch(/pareggi/);
   });
 
-  it("rifiuta un punteggio mancante", () => {
-    expect(registraRisultatoBracket(tappaConBracket(), "sf1", NaN, 21).ok).toBe(false);
+  it("rifiuta un punteggio mancante con il messaggio che l'interfaccia mostra (R4)", () => {
+    expect(errore(registraRisultatoBracket(tappaConBracket(), "sf1", NaN, 21))).toBe("Inserisci entrambi i punteggi.");
   });
 
   it("rifiuta un match con le squadre ancora da definire", () => {

@@ -22,6 +22,8 @@ export function BracketSection({ tappa, readOnly = false }: Props) {
 
   // Stato locale per inserimento punteggi
   const [scores, setScores] = useState<Record<string, { a: string; b: string }>>({});
+  // Perché l'ultimo «Salva» è stato rifiutato, e per quale match: il messaggio compare sotto i suoi punteggi
+  const [errore, setErrore] = useState<{ matchId: string; testo: string } | null>(null);
 
   const allGironiDone = tappa.gironi !== null &&
     tappa.partite.every((m) => m.done);
@@ -44,9 +46,11 @@ export function BracketSection({ tappa, readOnly = false }: Props) {
     if (!corrente) return;
     const sc = scores[match.id] ?? { a: "", b: "" };
     const esito = registraRisultatoBracket(corrente, match.id, parseInt(sc.a, 10), parseInt(sc.b, 10));
-    if (!esito.ok) return; // punteggio non valido: come prima, non succede nulla
+    // Punteggio non valido: non si salva niente e si dice perché (lo stesso messaggio che riceve il Coach)
+    if (!esito.ok) { setErrore({ matchId: match.id, testo: esito.errore }); return; }
     replaceTappa(esito.tappa);
     setScores((prev) => ({ ...prev, [match.id]: { a: "", b: "" } }));
+    setErrore(null);
   };
 
   // Prompt prima dei gironi
@@ -85,17 +89,23 @@ export function BracketSection({ tappa, readOnly = false }: Props) {
   /** Input punteggio + salva per un match ancora da giocare (markup; la logica è registraRisultato) */
   const renderControls = (m: BracketMatch) => {
     const sc = scores[m.id] ?? { a: "", b: "" };
-    const setSc = (side: "a" | "b", v: string) =>
+    // Correggendo il punteggio il messaggio del rifiuto precedente non vale più
+    const setSc = (side: "a" | "b", v: string) => {
       setScores((p) => ({ ...p, [m.id]: { ...(p[m.id] ?? { a: "", b: "" }), [side]: v } }));
+      setErrore(null);
+    };
     return (
-      <div className="flex items-center gap-1.5">
-        <input type="number" min={0} inputMode="numeric" className="scorein w-12" value={sc.a}
-          onChange={(e) => setSc("a", e.target.value)} aria-label={`Punti ${nameOf(m.squadraA)}`} />
-        <span className="font-display text-chalk-dim">–</span>
-        <input type="number" min={0} inputMode="numeric" className="scorein w-12" value={sc.b}
-          onChange={(e) => setSc("b", e.target.value)} aria-label={`Punti ${nameOf(m.squadraB)}`} />
-        <Button size="sm" className="ml-auto" onClick={() => registraRisultato(m)}>Salva</Button>
-      </div>
+      <>
+        <div className="flex items-center gap-1.5">
+          <input type="number" min={0} inputMode="numeric" className="scorein w-12" value={sc.a}
+            onChange={(e) => setSc("a", e.target.value)} aria-label={`Punti ${nameOf(m.squadraA)}`} />
+          <span className="font-display text-chalk-dim">–</span>
+          <input type="number" min={0} inputMode="numeric" className="scorein w-12" value={sc.b}
+            onChange={(e) => setSc("b", e.target.value)} aria-label={`Punti ${nameOf(m.squadraB)}`} />
+          <Button size="sm" className="ml-auto" onClick={() => registraRisultato(m)}>Salva</Button>
+        </div>
+        {errore?.matchId === m.id && <p className="mt-1.5 text-xs font-semibold text-loss" role="alert">{errore.testo}</p>}
+      </>
     );
   };
 
