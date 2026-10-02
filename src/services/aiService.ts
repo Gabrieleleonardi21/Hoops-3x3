@@ -35,8 +35,9 @@ export interface ToolCall {
   function: { name: string; arguments: string };
 }
 
-/** Codici di errore tipizzati per mostrare messaggi specifici all'utente. */
-export type AiErrorCode = "AUTH" | "RATE" | "UNAVAILABLE" | "SERVER" | "NETWORK";
+/** Codici di errore tipizzati per mostrare messaggi specifici all'utente.
+ *  BAD_REQUEST = richiesta rifiutata dal server (400): il suo messaggio dice che cosa fare. */
+export type AiErrorCode = "AUTH" | "RATE" | "UNAVAILABLE" | "BAD_REQUEST" | "SERVER" | "NETWORK";
 
 export class AiError extends Error {
   constructor(public code: AiErrorCode, message: string) {
@@ -63,6 +64,7 @@ async function callGroq(
   } catch (e) {
     if (!(e instanceof ApiError)) throw new AiError("SERVER", "errore imprevisto");
     if (e.status === 0) throw new AiError("NETWORK", e.message);
+    if (e.status === 400) throw new AiError("BAD_REQUEST", e.message);
     if (e.status === 401) throw new AiError("AUTH", e.message);
     if (e.status === 429) throw new AiError("RATE", e.message);
     if (e.status === 503) throw new AiError("UNAVAILABLE", e.message);

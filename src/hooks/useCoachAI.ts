@@ -208,6 +208,8 @@ function errorMsg(err: unknown): string {
     if (err.code === "RATE") return "Limite richieste raggiunto: aspetta qualche secondo e riprova.";
     if (err.code === "UNAVAILABLE") return "Coach AI non è configurato sul server: imposta GROQ_API_KEY in env.properties del backend. Il resto dell'app funziona senza.";
     if (err.code === "NETWORK") return "Server non raggiungibile: controlla la rete o avvia il backend.";
+    // Il server spiega il rifiuto, es. «Conversazione troppo lunga: cancella la chat e riprova»
+    if (err.code === "BAD_REQUEST") return err.message;
   }
   return "Si è verificato un errore, riprova tra poco.";
 }
