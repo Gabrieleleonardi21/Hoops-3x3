@@ -1,7 +1,7 @@
 /** Pannello di modifica in-page: permette di cambiare nome, luogo, data, numero gironi
  *  e aggiungere squadre. Aggiungere squadre o cambiare i gironi azzera il sorteggio: se ci sono risultati si chiede
- *  prima conferma. Il numero di gironi si applica all'uscita dal campo o con Invio e solo se cambia: mentre si scrive,
- *  sorteggio e risultati restano. */
+ *  prima conferma. Nome e numero di gironi si applicano all'uscita dal campo o con Invio e solo se cambiano: mentre
+ *  si scrive, sorteggio e risultati restano e un nome svuotato non arriva alla tappa. */
 import { useState, type InputHTMLAttributes } from "react";
 import { Input } from "../ui/Input";
 import { Button } from "../ui/Button";
@@ -48,7 +48,8 @@ export function TappaEditPanel({ h }: { h: ReturnType<typeof useTappa> }) {
     <Card className="mt-3">
       <h3 className="font-display text-lg mb-2.5">Modifica tappa</h3>
       <div className="grid-auto" style={{ "--min": "160px" }}>
-        <Input label="Nome" value={t.nome} onChange={(e) => h.setInfo("nome", e.target.value)} />
+        {/* Un nome vuoto è rifiutato: il campo torna al nome di prima */}
+        <CampoConfermato label="Nome" valore={t.nome} onConferma={h.rinomina} />
         <Input label="Luogo" value={t.luogo} onChange={(e) => h.setInfo("luogo", e.target.value)} />
         <Input label="Data" type="date" value={t.data} onChange={(e) => h.setInfo("data", e.target.value)} />
         <CampoConfermato label="Numero gironi" type="number" min={1} valore={String(t.nGironi)} onConferma={cambiaGironi} />

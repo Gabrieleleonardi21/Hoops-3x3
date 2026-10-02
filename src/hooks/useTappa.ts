@@ -86,7 +86,9 @@ export function useTappa(id: string | undefined) {
   const teamComplete = (teamId: string) => rosterCompleto(tappa, teamId);
 
   /* ── modifica tappa ── */
-  const setInfo = (k: "nome" | "luogo" | "data", v: string) => patch({ [k]: v });
+  const setInfo = (k: "luogo" | "data", v: string) => patch({ [k]: v });
+  /** Il nome passa da tappaOps: un nome vuoto è rifiutato e nello store resta quello di prima */
+  const rinomina = (nome: string) => applica((t) => ops.rinominaTappa(t, nome));
   const setRule = (k: keyof Tappa["regole"], v: string) =>
     aggiorna((t) => ({ ...t, regole: { ...t.regole, [k]: Math.max(1, Number(v) || 1) } }));
   // Cambi di struttura (regole e limiti in tappaOps): azzerano sorteggio, calendario e tabellone
@@ -261,7 +263,7 @@ export function useTappa(id: string | undefined) {
   return {
     user, legaName, tappa,
     nameOf, playersOf, playerNameById, teamComplete,
-    setInfo, perditaRisultati, setNGironi, setRule, addTeam, removeTeam,
+    setInfo, rinomina, perditaRisultati, setNGironi, setRule, addTeam, removeTeam,
     renameTeam, setTeamRank, setTeamWebsite, setTeamLogo, applyReg, syncFromAnagrafe,
     addPlayer, renamePlayer, removePlayer,
     sorteggia, saveScore, reopenScore,

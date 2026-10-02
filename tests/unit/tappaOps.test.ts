@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   sorteggia, registraRisultato, registraRisultatoBracket, generaFasiDirette, concludi,
-  aggiungiSquadra, rimuoviSquadra, impostaNumeroGironi, perditaRisultati, annullaRisultato,
+  aggiungiSquadra, rimuoviSquadra, impostaNumeroGironi, perditaRisultati, annullaRisultato, rinominaTappa,
 } from "../../src/domain/tappaOps";
 import type { Esito } from "../../src/domain/tappaOps";
 import type { Tappa } from "../../src/types";
@@ -385,6 +385,19 @@ describe("perditaRisultati: che cosa cancellano un nuovo sorteggio o un cambio d
       ...partenza.bracket!.slice(1),
     ];
     expect(perditaRisultati(partenza)).toBe("Verranno eliminati il sorteggio, la fase finale e 3 risultati.");
+  });
+});
+
+describe("rinominaTappa: il nome della tappa non è mai vuoto (R7)", () => {
+  it("rifiuta un nome vuoto o di soli spazi", () => {
+    expect(errore(rinominaTappa(tappaNuova(), ""))).toMatch(/non può essere vuoto/);
+    expect(errore(rinominaTappa(tappaNuova(), "   "))).toMatch(/non può essere vuoto/);
+  });
+
+  it("salva il nome senza spazi ai lati; lo stesso nome non cambia niente", () => {
+    expect(nuova(rinominaTappa(tappaNuova(), "  Milano Open ")).nome).toBe("Milano Open");
+    const partenza = tappaNuova();
+    expect(nuova(rinominaTappa(partenza, "Roma Open"))).toBe(partenza);
   });
 });
 

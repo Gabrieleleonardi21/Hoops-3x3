@@ -27,6 +27,9 @@ export interface Punteggio {
 const ok = (tappa: Tappa): Esito => ({ ok: true, tappa });
 const ko = (errore: string): Esito => ({ ok: false, errore });
 
+/** Il server rifiuta una tappa senza nome: nello store il nome non è mai vuoto */
+const NOME_VUOTO = "Il nome della tappa non può essere vuoto.";
+
 /** Squadre ammesse in una tappa */
 const MAX_SQUADRE = 64;
 const LIMITE_SQUADRE = `Una tappa ha da 2 a ${MAX_SQUADRE} squadre.`;
@@ -68,6 +71,15 @@ export function sorteggia(tappa: Tappa, modo: ModoSorteggio): Esito {
     gironi = buildGironi(tappa.squadre.map((s) => s.id), tappa.nGironi);
   }
   return ok({ ...senzaSorteggio(tappa), gironi, partite: buildMatches(gironi) });
+}
+
+/** Cambia il nome della tappa, senza spazi ai lati. Un nome vuoto è rifiutato: arrivato al server, farebbe fallire
+ *  ogni salvataggio della tappa. Lo stesso nome non cambia niente (restituisce la tappa ricevuta). */
+export function rinominaTappa(tappa: Tappa, nome: string): Esito {
+  const pulito = nome.trim();
+  if (!pulito) return ko(NOME_VUOTO);
+  if (pulito === tappa.nome) return ok(tappa);
+  return ok({ ...tappa, nome: pulito });
 }
 
 /** Che cosa cancellano un nuovo sorteggio o un cambio di struttura (numero di gironi, squadre): il testo da mostrare

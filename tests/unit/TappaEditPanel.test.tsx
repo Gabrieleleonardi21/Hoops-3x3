@@ -44,6 +44,7 @@ function apri(t: Tappa) {
 }
 
 const campoGironi = () => screen.getByLabelText("Numero gironi") as HTMLInputElement;
+const campoNome = () => screen.getByLabelText("Nome") as HTMLInputElement;
 const scrivi = (campo: HTMLInputElement, testo: string) => fireEvent.change(campo, { target: { value: testo } });
 const nelloStore = () => store().tappe[0];
 
@@ -92,6 +93,27 @@ describe("TappaEditPanel: numero di gironi (R3)", () => {
     expect(screen.getByRole("alert").textContent).toMatch(/Numero di gironi non valido: con 4 squadre deve essere un intero da 1 a 2/);
     expect(campoGironi().value).toBe("2");
     expect(nelloStore()).toBe(prima);
+  });
+});
+
+describe("TappaEditPanel: nome della tappa (R7)", () => {
+  it("si conferma all'uscita dal campo: mentre si scrive la tappa non cambia", () => {
+    apri(tappa(false));
+    scrivi(campoNome(), "Milano Open");
+    expect(nelloStore().nome).toBe("Roma Open");
+    fireEvent.blur(campoNome());
+    expect(nelloStore().nome).toBe("Milano Open");
+  });
+
+  it("svuotato non arriva mai nello store: all'uscita torna il nome di prima e non parte nessun salvataggio", () => {
+    apri(tappa(false));
+    const prima = nelloStore();
+    scrivi(campoNome(), "");
+    expect(nelloStore().nome).toBe("Roma Open");
+    fireEvent.blur(campoNome());
+    expect(campoNome().value).toBe("Roma Open");
+    expect(nelloStore()).toBe(prima);
+    expect(store().inSospeso).toBe(0);
   });
 });
 
