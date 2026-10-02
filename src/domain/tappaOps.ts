@@ -31,6 +31,16 @@ const ko = (errore: string): Esito => ({ ok: false, errore });
 const MAX_SQUADRE = 64;
 const LIMITE_SQUADRE = `Una tappa ha da 2 a ${MAX_SQUADRE} squadre.`;
 
+/** Gironi possibili con `nSquadre` squadre: almeno 2 squadre per girone e non più di 32 gironi */
+const massimoGironi = (nSquadre: number) => Math.max(1, Math.min(32, Math.floor(nSquadre / 2)));
+
+/** Il numero di gironi è un intero tra 1 e metà delle squadre, al massimo 32. null se va bene */
+function erroreGironi(nSquadre: number, nGironi: number): string | null {
+  const massimo = massimoGironi(nSquadre);
+  if (Number.isInteger(nGironi) && nGironi >= 1 && nGironi <= massimo) return null;
+  return `Numero di gironi non valido: con ${nSquadre} squadre deve essere un intero da 1 a ${massimo}.`;
+}
+
 /** La tappa senza sorteggio: gironi, calendario e tabellone ripartono da zero. Serve a ogni cambio di struttura
  *  (numero di gironi, squadre): con squadre o gironi diversi né il vecchio calendario né il vecchio tabellone valgono. */
 function senzaSorteggio(tappa: Tappa): Tappa {
@@ -48,6 +58,9 @@ function erroreRisultato(regole: Regole, a: number, b: number): string | null {
  *  Un nuovo sorteggio riparte da zero: i risultati già registrati e il tabellone vanno persi. */
 export function sorteggia(tappa: Tappa, modo: ModoSorteggio): Esito {
   if (tappa.squadre.length < 2) return ko("Servono almeno 2 squadre per sorteggiare i gironi.");
+  // Le tappe salvate prima di questi controlli possono avere un numero di gironi che i gironi non sanno costruire
+  const gironiNonValidi = erroreGironi(tappa.squadre.length, tappa.nGironi);
+  if (gironiNonValidi) return ko(gironiNonValidi);
   let gironi: string[][];
   if (modo === "ranking") {
     gironi = buildGironiSeeded(tappa.squadre, tappa.nGironi);
@@ -64,15 +77,22 @@ export function aggiungiSquadra(tappa: Tappa): Esito {
   return ok(senzaSorteggio({ ...tappa, squadre: [...tappa.squadre, squadra] }));
 }
 
-/** Toglie una squadra dalla tappa. Il sorteggio fatto non vale più. */
+/** Toglie una squadra dalla tappa. Il sorteggio fatto non vale più; se i gironi diventano più di metà delle
+ *  squadre scendono al massimo possibile, altrimenti il prossimo sorteggio avrebbe gironi con una squadra sola. */
 export function rimuoviSquadra(tappa: Tappa, squadraId: string): Esito {
   if (!tappa.squadre.some((s) => s.id === squadraId)) return ko("Squadra non trovata.");
   if (tappa.squadre.length <= 2) return ko(LIMITE_SQUADRE);
-  return ok(senzaSorteggio({ ...tappa, squadre: tappa.squadre.filter((s) => s.id !== squadraId) }));
+  const squadre = tappa.squadre.filter((s) => s.id !== squadraId);
+  const nGironi = Math.min(tappa.nGironi, massimoGironi(squadre.length));
+  return ok(senzaSorteggio({ ...tappa, squadre, nGironi }));
 }
 
-/** Cambia il numero di gironi. Il sorteggio fatto non vale più. */
+/** Cambia il numero di gironi: un intero tra 1 e metà delle squadre, al massimo 32. Il sorteggio fatto non vale più;
+ *  lo stesso numero invece non cambia niente (restituisce la tappa ricevuta), così ridigitarlo non cancella nulla. */
 export function impostaNumeroGironi(tappa: Tappa, nGironi: number): Esito {
+  if (nGironi === tappa.nGironi) return ok(tappa);
+  const errore = erroreGironi(tappa.squadre.length, nGironi);
+  if (errore) return ko(errore);
   return ok(senzaSorteggio({ ...tappa, nGironi }));
 }
 

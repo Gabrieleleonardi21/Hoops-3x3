@@ -117,6 +117,11 @@ describe("sorteggia", () => {
     t.squadre = [t.squadre[0]];
     expect(errore(sorteggia(t, "casuale"))).toMatch(/2 squadre/);
   });
+
+  it("R3: con un numero di gironi non valido (tappe di prima) risponde con un messaggio invece di andare in errore", () => {
+    expect(errore(sorteggia({ ...tappaNuova(), nGironi: 2.5 }, "casuale"))).toMatch(/Numero di gironi non valido/);
+    expect(errore(sorteggia({ ...tappaNuova(), nGironi: 3 }, "ranking"))).toMatch(/da 1 a 2/);
+  });
 });
 
 describe("registraRisultato (gironi)", () => {
@@ -329,5 +334,31 @@ describe("cambi di struttura: squadre e numero di gironi (R1)", () => {
     rimuoviSquadra(originale, "b");
     impostaNumeroGironi(originale, 1);
     expect(originale).toEqual(tappaConBracket());
+  });
+});
+
+describe("numero di gironi: intero tra 1 e metà delle squadre, al massimo 32 (R3)", () => {
+  it("sonda: lo stesso numero non cambia niente, sorteggio e risultati restano", () => {
+    const partenza = tappaConBracket();
+    expect(nuova(impostaNumeroGironi(partenza, 2))).toBe(partenza);
+  });
+
+  it.each([
+    ["non intero", 2.5],
+    ["zero", 0],
+    ["oltre metà delle squadre", 3],
+    ["mancante", NaN],
+  ])("rifiuta un numero %s", (_caso, n) => {
+    expect(errore(impostaNumeroGironi(tappaNuova(), n))).toMatch(/Numero di gironi non valido: con 4 squadre deve essere un intero da 1 a 2/);
+  });
+
+  it("al massimo 32 gironi, anche con più di 64 squadre (tappe di prima)", () => {
+    expect(nuova(impostaNumeroGironi(tappaCon(70), 32)).nGironi).toBe(32);
+    expect(errore(impostaNumeroGironi(tappaCon(70), 33))).toMatch(/da 1 a 32/);
+  });
+
+  it("togliendo squadre il numero di gironi scende, se serve, a metà delle squadre", () => {
+    expect(nuova(rimuoviSquadra(tappaNuova(), "d")).nGironi).toBe(1);
+    expect(nuova(rimuoviSquadra({ ...tappaCon(6), nGironi: 2 }, "q0")).nGironi).toBe(2);
   });
 });

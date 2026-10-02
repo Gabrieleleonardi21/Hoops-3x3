@@ -62,13 +62,14 @@ export function useTappa(id: string | undefined) {
       }),
     }));
   /** Applica un'operazione di tappaOps alla tappa com'è adesso nello store e salva il risultato. Se l'operazione è
-   *  rifiutata non salva niente e restituisce il messaggio da mostrare; null = fatto. */
+   *  rifiutata non salva niente e restituisce il messaggio da mostrare; null = fatto. Se restituisce la stessa tappa
+   *  (niente da cambiare, per esempio lo stesso numero di gironi) non parte nessun salvataggio. */
   const applica = (operazione: (t: Tappa) => Esito): string | null => {
     const corrente = tappaCorrente(id);
     if (!corrente) return "Tappa non trovata.";
     const esito = operazione(corrente);
     if (!esito.ok) return esito.errore;
-    replaceTappa(esito.tappa);
+    if (esito.tappa !== corrente) replaceTappa(esito.tappa);
     return null;
   };
 
@@ -89,7 +90,7 @@ export function useTappa(id: string | undefined) {
   const setRule = (k: keyof Tappa["regole"], v: string) =>
     aggiorna((t) => ({ ...t, regole: { ...t.regole, [k]: Math.max(1, Number(v) || 1) } }));
   // Cambi di struttura (regole e limiti in tappaOps): azzerano sorteggio, calendario e tabellone
-  const setNGironi = (v: string) => applica((t) => ops.impostaNumeroGironi(t, Math.max(1, parseInt(v, 10) || 1)));
+  const setNGironi = (n: number) => applica((t) => ops.impostaNumeroGironi(t, n));
   const addTeam = () => applica(ops.aggiungiSquadra);
   const removeTeam = (teamId: string) => applica((t) => ops.rimuoviSquadra(t, teamId));
   const renameTeam = (teamId: string, nome: string) => aggiornaSquadra(teamId, (s) => ({ ...s, nome }));
