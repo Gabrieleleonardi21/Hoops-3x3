@@ -319,6 +319,27 @@ describe("Coach AI: argomenti mancanti o non validi → nessuna azione, il model
   });
 });
 
+describe("Coach AI: fase finale", () => {
+  it("genera_fasi_dirette conta solo i match da giocare, non i turni superati d'ufficio (bye)", async () => {
+    // 3 gironi da 2 squadre, gare giocate: 6 qualificate in un tabellone da 8 posti, cioè 2 bye al primo turno
+    const nomi = ["Alfa", "Beta", "Gamma", "Delta", "Epsilon", "Zeta"];
+    useAppStore.setState({ tappe: [{
+      ...romaOpen(), nGironi: 3,
+      squadre: nomi.map((nome, i) => squadra(`s${i + 1}`, nome)),
+      gironi: [["s1", "s2"], ["s3", "s4"], ["s5", "s6"]],
+      partite: [
+        { ...giocata("m1", "s1", "s2", 21, 15), g: 0 }, { ...giocata("m2", "s3", "s4", 21, 10), g: 1 },
+        { ...giocata("m3", "s5", "s6", 21, 12), g: 2 },
+      ],
+    }] });
+    const richieste = modello(strumenti(["genera_fasi_dirette", {}]), testo("Il tabellone è pronto."));
+    await chiedi(coach(), "Genera le fasi dirette");
+    expect(store().tappe[0].bracket).toHaveLength(7); // 4 gare al primo turno (2 bye), 2 semifinali, la finale
+    expect(esiti(richieste)[0]).toContain(": 5 match da giocare");
+    expect(esiti(richieste)[0]).toContain("2 squadre passano il primo turno senza giocare");
+  });
+});
+
 describe("Coach AI: conferma nel pannello prima delle azioni distruttive (D4)", () => {
   const rifaiSorteggio = strumenti(["sorteggia_gironi", { tappa_nome: "Roma Open" }]);
 
