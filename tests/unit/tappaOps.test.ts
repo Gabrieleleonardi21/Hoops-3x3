@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   sorteggia, registraRisultato, registraRisultatoBracket, generaFasiDirette, concludi,
+  aggiungiSquadra, rimuoviSquadra, impostaNumeroGironi,
 } from "../../src/domain/tappaOps";
 import type { Esito } from "../../src/domain/tappaOps";
 import type { Tappa } from "../../src/types";
@@ -68,6 +69,18 @@ function errore(esito: Esito): string {
   return esito.errore;
 }
 
+/** Verifica che della vecchia struttura non resti niente: né gironi, né calendario, né tabellone */
+function senzaSorteggio(t: Tappa) {
+  expect(t.gironi).toBeNull();
+  expect(t.partite).toEqual([]);
+  expect(t.bracket).toBeUndefined();
+}
+
+/** Tappa con `n` squadre, non ancora sorteggiata */
+function tappaCon(n: number): Tappa {
+  return { ...tappaNuova(), squadre: Array.from({ length: n }, (_, i) => ({ id: `q${i}`, nome: `Squadra ${i + 1}`, giocatori: [], rank: "" })) };
+}
+
 describe("sorteggia", () => {
   it("casuale: distribuisce tutte le squadre nei gironi e genera una partita per girone", () => {
     const t = nuova(sorteggia(tappaNuova(), "casuale"));
@@ -86,6 +99,11 @@ describe("sorteggia", () => {
   it("un nuovo sorteggio azzera i risultati già registrati", () => {
     const t = nuova(sorteggia(tappaGironiConclusi(), "ranking"));
     expect(t.partite.map((m) => [m.sa, m.sb, m.done])).toEqual([[0, 0, false], [0, 0, false]]);
+  });
+
+  it("R1 (sonda): dopo un nuovo sorteggio il tabellone del sorteggio precedente non c'è più", () => {
+    const t = nuova(sorteggia(tappaConBracket(), "ranking"));
+    expect(t.bracket).toBeUndefined();
   });
 
   it("non modifica la tappa ricevuta", () => {
@@ -270,5 +288,46 @@ describe("concludi", () => {
     const originale = tappaGironiConclusi();
     concludi(originale);
     expect(originale.conclusa).toBeUndefined();
+  });
+});
+
+describe("cambi di struttura: squadre e numero di gironi (R1)", () => {
+  it("aggiungiSquadra aggiunge «Squadra N» e azzera gironi, calendario e tabellone", () => {
+    const t = nuova(aggiungiSquadra(tappaConBracket()));
+    expect(t.squadre).toHaveLength(5);
+    expect(t.squadre[4]).toMatchObject({ nome: "Squadra 5", giocatori: [], rank: "" });
+    senzaSorteggio(t);
+  });
+
+  it("aggiungiSquadra rifiuta la 65ª squadra", () => {
+    expect(errore(aggiungiSquadra(tappaCon(64)))).toMatch(/da 2 a 64 squadre/);
+  });
+
+  it("rimuoviSquadra toglie la squadra e azzera gironi, calendario e tabellone", () => {
+    const t = nuova(rimuoviSquadra(tappaConBracket(), "b"));
+    expect(t.squadre.map((s) => s.id)).toEqual(["a", "c", "d"]);
+    senzaSorteggio(t);
+  });
+
+  it("rimuoviSquadra non scende sotto le 2 squadre", () => {
+    expect(errore(rimuoviSquadra(tappaCon(2), "q0"))).toMatch(/da 2 a 64 squadre/);
+  });
+
+  it("rimuoviSquadra rifiuta una squadra che non c'è", () => {
+    expect(errore(rimuoviSquadra(tappaNuova(), "inesistente"))).toMatch(/non trovata/);
+  });
+
+  it("impostaNumeroGironi cambia il numero e azzera gironi, calendario e tabellone", () => {
+    const t = nuova(impostaNumeroGironi(tappaConBracket(), 1));
+    expect(t.nGironi).toBe(1);
+    senzaSorteggio(t);
+  });
+
+  it("non modificano la tappa ricevuta", () => {
+    const originale = tappaConBracket();
+    aggiungiSquadra(originale);
+    rimuoviSquadra(originale, "b");
+    impostaNumeroGironi(originale, 1);
+    expect(originale).toEqual(tappaConBracket());
   });
 });

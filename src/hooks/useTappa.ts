@@ -2,7 +2,7 @@ import { useAppStore, tappaCorrente } from "../stores/useAppStore";
 import { archivioApi } from "../services/archivioApi";
 import { uid } from "../utils/uid";
 import * as ops from "../domain/tappaOps";
-import type { ModoSorteggio } from "../domain/tappaOps";
+import type { Esito, ModoSorteggio } from "../domain/tappaOps";
 import type { EventoGara, Partita, RegSquadra, SquadraTappa, StatLine, StatSheet, Tappa } from "../types";
 
 export interface MatchDraft {
@@ -61,6 +61,16 @@ export function useTappa(id: string | undefined) {
         return cambia(m);
       }),
     }));
+  /** Applica un'operazione di tappaOps alla tappa com'è adesso nello store e salva il risultato. Se l'operazione è
+   *  rifiutata non salva niente e restituisce il messaggio da mostrare; null = fatto. */
+  const applica = (operazione: (t: Tappa) => Esito): string | null => {
+    const corrente = tappaCorrente(id);
+    if (!corrente) return "Tappa non trovata.";
+    const esito = operazione(corrente);
+    if (!esito.ok) return esito.errore;
+    replaceTappa(esito.tappa);
+    return null;
+  };
 
   /* ── helper di lettura ── */
   const nameOf = (teamId: string) => nomeSquadra(tappa, teamId);
@@ -76,25 +86,12 @@ export function useTappa(id: string | undefined) {
 
   /* ── modifica tappa ── */
   const setInfo = (k: "nome" | "luogo" | "data", v: string) => patch({ [k]: v });
-  const setNGironi = (v: string) =>
-    patch({ nGironi: Math.max(1, parseInt(v, 10) || 1), gironi: null, partite: [] });
   const setRule = (k: keyof Tappa["regole"], v: string) =>
     aggiorna((t) => ({ ...t, regole: { ...t.regole, [k]: Math.max(1, Number(v) || 1) } }));
-  // I limiti si controllano sulla tappa di adesso; ai limiti la tappa resta quella che era
-  const addTeam = () =>
-    aggiorna((t) => {
-      if (t.squadre.length >= 64) return t;
-      return {
-        ...t,
-        squadre: [...t.squadre, { id: uid(), nome: `Squadra ${t.squadre.length + 1}`, giocatori: [], rank: "" }],
-        gironi: null, partite: [],
-      };
-    });
-  const removeTeam = (teamId: string) =>
-    aggiorna((t) => {
-      if (t.squadre.length <= 2) return t;
-      return { ...t, squadre: t.squadre.filter((s) => s.id !== teamId), gironi: null, partite: [] };
-    });
+  // Cambi di struttura (regole e limiti in tappaOps): azzerano sorteggio, calendario e tabellone
+  const setNGironi = (v: string) => applica((t) => ops.impostaNumeroGironi(t, Math.max(1, parseInt(v, 10) || 1)));
+  const addTeam = () => applica(ops.aggiungiSquadra);
+  const removeTeam = (teamId: string) => applica((t) => ops.rimuoviSquadra(t, teamId));
   const renameTeam = (teamId: string, nome: string) => aggiornaSquadra(teamId, (s) => ({ ...s, nome }));
   const setTeamRank = (teamId: string, rank: string) => aggiornaSquadra(teamId, (s) => ({ ...s, rank }));
   const setTeamWebsite = (teamId: string, website: string) => aggiornaSquadra(teamId, (s) => ({ ...s, website }));

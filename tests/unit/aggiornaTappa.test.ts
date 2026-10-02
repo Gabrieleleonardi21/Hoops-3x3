@@ -74,6 +74,14 @@ function differita<T>() {
 /** Esegue un'azione dell'hook dentro act (aggiorna lo stato di React) */
 const fai = (azione: () => unknown) => act(() => { azione(); });
 
+/** Passata l'attesa della coda: nello store c'è ancora la tappa `prima` e non è partito nessun salvataggio */
+async function nienteSalvato(prima: Tappa) {
+  await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+  expect(store().tappe[0]).toBe(prima);
+  expect(store().inSospeso).toBe(0);
+  expect(api.putTappa).not.toHaveBeenCalled();
+}
+
 beforeEach(() => {
   vi.useFakeTimers();
   vi.resetAllMocks();
@@ -322,6 +330,27 @@ describe("useTappa: le operazioni di tappaOps si applicano alla tappa di adesso"
     expect(errore).toBeNull();
     expect(store().tappe[0].conclusa).toBe(true);
     expect(archivio.pubblica).toHaveBeenCalledWith(expect.objectContaining({ id: "t1", conclusa: true }), expect.anything());
+  });
+
+  it("R1: aggiungere una squadra cancella anche il tabellone", () => {
+    const finale = { id: "fin", label: "Finale", squadraA: "s1", squadraB: "s2", pA: 0, pB: 0, done: false };
+    useAppStore.setState({ tappe: [{ ...sorteggiata([giocata("m1")]), bracket: [finale] }] });
+    const { result } = renderHook(() => useTappa("t1"));
+    fai(() => result.current.addTeam());
+    expect(store().tappe[0]).toMatchObject({ gironi: null, partite: [], bracket: undefined });
+  });
+
+  it.each<[string, number, (h: ReturnType<typeof useTappa>) => string | null]>([
+    ["aggiungere la 65ª squadra", 64, (h) => h.addTeam()],
+    ["togliere una squadra quando sono 2", 2, (h) => h.removeTeam("q0")],
+  ])("R1: %s è rifiutato con un messaggio e non salva niente", async (_caso, n, operazione) => {
+    useAppStore.setState({ tappe: [{ ...tappa(), squadre: Array.from({ length: n }, (_, i) => squadra(`q${i}`, `Squadra ${i + 1}`)) }] });
+    const prima = store().tappe[0];
+    const { result } = renderHook(() => useTappa("t1"));
+    let errore: string | null = null;
+    fai(() => { errore = operazione(result.current); });
+    expect(errore).toMatch(/da 2 a 64 squadre/);
+    await nienteSalvato(prima);
   });
 
   it("video aggiunti e tolti di seguito si sommano", () => {

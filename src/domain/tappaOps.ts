@@ -3,12 +3,13 @@
  *  l'operazione non si può fare. Le usano sia l'interfaccia (useTappa, BracketSection) sia i tool
  *  del Coach AI, che salvano il risultato con replaceTappa: la logica sta in un posto solo ed è
  *  testabile con Vitest senza React. */
-import type { Partita, Regole, StatSheet, Tappa } from "../types";
+import type { Partita, Regole, SquadraTappa, StatSheet, Tappa } from "../types";
 import { buildGironi } from "../utils/buildGironi";
 import { buildGironiSeeded } from "../utils/buildGironiSeeded";
 import { buildMatches } from "../utils/buildMatches";
 import { buildBracket, nextBracketSlot } from "../utils/buildBracket";
 import { replaceById } from "../utils/replaceById";
+import { uid } from "../utils/uid";
 
 export type ModoSorteggio = "casuale" | "ranking";
 
@@ -26,6 +27,16 @@ export interface Punteggio {
 const ok = (tappa: Tappa): Esito => ({ ok: true, tappa });
 const ko = (errore: string): Esito => ({ ok: false, errore });
 
+/** Squadre ammesse in una tappa */
+const MAX_SQUADRE = 64;
+const LIMITE_SQUADRE = `Una tappa ha da 2 a ${MAX_SQUADRE} squadre.`;
+
+/** La tappa senza sorteggio: gironi, calendario e tabellone ripartono da zero. Serve a ogni cambio di struttura
+ *  (numero di gironi, squadre): con squadre o gironi diversi né il vecchio calendario né il vecchio tabellone valgono. */
+function senzaSorteggio(tappa: Tappa): Tappa {
+  return { ...tappa, gironi: null, partite: [], bracket: undefined };
+}
+
 /** Controlli validi per ogni risultato: due numeri interi non negativi e nessun pareggio */
 function erroreRisultato(regole: Regole, a: number, b: number): string | null {
   if (!Number.isInteger(a) || !Number.isInteger(b) || a < 0 || b < 0) return "Inserisci entrambi i punteggi.";
@@ -34,7 +45,7 @@ function erroreRisultato(regole: Regole, a: number, b: number): string | null {
 }
 
 /** Sorteggia i gironi (casuale o a serpentina per ranking) e genera il calendario all'italiana.
- *  Un nuovo sorteggio riparte da zero: i risultati già registrati vanno persi. */
+ *  Un nuovo sorteggio riparte da zero: i risultati già registrati e il tabellone vanno persi. */
 export function sorteggia(tappa: Tappa, modo: ModoSorteggio): Esito {
   if (tappa.squadre.length < 2) return ko("Servono almeno 2 squadre per sorteggiare i gironi.");
   let gironi: string[][];
@@ -43,7 +54,26 @@ export function sorteggia(tappa: Tappa, modo: ModoSorteggio): Esito {
   } else {
     gironi = buildGironi(tappa.squadre.map((s) => s.id), tappa.nGironi);
   }
-  return ok({ ...tappa, gironi, partite: buildMatches(gironi) });
+  return ok({ ...senzaSorteggio(tappa), gironi, partite: buildMatches(gironi) });
+}
+
+/** Aggiunge una squadra con il nome provvisorio «Squadra N». Il sorteggio fatto non vale più. */
+export function aggiungiSquadra(tappa: Tappa): Esito {
+  if (tappa.squadre.length >= MAX_SQUADRE) return ko(LIMITE_SQUADRE);
+  const squadra: SquadraTappa = { id: uid(), nome: `Squadra ${tappa.squadre.length + 1}`, giocatori: [], rank: "" };
+  return ok(senzaSorteggio({ ...tappa, squadre: [...tappa.squadre, squadra] }));
+}
+
+/** Toglie una squadra dalla tappa. Il sorteggio fatto non vale più. */
+export function rimuoviSquadra(tappa: Tappa, squadraId: string): Esito {
+  if (!tappa.squadre.some((s) => s.id === squadraId)) return ko("Squadra non trovata.");
+  if (tappa.squadre.length <= 2) return ko(LIMITE_SQUADRE);
+  return ok(senzaSorteggio({ ...tappa, squadre: tappa.squadre.filter((s) => s.id !== squadraId) }));
+}
+
+/** Cambia il numero di gironi. Il sorteggio fatto non vale più. */
+export function impostaNumeroGironi(tappa: Tappa, nGironi: number): Esito {
+  return ok(senzaSorteggio({ ...tappa, nGironi }));
 }
 
 /** Registra il risultato di una partita dei gironi */
