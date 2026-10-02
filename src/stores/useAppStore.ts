@@ -41,7 +41,10 @@ interface AppState {
   setLegaName: (nome: string) => void;
   setLega: (nome: string, tappe: Tappa[]) => void;
   addTappa: (t: Tappa) => void;
-  updateTappa: (id: string, patch: Partial<Tappa>) => void;
+  /** Modifica una tappa. `modifica` è l'insieme dei campi da cambiare oppure una funzione `(tappa) => tappa`: la
+   *  funzione riceve la tappa com'è nello store nel momento in cui viene applicata, non una copia letta prima
+   *  (magari vecchia), e serve quando il nuovo valore dipende da ciò che c'è già, come l'elenco delle squadre. */
+  updateTappa: (id: string, modifica: Partial<Tappa> | ((tappa: Tappa) => Tappa)) => void;
   /** Aggiorna una singola partita in modo atomico, evita race condition in chiamate parallele. */
   updateTappaPartita: (tappaId: string, partitaId: string, patch: Partial<Partita>) => void;
   /** Crea una nuova lega importando dati JSON (nome + tappe). */
@@ -350,8 +353,15 @@ export const useAppStore = create<AppState>((set, get) => {
       afterTappaChange(t.id);
     },
 
-    updateTappa: (id, patch) => {
-      set((s) => ({ tappe: s.tappe.map((t) => (t.id === id ? { ...t, ...patch } : t)) }));
+    updateTappa: (id, modifica) => {
+      set((s) => ({
+        tappe: s.tappe.map((t) => {
+          if (t.id !== id) return t;
+          // La funzione lavora sulla tappa dello store adesso, dentro lo stesso set: nessuna modifica si perde nel mezzo
+          if (typeof modifica === "function") return modifica(t);
+          return { ...t, ...modifica };
+        }),
+      }));
       afterTappaChange(id);
     },
 

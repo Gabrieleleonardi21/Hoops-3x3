@@ -30,7 +30,12 @@ export function useTappa(id: string | undefined) {
   const { user, legaName, tappe, updateTappa, replaceTappa, removeTappa } = useAppStore();
   const tappa = tappe.find((t) => t.id === id) || null;
 
+  /** Per i campi il cui nuovo valore non dipende dalla tappa (un testo scritto, un valore fisso) */
   const patch = (p: Partial<Tappa>) => tappa && updateTappa(tappa.id, p);
+  /** Per il resto: la funzione riceve la tappa com'è adesso nello store, non la copia `tappa` di questo render.
+   *  Dopo un'attesa (la risposta del server) o con più modifiche di seguito la copia è vecchia, e riscriverla
+   *  cancellerebbe ciò che nel frattempo è stato scritto altrove. */
+  const aggiorna = (modifica: (t: Tappa) => Tappa) => tappa && updateTappa(tappa.id, modifica);
 
   /* ── helper di lettura ── */
   const nameOf = (teamId: string) => tappa?.squadre.find((s) => s.id === teamId)?.nome || "?";
@@ -69,13 +74,17 @@ export function useTappa(id: string | undefined) {
   const setTeamLogo = (teamId: string, logo: string) =>
     tappa && patch({ squadre: tappa.squadre.map((s) => (s.id === teamId ? { ...s, logo } : s)) });
 
-  /** Collega una squadra tappa alla RegSquadra e ne copia nome, logo, rank, website */
+  /** Collega una squadra tappa alla RegSquadra e ne copia nome, logo, rank, website.
+   *  Lo chiama la pagina dopo aver atteso il server: l'elenco squadre si rifà dalla tappa di adesso, così quello che
+   *  nel frattempo è stato scritto nelle altre squadre resta. */
   const applyReg = (teamId: string, reg: RegSquadra) =>
-    tappa && patch({
-      squadre: tappa.squadre.map((s) =>
-        s.id === teamId ? { ...s, regId: reg.id, nome: reg.nome, logo: reg.logo, rank: reg.rank, website: reg.website } : s
-      ),
-    });
+    aggiorna((t) => ({
+      ...t,
+      squadre: t.squadre.map((s) => {
+        if (s.id !== teamId) return s;
+        return { ...s, regId: reg.id, nome: reg.nome, logo: reg.logo, rank: reg.rank, website: reg.website };
+      }),
+    }));
 
   /** Sincronizza tutte le squadre della tappa con l'anagrafe (usato all'apertura della pagina).
    *  Cerca prima per regId, poi per nome case-insensitive.
