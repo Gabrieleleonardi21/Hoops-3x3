@@ -118,7 +118,8 @@ export function useTappa(id: string | undefined) {
       let changed = false;
       const updated = t.squadre.map((s) => {
         if (/^Squadra \d+$/.test(s.nome.trim())) return s; // placeholder, skip
-        const reg = (s.regId ? regs.find((r) => r.id === s.regId) : null)
+        // Prima per regId (una squadra senza regId non ne trova nessuna), poi per nome
+        const reg = regs.find((r) => r.id === s.regId)
           ?? regs.find((r) => r.nome.toLowerCase() === s.nome.trim().toLowerCase());
         if (!reg) return s;
         // Aggiorna solo se qualcosa è cambiato

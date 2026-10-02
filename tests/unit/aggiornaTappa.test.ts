@@ -246,6 +246,14 @@ describe("useTappa: le modifiche partono dalla tappa com'è adesso, non da quell
       ]);
     });
 
+    it("una squadra già collegata segue l'anagrafe anche se il nome è cambiato", () => {
+      const vecchia = { ...squadra("s1", "Alfa Roma"), regId: "r1" };
+      useAppStore.setState({ tappe: [{ ...tappa(), squadre: [vecchia, squadra("s2", "Squadra 2")] }] });
+      const { result } = renderHook(() => useTappa("t1"));
+      fai(() => result.current.syncFromAnagrafe([regAlfa]));
+      expect(squadre()[0]).toMatchObject({ nome: "Alfa", regId: "r1", rank: "40", logo: "/logos/alfa.svg" });
+    });
+
     it("se le squadre sono già allineate non salva niente: altrimenti partirebbe un salvataggio a ogni apertura della pagina", async () => {
       const collegata = { ...squadra("s1", "Alfa"), regId: "r1", rank: "40", logo: "/logos/alfa.svg", website: "https://alfa.it" };
       useAppStore.setState({ tappe: [{ ...tappa(), squadre: [collegata, squadra("s2", "Squadra 2")] }] });
