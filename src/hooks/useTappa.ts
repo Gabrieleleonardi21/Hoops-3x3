@@ -3,7 +3,7 @@ import { archivioApi } from "../services/archivioApi";
 import { uid } from "../utils/uid";
 import * as ops from "../domain/tappaOps";
 import type { ModoSorteggio } from "../domain/tappaOps";
-import type { EventoGara, Partita, RegSquadra, StatLine, StatSheet, Tappa } from "../types";
+import type { EventoGara, Partita, RegSquadra, SquadraTappa, StatLine, StatSheet, Tappa } from "../types";
 
 export interface MatchDraft {
   sa: string;
@@ -36,6 +36,24 @@ export function useTappa(id: string | undefined) {
    *  Dopo un'attesa (la risposta del server) o con più modifiche di seguito la copia è vecchia, e riscriverla
    *  cancellerebbe ciò che nel frattempo è stato scritto altrove. */
   const aggiorna = (modifica: (t: Tappa) => Tappa) => tappa && updateTappa(tappa.id, modifica);
+  /** `aggiorna` per una squadra: le altre restano come sono */
+  const aggiornaSquadra = (teamId: string, cambia: (s: SquadraTappa) => SquadraTappa) =>
+    aggiorna((t) => ({
+      ...t,
+      squadre: t.squadre.map((s) => {
+        if (s.id !== teamId) return s;
+        return cambia(s);
+      }),
+    }));
+  /** `aggiorna` per una partita: le altre restano come sono */
+  const aggiornaPartita = (matchId: string, cambia: (m: Partita) => Partita) =>
+    aggiorna((t) => ({
+      ...t,
+      partite: t.partite.map((m) => {
+        if (m.id !== matchId) return m;
+        return cambia(m);
+      }),
+    }));
 
   /* ── helper di lettura ── */
   const nameOf = (teamId: string) => tappa?.squadre.find((s) => s.id === teamId)?.nome || "?";
@@ -55,35 +73,33 @@ export function useTappa(id: string | undefined) {
   const setNGironi = (v: string) =>
     patch({ nGironi: Math.max(1, parseInt(v, 10) || 1), gironi: null, partite: [] });
   const setRule = (k: keyof Tappa["regole"], v: string) =>
-    tappa && patch({ regole: { ...tappa.regole, [k]: Math.max(1, Number(v) || 1) } });
+    aggiorna((t) => ({ ...t, regole: { ...t.regole, [k]: Math.max(1, Number(v) || 1) } }));
+  // I limiti si controllano sulla tappa di adesso; ai limiti la tappa resta quella che era
   const addTeam = () =>
-    tappa && tappa.squadre.length < 64 &&
-    patch({
-      squadre: [...tappa.squadre, { id: uid(), nome: `Squadra ${tappa.squadre.length + 1}`, giocatori: [], rank: "" }],
-      gironi: null, partite: [],
+    aggiorna((t) => {
+      if (t.squadre.length >= 64) return t;
+      return {
+        ...t,
+        squadre: [...t.squadre, { id: uid(), nome: `Squadra ${t.squadre.length + 1}`, giocatori: [], rank: "" }],
+        gironi: null, partite: [],
+      };
     });
   const removeTeam = (teamId: string) =>
-    tappa && tappa.squadre.length > 2 &&
-    patch({ squadre: tappa.squadre.filter((s) => s.id !== teamId), gironi: null, partite: [] });
-  const renameTeam = (teamId: string, nome: string) =>
-    tappa && patch({ squadre: tappa.squadre.map((s) => (s.id === teamId ? { ...s, nome } : s)) });
-  const setTeamRank = (teamId: string, rank: string) =>
-    tappa && patch({ squadre: tappa.squadre.map((s) => (s.id === teamId ? { ...s, rank } : s)) });
-  const setTeamWebsite = (teamId: string, website: string) =>
-    tappa && patch({ squadre: tappa.squadre.map((s) => (s.id === teamId ? { ...s, website } : s)) });
-  const setTeamLogo = (teamId: string, logo: string) =>
-    tappa && patch({ squadre: tappa.squadre.map((s) => (s.id === teamId ? { ...s, logo } : s)) });
+    aggiorna((t) => {
+      if (t.squadre.length <= 2) return t;
+      return { ...t, squadre: t.squadre.filter((s) => s.id !== teamId), gironi: null, partite: [] };
+    });
+  const renameTeam = (teamId: string, nome: string) => aggiornaSquadra(teamId, (s) => ({ ...s, nome }));
+  const setTeamRank = (teamId: string, rank: string) => aggiornaSquadra(teamId, (s) => ({ ...s, rank }));
+  const setTeamWebsite = (teamId: string, website: string) => aggiornaSquadra(teamId, (s) => ({ ...s, website }));
+  const setTeamLogo = (teamId: string, logo: string) => aggiornaSquadra(teamId, (s) => ({ ...s, logo }));
 
   /** Collega una squadra tappa alla RegSquadra e ne copia nome, logo, rank, website.
    *  Lo chiama la pagina dopo aver atteso il server: l'elenco squadre si rifà dalla tappa di adesso, così quello che
    *  nel frattempo è stato scritto nelle altre squadre resta. */
   const applyReg = (teamId: string, reg: RegSquadra) =>
-    aggiorna((t) => ({
-      ...t,
-      squadre: t.squadre.map((s) => {
-        if (s.id !== teamId) return s;
-        return { ...s, regId: reg.id, nome: reg.nome, logo: reg.logo, rank: reg.rank, website: reg.website };
-      }),
+    aggiornaSquadra(teamId, (s) => ({
+      ...s, regId: reg.id, nome: reg.nome, logo: reg.logo, rank: reg.rank, website: reg.website,
     }));
 
   /** Sincronizza tutte le squadre della tappa con l'anagrafe (usato all'apertura della pagina).
@@ -91,44 +107,45 @@ export function useTappa(id: string | undefined) {
    *  Non tocca le squadre con nome placeholder ("Squadra N"). */
   const syncFromAnagrafe = (regs: RegSquadra[]) => {
     if (!tappa) return;
-    let changed = false;
-    const updated = tappa.squadre.map((s) => {
-      if (/^Squadra \d+$/.test(s.nome.trim())) return s; // placeholder, skip
-      const reg = (s.regId ? regs.find((r) => r.id === s.regId) : null)
-        ?? regs.find((r) => r.nome.toLowerCase() === s.nome.trim().toLowerCase());
-      if (!reg) return s;
-      // Aggiorna solo se qualcosa è cambiato
-      if (s.regId === reg.id && s.logo === reg.logo && s.nome === reg.nome
-        && String(s.rank) === String(reg.rank) && s.website === reg.website) return s;
-      changed = true;
-      return { ...s, regId: reg.id, nome: reg.nome, logo: reg.logo, rank: reg.rank, website: reg.website };
-    });
-    if (changed) patch({ squadre: updated });
+    /** La tappa con le squadre allineate all'anagrafe; la stessa tappa se non c'è niente da cambiare */
+    const allinea = (t: Tappa): Tappa => {
+      let changed = false;
+      const updated = t.squadre.map((s) => {
+        if (/^Squadra \d+$/.test(s.nome.trim())) return s; // placeholder, skip
+        const reg = (s.regId ? regs.find((r) => r.id === s.regId) : null)
+          ?? regs.find((r) => r.nome.toLowerCase() === s.nome.trim().toLowerCase());
+        if (!reg) return s;
+        // Aggiorna solo se qualcosa è cambiato
+        if (s.regId === reg.id && s.logo === reg.logo && s.nome === reg.nome
+          && String(s.rank) === String(reg.rank) && s.website === reg.website) return s;
+        changed = true;
+        return { ...s, regId: reg.id, nome: reg.nome, logo: reg.logo, rank: reg.rank, website: reg.website };
+      });
+      if (!changed) return t;
+      return { ...t, squadre: updated };
+    };
+    // Se alla tappa vista non manca niente non si salva: altrimenti ne partirebbe uno a ogni apertura della pagina
+    if (allinea(tappa) === tappa) return;
+    aggiorna(allinea);
   };
 
   /* ── roster ── */
   const addPlayer = (teamId: string) =>
-    tappa && patch({
-      squadre: tappa.squadre.map((s) =>
-        s.id === teamId && (s.giocatori || []).length < 4
-          ? { ...s, giocatori: [...(s.giocatori || []), { id: uid(), nome: "" }] }
-          : s
-      ),
+    aggiornaSquadra(teamId, (s) => {
+      const giocatori = s.giocatori || [];
+      if (giocatori.length >= 4) return s;
+      return { ...s, giocatori: [...giocatori, { id: uid(), nome: "" }] };
     });
   const renamePlayer = (teamId: string, pid: string, nome: string) =>
-    tappa && patch({
-      squadre: tappa.squadre.map((s) =>
-        s.id === teamId
-          ? { ...s, giocatori: (s.giocatori || []).map((p) => (p.id === pid ? { ...p, nome } : p)) }
-          : s
-      ),
-    });
+    aggiornaSquadra(teamId, (s) => ({
+      ...s,
+      giocatori: (s.giocatori || []).map((p) => {
+        if (p.id !== pid) return p;
+        return { ...p, nome };
+      }),
+    }));
   const removePlayer = (teamId: string, pid: string) =>
-    tappa && patch({
-      squadre: tappa.squadre.map((s) =>
-        s.id === teamId ? { ...s, giocatori: (s.giocatori || []).filter((p) => p.id !== pid) } : s
-      ),
-    });
+    aggiornaSquadra(teamId, (s) => ({ ...s, giocatori: (s.giocatori || []).filter((p) => p.id !== pid) }));
 
   /* ── sorteggio: gironi e calendario li costruisce tappaOps ── */
   const sorteggia = (mode: ModoSorteggio): string | null => {
@@ -172,22 +189,13 @@ export function useTappa(id: string | undefined) {
     return null;
   };
 
-  const reopenScore = (matchId: string) =>
-    tappa && patch({ partite: tappa.partite.map((x) => (x.id === matchId ? { ...x, done: false } : x)) });
+  const reopenScore = (matchId: string) => aggiornaPartita(matchId, (m) => ({ ...m, done: false }));
 
   /* ── eventi di gara ── */
   const addEvent = (matchId: string, ev: Omit<EventoGara, "id">) =>
-    tappa && patch({
-      partite: tappa.partite.map((x) =>
-        x.id === matchId ? { ...x, eventi: [...(x.eventi || []), { ...ev, id: uid() }] } : x
-      ),
-    });
+    aggiornaPartita(matchId, (m) => ({ ...m, eventi: [...(m.eventi || []), { ...ev, id: uid() }] }));
   const removeEvent = (matchId: string, evId: string) =>
-    tappa && patch({
-      partite: tappa.partite.map((x) =>
-        x.id === matchId ? { ...x, eventi: (x.eventi || []).filter((e) => e.id !== evId) } : x
-      ),
-    });
+    aggiornaPartita(matchId, (m) => ({ ...m, eventi: (m.eventi || []).filter((e) => e.id !== evId) }));
 
   /* ── video + pubblicazione ── */
   const republish = async (t: Tappa) => {
