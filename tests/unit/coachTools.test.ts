@@ -6,7 +6,7 @@ import { MemoryRouter } from "react-router-dom";
 import { useCoachAI } from "../../src/hooks/useCoachAI";
 import { useAuth } from "../../src/hooks/useAuth";
 import { CoachPanel } from "../../src/components/coach/CoachPanel";
-import { useAppStore } from "../../src/stores/useAppStore";
+import { useAppStore, SESSION_KEY } from "../../src/stores/useAppStore";
 import { legheApi } from "../../src/services/legheApi";
 import { anagrafeApi } from "../../src/services/anagrafeApi";
 import { archivioApi } from "../../src/services/archivioApi";
@@ -623,6 +623,45 @@ describe("Coach AI: la chat", () => {
       await invio;
     });
     expect(store().tappe[0]).toBe(prima);
+    expect(c.current.msgs).toEqual([]);
+  });
+});
+
+describe("Coach AI: la chat appartiene a chi l'ha scritta", () => {
+  const bruno: User = { id: "u2", name: "Bruno", email: "bruno@example.it", guest: false };
+
+  /** Ricarica della scheda: moduli nuovi, che leggono la sessione (localStorage) e la chat della scheda (sessionStorage) */
+  async function ricarica(sessione: User | null) {
+    localStorage.removeItem(SESSION_KEY);
+    if (sessione) localStorage.setItem(SESSION_KEY, JSON.stringify(sessione));
+    vi.resetModules();
+    const { useCoachAI: dopoLaRicarica } = await import("../../src/hooks/useCoachAI");
+    return renderHook(() => dopoLaRicarica(), { wrapper: inRouter }).result;
+  }
+
+  it("dopo una ricarica con lo stesso utente la chat resta", async () => {
+    modello(testo("Ciao Anna!"));
+    await chiedi(coach(), "Ciao coach");
+    const c = await ricarica(registrato);
+    expect(c.current.msgs.map((m) => m.content)).toEqual(["Ciao coach", "Ciao Anna!"]);
+  });
+
+  it.each<[string, User | null]>([
+    ["senza utente (sessione chiusa in un'altra scheda)", null],
+    ["con un altro utente", bruno],
+  ])("dopo una ricarica %s la chat di prima non compare", async (_caso, sessione) => {
+    modello(testo("Ciao Anna!"));
+    await chiedi(coach(), "Ciao coach");
+    const c = await ricarica(sessione);
+    expect(c.current.msgs).toEqual([]);
+  });
+
+  it("quando entra qualcuno, la chat scritta prima senza utente si cancella", async () => {
+    act(() => { useAppStore.setState({ user: null }); });
+    const c = coach();
+    await chiedi(c, "Che cosa sai fare?"); // senza utente il Coach risponde che è riservato ai registrati
+    expect(c.current.msgs).toHaveLength(2);
+    act(() => { store().setUser(bruno); });
     expect(c.current.msgs).toEqual([]);
   });
 });

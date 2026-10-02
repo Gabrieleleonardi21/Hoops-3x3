@@ -12,7 +12,7 @@ import {
   annullaRisultato, concludi, creaTappa, erroreLimitiTappa, generaFasiDirette, perditaRisultati, registraRisultato,
   registraRisultatoBracket, sorteggia, type Esito, type ModoSorteggio,
 } from "../domain/tappaOps";
-import type { Tappa, RegSquadra, RegGiocatore, SquadraTappa, GiocatoreRoster } from "../types";
+import type { Tappa, RegSquadra, RegGiocatore, SquadraTappa, GiocatoreRoster, User } from "../types";
 
 const CHAT_KEY = "coach_chat";
 /** Messaggi tenuti nella chat e mandati al modello: il server rifiuta le conversazioni oltre 60 messaggi (compresi
@@ -34,12 +34,21 @@ interface StatoChat {
   conferma: RichiestaConferma | null;
 }
 
-/** Cronologia della scheda (sessionStorage): si azzera chiudendola */
+/** Chi usa la chat: l'id del registrato, «ospite» per l'ospite, null senza utente */
+function autore(u: User | null): string | null {
+  if (!u) return null;
+  if (u.guest) return "ospite";
+  return u.id ?? null;
+}
+
+/** Cronologia della scheda (sessionStorage, si azzera chiudendola), solo se l'ha scritta chi c'è adesso: dopo una
+ *  ricarica senza utente (sessione chiusa in un'altra scheda) o con un altro account la chat di prima non si mostra */
 function cronologiaSalvata(): ChatMsg[] {
   try {
-    const saved = sessionStorage.getItem(CHAT_KEY);
-    if (!saved) return [];
-    return JSON.parse(saved) as ChatMsg[];
+    const salvata = JSON.parse(sessionStorage.getItem(CHAT_KEY) ?? "null") as { autore?: string | null; msgs?: ChatMsg[] } | null;
+    if (salvata && Array.isArray(salvata.msgs) && salvata.autore === autore(useAppStore.getState().user)) return salvata.msgs;
+    sessionStorage.removeItem(CHAT_KEY);
+    return [];
   } catch {
     return [];
   }
@@ -49,12 +58,12 @@ function cronologiaSalvata(): ChatMsg[] {
  *  andava persa */
 const useChat = create<StatoChat>(() => ({ msgs: cronologiaSalvata(), loading: false, conferma: null }));
 
-/** Scrive la chat (solo gli ultimi MAX_MESSAGGI) nello store e nella sessionStorage */
+/** Scrive la chat (solo gli ultimi MAX_MESSAGGI) nello store e nella sessionStorage, con chi l'ha scritta */
 function salvaChat(msgs: ChatMsg[]) {
   const ultimi = msgs.slice(-MAX_MESSAGGI);
   useChat.setState({ msgs: ultimi });
   try {
-    sessionStorage.setItem(CHAT_KEY, JSON.stringify(ultimi));
+    sessionStorage.setItem(CHAT_KEY, JSON.stringify({ autore: autore(useAppStore.getState().user), msgs: ultimi }));
   } catch { /* quota exceeded: ignora */ }
 }
 
@@ -90,10 +99,11 @@ async function confermata(titolo: string, testo: string) {
   throw new Error("L'utente ha annullato: azione non eseguita. Non riprovarla se non te lo chiede di nuovo.");
 }
 
-// Al logout lo store torna senza utente (reset): la chat non resta a chi usa la scheda dopo, né in memoria né nella
-// sessionStorage. Vale per ogni uscita: «Esci», sessione scaduta all'avvio, fine sessione
+// Quando cambia chi usa l'app la chat si cancella, in memoria e nella sessionStorage: non resta a chi viene dopo.
+// Vale per ogni uscita («Esci», sessione scaduta all'avvio, fine sessione: lo store torna senza utente con reset) e
+// per ogni ingresso, anche dopo una chat scritta senza utente
 useAppStore.subscribe((stato, prima) => {
-  if (prima.user && !stato.user) cancellaChat();
+  if (autore(stato.user) !== autore(prima.user)) cancellaChat();
 });
 
 /** Strumenti che il Coach AI può invocare autonomamente nell'app. */
