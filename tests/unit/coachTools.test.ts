@@ -349,6 +349,14 @@ describe("Coach AI: argomenti mancanti o non validi, o azione vietata da tappaOp
     expect(store().tappe[0]).toBe(prima);
   });
 
+  it.each<unknown>([5, "", "   "])("un tappa_nome non valido («%s») non diventa «l'ultima tappa»: lo strumento non agisce", async (tappa_nome) => {
+    // Senza risultati il sorteggio non chiede conferma: sull'ultima tappa partirebbe subito
+    useAppStore.setState({ tappe: [{ ...romaOpen(), gironi: null, partite: [] }] });
+    const prima = store().tappe[0];
+    await rifiutato("sorteggia_gironi", { tappa_nome }, /Nome della tappa non valido/);
+    expect(store().tappe[0]).toBe(prima);
+  });
+
   it("sorteggia_gironi riconosce la modalità anche con le maiuscole: «Ranking» è il sorteggio per ranking", async () => {
     useAppStore.setState({ tappe: [{ ...romaOpen(), gironi: null, partite: [] }] });
     const richieste = modello(strumenti(["sorteggia_gironi", { mode: "Ranking" }]), testo("Sorteggio per ranking fatto."));

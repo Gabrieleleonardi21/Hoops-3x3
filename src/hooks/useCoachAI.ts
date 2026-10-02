@@ -391,9 +391,14 @@ function findTappa(tappe: Tappa[], nomeTappa?: string): Tappa | null {
   return tappe.find((t) => t.nome.toLowerCase().includes(nl)) ?? null;
 }
 
-/** La tappa indicata da `tappa_nome` (o l'ultima) com'è adesso nello store */
+/** La tappa indicata da `tappa_nome` (o l'ultima, se manca) com'è adesso nello store. Un tappa_nome passato ma non
+ *  valido (un numero, un testo vuoto) è un errore: prima diventava «l'ultima tappa» e lo strumento agiva su quella */
 function tappaRichiesta(args: Record<string, unknown>): Tappa {
-  const tappa = findTappa(useAppStore.getState().tappe, str(args, "tappa_nome") || undefined);
+  const nome = str(args, "tappa_nome");
+  if (presente(args, "tappa_nome") && !nome) {
+    throw new Error("Nome della tappa non valido: indica il nome (o una sua parte), oppure omettilo per usare l'ultima tappa.");
+  }
+  const tappa = findTappa(useAppStore.getState().tappe, nome || undefined);
   if (!tappa) throw new Error("Nessuna tappa trovata: crea prima una tappa con le squadre.");
   return tappa;
 }
