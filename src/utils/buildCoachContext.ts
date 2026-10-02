@@ -8,8 +8,9 @@ const MAX_NOME = 80;
 /** Un valore scritto dagli utenti (nomi di lega, tappe, squadre e giocatori, luogo, data) pronto per il prompt.
  *  `<` e `>` diventano ‹ ›: un nome che contiene `</dati_lega>` chiuderebbe il blocco dei dati e il testo dopo
  *  sembrerebbe un'istruzione. I nomi arrivano anche dall'anagrafe condivisa, scrivibile da ogni utente registrato.
+ *  La usano anche i risultati degli strumenti del Coach, che riportano gli stessi nomi.
  *  String(): una tappa salvata da una versione vecchia può non avere tutti i campi. */
-function pulisci(valore: string): string {
+export function pulisci(valore: string): string {
   return String(valore).replace(/</g, "‹").replace(/>/g, "›").slice(0, MAX_NOME);
 }
 
