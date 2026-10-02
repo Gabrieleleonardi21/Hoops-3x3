@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { create } from "zustand";
 import { askCoachWithTools, AiError, type ChatMsg, type ToolDef } from "../services/aiService";
 import { useAppStore } from "../stores/useAppStore";
 import { useAnagrafeStore } from "../stores/useAnagrafeStore";
@@ -15,6 +15,57 @@ import {
 import type { Tappa, RegSquadra, RegGiocatore, SquadraTappa, GiocatoreRoster } from "../types";
 
 const CHAT_KEY = "coach_chat";
+/** Messaggi tenuti nella chat e mandati al modello: il server rifiuta le conversazioni oltre 60 messaggi (compresi
+ *  quelli degli strumenti) o 100.000 caratteri */
+const MAX_MESSAGGI = 30;
+
+interface StatoChat {
+  msgs: ChatMsg[];
+  loading: boolean;
+}
+
+/** Cronologia della scheda (sessionStorage): si azzera chiudendola */
+function cronologiaSalvata(): ChatMsg[] {
+  try {
+    const saved = sessionStorage.getItem(CHAT_KEY);
+    if (!saved) return [];
+    return JSON.parse(saved) as ChatMsg[];
+  } catch {
+    return [];
+  }
+}
+
+/** La chat vive qui e non nel pannello: il pannello si smonta quando si chiude, e una risposta arrivata nel frattempo
+ *  andava persa */
+const useChat = create<StatoChat>(() => ({ msgs: cronologiaSalvata(), loading: false }));
+
+/** Scrive la chat (solo gli ultimi MAX_MESSAGGI) nello store e nella sessionStorage */
+function salvaChat(msgs: ChatMsg[]) {
+  const ultimi = msgs.slice(-MAX_MESSAGGI);
+  useChat.setState({ msgs: ultimi });
+  try {
+    sessionStorage.setItem(CHAT_KEY, JSON.stringify(ultimi));
+  } catch { /* quota exceeded: ignora */ }
+}
+
+/** Conversazione in corso: cresce a ogni cancellazione. Una richiesta partita prima non scrive più nella chat e gli
+ *  strumenti che chiede da lì in poi non agiscono */
+let conversazione = 0;
+
+/** Cancella la chat («Cancella» e logout) e abbandona la richiesta in corso */
+function cancellaChat() {
+  conversazione++;
+  useChat.setState({ msgs: [], loading: false });
+  try {
+    sessionStorage.removeItem(CHAT_KEY);
+  } catch { /* storage non disponibile */ }
+}
+
+// Al logout lo store torna senza utente (reset): la chat non resta a chi usa la scheda dopo, né in memoria né nella
+// sessionStorage. Vale per ogni uscita: «Esci», sessione scaduta all'avvio, fine sessione
+useAppStore.subscribe((stato, prima) => {
+  if (prima.user && !stato.user) cancellaChat();
+});
 
 /** Strumenti che il Coach AI può invocare autonomamente nell'app. */
 const COACH_TOOLS: ToolDef[] = [
@@ -314,27 +365,12 @@ async function fetchGiocatori(): Promise<RegGiocatore[]> {
 }
 
 export function useCoachAI() {
-  // Ripristina la cronologia dalla sessione corrente (si azzera al reload)
-  const [msgs, setMsgs] = useState<ChatMsg[]>(() => {
-    try {
-      const saved = sessionStorage.getItem(CHAT_KEY);
-      return saved ? (JSON.parse(saved) as ChatMsg[]) : [];
-    } catch {
-      return [];
-    }
-  });
-  const [loading, setLoading] = useState(false);
+  const msgs = useChat((s) => s.msgs);
+  const loading = useChat((s) => s.loading);
   // Lega, tappe e utente NON si leggono qui: una copia presa al render è vecchia quando lo strumento parte (dopo
   // le attese del modello, o dopo gli strumenti precedenti della stessa richiesta). Ogni strumento li legge con
   // useAppStore.getState() nel momento in cui agisce.
   const navigate = useNavigate();
-
-  // Sincronizza la chat in sessionStorage ad ogni aggiornamento
-  useEffect(() => {
-    try {
-      sessionStorage.setItem(CHAT_KEY, JSON.stringify(msgs));
-    } catch { /* quota exceeded: ignora */ }
-  }, [msgs]);
 
   /**
    * Esegue un tool richiesto dall'AI e restituisce il risultato come stringa.
@@ -636,20 +672,31 @@ export function useCoachAI() {
 
   const send = async (text: string) => {
     const t = text.trim();
-    if (!t || loading) return;
-    const history: ChatMsg[] = [...msgs, { role: "user", content: t }];
+    const chat = useChat.getState();
+    if (!t || chat.loading) return;
+    // Gli ultimi MAX_MESSAGGI compreso il nuovo: sono anche quelli che arrivano al modello
+    const domanda: ChatMsg = { role: "user", content: t };
+    const history = [...chat.msgs, domanda].slice(-MAX_MESSAGGI);
 
     const { user, legaName, tappe } = useAppStore.getState();
     if (!user || user.guest) {
-      setMsgs([...history, {
+      salvaChat([...history, {
         role: "assistant",
         content: "Coach AI è riservato agli utenti registrati: crea un account gratuito dalla home per usarlo.",
       }]);
       return;
     }
 
-    setMsgs(history);
-    setLoading(true);
+    salvaChat(history);
+    useChat.setState({ loading: true });
+    // Se intanto la chat viene cancellata (anche dal logout), la richiesta è abbandonata: la risposta non la riempie
+    // di nuovo e gli strumenti chiesti da lì in poi non agiscono
+    const mia = conversazione;
+    const attiva = () => mia === conversazione;
+    const eseguiSeAttiva = (name: string, args: Record<string, unknown>) => {
+      if (!attiva()) throw new Error("La chat è stata cancellata: azione non eseguita.");
+      return executeTool(name, args);
+    };
     try {
       const context = buildCoachContext(legaName, tappe);
       const preamble = [
@@ -665,22 +712,19 @@ export function useCoachAI() {
         context ? `\nDati lega dell'utente:\n${context}` : "",
       ].filter(Boolean).join(" ");
 
-      const { text: reply, calledTools } = await askCoachWithTools(preamble, history, COACH_TOOLS, executeTool);
+      const { text: reply, calledTools } = await askCoachWithTools(preamble, history, COACH_TOOLS, eseguiSeAttiva);
+      if (!attiva()) return;
       // Allega i tool eseguiti: la UI li mostra come badge sotto la risposta
       const assistantMsg: ChatMsg = { role: "assistant", content: reply };
       if (calledTools.length) assistantMsg.tools = calledTools;
-      setMsgs([...history, assistantMsg]);
+      salvaChat([...history, assistantMsg]);
     } catch (err) {
-      setMsgs([...history, { role: "assistant", content: errorMsg(err) }]);
+      if (!attiva()) return;
+      salvaChat([...history, { role: "assistant", content: errorMsg(err) }]);
     } finally {
-      setLoading(false);
+      if (attiva()) useChat.setState({ loading: false });
     }
   };
 
-  const clearChat = () => {
-    setMsgs([]);
-    sessionStorage.removeItem(CHAT_KEY);
-  };
-
-  return { msgs, loading, send, clearChat };
+  return { msgs, loading, send, clearChat: cancellaChat };
 }

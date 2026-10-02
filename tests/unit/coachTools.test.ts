@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { useCoachAI } from "../../src/hooks/useCoachAI";
+import { useAuth } from "../../src/hooks/useAuth";
+import { CoachPanel } from "../../src/components/coach/CoachPanel";
 import { useAppStore } from "../../src/stores/useAppStore";
 import { legheApi } from "../../src/services/legheApi";
 import { anagrafeApi } from "../../src/services/anagrafeApi";
@@ -359,6 +361,98 @@ describe("Coach AI: uno strumento che fallisce non interrompe la richiesta", () 
     expect(store().tappe[0]).toBe(prima);
     expect(esiti(richieste)[0]).toMatch(/Argomenti non validi/);
     expect(c.current.msgs.at(-1)).toEqual({ role: "assistant", content: "Non sono riuscito a leggere la richiesta." });
+  });
+});
+
+describe("Coach AI: la chat", () => {
+  /** Esce come farebbe «Esci» nell'intestazione */
+  async function esci() {
+    const auth = renderHook(() => useAuth()).result;
+    await act(async () => { await auth.current.logout(); });
+  }
+
+  it("tiene gli ultimi 30 messaggi, e il modello riceve solo quelli", async () => {
+    const richieste = modello(...Array.from({ length: 16 }, (_, i) => testo(`risposta ${i + 1}`)));
+    const c = coach();
+    for (let i = 1; i <= 16; i++) await chiedi(c, `domanda ${i}`);
+    expect(c.current.msgs).toHaveLength(30);
+    expect(c.current.msgs[0]).toEqual({ role: "user", content: "domanda 2" });
+    expect(c.current.msgs.at(-1)).toEqual({ role: "assistant", content: "risposta 16" });
+    expect(richieste.at(-1)).toHaveLength(31); // le istruzioni di sistema e 30 messaggi
+  });
+
+  it("al logout si cancella: chi apre il Coach dopo non la vede, nemmeno nella sessionStorage della scheda", async () => {
+    modello(testo("Ciao Anna!"));
+    const c = coach();
+    await chiedi(c, "Ciao coach");
+    await esci();
+    expect(c.current.msgs).toEqual([]);
+    expect(coach().current.msgs).toEqual([]);
+    expect(sessionStorage.getItem("coach_chat")).toBeNull();
+  });
+
+  it("una risposta che arriva dopo il logout non la riporta in vita", async () => {
+    const risposta = differita<Risposta>();
+    modello(risposta.p);
+    const c = coach();
+    const invio = inviaSenzaAspettare(c, "Ciao coach");
+    await esci();
+    await act(async () => {
+      risposta.ok(testo("Ciao Anna!"));
+      await invio;
+    });
+    expect(c.current.msgs).toEqual([]);
+    expect(sessionStorage.getItem("coach_chat")).toBeNull();
+  });
+
+  it("«Cancella» durante una richiesta: la risposta non torna e gli strumenti chiesti dopo non agiscono", async () => {
+    const prima = store().tappe[0];
+    const risposta = differita<Risposta>();
+    modello(risposta.p, testo("Fatto."));
+    const c = coach();
+    const invio = inviaSenzaAspettare(c, "Alfa 21, Gamma 18");
+    act(() => { c.current.clearChat(); });
+    await act(async () => {
+      risposta.ok(strumenti(["registra_risultato", { squadra_a: "Alfa", punti_a: 21, squadra_b: "Gamma", punti_b: 18 }]));
+      await invio;
+    });
+    expect(store().tappe[0]).toBe(prima);
+    expect(c.current.msgs).toEqual([]);
+  });
+});
+
+describe("CoachPanel", () => {
+  /** Il pannello del Coach dentro un router, come in App */
+  const apriPannello = () => render(createElement(MemoryRouter, null, createElement(CoachPanel, { onClose: vi.fn() })));
+  const campo = () => screen.getByRole<HTMLInputElement>("textbox", { name: "Messaggio per il coach" });
+  /** Scrive nel campo e preme Invio */
+  function scriviEInvia(messaggio: string) {
+    fireEvent.change(campo(), { target: { value: messaggio } });
+    fireEvent.keyDown(campo(), { key: "Enter" });
+  }
+
+  it("chiudendo il pannello durante l'attesa la risposta non si perde", async () => {
+    const risposta = differita<Risposta>();
+    modello(risposta.p);
+    const { unmount } = apriPannello();
+    scriviEInvia("Quanto dura una gara?");
+    unmount(); // chiuso mentre il coach pensa
+    await act(async () => { risposta.ok(testo("10 minuti, oppure fino a 21 punti.")); });
+    apriPannello();
+    expect(await screen.findByText("10 minuti, oppure fino a 21 punti.")).toBeTruthy();
+    expect(screen.getByText("Quanto dura una gara?")).toBeTruthy();
+  });
+
+  it("premendo Invio durante l'attesa il testo scritto resta nel campo e non parte", async () => {
+    const risposta = differita<Risposta>();
+    modello(risposta.p, testo("Seconda risposta"));
+    apriPannello();
+    scriviEInvia("Prima domanda");
+    scriviEInvia("Seconda domanda");
+    expect(campo().value).toBe("Seconda domanda");
+    await act(async () => { risposta.ok(testo("Prima risposta")); });
+    await screen.findByText("Prima risposta");
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -1,5 +1,5 @@
 /** Pannello chat del Coach AI: input utente, lista messaggi, bottone "Cancella chat".
- *  La cronologia viene persistita in sessionStorage (si azzera alla chiusura della scheda). */
+ *  La chat sta nello store di useCoachAI, non qui: chiudendo il pannello durante l'attesa la risposta non si perde. */
 import { useState } from "react";
 import { RED, ORANGE } from "../../constants/colors";
 import { Button } from "../ui/Button";
@@ -45,7 +45,8 @@ export function CoachPanel({ onClose }: { onClose: () => void }) {
   const [input, setInput] = useState("");
 
   const submit = () => {
-    if (!input.trim()) return;
+    // Durante l'attesa send non parte: il testo resta nel campo invece di sparire
+    if (!input.trim() || loading) return;
     send(input);
     setInput("");
   };
