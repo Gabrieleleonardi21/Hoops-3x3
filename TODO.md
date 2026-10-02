@@ -28,10 +28,12 @@
 
 - [ ] Rigenerare la hero a 2K con mcp-image quando la chiave Gemini ha il billing attivo.
 - [x] `useAnagrafe` ricarica dal server a ogni mount: cachearla nello store.
-- [ ] `me()` fa uscire l'utente anche quando il server non risponde: uscire solo se la sessione è
+- [x] `me()` fa uscire l'utente anche quando il server non risponde: uscire solo se la sessione è
   davvero finita (401 del rinnovo).
-- [ ] Rinnovare il JWT a timer o quando la scheda torna visibile: oggi, con il JWT già scaduto (basta
+- [x] Rinnovare il JWT a timer o quando la scheda torna visibile: oggi, con il JWT già scaduto (basta
   che nessuna richiesta parta negli ultimi 2 minuti della sua vita), una modifica seguita dalla
   chiusura della pagina entro 400 ms più il tempo del rinnovo va persa.
-- [ ] Sincronizzare logout e login tra le schede (evento `storage`) e tornare al form di accesso quando
+- [x] Sincronizzare il logout tra le schede (evento `storage`) e tornare al form di accesso quando
   la sessione finisce a pagina aperta.
+- [ ] Sincronizzare anche il login tra le schede: una scheda rimasta sul form non si accorge
+  dell'accesso fatto in un'altra finché non si ricarica.
