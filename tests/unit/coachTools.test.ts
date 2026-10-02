@@ -6,6 +6,8 @@ import { MemoryRouter } from "react-router-dom";
 import { useCoachAI } from "../../src/hooks/useCoachAI";
 import { useAppStore } from "../../src/stores/useAppStore";
 import { legheApi } from "../../src/services/legheApi";
+import { anagrafeApi } from "../../src/services/anagrafeApi";
+import { ApiError } from "../../src/services/api";
 import { DEFAULT_RULES } from "../../src/constants/rules";
 import type { ToolCall } from "../../src/services/aiService";
 import type { Partita, SquadraTappa, Tappa, User } from "../../src/types";
@@ -36,6 +38,22 @@ interface Risposta { content: string | null; tool_calls?: ToolCall[] }
 /** Un messaggio come arriva al modello */
 interface Ricevuto { role: string; content: string | null; tool_call_id?: string }
 
+let nChiamate = 0;
+/** Il modello chiede di eseguire questi strumenti; gli argomenti in forma di testo simulano un JSON non valido */
+function strumenti(...chiamate: [string, Record<string, unknown> | string][]): Risposta {
+  return {
+    content: null,
+    tool_calls: chiamate.map(([name, args]) => {
+      nChiamate++;
+      let argomenti = JSON.stringify(args);
+      if (typeof args === "string") argomenti = args;
+      return { id: `call_${nChiamate}`, type: "function", function: { name, arguments: argomenti } };
+    }),
+  };
+}
+/** Il modello risponde con questo testo, senza strumenti */
+const testo = (content: string): Risposta => ({ content });
+
 /** Modello dietro POST /api/coach/chat: dà le risposte preparate dal test, una per richiesta (una Response passa così
  *  com'è, per simulare un errore del server), e tiene i messaggi di ogni richiesta */
 function modello(...risposte: (Risposta | Response)[]) {
@@ -49,6 +67,9 @@ function modello(...risposte: (Risposta | Response)[]) {
   }));
   return richieste;
 }
+
+/** I risultati degli strumenti come li ha letti il modello nell'ultima richiesta */
+const esiti = (richieste: Ricevuto[][]) => richieste.at(-1)!.filter((m) => m.role === "tool").map((m) => m.content);
 
 /* ── Coach ── */
 
@@ -92,6 +113,56 @@ afterEach(() => {
   vi.unstubAllGlobals();
   sessionStorage.clear();
   localStorage.clear();
+});
+
+describe("Coach AI: uno strumento che fallisce non interrompe la richiesta", () => {
+  it("l'errore diventa il risultato dello strumento: gli strumenti dopo vanno avanti e il modello spiega", async () => {
+    vi.mocked(anagrafeApi.createSquadra).mockRejectedValue(new ApiError(403, "Non hai i permessi per questa operazione"));
+    const richieste = modello(
+      strumenti(
+        ["registra_squadra", { nome: "Delta" }],
+        ["registra_risultato", { squadra_a: "Alfa", punti_a: 21, squadra_b: "Gamma", punti_b: 18 }],
+      ),
+      testo("Risultato registrato; la squadra Delta non è stata registrata: mancano i permessi."),
+    );
+    const c = coach();
+    await chiedi(c, "Registra la squadra Delta e il risultato Alfa 21 Gamma 18");
+    expect(store().tappe[0].partite[1]).toMatchObject({ sa: 21, sb: 18, done: true });
+    expect(esiti(richieste)[0]).toContain("Non hai i permessi per questa operazione");
+    // Solo l'azione riuscita ha il badge sotto la risposta
+    expect(c.current.msgs.at(-1)).toEqual({
+      role: "assistant",
+      content: "Risultato registrato; la squadra Delta non è stata registrata: mancano i permessi.",
+      tools: ["registra_risultato"],
+    });
+  });
+
+  it("la stessa chiamata dopo un errore non si ripete e il modello non la legge come eseguita", async () => {
+    vi.mocked(anagrafeApi.createSquadra).mockRejectedValue(new ApiError(403, "Non hai i permessi per questa operazione"));
+    const richieste = modello(
+      strumenti(["registra_squadra", { nome: "Delta" }]),
+      strumenti(["registra_squadra", { nome: "Delta" }]),
+      testo("Non ho i permessi per registrare Delta."),
+    );
+    const c = coach();
+    await chiedi(c, "Registra la squadra Delta");
+    expect(anagrafeApi.createSquadra).toHaveBeenCalledTimes(1);
+    expect(esiti(richieste)[1]).not.toContain("eseguita");
+  });
+
+  it.each([
+    ["JSON interrotto", '{"tappa_nome": "Roma'],
+    ["null", "null"],
+    ["un elenco", "[]"],
+  ])("argomenti non validi (%s): lo strumento non parte e il modello lo sa", async (_caso, argomenti) => {
+    const prima = store().tappe[0];
+    const richieste = modello(strumenti(["sorteggia_gironi", argomenti]), testo("Non sono riuscito a leggere la richiesta."));
+    const c = coach();
+    await chiedi(c, "Rifai il sorteggio di Roma Open");
+    expect(store().tappe[0]).toBe(prima);
+    expect(esiti(richieste)[0]).toMatch(/Argomenti non validi/);
+    expect(c.current.msgs.at(-1)).toEqual({ role: "assistant", content: "Non sono riuscito a leggere la richiesta." });
+  });
 });
 
 describe("Coach AI: errori del server", () => {
