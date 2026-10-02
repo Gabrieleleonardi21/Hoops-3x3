@@ -32,7 +32,7 @@ describe("buildBracket (fase a eliminazione diretta)", () => {
     expect(b[2]).toMatchObject({ squadraA: null, squadraB: null, done: false });
   });
 
-  it("3 gironi, 2 qualificate: nessuna qualificata resta fuori, le 2 migliori prime passano il turno", () => {
+  it("3 gironi, 2 qualificate: nessuna qualificata resta fuori, le 2 migliori prime passano il turno, niente rivincite di girone", () => {
     const t = torneo(3, 4);
     const b = buildBracket(t.gironi, t.partite, t.squadre);
     expect(b).toHaveLength(7); // 4 quarti + 2 semifinali + finale
@@ -40,9 +40,27 @@ describe("buildBracket (fase a eliminazione diretta)", () => {
     const bye = primoTurno(b).filter((m) => m.bye);
     expect(bye).toHaveLength(2);
     bye.forEach((m) => expect(m.done).toBe(true));
+    // passano le 2 migliori prime: con statistiche uguali in ogni girone decide l'ordine dei gironi
+    expect(bye.map((m) => m.squadraA).sort()).toEqual(["a1", "b1"]);
     // chi passa d'ufficio è già nella semifinale
     const semifinaliste = b.slice(4, 6).flatMap((m) => [m.squadraA, m.squadraB]).filter(Boolean);
     expect(semifinaliste).toHaveLength(2);
+    // l'ordine delle teste di serie da solo darebbe c1-c2: lo scambio di evitaRivincite evita la rivincita di girone
+    const rivincite = primoTurno(b).filter((m) => !m.bye && girone(m.squadraA) === girone(m.squadraB));
+    expect(rivincite.map((m) => `${m.squadraA}-${m.squadraB}`)).toEqual([]);
+  });
+
+  it("3 gironi con statistiche diverse: il bye va alle prime con la differenza punti migliore, non a quelle dei primi gironi", () => {
+    // stesse vittorie e stessi punti fatti in ogni girone, ma c1 vince di 16 punti a gara, b1 di 6 e a1 di 1
+    const t = torneo(3, 4);
+    const partite = t.partite.map((m) => {
+      const perdente = [20, 15, 5][m.g]; // punti della squadra che perde, per girone
+      if (m.a < m.b) return { ...m, sa: 21, sb: perdente };
+      return { ...m, sa: perdente, sb: 21 };
+    });
+    const b = buildBracket(t.gironi, partite, t.squadre);
+    const bye = primoTurno(b).filter((m) => m.bye);
+    expect(bye.map((m) => m.squadraA).sort()).toEqual(["b1", "c1"]);
   });
 
   it("4 gironi, 2 qualificate: 4 quarti con tutte le 8 squadre, mai due dello stesso girone", () => {
