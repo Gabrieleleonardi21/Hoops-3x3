@@ -226,6 +226,20 @@ describe("logout: prima salva ciò che è in attesa, poi esce", () => {
     expect(esito).toEqual({ uscito: true, nonSalvate: 0 });
   });
 
+  it("una rinomina della lega seguita subito dal logout parte prima della cancellazione del token", async () => {
+    let tokenAllInvio: string | null = "PATCH mai partita";
+    api.rename.mockImplementation(async (id, nome) => {
+      tokenAllInvio = token.get();
+      return { id, nome, ts: 1, nTappe: 0 };
+    });
+    store().setLegaName("Lega estiva"); // «Esci» subito, prima dei 400 ms di attesa della rinomina
+    await esci();
+    expect(api.rename).toHaveBeenCalledWith("l1", "Lega estiva");
+    expect(tokenAllInvio).toBe("jwt-di-prova");
+    await vi.advanceTimersByTimeAsync(400);
+    expect(api.rename).toHaveBeenCalledTimes(1); // il timer della rinomina non la rimanda una seconda volta
+  });
+
   it("senza conferma (sessione finita) esce lo stesso e dice quante tappe hanno perso le modifiche", async () => {
     useAppStore.setState({ tappe: [tappa("t1"), tappa("t2")] });
     api.putTappa.mockRejectedValue(new ApiError(401, "Sessione scaduta o token non valido: accedi di nuovo"));

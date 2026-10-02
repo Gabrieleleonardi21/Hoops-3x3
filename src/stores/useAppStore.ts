@@ -31,7 +31,8 @@ interface AppState {
   erroreSalvataggio: string | null;
   setUser: (u: User | null) => void;
   clearSyncError: () => void;
-  /** Salva subito le modifiche in attesa e aspetta le richieste in corso (logout, «Riprova ora», apertura di una lega).
+  /** Salva subito le modifiche in attesa (tappe e rinomina della lega) e aspetta le richieste in corso
+   *  (logout, «Riprova ora», apertura di una lega).
    *  @returns quante tappe hanno ancora modifiche non salvate */
   salvaTutto: () => Promise<number>;
   createLega: (nome: string) => Promise<string>;
@@ -236,6 +237,17 @@ export const useAppStore = create<AppState>((set, get) => {
   }
 
   let renameTimer = 0;
+  /** PATCH della rinomina che aspetta il suo timer; null se non ce n'è */
+  let rinominaInAttesa: (() => Promise<void>) | null = null;
+
+  /** Manda subito la rinomina in attesa, se c'è: allo scadere del timer, oppure da salvaTutto prima del logout,
+   *  quando il token sta per sparire */
+  const rinomina = async () => {
+    window.clearTimeout(renameTimer);
+    const invio = rinominaInAttesa;
+    rinominaInAttesa = null;
+    if (invio) await invio();
+  };
 
   return {
     ...initial,
@@ -247,7 +259,7 @@ export const useAppStore = create<AppState>((set, get) => {
     clearSyncError: () => set({ syncError: null }),
 
     salvaTutto: async () => {
-      await coda.svuota();
+      await Promise.all([coda.svuota(), rinomina()]);
       return coda.inAttesa().length;
     },
 
@@ -309,12 +321,17 @@ export const useAppStore = create<AppState>((set, get) => {
       const leghe = s.leghe.map((m) => m.id === s.legaId ? { ...m, nome: legaName, ts: Date.now() } : m);
       set({ leghe });
       if (isRemote()) {
-        // L'input chiama setLegaName a ogni tasto: una sola PATCH a fine digitazione
+        // L'input chiama setLegaName a ogni tasto: una sola PATCH a fine digitazione (o prima, da salvaTutto)
+        const legaId = s.legaId;
+        rinominaInAttesa = async () => {
+          try {
+            await legheApi.rename(legaId, get().legaName.trim() || "Lega");
+          } catch (e) {
+            reportError(e, "Rinomina lega non riuscita");
+          }
+        };
         window.clearTimeout(renameTimer);
-        renameTimer = window.setTimeout(() => {
-          legheApi.rename(s.legaId!, get().legaName.trim() || "Lega")
-            .catch((e) => reportError(e, "Rinomina lega non riuscita"));
-        }, SAVE_DELAY);
+        renameTimer = window.setTimeout(() => { void rinomina(); }, SAVE_DELAY);
         return;
       }
       localStorage.setItem(legaStorageKey(s.legaId), JSON.stringify({ nome: legaName, tappe: s.tappe }));
