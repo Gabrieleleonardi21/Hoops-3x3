@@ -34,18 +34,18 @@ App web per la gestione di un circuito italiano di basket 3x3: tornei, gironi, s
 - [React Router 7](https://reactrouter.com/) — routing
 - [React Hook Form](https://react-hook-form.com/) + [Zod](https://zod.dev/) — form e validazione
 - [Tailwind CSS 4](https://tailwindcss.com/) — styling; i token del design system "Asphalt" sono in `src/index.css` (`@theme`), documentati in `docs/design-system.md`
-- Backend [Spring Boot 4](https://spring.io/projects/spring-boot) (Java 17+) con Spring Security + JWT, JPA/Hibernate e PostgreSQL — repo separato [hoop3x3-backend](https://github.com/Gabrieleleonardi21/hoop3x3-backend)
+- Backend [Spring Boot 4](https://spring.io/projects/spring-boot) (Java 25) con Spring Security + JWT, JPA/Hibernate e PostgreSQL — repo separato [hoop3x3-backend](https://github.com/Gabrieleleonardi21/hoop3x3-backend)
 - `localStorage` — lega dell'Ospite, JWT di accesso e utente di sessione (dati che restano nel browser)
 
 ## Avvio rapido
 
-Servono Node 20+, JDK 17+, Maven e PostgreSQL in ascolto su `localhost:5432`.
+Servono Node 20.19 o superiore, JDK 25 e PostgreSQL in ascolto su `localhost:5432` (Maven lo scarica il wrapper `./mvnw` del backend).
 
-**1. Backend** — clona [hoop3x3-backend](https://github.com/Gabrieleleonardi21/hoop3x3-backend) e segui il suo README (crea il DB `hoop3x3` con `db/schema.sql`, compila `env.properties`, poi `mvn spring-boot:run`):
+**1. Backend** — clona [hoop3x3-backend](https://github.com/Gabrieleleonardi21/hoop3x3-backend) e segui il suo README (crea il DB `hoop3x3` con `db/schema.sql`, compila `env.properties`, poi `./mvnw spring-boot:run`):
 
 ```bash
 git clone https://github.com/Gabrieleleonardi21/hoop3x3-backend.git
-cd hoop3x3-backend && mvn spring-boot:run
+cd hoop3x3-backend && ./mvnw spring-boot:run
 ```
 
 L'API risponde su `http://localhost:3001` (Hibernate gira in `validate`: se lo schema non combacia con le entity si ferma all'avvio con un messaggio chiaro).
