@@ -19,6 +19,7 @@ vi.mock("../../src/services/legheApi", () => ({
 
 const store = () => useAppStore.getState();
 const registrato: User = { id: "u1", name: "Anna", email: "anna@example.it", guest: false };
+const ospite: User = { name: "Ospite", guest: true };
 
 const tappa = (): Tappa => ({
   id: "t1", nome: "Roma Open", luogo: "", data: "", nGironi: 1, regole: { ...DEFAULT_RULES },
@@ -27,6 +28,22 @@ const tappa = (): Tappa => ({
     { id: "s2", nome: "Squadra 2", giocatori: [], rank: "" },
   ],
   gironi: null, partite: [], video: [],
+});
+
+/** Tre squadre in un girone già sorteggiato: la prima partita ha il risultato, le altre due no */
+const conUnRisultato = (): Tappa => ({
+  ...tappa(),
+  squadre: [
+    { id: "s1", nome: "Alfa", giocatori: [], rank: "" },
+    { id: "s2", nome: "Beta", giocatori: [], rank: "" },
+    { id: "s3", nome: "Gamma", giocatori: [], rank: "" },
+  ],
+  gironi: [["s1", "s2", "s3"]],
+  partite: [
+    { id: "m1", g: 0, a: "s1", b: "s2", sa: 21, sb: 15, done: true },
+    { id: "m2", g: 0, a: "s1", b: "s3", sa: 0, sb: 0, done: false },
+    { id: "m3", g: 0, a: "s2", b: "s3", sa: 0, sb: 0, done: false },
+  ],
 });
 
 const regAlfa: RegSquadra = {
@@ -93,5 +110,47 @@ describe("TappaPage: collegare una squadra all'anagrafe", () => {
 
     expect(campiNome().map((c) => c.value)).toEqual(["Alfa", "Beta"]);
     expect(store().tappe[0].squadre).toMatchObject([{ nome: "Alfa", regId: "r1" }, { nome: "Beta" }]);
+  });
+});
+
+describe("TappaPage: conferma prima di cancellare i risultati (R2)", () => {
+  // Da ospite il sorteggio non richiede roster completi: i test guardano solo la conferma
+  beforeEach(() => {
+    useAppStore.setState({ user: ospite, tappe: [conUnRisultato()] });
+  });
+
+  it("un nuovo sorteggio con risultati chiede conferma; «Annulla» li lascia, «Conferma» rifà il sorteggio", () => {
+    apriPagina({});
+    const prima = store().tappe[0];
+    fireEvent.click(screen.getByRole("button", { name: /Sorteggio casuale/ }));
+    expect(screen.getByRole("dialog", { name: "Rifare il sorteggio?" }).textContent)
+      .toContain("Verranno eliminati il sorteggio e 1 risultato.");
+    fireEvent.click(screen.getByRole("button", { name: "Annulla" }));
+    expect(store().tappe[0]).toBe(prima);
+
+    fireEvent.click(screen.getByRole("button", { name: /Sorteggio casuale/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Conferma" }));
+    expect(store().tappe[0].partite).toHaveLength(3);
+    expect(store().tappe[0].partite.every((m) => !m.done)).toBe(true);
+  });
+
+  it("senza risultati il sorteggio si rifà senza chiedere", () => {
+    useAppStore.setState({ tappe: [{ ...conUnRisultato(), partite: conUnRisultato().partite.map((m) => ({ ...m, done: false })) }] });
+    apriPagina({});
+    const prima = store().tappe[0];
+    fireEvent.click(screen.getByRole("button", { name: /Sorteggio per ranking/ }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(store().tappe[0]).not.toBe(prima);
+  });
+
+  it("«Rimuovi squadra» con risultati chiede conferma prima di cancellarli", () => {
+    apriPagina({});
+    fireEvent.click(screen.getAllByRole("button", { name: "Rimuovi squadra" })[2]);
+    expect(screen.getByRole("dialog", { name: "Rimuovere la squadra?" }).textContent)
+      .toContain("Verranno eliminati il sorteggio e 1 risultato.");
+    expect(store().tappe[0].squadre).toHaveLength(3);
+    fireEvent.click(screen.getByRole("button", { name: "Conferma" }));
+    expect(store().tappe[0].squadre.map((s) => s.nome)).toEqual(["Alfa", "Beta"]);
+    expect(store().tappe[0].gironi).toBeNull();
   });
 });

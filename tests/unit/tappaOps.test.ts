@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   sorteggia, registraRisultato, registraRisultatoBracket, generaFasiDirette, concludi,
-  aggiungiSquadra, rimuoviSquadra, impostaNumeroGironi,
+  aggiungiSquadra, rimuoviSquadra, impostaNumeroGironi, perditaRisultati,
 } from "../../src/domain/tappaOps";
 import type { Esito } from "../../src/domain/tappaOps";
 import type { Tappa } from "../../src/types";
@@ -334,6 +334,29 @@ describe("cambi di struttura: squadre e numero di gironi (R1)", () => {
     rimuoviSquadra(originale, "b");
     impostaNumeroGironi(originale, 1);
     expect(originale).toEqual(tappaConBracket());
+  });
+});
+
+describe("perditaRisultati: che cosa cancellano un nuovo sorteggio o un cambio di struttura (R2)", () => {
+  it("senza risultati non c'è niente da confermare, anche a sorteggio fatto", () => {
+    expect(perditaRisultati(tappaNuova())).toBeNull();
+    expect(perditaRisultati(tappaSorteggiata())).toBeNull();
+  });
+
+  it("con risultati dice quanti se ne perdono", () => {
+    expect(perditaRisultati(tappaGironiConclusi())).toBe("Verranno eliminati il sorteggio e 2 risultati.");
+    const unRisultato = nuova(registraRisultato(tappaSorteggiata(), "m1", { sa: 21, sb: 15 }));
+    expect(perditaRisultati(unRisultato)).toBe("Verranno eliminati il sorteggio e 1 risultato.");
+  });
+
+  it("conta anche le gare della fase finale, non i turni superati d'ufficio, e la nomina", () => {
+    const partenza = tappaConBracket();
+    partenza.bracket = [
+      { ...partenza.bracket![0], pA: 21, pB: 17, done: true },
+      { id: "bye", label: "Turno 1 · Gara 3", squadraA: "c", squadraB: null, pA: 0, pB: 0, done: true, bye: true },
+      ...partenza.bracket!.slice(1),
+    ];
+    expect(perditaRisultati(partenza)).toBe("Verranno eliminati il sorteggio, la fase finale e 3 risultati.");
   });
 });
 

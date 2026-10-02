@@ -90,6 +90,12 @@ export function useTappa(id: string | undefined) {
   const setRule = (k: keyof Tappa["regole"], v: string) =>
     aggiorna((t) => ({ ...t, regole: { ...t.regole, [k]: Math.max(1, Number(v) || 1) } }));
   // Cambi di struttura (regole e limiti in tappaOps): azzerano sorteggio, calendario e tabellone
+  /** Che cosa cancellerebbero adesso un nuovo sorteggio o un cambio di struttura: il testo per la conferma, null se niente */
+  const perditaRisultati = () => {
+    const corrente = tappaCorrente(id);
+    if (!corrente) return null;
+    return ops.perditaRisultati(corrente);
+  };
   const setNGironi = (n: number) => applica((t) => ops.impostaNumeroGironi(t, n));
   const addTeam = () => applica(ops.aggiungiSquadra);
   const removeTeam = (teamId: string) => applica((t) => ops.rimuoviSquadra(t, teamId));
@@ -254,7 +260,8 @@ export function useTappa(id: string | undefined) {
   return {
     user, legaName, tappa,
     nameOf, playersOf, playerNameById, teamComplete,
-    setInfo, setNGironi, setRule, addTeam, removeTeam, renameTeam, setTeamRank, setTeamWebsite, setTeamLogo, applyReg, syncFromAnagrafe,
+    setInfo, perditaRisultati, setNGironi, setRule, addTeam, removeTeam,
+    renameTeam, setTeamRank, setTeamWebsite, setTeamLogo, applyReg, syncFromAnagrafe,
     addPlayer, renamePlayer, removePlayer,
     sorteggia, saveScore, reopenScore,
     addEvent, removeEvent,

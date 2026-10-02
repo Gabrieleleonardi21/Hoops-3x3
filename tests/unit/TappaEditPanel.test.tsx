@@ -64,6 +64,7 @@ describe("TappaEditPanel: numero di gironi (R3)", () => {
     expect(nelloStore().gironi).not.toBeNull();
     fireEvent.blur(campoGironi());
     expect(nelloStore()).toMatchObject({ nGironi: 1, gironi: null, partite: [] });
+    expect(screen.queryByRole("dialog")).toBeNull(); // senza risultati da perdere non si chiede niente
   });
 
   it("si applica anche con Invio", () => {
@@ -91,5 +92,48 @@ describe("TappaEditPanel: numero di gironi (R3)", () => {
     expect(screen.getByRole("alert").textContent).toMatch(/Numero di gironi non valido: con 4 squadre deve essere un intero da 1 a 2/);
     expect(campoGironi().value).toBe("2");
     expect(nelloStore()).toBe(prima);
+  });
+});
+
+describe("TappaEditPanel: conferma prima di cancellare i risultati (R2)", () => {
+  it("cambiare il numero di gironi con risultati chiede conferma; «Annulla» lascia tutto com'era", () => {
+    apri(tappa(true));
+    const prima = nelloStore();
+    scrivi(campoGironi(), "1");
+    fireEvent.blur(campoGironi());
+    const finestra = screen.getByRole("dialog", { name: "Cambiare il numero di gironi?" });
+    expect(finestra.textContent).toContain("Verranno eliminati il sorteggio e 2 risultati.");
+    expect(nelloStore()).toBe(prima); // finché non si risponde non cambia niente
+    fireEvent.click(screen.getByRole("button", { name: "Annulla" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(nelloStore()).toBe(prima);
+    expect(campoGironi().value).toBe("2");
+  });
+
+  it("«Conferma» applica il nuovo numero di gironi e cancella sorteggio e risultati", () => {
+    apri(tappa(true));
+    scrivi(campoGironi(), "1");
+    fireEvent.keyDown(campoGironi(), { key: "Enter" });
+    fireEvent.click(screen.getByRole("button", { name: "Conferma" }));
+    expect(nelloStore()).toMatchObject({ nGironi: 1, gironi: null, partite: [] });
+  });
+
+  it("un numero non valido non chiede conferma: prima viene il messaggio", () => {
+    apri(tappa(true));
+    scrivi(campoGironi(), "5");
+    fireEvent.blur(campoGironi());
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("alert").textContent).toMatch(/Numero di gironi non valido/);
+  });
+
+  it("«Aggiungi squadra» con risultati chiede conferma prima di cancellarli", () => {
+    apri(tappa(true));
+    fireEvent.click(screen.getByRole("button", { name: /Aggiungi squadra/ }));
+    expect(screen.getByRole("dialog", { name: "Aggiungere una squadra?" }).textContent)
+      .toContain("Verranno eliminati il sorteggio e 2 risultati.");
+    expect(nelloStore().squadre).toHaveLength(4);
+    fireEvent.click(screen.getByRole("button", { name: "Conferma" }));
+    expect(nelloStore().squadre).toHaveLength(5);
+    expect(nelloStore().partite).toEqual([]);
   });
 });

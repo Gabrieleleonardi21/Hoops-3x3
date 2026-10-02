@@ -147,7 +147,7 @@ export function TappaPage() {
               onNameCommit={(nome) => handleTeamNameCommit(s.id, nome)} />
           ))}
         </div>
-        <SorteggioControls hasGironi={!!t.gironi} onSorteggia={h.sorteggia} />
+        <SorteggioControls hasGironi={!!t.gironi} onSorteggia={h.sorteggia} perdita={h.perditaRisultati} />
       </Section>
 
       {t.gironi && t.gironi.map((g, gi) => <GironeSection key={gi} gi={gi} girone={g} h={h} />)}

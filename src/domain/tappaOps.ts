@@ -70,6 +70,19 @@ export function sorteggia(tappa: Tappa, modo: ModoSorteggio): Esito {
   return ok({ ...senzaSorteggio(tappa), gironi, partite: buildMatches(gironi) });
 }
 
+/** Che cosa cancellano un nuovo sorteggio o un cambio di struttura (numero di gironi, squadre): il testo da mostrare
+ *  nella richiesta di conferma, oppure null se non c'è nessun risultato da perdere e si può procedere senza chiedere.
+ *  Lo usano l'interfaccia e il Coach (decisione D4). I turni superati d'ufficio (`bye`) non sono risultati. */
+export function perditaRisultati(tappa: Tappa): string | null {
+  const giocate = tappa.partite.filter((m) => m.done).length
+    + (tappa.bracket ?? []).filter((m) => m.done && !m.bye).length;
+  if (giocate === 0) return null;
+  let risultati = `${giocate} risultati`;
+  if (giocate === 1) risultati = "1 risultato";
+  if (tappa.bracket?.length) return `Verranno eliminati il sorteggio, la fase finale e ${risultati}.`;
+  return `Verranno eliminati il sorteggio e ${risultati}.`;
+}
+
 /** Aggiunge una squadra con il nome provvisorio «Squadra N». Il sorteggio fatto non vale più. */
 export function aggiungiSquadra(tappa: Tappa): Esito {
   if (tappa.squadre.length >= MAX_SQUADRE) return ko(LIMITE_SQUADRE);

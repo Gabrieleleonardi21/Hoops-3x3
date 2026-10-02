@@ -5,6 +5,7 @@ import { Input } from "../ui/Input";
 import { Badge } from "../ui/Badge";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
+import { useConfermaPerdita } from "../../hooks/useConfermaPerdita";
 import type { useTappa } from "../../hooks/useTappa";
 
 export function SquadraCard({ s, index, h, onNameCommit }: {
@@ -17,6 +18,9 @@ export function SquadraCard({ s, index, h, onNameCommit }: {
   const ok = h.teamComplete(s.id);
   const linked = !!s.regId; // collegata all'anagrafe
   const small = "h-8 py-0 text-[13px]";
+  // Togliere una squadra azzera il sorteggio: con risultati registrati si chiede prima conferma.
+  // Il rifiuto di removeTeam non serve mostrarlo: il pulsante c'è solo con più di 2 squadre.
+  const { chiedi, finestra } = useConfermaPerdita(h.perditaRisultati);
 
   return (
     <div className={`rounded border bg-asphalt-900 p-3 ${ok ? "border-asphalt-700" : "border-loss/60"}`}>
@@ -62,8 +66,10 @@ export function SquadraCard({ s, index, h, onNameCommit }: {
         onRemove={(pid) => h.removePlayer(s.id, pid)} />
 
       {h.tappa!.squadre.length > 2 && (
-        <Button variant="link" className="mt-2 text-chalk-dim" onClick={() => h.removeTeam(s.id)}>Rimuovi squadra</Button>
+        <Button variant="link" className="mt-2 text-chalk-dim"
+          onClick={() => chiedi("Rimuovere la squadra?", () => h.removeTeam(s.id))}>Rimuovi squadra</Button>
       )}
+      {finestra}
     </div>
   );
 }
