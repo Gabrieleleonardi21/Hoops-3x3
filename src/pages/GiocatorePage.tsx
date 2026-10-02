@@ -13,7 +13,6 @@ import { Loading } from "../components/ui/Loading";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
-import { Kicker } from "../components/ui/Kicker";
 import { Section } from "../components/ui/Section";
 import { StatTile } from "../components/ui/StatTile";
 import { Icon } from "../components/ui/Icon";

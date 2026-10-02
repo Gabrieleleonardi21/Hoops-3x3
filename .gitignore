@@ -1,5 +1,11 @@
 node_modules
 dist
+# Cache di tsc -b
+*.tsbuildinfo
+# Copertura dei test e artefatti di Playwright
+coverage
+test-results
+playwright-report
 .env
 *.local
 
