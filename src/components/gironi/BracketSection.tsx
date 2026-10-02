@@ -8,27 +8,19 @@ import type { BracketMatch, Tappa } from "../../types";
 import { useAppStore } from "../../stores/useAppStore";
 import { generaFasiDirette, registraRisultatoBracket } from "../../domain/tappaOps";
 
-/** Divide il bracket in round in base alla struttura ad albero:
- *  il primo round ha N match, il secondo N/2, il terzo N/4, ecc. */
+/** Divide il tabellone nei round in base alla posizione: i match sono un array piatto, un round dopo
+ *  l'altro, e ogni round ha la metà delle gare del precedente fino alla finale (1 gara). Si parte dalla
+ *  fine, così anche un tabellone salvato con la vecchia logica (primo round incompleto) mostra tutti i match. */
 function splitRounds(matches: BracketMatch[]): BracketMatch[][] {
   const rounds: BracketMatch[][] = [];
-  // Approccio semplificato: usa le etichette per raggruppare
-  const byLabel: Record<string, BracketMatch[]> = {};
-  for (const m of matches) {
-    const key = m.label.replace(/\s\d+$/, ""); // rimuove il numero finale (es. "Semifinale 1" → "Semifinale")
-    if (!byLabel[key]) byLabel[key] = [];
-    byLabel[key].push(m);
+  let fine = matches.length; // dove finisce il round che si sta ritagliando
+  let gare = 1;              // la finale ha 1 gara, il round prima 2, poi 4…
+  while (fine > 0) {
+    rounds.unshift(matches.slice(Math.max(fine - gare, 0), fine));
+    fine -= gare;
+    gare *= 2;
   }
-  // Ordine dei round: QF → SF → Finale
-  const order = ["Quarto di finale", "Semifinale", "Finale"];
-  for (const key of order) {
-    if (byLabel[key]) rounds.push(byLabel[key]);
-  }
-  // Aggiunge eventuali chiavi non standard
-  for (const key of Object.keys(byLabel)) {
-    if (!order.includes(key)) rounds.push(byLabel[key]);
-  }
-  return rounds.length > 0 ? rounds : [matches];
+  return rounds;
 }
 
 interface Props {
@@ -67,6 +59,19 @@ export function BracketSection({ tappa, readOnly = false }: Props) {
   // Prompt prima dei gironi
   if (!allGironiDone && !tappa.bracket?.length) {
     return null; // non mostrare nulla finché i gironi non sono completati
+  }
+
+  // Un solo girone: nessun incrocio possibile (generaFasiDirette lo rifiuta), quindi si spiega
+  // perché manca il pulsante invece di mostrarne uno che non fa nulla
+  if (!tappa.bracket?.length && tappa.gironi?.length === 1) {
+    return (
+      <Section title="Fase finale" kicker="Eliminazione diretta">
+        <p className="text-[13px] text-chalk-muted">
+          Il girone è concluso. Con un solo girone non c'è la fase a eliminazione diretta (servono almeno 2 gironi):
+          vale la classifica del girone.
+        </p>
+      </Section>
+    );
   }
 
   // Bottone per generare il bracket
