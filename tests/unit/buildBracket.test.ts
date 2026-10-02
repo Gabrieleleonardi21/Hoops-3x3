@@ -119,6 +119,57 @@ describe("nextBracketSlot (avanzamento per posizione)", () => {
     ];
     expect(nextBracketSlot(vecchio, "sf1", "1A")).toEqual({ id: "fin", patch: { squadraB: "1A" } });
   });
+
+  // Tabelloni nati con la vecchia logica ("primo posto libero"): non vanno mai sovrascritti né bloccati
+  const match = (id: string, a: string | null, b: string | null, done = false): BracketMatch =>
+    ({ id, label: id, squadraA: a, squadraB: b, pA: 0, pB: 0, done });
+
+  /** Applica il risultato di nextBracketSlot e controlla che nessuna squadra già presente sia stata sostituita */
+  function applica(b: BracketMatch[], r: ReturnType<typeof nextBracketSlot>): BracketMatch[] {
+    const dopo = b.map((m) => (m.id === r?.id ? { ...m, ...r.patch } : m));
+    b.forEach((m, i) => {
+      if (m.squadraA !== null) expect(dopo[i].squadraA).toBe(m.squadraA);
+      if (m.squadraB !== null) expect(dopo[i].squadraB).toBe(m.squadraB);
+    });
+    return dopo;
+  }
+
+  it("vecchio tabellone a quarti con la semifinale già piena: il vincitore va nel primo posto libero del turno dopo", () => {
+    // registrati prima i quarti 1 e 3, la vecchia logica aveva messo i due vincitori nella stessa semifinale
+    const vecchio = [
+      match("qf1", "a", "b", true), match("qf2", "c", "d"), match("qf3", "e", "f", true), match("qf4", "g", "h"),
+      match("sf1", "a", "e"), match("sf2", null, null), match("fin", null, null),
+    ];
+    const r = nextBracketSlot(vecchio, "qf2", "c");
+    expect(r).toEqual({ id: "sf2", patch: { squadraA: "c" } });
+    applica(vecchio, r); // a ed e restano in semifinale 1
+  });
+
+  it("vecchio tabellone non ad albero (6 gare): il vincitore va nel primo posto libero del turno successivo", () => {
+    // vecchia logica con 2 gironi e 3 qualificate: 3 gare, 2 semifinali e la finale
+    let b = [
+      match("r1", "a1", "b3"), match("r2", "a2", "b2"), match("r3", "a3", "b1"),
+      match("sf1", null, null), match("sf2", null, null), match("fin", null, null),
+    ];
+    const piazzamenti = ["r1", "r2", "r3"].map((id) => {
+      const r = nextBracketSlot(b, id, `vince-${id}`);
+      b = applica(b, r);
+      return r;
+    });
+    expect(piazzamenti).toEqual([
+      { id: "sf1", patch: { squadraA: "vince-r1" } },
+      { id: "sf1", patch: { squadraB: "vince-r2" } },
+      { id: "sf2", patch: { squadraA: "vince-r3" } },
+    ]);
+  });
+
+  it("se nel turno successivo non c'è nessun posto libero non avanza nessuno e non sovrascrive", () => {
+    const pieno = [
+      match("qf1", "a", "b", true), match("qf2", "c", "d", true), match("qf3", "e", "f", true), match("qf4", "g", "h"),
+      match("sf1", "p", "q"), match("sf2", "r", "s"), match("fin", null, null),
+    ];
+    expect(nextBracketSlot(pieno, "qf4", "g")).toBeNull();
+  });
 });
 
 describe("match bye (turno superato d'ufficio)", () => {

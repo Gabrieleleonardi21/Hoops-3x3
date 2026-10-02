@@ -159,9 +159,10 @@ export function splitRounds(matches: BracketMatch[]): BracketMatch[][] {
  * Indica dove far avanzare il vincitore di un match: la gara del turno successivo e il posto (A o B).
  * La gara i-esima di un turno alimenta la gara ⌊i/2⌋ del turno dopo: posto A se i è pari, B se dispari.
  * Così l'accoppiamento non dipende dall'ordine in cui vengono inseriti i risultati.
- * Logica condivisa tra la UI (BracketSection) e il Coach AI.
+ * Non sovrascrive mai un posto occupato. Logica condivisa tra la UI (BracketSection) e il Coach AI.
  *
- * @returns id del match successivo e patch da applicare, oppure null se è la finale.
+ * @returns id del match successivo e patch da applicare, oppure null se è la finale
+ *          o se nel turno successivo non c'è nessun posto libero.
  */
 export function nextBracketSlot(
   bracket: BracketMatch[],
@@ -169,26 +170,35 @@ export function nextBracketSlot(
   vincitoreId: string | null,
 ): { id: string; patch: Partial<BracketMatch> } | null {
   if (!vincitoreId) return null;
-  const idx = bracket.findIndex((m) => m.id === matchId);
-  if (idx === -1) return null;
+  const turni = splitRounds(bracket);
+  const t = turni.findIndex((turno) => turno.some((m) => m.id === matchId));
+  if (t === -1) return null;
+  const successivo = turni[t + 1];
+  if (!successivo) return null; // finale: dopo non avanza nessuno
 
-  // Individua il turno del match: i turni hanno (n+1)/2, poi la metà, … gare
-  let inizio = 0;
-  let gare = (bracket.length + 1) / 2;
-  while (gare >= 1 && idx >= inizio + gare) {
-    inizio += gare;
-    gare /= 2;
+  /** Risultato: il vincitore occupa il posto `posto` della gara `m` */
+  const occupa = (m: BracketMatch, posto: "squadraA" | "squadraB") => ({ id: m.id, patch: { [posto]: vincitoreId } });
+
+  // Tabellone ad albero come quelli di buildBracket (2^k − 1 match): gara e posto li dà la posizione
+  if (potenzaDiDue(bracket.length + 1) === bracket.length + 1) {
+    const i = turni[t].findIndex((m) => m.id === matchId);
+    const next = successivo[Math.floor(i / 2)];
+    let posto: "squadraA" | "squadraB" = "squadraB";
+    if (i % 2 === 0) posto = "squadraA";
+    let altro: "squadraA" | "squadraB" = "squadraA";
+    if (posto === "squadraA") altro = "squadraB";
+    if (next[posto] === null || next[posto] === vincitoreId) return occupa(next, posto);
+    // Il posto previsto ha già un'altra squadra (vecchia logica): si usa l'altro posto della gara, se libero
+    if (next[altro] === null) return occupa(next, altro);
   }
-  const next = bracket[inizio + gare + Math.floor((idx - inizio) / 2)];
-  if (gare <= 1 || !next) return null; // finale, oppure tabellone non ad albero completo
 
-  let posto: "squadraA" | "squadraB" = "squadraB";
-  if ((idx - inizio) % 2 === 0) posto = "squadraA";
-  // Tabelloni iniziati con la vecchia logica ("primo posto libero"): se il posto previsto è già
-  // occupato da un'altra squadra e l'altro è libero, si usa quello libero per non sovrascrivere nessuno
-  let altro: "squadraA" | "squadraB" = "squadraA";
-  if (posto === "squadraA") altro = "squadraB";
-  if (next[posto] !== null && next[posto] !== vincitoreId && next[altro] === null) posto = altro;
-
-  return { id: next.id, patch: { [posto]: vincitoreId } };
+  // Riserva per i tabelloni nati con la vecchia logica ("primo posto libero"): possono avere i due posti
+  // previsti già occupati o non essere ad albero (es. 6 gare). Si ricade su quella regola nel solo turno
+  // successivo, così il tabellone già iniziato si completa e nessuna squadra viene sovrascritta
+  for (const m of successivo) {
+    if (m.done) continue; // una gara già giocata non riceve squadre
+    if (m.squadraA === null) return occupa(m, "squadraA");
+    if (m.squadraB === null) return occupa(m, "squadraB");
+  }
+  return null;
 }
