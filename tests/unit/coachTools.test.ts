@@ -413,6 +413,17 @@ describe("Coach AI: conferma nel pannello prima delle azioni distruttive (D4)", 
     expect(archivioApi.pubblica).not.toHaveBeenCalled();
   });
 
+  it("concludi_tappa con la pubblicazione non riuscita: per riprovare indica «Riapri» e poi «Concludi»", async () => {
+    // Una tappa conclusa ha solo «Riapri»: «riprova dalla pagina» non si poteva seguire (vedi useTappa)
+    useAppStore.setState({ tappe: [romaOpenGiocata()] });
+    vi.mocked(archivioApi.pubblica).mockRejectedValue(new Error("rete assente"));
+    const richieste = modello(strumenti(["concludi_tappa", { tappa_nome: "Roma Open" }]), testo("Conclusa, ma non pubblicata."));
+    const c = coach();
+    await chiediEConferma(c, "Concludi Roma Open", true);
+    expect(store().tappe[0].conclusa).toBe(true);
+    expect(esiti(richieste)[0]).toContain("«Riapri» e poi «Concludi»");
+  });
+
   it("un'azione che verrebbe rifiutata non chiede conferma: concludere con gare da giocare", async () => {
     const prima = store().tappe[0];
     const richieste = modello(strumenti(["concludi_tappa", {}]), testo("Mancano due partite."));

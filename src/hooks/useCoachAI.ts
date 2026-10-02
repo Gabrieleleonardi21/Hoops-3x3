@@ -738,7 +738,8 @@ export function useCoachAI() {
         await archivioApi.pubblica(conclusa, useAppStore.getState().legaName);
         return `Tappa "${tappa.nome}" conclusa e pubblicata nell'Archivio circuito.`;
       } catch {
-        return `Tappa "${tappa.nome}" conclusa, ma la pubblicazione non è riuscita: riprova dalla pagina tappa.`;
+        // Una tappa conclusa non si conclude di nuovo (R5): per ripubblicare va riaperta, come dice anche la pagina
+        return `Tappa "${tappa.nome}" conclusa, ma la pubblicazione non è riuscita: per riprovare, nella pagina della tappa usa «Riapri» e poi «Concludi».`;
       }
     }
 
