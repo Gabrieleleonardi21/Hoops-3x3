@@ -5,7 +5,8 @@ import { useAppStore, SESSION_KEY } from "../stores/useAppStore";
 import * as authService from "../services/authService";
 import type { User } from "../types";
 
-function saveSession(u: User) {
+/** Salva l'utente della sessione nel browser (anche App.tsx, quando all'avvio il server restituisce quello aggiornato) */
+export function saveSession(u: User) {
   try { localStorage.setItem(SESSION_KEY, JSON.stringify(u)); } catch { /* quota exceeded */ }
 }
 

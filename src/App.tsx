@@ -1,13 +1,15 @@
 /** Radice dell'applicazione: configura il router e inserisce Coach AI (FAB + pannello)
  *  fuori dal flusso di pagine così resta visibile su tutte le rotte. */
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useAppStore } from "./stores/useAppStore";
-import { useAuth } from "./hooks/useAuth";
+import { useAuth, saveSession } from "./hooks/useAuth";
 import * as authService from "./services/authService";
+import { avviaRinnovoAutomatico, suSessioneFinita } from "./services/api";
 import { Header } from "./components/layout/Header";
 import { SyncBanner } from "./components/layout/SyncBanner";
 import { Loading } from "./components/ui/Loading";
+import { Button } from "./components/ui/Button";
 import { CoachFAB } from "./components/coach/CoachFAB";
 import { CoachPanel } from "./components/coach/CoachPanel";
 import { HomePage } from "./pages/HomePage";
@@ -20,48 +22,120 @@ import { ArchivioPage } from "./pages/ArchivioPage";
 import { GiocatorePage } from "./pages/GiocatorePage";
 import { CampettiPage } from "./pages/CampettiPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
+import type { User } from "./types";
 
-/** All'avvio, per un utente registrato: verifica la sessione e carica le leghe dal server
- *  (un JWT scaduto si rinnova da solo dentro api()). Sessione finita, utente cancellato o server
- *  che non risponde → logout silenzioso (torna alla home con il form). */
-function useBootstrap() {
-  const user = useAppStore((s) => s.user);
+/** Messaggio del form di accesso quando la sessione finisce: dice anche quante tappe avevano modifiche che non è
+ *  stato più possibile salvare, così nessuna si perde in silenzio */
+function messaggioFineSessione(nonSalvate: number): string {
+  const testo = "Sessione scaduta: accedi di nuovo";
+  if (nonSalvate === 0) return testo;
+  if (nonSalvate === 1) return `${testo}. 1 tappa aveva modifiche non salvate.`;
+  return `${testo}. ${nonSalvate} tappe avevano modifiche non salvate.`;
+}
+
+/** Sessione dell'utente registrato, per tutta la vita della pagina:
+ *  - fine della sessione (rinnovo respinto, token cancellato da un'altra scheda, sessione scaduta all'avvio): uscita
+ *    senza conferma, perché salvare non è più possibile, e ritorno al form con il messaggio;
+ *  - rinnovo automatico del JWT finché c'è un utente registrato, fermato all'uscita;
+ *  - verifica della sessione all'avvio (verifica).
+ *  @returns `nonVerificata` = la verifica all'avvio non ha avuto risposta dal server; `riprova` la ripete */
+function useSessione() {
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+  const setUser = useAppStore((s) => s.setUser);
   const rehydrate = useAppStore((s) => s.rehydrate);
-  const { logout } = useAuth();
+  const registrato = !!user && !user.guest;
+  const inUscita = useRef(false);
+  // Utente la cui sessione non si è potuta verificare. Si confronta con quello attuale: dopo un'uscita o un nuovo
+  // accesso l'avviso non vale più
+  const [nonVerificato, setNonVerificato] = useState<User | null>(null);
+
+  /** Una sola uscita alla volta: il rinnovo respinto e la verifica all'avvio possono segnalare la stessa fine */
+  const fineSessione = async () => {
+    const u = useAppStore.getState().user;
+    if (inUscita.current || !u || u.guest) return;
+    inUscita.current = true;
+    try {
+      const { nonSalvate } = await logout();
+      navigate("/", { state: { messaggio: messaggioFineSessione(nonSalvate) } });
+    } finally {
+      inUscita.current = false;
+    }
+  };
+
+  /** Verifica la sessione salvata e carica le leghe (un JWT scaduto si rinnova dentro api()). Server che non risponde:
+   *  avviso con «Riprova» e la sessione resta. Sessione valida: l'utente del server sostituisce la copia salvata nel
+   *  browser (nome e ruolo possono essere cambiati). Sessione finita: form con il messaggio */
+  const verifica = async () => {
+    setNonVerificato(null);
+    const r = await authService.me();
+    if (r.esito === "scaduta") { await fineSessione(); return; }
+    if (r.esito === "irraggiungibile") { setNonVerificato(useAppStore.getState().user); return; }
+    setUser(r.user);
+    saveSession(r.user);
+    await rehydrate();
+  };
+
+  // Effect Event: il gestore registrato una volta sola usa sempre il logout e la navigate più recenti
+  const alFineSessione = useEffectEvent(() => { void fineSessione(); });
+  useEffect(() => suSessioneFinita(() => alFineSessione()), []);
+
   useEffect(() => {
-    if (!user || user.guest) return;
-    authService.me().then((u) => {
-      if (!u) { logout(); return; }
-      rehydrate();
-    });
-    // solo al primo mount: login/registrazione chiamano rehydrate da soli
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (!registrato) return;
+    return avviaRinnovoAutomatico();
+  }, [registrato]);
+
+  // Solo al primo montaggio: login e registrazione caricano le leghe da soli
+  const verificaAllAvvio = useEffectEvent(() => {
+    if (registrato) void verifica();
+  });
+  useEffect(() => { verificaAllAvvio(); }, []);
+
+  return { nonVerificata: nonVerificato !== null && nonVerificato === user, riprova: () => { void verifica(); } };
+}
+
+/** Avviso all'avvio quando il server non risponde: la sessione resta aperta e «Riprova» ripete la verifica */
+function AvvisoServer({ onRiprova }: { onRiprova: () => void }) {
+  return (
+    <div role="alert" className="rounded border border-loss/40 bg-loss/10 p-4 text-[13px] text-chalk">
+      <p className="m-0 font-semibold">Server non raggiungibile: non è stato possibile caricare le tue leghe.</p>
+      <p className="mt-1 mb-3 text-chalk-muted">La sessione resta aperta: riprova quando la connessione torna.</p>
+      <Button size="sm" onClick={onRiprova}>Riprova</Button>
+    </div>
+  );
+}
+
+/** Contenuto della pagina. Sta dentro il router perché la fine della sessione riporta al form con navigate */
+function Pagine() {
+  const ready = useAppStore((s) => s.ready);
+  const { nonVerificata, riprova } = useSessione();
+  if (nonVerificata) return <AvvisoServer onRiprova={riprova} />;
+  if (!ready) return <Loading>Caricamento delle tue leghe…</Loading>;
+  return (
+    <Routes>
+      <Route path="/" element={<HomePage />} />
+      <Route path="/leghe" element={<LegheListPage />} />
+      <Route path="/lega" element={<LegaPage />} />
+      <Route path="/lega/tappa/:id" element={<TappaPage />} />
+      <Route path="/tappa/:id" element={<TappaViewPage />} /> {/* pubblica */}
+      <Route path="/anagrafe" element={<AnagrafePage />} />
+      <Route path="/giocatore/:id" element={<GiocatorePage />} />
+      <Route path="/archivio" element={<ArchivioPage />} />
+      <Route path="/campetti" element={<CampettiPage />} />
+      <Route path="*" element={<NotFoundPage />} />
+    </Routes>
+  );
 }
 
 export default function App() {
   const [coachOpen, setCoachOpen] = useState(false); // stato del pannello Coach AI
-  const ready = useAppStore((s) => s.ready);
-  useBootstrap();
 
   return (
     <BrowserRouter>
       <Header />
       <SyncBanner />
       <main className="mx-auto max-w-5xl px-4 pt-6 pb-28">
-        {!ready && <Loading>Caricamento delle tue leghe…</Loading>}
-        {ready && <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/leghe" element={<LegheListPage />} />
-          <Route path="/lega" element={<LegaPage />} />
-          <Route path="/lega/tappa/:id" element={<TappaPage />} />
-          <Route path="/tappa/:id" element={<TappaViewPage />} /> {/* pubblica */}
-          <Route path="/anagrafe" element={<AnagrafePage />} />
-          <Route path="/giocatore/:id" element={<GiocatorePage />} />
-          <Route path="/archivio" element={<ArchivioPage />} />
-          <Route path="/campetti" element={<CampettiPage />} />
-          <Route path="*" element={<NotFoundPage />} />
-        </Routes>}
+        <Pagine />
       </main>
       {coachOpen && <CoachPanel onClose={() => setCoachOpen(false)} />}
       <CoachFAB onClick={() => setCoachOpen((o) => !o)} />

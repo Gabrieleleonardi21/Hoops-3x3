@@ -19,7 +19,13 @@ function messaggioErrore(e: unknown): string {
   if (e instanceof ApiError) return e.message;
   return "Errore imprevisto, riprova.";
 }
-import { useNavigate } from "react-router-dom";
+/** Messaggio arrivato con lo stato della navigazione, per esempio quello della fine della sessione (App.tsx) */
+function messaggioRicevuto(stato: unknown): string | null {
+  const messaggio = (stato as { messaggio?: unknown } | null)?.messaggio;
+  if (typeof messaggio === "string") return messaggio;
+  return null;
+}
+import { useLocation, useNavigate } from "react-router-dom";
 import { Input } from "../ui/Input";
 import { Button } from "../ui/Button";
 
@@ -38,6 +44,7 @@ type LoginData = z.infer<typeof loginSchema>;
 export function AuthForm() {
   const { register: doRegister, login: doLogin, enterGuest } = useAuth();
   const navigate = useNavigate();
+  const avviso = messaggioRicevuto(useLocation().state);
   // Chi ha già usato un account su questo browser parte dal tab "Accedi"
   const [mode, setMode] = useState<"register" | "login">(hasAccountHint() ? "login" : "register");
   const [authError, setAuthError] = useState<string | null>(null);
@@ -79,6 +86,7 @@ export function AuthForm() {
 
   return (
     <section className="rounded border border-asphalt-600 bg-asphalt-900/95 p-5 backdrop-blur" aria-label="Accesso">
+      {avviso && <p className="mb-4 rounded border border-court/40 bg-court/10 px-3.5 py-2.5 text-[13px] font-medium text-chalk" role="alert">{avviso}</p>}
       <div className="mb-4 flex gap-5 border-b border-asphalt-700">{tab("register", "Registrati")}{tab("login", "Accedi")}</div>
 
       {mode === "register" ? (
