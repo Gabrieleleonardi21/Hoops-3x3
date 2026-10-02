@@ -1,16 +1,17 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { act, cleanup, renderHook } from "@testing-library/react";
+import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { useCoachAI } from "../../src/hooks/useCoachAI";
 import { useAppStore } from "../../src/stores/useAppStore";
 import { legheApi } from "../../src/services/legheApi";
 import { anagrafeApi } from "../../src/services/anagrafeApi";
+import { archivioApi } from "../../src/services/archivioApi";
 import { ApiError } from "../../src/services/api";
 import { DEFAULT_RULES } from "../../src/constants/rules";
 import type { ToolCall } from "../../src/services/aiService";
-import type { Partita, SquadraTappa, Tappa, User } from "../../src/types";
+import type { Partita, RegSquadra, SquadraTappa, Tappa, User } from "../../src/types";
 
 // Rete finta per leghe, anagrafe e archivio; store, coda dei salvataggi, tappaOps, aiService e hook sono quelli veri.
 // Il modello risponde da fetch (POST /api/coach/chat): nessuna chiamata a Groq o al backend veri.
@@ -55,12 +56,12 @@ function strumenti(...chiamate: [string, Record<string, unknown> | string][]): R
 const testo = (content: string): Risposta => ({ content });
 
 /** Modello dietro POST /api/coach/chat: dà le risposte preparate dal test, una per richiesta (una Response passa così
- *  com'è, per simulare un errore del server), e tiene i messaggi di ogni richiesta */
-function modello(...risposte: (Risposta | Response)[]) {
+ *  com'è, per simulare un errore del server; una promessa fa aspettare la risposta), e tiene i messaggi di ogni richiesta */
+function modello(...risposte: (Risposta | Response | Promise<Risposta>)[]) {
   const richieste: Ricevuto[][] = [];
   vi.stubGlobal("fetch", vi.fn(async (_url: string, init?: RequestInit) => {
     richieste.push(JSON.parse(String(init?.body)).messages);
-    const r = risposte.shift();
+    const r = await risposte.shift();
     if (!r) throw new Error("il modello finto non ha altre risposte");
     if (r instanceof Response) return r;
     return new Response(JSON.stringify({ choices: [{ message: r }] }));
@@ -71,6 +72,13 @@ function modello(...risposte: (Risposta | Response)[]) {
 /** I risultati degli strumenti come li ha letti il modello nell'ultima richiesta */
 const esiti = (richieste: Ricevuto[][]) => richieste.at(-1)!.filter((m) => m.role === "tool").map((m) => m.content);
 
+/** Promessa controllabile a mano: il test decide quando arriva la risposta */
+function differita<T>() {
+  let ok!: (v: T) => void;
+  const p = new Promise<T>((res) => { ok = res; });
+  return { p, ok };
+}
+
 /* ── Coach ── */
 
 const inRouter = ({ children }: { children: ReactNode }) => createElement(MemoryRouter, null, children);
@@ -80,6 +88,12 @@ type Coach = ReturnType<typeof coach>;
 /** Scrive al Coach e aspetta la risposta */
 async function chiedi(c: Coach, messaggio: string) {
   await act(async () => { await c.current.send(messaggio); });
+}
+/** Scrive al Coach senza aspettare: il test fa qualcosa mentre la richiesta è in corso, poi aspetta `invio` */
+function inviaSenzaAspettare(c: Coach, messaggio: string) {
+  let invio!: Promise<void>;
+  act(() => { invio = c.current.send(messaggio); });
+  return invio;
 }
 
 /* ── Dati ── */
@@ -98,9 +112,20 @@ const romaOpen = (): Tappa => ({
   video: [],
 });
 
+/** Tutte le gare di «Roma Open» giocate: la tappa si può concludere */
+const romaOpenGiocata = (): Tappa => ({
+  ...romaOpen(),
+  partite: [giocata("m1", "s1", "s2", 21, 15), giocata("m2", "s1", "s3", 21, 18), giocata("m3", "s2", "s3", 19, 21)],
+});
+
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(legheApi.putTappa).mockImplementation(async (t) => t);
+  // Anagrafe vuota: ogni squadra nominata in crea_tappa viene registrata, con l'id che darebbe il server
+  vi.mocked(anagrafeApi.listSquadre).mockResolvedValue([]);
+  vi.mocked(anagrafeApi.listGiocatori).mockResolvedValue([]);
+  vi.mocked(anagrafeApi.createSquadra).mockImplementation(async (s) => ({ ...s, id: `reg-${s.nome}`, autore: "Anna", ts: 1 }));
+  vi.mocked(archivioApi.pubblica).mockImplementation(async (tappa, lega) => ({ tappa, lega, autore: "Anna", ts: 1 }));
   useAppStore.setState({
     user: registrato, legaId: "l1", legaName: "Circuito", leghe: [{ id: "l1", nome: "Circuito", ts: 1, nTappe: 1 }],
     tappe: [romaOpen()],
@@ -113,6 +138,74 @@ afterEach(() => {
   vi.unstubAllGlobals();
   sessionStorage.clear();
   localStorage.clear();
+});
+
+describe("Coach AI: gli strumenti leggono lega, tappe e utente al momento dell'esecuzione", () => {
+  it("FC-1: «crea la lega e la tappa» riesce: crea_tappa vede la lega appena creata", async () => {
+    useAppStore.setState({ legaId: null, leghe: [], legaName: "", tappe: [] });
+    vi.mocked(legheApi.create).mockResolvedValue({ id: "l9", nome: "Circuito Roma", ts: 1, nTappe: 0 });
+    modello(
+      strumenti(
+        ["crea_lega", { nome: "Circuito Roma" }],
+        ["crea_tappa", { nome: "Tappa 1", squadre: ["Alfa", "Beta", "Gamma", "Delta"] }],
+      ),
+      testo("Ho creato la lega Circuito Roma e la Tappa 1."),
+    );
+    const c = coach();
+    await chiedi(c, "Crea la lega Circuito Roma e la Tappa 1 con Alfa, Beta, Gamma e Delta");
+    expect(store().legaId).toBe("l9");
+    expect(store().tappe).toHaveLength(1);
+    expect(store().tappe[0]).toMatchObject({ nome: "Tappa 1", nGironi: 2 });
+    expect(store().tappe[0].squadre.map((s) => s.nome)).toEqual(["Alfa", "Beta", "Gamma", "Delta"]);
+    expect(c.current.msgs.at(-1)?.tools).toEqual(["crea_lega", "crea_tappa"]);
+  });
+
+  it("FC-1: il controllo dei doppioni vede la tappa creata poco prima nella stessa richiesta", async () => {
+    const richieste = modello(
+      strumenti(["crea_tappa", { nome: "Tappa 2", squadre: ["Alfa", "Beta"] }]),
+      strumenti(["crea_tappa", { nome: "Tappa 2", squadre: ["Beta", "Alfa"] }]),
+      testo("La Tappa 2 è pronta."),
+    );
+    const c = coach();
+    await chiedi(c, "Crea la Tappa 2 con Alfa e Beta");
+    expect(store().tappe.map((t) => t.nome)).toEqual(["Roma Open", "Tappa 2"]);
+    expect(esiti(richieste)[1]).toMatch(/esiste già/);
+  });
+
+  it("crea_tappa: se durante l'attesa dell'anagrafe si apre un'altra lega, la tappa non finisce lì e il modello lo sa", async () => {
+    const anagrafe = differita<RegSquadra[]>();
+    vi.mocked(anagrafeApi.listSquadre).mockReturnValue(anagrafe.p);
+    const richieste = modello(
+      strumenti(["crea_tappa", { nome: "Tappa 2", squadre: ["Alfa", "Beta"] }]),
+      testo("La lega è cambiata: non ho creato la tappa."),
+    );
+    const c = coach();
+    const invio = inviaSenzaAspettare(c, "Crea la Tappa 2 con Alfa e Beta");
+    await waitFor(() => expect(anagrafeApi.listSquadre).toHaveBeenCalled());
+    act(() => { useAppStore.setState({ legaId: "l2", legaName: "Altra lega", tappe: [] }); });
+    await act(async () => {
+      anagrafe.ok([]);
+      await invio;
+    });
+    expect(store().tappe).toEqual([]);
+    expect(store().inSospeso).toBe(0);
+    expect(esiti(richieste)[0]).toMatch(/lega aperta è cambiata/);
+  });
+
+  it("concludi_tappa pubblica con il nome della lega di adesso, non con quello che aveva all'invio", async () => {
+    useAppStore.setState({ tappe: [romaOpenGiocata()] });
+    const risposta = differita<Risposta>();
+    modello(risposta.p, testo("Roma Open è conclusa e pubblicata."));
+    const c = coach();
+    const invio = inviaSenzaAspettare(c, "Concludi Roma Open");
+    // Mentre il modello pensa, la lega cambia nome
+    act(() => { useAppStore.setState({ legaName: "Circuito Lazio" }); });
+    await act(async () => {
+      risposta.ok(strumenti(["concludi_tappa", { tappa_nome: "Roma Open" }]));
+      await invio;
+    });
+    expect(archivioApi.pubblica).toHaveBeenCalledWith(expect.objectContaining({ id: "t1", conclusa: true }), "Circuito Lazio");
+  });
 });
 
 describe("Coach AI: uno strumento che fallisce non interrompe la richiesta", () => {

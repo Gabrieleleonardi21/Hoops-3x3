@@ -269,16 +269,10 @@ export function useCoachAI() {
     }
   });
   const [loading, setLoading] = useState(false);
-
-  const legaName     = useAppStore((s) => s.legaName);
-  const legaId       = useAppStore((s) => s.legaId);
-  const tappe        = useAppStore((s) => s.tappe);
-  const user         = useAppStore((s) => s.user);
-  const createLega   = useAppStore((s) => s.createLega);
-  const addTappa     = useAppStore((s) => s.addTappa);
-  const updateTappaPartita = useAppStore((s) => s.updateTappaPartita);
-  const replaceTappa       = useAppStore((s) => s.replaceTappa);
-  const navigate     = useNavigate();
+  // Lega, tappe e utente NON si leggono qui: una copia presa al render è vecchia quando lo strumento parte (dopo
+  // le attese del modello, o dopo gli strumenti precedenti della stessa richiesta). Ogni strumento li legge con
+  // useAppStore.getState() nel momento in cui agisce.
+  const navigate = useNavigate();
 
   // Sincronizza la chat in sessionStorage ad ogni aggiornamento
   useEffect(() => {
@@ -295,18 +289,20 @@ export function useCoachAI() {
 
     if (name === "crea_lega") {
       const nomeLega = str(args, "nome") || "Nuova lega";
-      await createLega(nomeLega);
+      await useAppStore.getState().createLega(nomeLega);
       navigate("/lega");
       return `Lega "${nomeLega}" creata con successo e impostata come attiva.`;
     }
 
     if (name === "crea_tappa") {
+      // Lega e tappe di adesso: comprendono la lega e le tappe create dagli strumenti precedenti della richiesta
+      const { legaId, tappe } = useAppStore.getState();
       if (!legaId) return "Nessuna lega attiva: crea prima una lega prima di aggiungere tappe.";
 
       const nomeTappa = str(args, "nome") || `Tappa ${tappe.length + 1}`;
       // Guard: evita che il modello crei duplicati chiamando il tool più volte
       if (tappe.some((t) => t.nome === nomeTappa)) {
-        return `La tappa "${nomeTappa}" è già stata creata in questa richiesta.`;
+        return `La tappa "${nomeTappa}" esiste già in questa lega: non ne creo un'altra.`;
       }
       const luogo     = str(args, "luogo");
       const data      = str(args, "data");
@@ -359,6 +355,13 @@ export function useCoachAI() {
         })
       );
 
+      // Durante le attese dell'anagrafe l'utente può aver aperto un'altra lega: addTappa metterebbe la tappa lì
+      if (useAppStore.getState().legaId !== legaId) {
+        let motivo = "La lega aperta è cambiata mentre la tappa veniva preparata: tappa non creata.";
+        if (autoRegistrate.length) motivo += ` Registrate comunque nell'anagrafe: ${autoRegistrate.join(", ")}.`;
+        throw new Error(motivo);
+      }
+
       const nG = Math.max(1, Math.min(Math.floor(squadreTappa.length / 2) || 1, nGironi));
       const tappa: Tappa = {
         id: uid(), nome: nomeTappa, luogo, data, nGironi: nG,
@@ -367,7 +370,7 @@ export function useCoachAI() {
         gironi: null, partite: [], video: [],
       };
 
-      addTappa(tappa);
+      useAppStore.getState().addTappa(tappa);
       navigate(`/lega/tappa/${tappa.id}`);
 
       const trovate = squadreTappa.length - autoRegistrate.length;
@@ -416,8 +419,6 @@ export function useCoachAI() {
     }
 
     if (name === "sorteggia_gironi") {
-      // getState() legge lo stato fresco: la closure `tappe` è ferma all'ultimo render e non
-      // riflette le modifiche fatte dai tool precedenti dello stesso ciclo (loop agentico)
       const tappa = findTappa(useAppStore.getState().tappe, str(args, "tappa_nome") || undefined);
       if (!tappa) return "Nessuna tappa trovata: crea prima una tappa con le squadre.";
 
@@ -425,7 +426,7 @@ export function useCoachAI() {
       if (str(args, "mode") === "ranking") modo = "ranking";
       const esito = sorteggia(tappa, modo);
       if (!esito.ok) return erroreTappa(tappa, esito.errore);
-      replaceTappa(esito.tappa);
+      useAppStore.getState().replaceTappa(esito.tappa);
       navigate(`/lega/tappa/${tappa.id}`);
 
       return `Sorteggio "${modo}" completato per "${tappa.nome}": ${(esito.tappa.gironi ?? []).length} gironi, ${esito.tappa.partite.length} partite generate.`;
@@ -483,7 +484,7 @@ export function useCoachAI() {
         // nello stesso ciclo non si sovrascrivono
         const esito = registraRisultato(tappa, mg.id, { sa, sb });
         if (!esito.ok) return erroreTappa(tappa, esito.errore);
-        replaceTappa(esito.tappa);
+        useAppStore.getState().replaceTappa(esito.tappa);
 
         let vincitore = sqB.nome;
         if (sa > sb) vincitore = sqA.nome;
@@ -505,7 +506,7 @@ export function useCoachAI() {
         // tappaOps registra il match e fa avanzare il vincitore al round successivo
         const esito = registraRisultatoBracket(tappa, mb.id, ptA, ptB);
         if (!esito.ok) return erroreTappa(tappa, esito.errore);
-        replaceTappa(esito.tappa);
+        useAppStore.getState().replaceTappa(esito.tappa);
 
         let vincitoreId = mb.squadraB;
         if (ptA > ptB) vincitoreId = mb.squadraA;
@@ -537,7 +538,7 @@ export function useCoachAI() {
       });
       if (!partita) return `Partita già conclusa tra "${nomeA}" e "${nomeB}" non trovata nella tappa "${tappa.nome}".`;
 
-      updateTappaPartita(tappa.id, partita.id, { done: false, sa: 0, sb: 0 });
+      useAppStore.getState().updateTappaPartita(tappa.id, partita.id, { done: false, sa: 0, sb: 0 });
       const sA = tappa.squadre.find((s) => s.id === partita.a)!;
       const sB = tappa.squadre.find((s) => s.id === partita.b)!;
       return `Risultato di "${sA.nome}" vs "${sB.nome}" annullato: la partita è tornata a non disputata.`;
@@ -578,13 +579,14 @@ export function useCoachAI() {
 
       const esito = generaFasiDirette(tappa, nPass);
       if (!esito.ok) return erroreTappa(tappa, esito.errore);
-      replaceTappa(esito.tappa);
+      useAppStore.getState().replaceTappa(esito.tappa);
       navigate(`/lega/tappa/${tappa.id}`);
       return `Fase a eliminazione diretta generata per "${tappa.nome}": ${(esito.tappa.bracket ?? []).length} match (prime ${nPass} di ogni girone qualificate).`;
     }
 
     if (name === "concludi_tappa") {
-      const tappa = findTappa(useAppStore.getState().tappe, str(args, "tappa_nome") || undefined);
+      const { tappe, user, replaceTappa } = useAppStore.getState();
+      const tappa = findTappa(tappe, str(args, "tappa_nome") || undefined);
       if (!tappa) return "Nessuna tappa trovata.";
 
       // Gironi tutti registrati e fase diretta completa (se generata): lo verifica tappaOps
@@ -594,7 +596,8 @@ export function useCoachAI() {
 
       replaceTappa(esito.tappa);
       try {
-        await archivioApi.pubblica(esito.tappa, legaName);
+        // Il nome della lega di adesso: può essere cambiato dopo l'invio del messaggio
+        await archivioApi.pubblica(esito.tappa, useAppStore.getState().legaName);
         return `Tappa "${tappa.nome}" conclusa e pubblicata nell'Archivio circuito.`;
       } catch {
         return `Tappa "${tappa.nome}" conclusa, ma la pubblicazione non è riuscita: riprova dalla pagina tappa.`;
@@ -609,6 +612,7 @@ export function useCoachAI() {
     if (!t || loading) return;
     const history: ChatMsg[] = [...msgs, { role: "user", content: t }];
 
+    const { user, legaName, tappe } = useAppStore.getState();
     if (!user || user.guest) {
       setMsgs([...history, {
         role: "assistant",
