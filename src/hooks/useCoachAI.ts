@@ -706,10 +706,11 @@ export function useCoachAI() {
         }
         return annullaRisultato(t, partita.id);
       };
-      // D4: si prova prima di chiedere, poi decide l'utente
+      // D4: si prova prima di chiedere, poi decide l'utente. Il titolo non dice «Annullare»: accanto al pulsante
+      // «Annulla» si potrebbe premerlo volendo dire «sì, annulla il risultato»
       prova(tappa, annulla);
       await confermata(
-        `Annullare il risultato ${nomeOf(partita.a)} ${partita.sa}-${partita.sb} ${nomeOf(partita.b)}?`,
+        `Togliere il risultato ${nomeOf(partita.a)} ${partita.sa}-${partita.sb} ${nomeOf(partita.b)}?`,
         `La partita di "${tappa.nome}" torna da giocare e non conta più in classifica.`,
       );
       applica(tappa, annulla);

@@ -441,7 +441,8 @@ describe("Coach AI: conferma nel pannello prima delle azioni distruttive (D4)", 
     modello(strumenti(["annulla_risultato", { squadra_a: "Beta", squadra_b: "Alfa" }]), testo("Risultato annullato."));
     const c = coach();
     const richiesta = await chiediEConferma(c, "Annulla il risultato di Alfa-Beta", true);
-    expect(richiesta.titolo).toBe("Annullare il risultato Alfa 21-15 Beta?");
+    // Non «Annullare…»: accanto al pulsante «Annulla» si potrebbe premere «Annulla» volendo dire «sì, annulla il risultato»
+    expect(richiesta.titolo).toBe("Togliere il risultato Alfa 21-15 Beta?");
     // Come «Correggi» nella pagina (tappaOps): i punteggi restano come bozza, la partita non conta più
     expect(store().tappe[0].partite[0]).toEqual({ id: "m1", g: 0, a: "s1", b: "s2", sa: 21, sb: 15, done: false });
     expect(c.current.msgs.at(-1)?.tools).toEqual(["annulla_risultato"]);
