@@ -35,9 +35,14 @@ const respinto = () => json(401, { message: "Sessione scaduta o token non valido
 
 /** Server finto dietro fetch: una risposta per percorso, che i test cambiano quando serve */
 let risposte: Record<string, () => Response | Promise<Response>> = {};
+/** Richieste a percorsi senza risposta prevista: api.ts le vedrebbe come rete assente, quindi si contano a parte */
+let inattese: string[] = [];
 const fetchFinto = vi.fn(async (url: string) => {
   const risposta = risposte[url];
-  if (!risposta) throw new Error(`richiesta inattesa: ${url}`);
+  if (!risposta) {
+    inattese.push(url);
+    throw new TypeError("Failed to fetch");
+  }
   return risposta();
 });
 /** Quante richieste sono arrivate a quel percorso */
@@ -70,11 +75,13 @@ beforeEach(() => {
     "/api/auth/me": () => json(200, { id: "u1", name: "Anna", email: "anna@example.it", ruolo: "USER" }),
     "/api/auth/logout": () => new Response(null, { status: 204 }),
   };
+  inattese = [];
   leghe.list.mockResolvedValue([]);
   leghe.putTappa.mockImplementation(async (t) => t);
 });
 
 afterEach(() => {
+  expect(inattese).toEqual([]);
   cleanup(); // senza le globali di Vitest, Testing Library non smonta da sola
   store().reset();
   vi.unstubAllGlobals();
@@ -84,13 +91,16 @@ afterEach(() => {
 
 describe("App: sessione che finisce mentre l'utente lavora", () => {
   it("rinnovo respinto: torna al form con «Sessione scaduta: accedi di nuovo», senza ricaricare", async () => {
-    await dentro();
+    window.history.replaceState(null, "", "/leghe"); // l'utente sta lavorando sulle sue leghe
+    avvia(registrato);
+    await screen.findByLabelText(/Nome della nuova lega/);
     expect(esci().length).toBeGreaterThan(0);
     // Una richiesta qualsiasi trova il JWT respinto e il refresh token non più valido
     risposte["/api/leghe"] = respinto;
     risposte["/api/auth/refresh"] = respinto;
     await act(async () => { await api("/api/leghe").catch(() => {}); });
     expect(await screen.findByText(MESSAGGIO)).toBeTruthy();
+    expect(window.location.pathname).toBe("/");
     expect(formDiAccesso()).not.toBeNull();
     expect(esci()).toHaveLength(0);
     expect(store().user).toBeNull();

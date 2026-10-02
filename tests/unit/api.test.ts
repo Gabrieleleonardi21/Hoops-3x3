@@ -464,6 +464,19 @@ describe("api: tempo massimo delle richieste", () => {
     expect(await esito).toMatchObject({ status: 0 });
   });
 
+  it("nei browser senza AbortSignal.timeout (Safari prima della 16) le richieste partono lo stesso, senza tempo massimo", async () => {
+    const timeout = AbortSignal.timeout;
+    Reflect.deleteProperty(AbortSignal, "timeout");
+    try {
+      token.set(jwt(3600));
+      fetchFinto.mockResolvedValueOnce(ok([{ id: "l1" }]));
+      await expect(api("/api/leghe")).resolves.toEqual([{ id: "l1" }]);
+      expect(chiamata(0).init.signal).toBeUndefined();
+    } finally {
+      AbortSignal.timeout = timeout;
+    }
+  });
+
   it("i salvataggi in chiusura pagina (keepalive) partono senza tempo massimo", async () => {
     token.set(jwt(3600));
     fetchFinto.mockImplementation(async () => ok({ id: "t1" }));

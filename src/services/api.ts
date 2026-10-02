@@ -3,8 +3,10 @@
  *  VITE_API_URL resta vuoto dietro un reverse proxy sulla stessa origine e contiene l'origine
  *  del backend solo se l'API ne ha una propria.
  *  Il JWT di accesso dura poco (30 minuti) e si rinnova da solo con il refresh token, che il server
- *  imposta in un cookie httpOnly: in anticipo quando sta per scadere, oppure dopo un 401
- *  ripetendo la richiesta una sola volta.
+ *  imposta in un cookie httpOnly: in anticipo quando sta per scadere (anche a pagina ferma, con
+ *  avviaRinnovoAutomatico), oppure dopo un 401 ripetendo la richiesta una sola volta. Ogni richiesta ha
+ *  un tempo massimo; quando il server respinge anche il refresh token la sessione è finita e l'app lo
+ *  sa dal gestore registrato con suSessioneFinita.
  *  Il cookie viaggia solo se pagina e API hanno la stessa origine (proxy di Vite o reverse proxy):
  *  per origini diverse vedi «Sessioni e refresh token» nel README del backend. */
 
@@ -86,9 +88,10 @@ async function chiama<T>(path: string, opts: Options, conBearer: boolean): Promi
   if (conBearer && t) headers.Authorization = `Bearer ${t}`;
   // Tempo massimo su ogni richiesta, rinnovo compreso: una risposta che non arriva non tiene più in attesa le richieste
   // che aspettano il rinnovo, né le altre schede ferme sul suo lock. I salvataggi in chiusura pagina (keepalive)
-  // restano senza limite: devono arrivare al server anche se è lento
+  // restano senza limite: devono arrivare al server anche se è lento. Dove AbortSignal.timeout manca (Safari prima
+  // della 16) la richiesta parte senza limite, come prima, invece di fallire
   let signal: AbortSignal | undefined;
-  if (!opts.keepalive) signal = AbortSignal.timeout(TEMPO_MASSIMO);
+  if (!opts.keepalive && typeof AbortSignal.timeout === "function") signal = AbortSignal.timeout(TEMPO_MASSIMO);
 
   let res: Response;
   try {
