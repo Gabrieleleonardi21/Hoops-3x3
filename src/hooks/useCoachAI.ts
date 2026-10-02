@@ -465,7 +465,7 @@ export function useCoachAI() {
       // rifiutata non deve lasciare squadre registrate
       const nomiRichiesti = nomiSquadre(args);
       const nGironi = gironiRichiesti(args, nomiRichiesti.length);
-      const limiti = erroreLimitiTappa(nomiRichiesti.length, nGironi);
+      const limiti = erroreLimitiTappa(nomiRichiesti.length, nGironi, { nome: nomeTappa, luogo, data });
       if (limiti) throw new Error(limiti);
 
       // Carica anagrafe in parallelo

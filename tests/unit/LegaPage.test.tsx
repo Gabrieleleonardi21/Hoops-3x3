@@ -54,6 +54,14 @@ describe("LegaPage: «Crea la tappa» con gli stessi limiti del Coach (R8)", () 
     expect(store().tappe).toEqual([]);
   });
 
+  it("un nome oltre i 120 caratteri (il limite del server) non crea la tappa e dice perché", () => {
+    apriLega();
+    scrivi("Nome tappa", "N".repeat(121));
+    crea();
+    expect(screen.getByRole("alert").textContent).toBe("Il nome della tappa può avere al massimo 120 caratteri.");
+    expect(store().tappe).toEqual([]);
+  });
+
   it("con dati validi crea la tappa e la apre", () => {
     apriLega();
     scrivi("Nome tappa", "Napoli Open");

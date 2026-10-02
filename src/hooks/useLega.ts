@@ -15,16 +15,18 @@ export interface NuovaTappaInput {
 export function useLega() {
   const { user, legaName, tappe, setLegaName, addTappa } = useAppStore();
 
-  /** Crea la tappa con squadre segnaposto «Squadra N». Limiti uguali a quelli del Coach (tappaOps): da 2 a 64 squadre
-   *  e un numero di gironi intero tra 1 e metà delle squadre; fuori dai limiti non crea niente e dice perché. */
+  /** Crea la tappa con squadre segnaposto «Squadra N». Limiti uguali a quelli del Coach (tappaOps): da 2 a 64 squadre,
+   *  un numero di gironi intero tra 1 e metà delle squadre e i limiti del server per nome, luogo e data; fuori dai
+   *  limiti non crea niente e dice perché. */
   const createTappa = (input: NuovaTappaInput): Esito => {
     const nSquadre = Number(input.nTeams);
     const nGironi = Number(input.nGironi);
-    // Prima i limiti: le squadre segnaposto si preparano solo per un numero valido
-    const limiti = erroreLimitiTappa(nSquadre, nGironi);
+    const nome = input.nome.trim() || `Tappa ${tappe.length + 1}`;
+    // Prima i limiti: le squadre segnaposto si preparano solo per una tappa valida
+    const limiti = erroreLimitiTappa(nSquadre, nGironi, { nome, luogo: input.luogo, data: input.data });
     if (limiti) return { ok: false, errore: limiti };
     const esito = creaTappa({
-      nome: input.nome.trim() || `Tappa ${tappe.length + 1}`,
+      nome,
       luogo: input.luogo,
       data: input.data,
       nGironi,

@@ -308,6 +308,9 @@ describe("Coach AI: argomenti mancanti o non validi, o azione vietata da tappaOp
     ["più gironi che coppie di squadre", { nome: "Tappa 2", squadre: nomi(6), nGironi: 4 }, /Numero di gironi non valido/],
     ["un nome vuoto nell'elenco", { nome: "Tappa 2", squadre: ["Alfa", " ", "Gamma"] }, /nome vuoto/],
     ["senza elenco", { nome: "Tappa 2" }, /Manca l'elenco delle squadre/],
+    // Limiti del server: una tappa così sarebbe rifiutata alla creazione e a ogni salvataggio dei risultati
+    ["una data non nel formato aaaa-mm-gg", { nome: "Tappa 2", squadre: ["Alfa", "Beta"], data: "14/06/2026" }, /aaaa-mm-gg/],
+    ["un nome oltre i 120 caratteri", { nome: "N".repeat(121), squadre: ["Alfa", "Beta"] }, /al massimo 120 caratteri/],
   ])("crea_tappa (%s): nessuna tappa e nessuna squadra registrata in anagrafe", async (_caso, args, motivo) => {
     await rifiutato("crea_tappa", args, motivo);
     expect(store().tappe.map((t) => t.nome)).toEqual(["Roma Open"]);

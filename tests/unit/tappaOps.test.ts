@@ -452,15 +452,30 @@ describe("rinominaTappa: il nome della tappa non è mai vuoto (R7)", () => {
 describe("creazione della tappa: stessi limiti per interfaccia e Coach (R8)", () => {
   /** Dati di una tappa nuova con `n` squadre segnaposto */
   const dati = (n: number, nGironi: number) => ({ nome: "Napoli Open", luogo: " Napoli ", data: "2026-07-01", nGironi, squadre: tappaCon(n).squadre });
+  /** Nome, luogo e data validi */
+  const testi = { nome: "Napoli Open", luogo: "Napoli", data: "2026-07-01" };
 
   it("da 2 a 64 squadre e un numero di gironi intero tra 1 e metà delle squadre", () => {
-    expect(erroreLimitiTappa(2, 1)).toBeNull();
-    expect(erroreLimitiTappa(64, 32)).toBeNull();
-    expect(erroreLimitiTappa(1, 1)).toMatch(/da 2 a 64 squadre/);
-    expect(erroreLimitiTappa(65, 2)).toMatch(/da 2 a 64 squadre/);
-    expect(erroreLimitiTappa(8.5, 2)).toMatch(/da 2 a 64 squadre/);
-    expect(erroreLimitiTappa(8, 2.5)).toMatch(/Numero di gironi non valido: con 8 squadre deve essere un intero da 1 a 4/);
-    expect(erroreLimitiTappa(8, 5)).toMatch(/da 1 a 4/);
+    expect(erroreLimitiTappa(2, 1, testi)).toBeNull();
+    expect(erroreLimitiTappa(64, 32, testi)).toBeNull();
+    expect(erroreLimitiTappa(1, 1, testi)).toMatch(/da 2 a 64 squadre/);
+    expect(erroreLimitiTappa(65, 2, testi)).toMatch(/da 2 a 64 squadre/);
+    expect(erroreLimitiTappa(8.5, 2, testi)).toMatch(/da 2 a 64 squadre/);
+    expect(erroreLimitiTappa(8, 2.5, testi)).toMatch(/Numero di gironi non valido: con 8 squadre deve essere un intero da 1 a 4/);
+    expect(erroreLimitiTappa(8, 5, testi)).toMatch(/da 1 a 4/);
+  });
+
+  it("nome fino a 120 caratteri, luogo fino a 160 e data vuota o aaaa-mm-gg: gli stessi limiti del server", () => {
+    const limiti = (cambia: Partial<typeof testi>) => erroreLimitiTappa(8, 2, { ...testi, ...cambia });
+    expect(limiti({ nome: "N".repeat(120) })).toBeNull();
+    expect(limiti({ nome: ` ${"N".repeat(120)} ` })).toBeNull(); // contano senza gli spazi ai lati, come li salva creaTappa
+    expect(limiti({ nome: "N".repeat(121) })).toBe("Il nome della tappa può avere al massimo 120 caratteri.");
+    expect(limiti({ luogo: "L".repeat(160) })).toBeNull();
+    expect(limiti({ luogo: "L".repeat(161) })).toBe("Il luogo può avere al massimo 160 caratteri.");
+    expect(limiti({ data: "" })).toBeNull();
+    expect(limiti({ data: "2026-06-14" })).toBeNull();
+    expect(limiti({ data: "14/06/2026" })).toBe("La data deve essere vuota oppure nel formato aaaa-mm-gg (per esempio 2026-06-14).");
+    expect(limiti({ data: "2026-6-14" })).toMatch(/aaaa-mm-gg/);
   });
 
   it("crea una tappa non sorteggiata, con le regole predefinite", () => {
@@ -478,5 +493,9 @@ describe("creazione della tappa: stessi limiti per interfaccia e Coach (R8)", ()
     expect(errore(creaTappa(dati(65, 2)))).toMatch(/da 2 a 64 squadre/);
     expect(errore(creaTappa(dati(8, 2.5)))).toMatch(/Numero di gironi non valido/);
     expect(errore(creaTappa({ ...dati(8, 2), nome: "  " }))).toMatch(/non può essere vuoto/);
+  });
+
+  it("rifiuta una data che il server non accetterebbe: la tappa non si potrebbe mai salvare", () => {
+    expect(errore(creaTappa({ ...dati(8, 2), data: "14/06/2026" }))).toMatch(/aaaa-mm-gg/);
   });
 });

@@ -49,6 +49,19 @@ const NOME_VUOTO = "Il nome della tappa non può essere vuoto.";
 const MAX_SQUADRE = 64;
 const LIMITE_SQUADRE = `Una tappa ha da 2 a ${MAX_SQUADRE} squadre.`;
 
+/** Limiti del server per nome e luogo (colonne di `tappe`), contati senza gli spazi ai lati, come li salva creaTappa */
+const MAX_NOME_TAPPA = 120;
+const MAX_LUOGO = 160;
+/** Data vuota oppure aaaa-mm-gg, come il valore del campo data del form: il server rifiuta ogni altro formato */
+const DATA_ISO = /^(\d{4}-\d{2}-\d{2})?$/;
+
+/** Testi di una tappa da creare, controllati con i limiti del server */
+export interface TestiTappa {
+  nome: string;
+  luogo: string;
+  data: string;
+}
+
 /** Gironi possibili con `nSquadre` squadre: almeno 2 squadre per girone e non più di 32 gironi */
 const massimoGironi = (nSquadre: number) => Math.max(1, Math.min(32, Math.floor(nSquadre / 2)));
 
@@ -59,18 +72,25 @@ function erroreGironi(nSquadre: number, nGironi: number): string | null {
   return `Numero di gironi non valido: con ${nSquadre} squadre deve essere un intero da 1 a ${massimo}.`;
 }
 
-/** Limiti di una tappa, gli stessi per interfaccia e Coach: da 2 a 64 squadre e un numero di gironi intero tra 1 e
- *  metà delle squadre (al massimo 32). null se vanno bene. Si controllano prima di preparare le squadre: così
- *  nessuno crea squadre (o le registra in anagrafe) per una tappa che poi verrebbe rifiutata. */
-export function erroreLimitiTappa(nSquadre: number, nGironi: number): string | null {
+/** Limiti di una tappa, gli stessi per interfaccia e Coach: da 2 a 64 squadre, un numero di gironi intero tra 1 e
+ *  metà delle squadre (al massimo 32) e i limiti del server per i testi (nome fino a 120 caratteri, luogo fino a 160,
+ *  data vuota o aaaa-mm-gg). Oltre quelli del server la tappa sarebbe rifiutata alla creazione e poi a ogni salvataggio,
+ *  perché ogni salvataggio manda la tappa intera. null se vanno bene. Si controllano prima di preparare le squadre:
+ *  così nessuno crea squadre (o le registra in anagrafe) per una tappa che poi verrebbe rifiutata. */
+export function erroreLimitiTappa(nSquadre: number, nGironi: number, testi: TestiTappa): string | null {
   if (!Number.isInteger(nSquadre) || nSquadre < 2 || nSquadre > MAX_SQUADRE) return LIMITE_SQUADRE;
-  return erroreGironi(nSquadre, nGironi);
+  const gironi = erroreGironi(nSquadre, nGironi);
+  if (gironi) return gironi;
+  if (testi.nome.trim().length > MAX_NOME_TAPPA) return `Il nome della tappa può avere al massimo ${MAX_NOME_TAPPA} caratteri.`;
+  if (testi.luogo.trim().length > MAX_LUOGO) return `Il luogo può avere al massimo ${MAX_LUOGO} caratteri.`;
+  if (!DATA_ISO.test(testi.data)) return "La data deve essere vuota oppure nel formato aaaa-mm-gg (per esempio 2026-06-14).";
+  return null;
 }
 
 /** Crea una tappa non ancora sorteggiata, con le regole predefinite: rispetta i limiti di erroreLimitiTappa e, come
  *  ogni tappa nello store, ha un nome non vuoto. */
 export function creaTappa(dati: NuovaTappa): Esito {
-  const limiti = erroreLimitiTappa(dati.squadre.length, dati.nGironi);
+  const limiti = erroreLimitiTappa(dati.squadre.length, dati.nGironi, dati);
   if (limiti) return ko(limiti);
   const nome = dati.nome.trim();
   if (!nome) return ko(NOME_VUOTO);
