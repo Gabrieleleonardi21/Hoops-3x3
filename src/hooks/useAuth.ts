@@ -14,7 +14,7 @@ function clearSession() {
 }
 
 export function useAuth() {
-  const { user, setUser, reset, rehydrate } = useAppStore();
+  const { user, setUser, reset, rehydrate, salvaTutto } = useAppStore();
 
   /** Registrazione: il server risponde già con il token, poi si caricano le leghe (vuote) */
   const register = async (name: string, email: string, pass: string) => {
@@ -39,11 +39,24 @@ export function useAuth() {
     await rehydrate(); // ripristina eventuale lega ospite precedente
   };
 
-  /** Uscita: prima lo stato locale, così l'interfaccia non aspetta la rete; poi la revoca sul server */
-  const logout = async () => {
+  /** Uscita. Primo passo: salvare le modifiche ancora in attesa, finché il token c'è. Se qualcuna non arriva
+   *  al server decide `conferma`, passata dall'interfaccia (il pulsante «Esci» mostra la finestra di conferma):
+   *  false = l'utente resta. Senza `conferma` si esce comunque: è il caso della sessione già finita, quando
+   *  salvare non è più possibile. Poi lo stato locale, così l'interfaccia non aspetta la rete, e la revoca sul server.
+   *  @returns `uscito` false se l'utente ha scelto di restare; `nonSalvate` = tappe con modifiche che non sono
+   *  arrivate al server (perse, se si è usciti) */
+  const logout = async (
+    conferma?: (nonSalvate: number) => Promise<boolean>,
+  ): Promise<{ uscito: boolean; nonSalvate: number }> => {
+    const nonSalvate = await salvaTutto();
+    if (nonSalvate > 0 && conferma) {
+      const esci = await conferma(nonSalvate);
+      if (!esci) return { uscito: false, nonSalvate };
+    }
     clearSession();
     reset();
     await authService.logout();
+    return { uscito: true, nonSalvate };
   };
 
   return { user, register, login, enterGuest, logout };

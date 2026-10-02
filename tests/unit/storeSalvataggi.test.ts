@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { act, renderHook } from "@testing-library/react";
 import { useAppStore } from "../../src/stores/useAppStore";
+import { useAuth } from "../../src/hooks/useAuth";
 import { legheApi } from "../../src/services/legheApi";
-import { ApiError } from "../../src/services/api";
+import { ApiError, token } from "../../src/services/api";
 import { DEFAULT_RULES } from "../../src/constants/rules";
 import type { Tappa, User } from "../../src/types";
 
@@ -134,5 +136,75 @@ describe("store: creazione e modifica delle tappe passano dalla coda dei salvata
     window.dispatchEvent(new Event("pagehide"));
     expect(api.putTappa).toHaveBeenCalledWith(expect.objectContaining({ id: "t1", nome: "Finale" }), true);
     expect(api.addTappa).toHaveBeenCalledWith("l1", expect.objectContaining({ id: "t2" }), true);
+  });
+});
+
+describe("logout: prima salva ciò che è in attesa, poi esce", () => {
+  beforeEach(() => {
+    token.set("jwt-di-prova");
+    // La revoca del refresh token al logout è l'unica chiamata che arriva a fetch
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 204 })));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    token.clear();
+  });
+
+  /** Esegue il logout di useAuth dentro act (aggiorna lo stato di React) e ne restituisce l'esito */
+  async function esci(conferma?: (nonSalvate: number) => Promise<boolean>) {
+    const { result, unmount } = renderHook(() => useAuth());
+    let esito: Awaited<ReturnType<typeof result.current.logout>> | undefined;
+    await act(async () => { esito = await result.current.logout(conferma); });
+    unmount();
+    return esito;
+  }
+
+  it("la PUT dell'ultima modifica parte prima della cancellazione del token", async () => {
+    useAppStore.setState({ tappe: [tappa("t1")] });
+    let tokenAllInvio: string | null = "PUT mai partita";
+    api.putTappa.mockImplementation(async (t) => { tokenAllInvio = token.get(); return t; });
+    store().updateTappa("t1", { nome: "Finale" }); // «Esci» subito, prima dei 400 ms di attesa della coda
+    const esito = await esci();
+    expect(api.putTappa).toHaveBeenCalledWith(expect.objectContaining({ nome: "Finale" }));
+    expect(tokenAllInvio).toBe("jwt-di-prova");
+    expect(token.get()).toBeNull();
+    expect(store().user).toBeNull();
+    expect(esito).toEqual({ uscito: true, nonSalvate: 0 });
+  });
+
+  it("senza conferma (sessione finita) esce lo stesso e dice quante tappe hanno perso le modifiche", async () => {
+    useAppStore.setState({ tappe: [tappa("t1"), tappa("t2")] });
+    api.putTappa.mockRejectedValue(new ApiError(401, "Sessione scaduta o token non valido: accedi di nuovo"));
+    store().updateTappa("t1", { nome: "Finale" });
+    store().updateTappa("t2", { nome: "Semifinale" });
+    const esito = await esci();
+    expect(esito).toEqual({ uscito: true, nonSalvate: 2 });
+    expect(store().user).toBeNull();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(api.putTappa).toHaveBeenCalledTimes(2); // dopo l'uscita la coda non riprova più
+  });
+
+  it("con modifiche non salvate chiede conferma: se l'utente resta non esce e la coda continua a riprovare", async () => {
+    useAppStore.setState({ tappe: [tappa("t1")] });
+    api.putTappa.mockRejectedValueOnce(new ApiError(0, "Server non raggiungibile"));
+    store().updateTappa("t1", { nome: "Finale" });
+    const conferma = vi.fn(async () => false);
+    const esito = await esci(conferma);
+    expect(conferma).toHaveBeenCalledWith(1);
+    expect(esito).toEqual({ uscito: false, nonSalvate: 1 });
+    expect(store().user).toEqual(registrato);
+    expect(token.get()).toBe("jwt-di-prova");
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(api.putTappa).toHaveBeenCalledTimes(2);
+    expect(store().inSospeso).toBe(0);
+  });
+
+  it("se tutto è già salvato esce senza chiedere conferma", async () => {
+    const conferma = vi.fn(async () => false);
+    const esito = await esci(conferma);
+    expect(conferma).not.toHaveBeenCalled();
+    expect(esito).toEqual({ uscito: true, nonSalvate: 0 });
+    expect(store().user).toBeNull();
   });
 });
