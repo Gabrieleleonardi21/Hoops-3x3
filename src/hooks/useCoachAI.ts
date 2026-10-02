@@ -10,7 +10,7 @@ import { DEFAULT_RULES } from "../constants/rules";
 import { buildCoachContext } from "../utils/buildCoachContext";
 import {
   concludi, generaFasiDirette, registraRisultato, registraRisultatoBracket, sorteggia,
-  type ModoSorteggio,
+  type Esito, type ModoSorteggio,
 } from "../domain/tappaOps";
 import type { Tappa, RegSquadra, RegGiocatore, SquadraTappa, GiocatoreRoster } from "../types";
 
@@ -214,9 +214,30 @@ function errorMsg(err: unknown): string {
   return "Si è verificato un errore, riprova tra poco.";
 }
 
+/* Gli strumenti restituiscono il testo per il modello quando l'azione è fatta; quando non si può fare lanciano un
+ * errore con il motivo: askCoachWithTools lo passa al modello come risultato e l'azione non compare tra le eseguite. */
+
 /** Legge un campo stringa dagli argomenti del tool, con fallback a stringa vuota. */
 function str(args: Record<string, unknown>, key: string): string {
   return typeof args[key] === "string" ? (args[key] as string).trim() : "";
+}
+
+/** Testo obbligatorio: se manca o è vuoto lo strumento non agisce (un nome vuoto «corrisponde» a qualsiasi squadra,
+ *  e il risultato finirebbe sulla prima partita libera) e il modello sa che cosa manca */
+function obbligatorio(args: Record<string, unknown>, key: string, cosa: string): string {
+  const valore = str(args, key);
+  if (!valore) throw new Error(`Manca ${cosa} (${key}).`);
+  return valore;
+}
+
+/** Campo numerico: un numero, oppure un testo che lo contiene ("21"); NaN se manca. Number e non parseInt: "21.5"
+ *  resta decimale e tappaOps lo rifiuta, invece di diventare 21 */
+function numero(args: Record<string, unknown>, key: string): number {
+  const valore = args[key];
+  if (typeof valore === "number") return valore;
+  const testo = str(args, key);
+  if (!testo) return NaN;
+  return Number(testo);
 }
 
 /** Trova una tappa per nome (parziale, case-insensitive); se omesso restituisce l'ultima. */
@@ -226,9 +247,24 @@ function findTappa(tappe: Tappa[], nomeTappa?: string): Tappa | null {
   return tappe.find((t) => t.nome.toLowerCase().includes(nl)) ?? null;
 }
 
+/** La tappa indicata da `tappa_nome` (o l'ultima) com'è adesso nello store */
+function tappaRichiesta(args: Record<string, unknown>): Tappa {
+  const tappa = findTappa(useAppStore.getState().tappe, str(args, "tappa_nome") || undefined);
+  if (!tappa) throw new Error("Nessuna tappa trovata: crea prima una tappa con le squadre.");
+  return tappa;
+}
+
 /** Errore di un'operazione di tappa, con il nome della tappa così l'AI sa a quale si riferisce */
 function erroreTappa(tappa: Tappa, errore: string): string {
   return `Tappa "${tappa.nome}": ${errore}`;
+}
+
+/** Applica un'operazione di tappaOps alla tappa e salva la nuova versione; se tappaOps la rifiuta, errore con il motivo */
+function applica(tappa: Tappa, operazione: (t: Tappa) => Esito): Tappa {
+  const esito = operazione(tappa);
+  if (!esito.ok) throw new Error(erroreTappa(tappa, esito.errore));
+  useAppStore.getState().replaceTappa(esito.tappa);
+  return esito.tappa;
 }
 
 /** Verifica che i due nomi squadra (parziali, in qualunque ordine) combacino con la coppia indicata. */
@@ -297,12 +333,12 @@ export function useCoachAI() {
     if (name === "crea_tappa") {
       // Lega e tappe di adesso: comprendono la lega e le tappe create dagli strumenti precedenti della richiesta
       const { legaId, tappe } = useAppStore.getState();
-      if (!legaId) return "Nessuna lega attiva: crea prima una lega prima di aggiungere tappe.";
+      if (!legaId) throw new Error("Nessuna lega attiva: crea prima una lega prima di aggiungere tappe.");
 
       const nomeTappa = str(args, "nome") || `Tappa ${tappe.length + 1}`;
       // Guard: evita che il modello crei duplicati chiamando il tool più volte
       if (tappe.some((t) => t.nome === nomeTappa)) {
-        return `La tappa "${nomeTappa}" esiste già in questa lega: non ne creo un'altra.`;
+        throw new Error(`La tappa "${nomeTappa}" esiste già in questa lega: non ne creo un'altra.`);
       }
       const luogo     = str(args, "luogo");
       const data      = str(args, "data");
@@ -381,7 +417,8 @@ export function useCoachAI() {
     }
 
     if (name === "registra_squadra") {
-      const nome = str(args, "nome") || "Nuova squadra";
+      // L'anagrafe è condivisa: senza nome niente «Nuova squadra» visibile a tutti
+      const nome = obbligatorio(args, "nome", "il nome della squadra");
       // Le scritture in anagrafe passano dallo store: aggiornano il server e la cache usata dalle pagine
       await useAnagrafeStore.getState().saveSquadra({
         nome,
@@ -399,8 +436,8 @@ export function useCoachAI() {
     }
 
     if (name === "registra_giocatore") {
-      const nome    = str(args, "nome") || "Giocatore";
-      const cognome = str(args, "cognome");
+      const nome    = obbligatorio(args, "nome", "il nome del giocatore");
+      const cognome = obbligatorio(args, "cognome", "il cognome del giocatore");
       await useAnagrafeStore.getState().saveGiocatore({
         nome, cognome,
         soprannome:  str(args, "soprannome"),
@@ -419,29 +456,25 @@ export function useCoachAI() {
     }
 
     if (name === "sorteggia_gironi") {
-      const tappa = findTappa(useAppStore.getState().tappe, str(args, "tappa_nome") || undefined);
-      if (!tappa) return "Nessuna tappa trovata: crea prima una tappa con le squadre.";
+      const tappa = tappaRichiesta(args);
 
       let modo: ModoSorteggio = "casuale";
       if (str(args, "mode") === "ranking") modo = "ranking";
-      const esito = sorteggia(tappa, modo);
-      if (!esito.ok) return erroreTappa(tappa, esito.errore);
-      useAppStore.getState().replaceTappa(esito.tappa);
+      const nuova = applica(tappa, (t) => sorteggia(t, modo));
       navigate(`/lega/tappa/${tappa.id}`);
 
-      return `Sorteggio "${modo}" completato per "${tappa.nome}": ${(esito.tappa.gironi ?? []).length} gironi, ${esito.tappa.partite.length} partite generate.`;
+      return `Sorteggio "${modo}" completato per "${tappa.nome}": ${(nuova.gironi ?? []).length} gironi, ${nuova.partite.length} partite generate.`;
     }
 
     if (name === "registra_risultato") {
-      const freshTappe = useAppStore.getState().tappe;
-      const tappa = findTappa(freshTappe, str(args, "tappa_nome") || undefined);
-      if (!tappa) return "Nessuna tappa trovata.";
-      if (!tappa.gironi) return `La tappa "${tappa.nome}" non è ancora sorteggiata: fai prima il sorteggio.`;
+      // Prima gli argomenti: con un nome vuoto la ricerca troverebbe la prima partita libera
+      const nomeA = obbligatorio(args, "squadra_a", "il nome della prima squadra");
+      const nomeB = obbligatorio(args, "squadra_b", "il nome della seconda squadra");
+      const pA = numero(args, "punti_a");
+      const pB = numero(args, "punti_b");
 
-      const nomeA = str(args, "squadra_a");
-      const nomeB = str(args, "squadra_b");
-      const pA = typeof args.punti_a === "number" ? args.punti_a : parseInt(str(args, "punti_a"), 10);
-      const pB = typeof args.punti_b === "number" ? args.punti_b : parseInt(str(args, "punti_b"), 10);
+      const tappa = tappaRichiesta(args);
+      if (!tappa.gironi) throw new Error(`La tappa "${tappa.nome}" non è ancora sorteggiata: fai prima il sorteggio.`);
 
       const nomeOf = (id: string | null) => tappa.squadre.find((s) => s.id === id)?.nome ?? "";
 
@@ -465,7 +498,7 @@ export function useCoachAI() {
       // chiediamo di specificare la fase. Nel flusso normale è impossibile, perché il bracket si
       // genera solo a gironi conclusi: quindi quando il bracket esiste non c'è nessun girone aperto.
       if (matchGirone && matchBracket) {
-        return `"${nomeA}" e "${nomeB}" risultano in gioco sia nei gironi sia nella fase finale (${matchBracket.label}). Specifica la fase: "nei gironi" oppure "in ${matchBracket.label}".`;
+        throw new Error(`"${nomeA}" e "${nomeB}" risultano in gioco sia nei gironi sia nella fase finale (${matchBracket.label}). Specifica la fase: "nei gironi" oppure "in ${matchBracket.label}".`);
       }
 
       // --- Risultato di un girone ---
@@ -482,9 +515,7 @@ export function useCoachAI() {
         }
         // Tappa letta fresca (getState) e salvata subito, senza await in mezzo: più risultati
         // nello stesso ciclo non si sovrascrivono
-        const esito = registraRisultato(tappa, mg.id, { sa, sb });
-        if (!esito.ok) return erroreTappa(tappa, esito.errore);
-        useAppStore.getState().replaceTappa(esito.tappa);
+        applica(tappa, (t) => registraRisultato(t, mg.id, { sa, sb }));
 
         let vincitore = sqB.nome;
         if (sa > sb) vincitore = sqA.nome;
@@ -504,26 +535,24 @@ export function useCoachAI() {
           ptB = pB;
         }
         // tappaOps registra il match e fa avanzare il vincitore al round successivo
-        const esito = registraRisultatoBracket(tappa, mb.id, ptA, ptB);
-        if (!esito.ok) return erroreTappa(tappa, esito.errore);
-        useAppStore.getState().replaceTappa(esito.tappa);
+        applica(tappa, (t) => registraRisultatoBracket(t, mb.id, ptA, ptB));
 
         let vincitoreId = mb.squadraB;
         if (ptA > ptB) vincitoreId = mb.squadraA;
         return `${mb.label} registrata: ${sqA.nome} ${ptA} — ${ptB} ${sqB.nome}. Avanza ${nomeOf(vincitoreId)}.`;
       }
 
-      return `Partita tra "${nomeA}" e "${nomeB}" non trovata o già registrata.`;
+      throw new Error(`Partita tra "${nomeA}" e "${nomeB}" non trovata o già registrata.`);
     }
 
     if (name === "annulla_risultato") {
-      const freshTappe = useAppStore.getState().tappe;
-      const tappa = findTappa(freshTappe, str(args, "tappa_nome") || undefined);
-      if (!tappa) return "Nessuna tappa trovata.";
-      if (!tappa.gironi) return `La tappa "${tappa.nome}" non è ancora sorteggiata.`;
+      // Prima gli argomenti: con un nome vuoto la ricerca troverebbe la prima partita giocata
+      const nomeA = obbligatorio(args, "squadra_a", "il nome della prima squadra");
+      const nomeB = obbligatorio(args, "squadra_b", "il nome della seconda squadra");
 
-      const nomeA = str(args, "squadra_a");
-      const nomeB = str(args, "squadra_b");
+      const tappa = tappaRichiesta(args);
+      if (!tappa.gironi) throw new Error(`La tappa "${tappa.nome}" non è ancora sorteggiata.`);
+
       // Cerca la partita (già conclusa) tra le due squadre
       const partita = tappa.partite.find((m) => {
         const sA = tappa.squadre.find((s) => s.id === m.a);
@@ -536,7 +565,7 @@ export function useCoachAI() {
           (sA.nome.toLowerCase().includes(nbL) && sB.nome.toLowerCase().includes(naL))
         );
       });
-      if (!partita) return `Partita già conclusa tra "${nomeA}" e "${nomeB}" non trovata nella tappa "${tappa.nome}".`;
+      if (!partita) throw new Error(`Partita già conclusa tra "${nomeA}" e "${nomeB}" non trovata nella tappa "${tappa.nome}".`);
 
       useAppStore.getState().updateTappaPartita(tappa.id, partita.id, { done: false, sa: 0, sb: 0 });
       const sA = tappa.squadre.find((s) => s.id === partita.a)!;
@@ -545,14 +574,13 @@ export function useCoachAI() {
     }
 
     if (name === "aggiorna_squadra") {
-      const nomeRicerca = str(args, "nome");
-      if (!nomeRicerca) return "Specifica il nome della squadra da aggiornare.";
+      const nomeRicerca = obbligatorio(args, "nome", "il nome della squadra da aggiornare");
       const tutteSquadre = await fetchSquadre();
       const nl = nomeRicerca.toLowerCase();
       const reg = tutteSquadre.find(
         (s) => s.nome.toLowerCase() === nl || s.nome.toLowerCase().includes(nl),
       );
-      if (!reg) return `Squadra "${nomeRicerca}" non trovata in anagrafe.`;
+      if (!reg) throw new Error(`Squadra "${nomeRicerca}" non trovata in anagrafe.`);
 
       // Aggiorna solo i campi presenti negli argomenti
       const aggiornamenti: Partial<RegSquadra> = {};
@@ -561,7 +589,7 @@ export function useCoachAI() {
         const v = str(args, k);
         if (v) aggiornamenti[k] = v;
       }
-      if (Object.keys(aggiornamenti).length === 0) return "Nessun campo da aggiornare specificato.";
+      if (Object.keys(aggiornamenti).length === 0) throw new Error("Nessun campo da aggiornare specificato.");
 
       // Dallo store: aggiorna il server e la copia in cache (id, autore e ts li toglie lui)
       await useAnagrafeStore.getState().updateSquadra({ ...reg, ...aggiornamenti });
@@ -570,41 +598,34 @@ export function useCoachAI() {
     }
 
     if (name === "genera_fasi_dirette") {
-      const tappa = findTappa(useAppStore.getState().tappe, str(args, "tappa_nome") || undefined);
-      if (!tappa) return "Nessuna tappa trovata.";
+      const tappa = tappaRichiesta(args);
 
       // qualificate per girone (default 2, come la UI)
       let nPass = 2;
       if (typeof args.qualificate === "number" && args.qualificate >= 1) nPass = Math.floor(args.qualificate);
 
-      const esito = generaFasiDirette(tappa, nPass);
-      if (!esito.ok) return erroreTappa(tappa, esito.errore);
-      useAppStore.getState().replaceTappa(esito.tappa);
+      const nuova = applica(tappa, (t) => generaFasiDirette(t, nPass));
       navigate(`/lega/tappa/${tappa.id}`);
-      return `Fase a eliminazione diretta generata per "${tappa.nome}": ${(esito.tappa.bracket ?? []).length} match (prime ${nPass} di ogni girone qualificate).`;
+      return `Fase a eliminazione diretta generata per "${tappa.nome}": ${(nuova.bracket ?? []).length} match (prime ${nPass} di ogni girone qualificate).`;
     }
 
     if (name === "concludi_tappa") {
-      const { tappe, user, replaceTappa } = useAppStore.getState();
-      const tappa = findTappa(tappe, str(args, "tappa_nome") || undefined);
-      if (!tappa) return "Nessuna tappa trovata.";
+      const tappa = tappaRichiesta(args);
+      const { user } = useAppStore.getState();
+      if (!user || user.guest) throw new Error("La conclusione nell'Archivio circuito richiede un account registrato (non ospite).");
 
       // Gironi tutti registrati e fase diretta completa (se generata): lo verifica tappaOps
-      const esito = concludi(tappa);
-      if (!esito.ok) return erroreTappa(tappa, esito.errore);
-      if (!user || user.guest) return "La conclusione nell'Archivio circuito richiede un account registrato (non ospite).";
-
-      replaceTappa(esito.tappa);
+      const conclusa = applica(tappa, concludi);
       try {
         // Il nome della lega di adesso: può essere cambiato dopo l'invio del messaggio
-        await archivioApi.pubblica(esito.tappa, useAppStore.getState().legaName);
+        await archivioApi.pubblica(conclusa, useAppStore.getState().legaName);
         return `Tappa "${tappa.nome}" conclusa e pubblicata nell'Archivio circuito.`;
       } catch {
         return `Tappa "${tappa.nome}" conclusa, ma la pubblicazione non è riuscita: riprova dalla pagina tappa.`;
       }
     }
 
-    return `Strumento "${name}" non riconosciuto.`;
+    throw new Error(`Strumento "${name}" non riconosciuto.`);
   };
 
   const send = async (text: string) => {

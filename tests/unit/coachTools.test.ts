@@ -208,6 +208,63 @@ describe("Coach AI: gli strumenti leggono lega, tappe e utente al momento dell'e
   });
 });
 
+describe("Coach AI: argomenti mancanti o non validi → nessuna azione, il modello sa che cosa manca", () => {
+  /** Esegue lo strumento e controlla che il modello abbia ricevuto l'errore e che non ci sia il badge dell'azione */
+  async function rifiutato(strumento: string, args: Record<string, unknown>, motivo: RegExp) {
+    const richieste = modello(strumenti([strumento, args]), testo("Non ho potuto farlo."));
+    const c = coach();
+    await chiedi(c, "Fallo, coach");
+    expect(esiti(richieste)[0]).toMatch(motivo);
+    expect(c.current.msgs.at(-1)).toEqual({ role: "assistant", content: "Non ho potuto farlo." });
+  }
+
+  it.each<[string, Record<string, unknown>]>([
+    ["senza i nomi", { punti_a: 21, punti_b: 18 }],
+    ["con la prima squadra vuota", { squadra_a: "", punti_a: 21, squadra_b: "Gamma", punti_b: 18 }],
+    ["con la seconda squadra di soli spazi", { squadra_a: "Alfa", punti_a: 21, squadra_b: "   ", punti_b: 18 }],
+  ])("FC-2: registra_risultato %s non tocca nessuna partita", async (_caso, args) => {
+    const prima = store().tappe[0];
+    await rifiutato("registra_risultato", args, /Manca il nome della (prima|seconda) squadra/);
+    expect(store().tappe[0]).toBe(prima);
+  });
+
+  it("FC-2: annulla_risultato senza i nomi non tocca nessuna partita", async () => {
+    const prima = store().tappe[0];
+    await rifiutato("annulla_risultato", {}, /Manca il nome della prima squadra/);
+    expect(store().tappe[0]).toBe(prima);
+  });
+
+  it.each<[string, Record<string, unknown>]>([
+    ["registra_squadra", { citta: "Roma" }],
+    ["registra_giocatore", { cognome: "Rossi" }],
+    ["registra_giocatore", { nome: "Luca", cognome: " " }],
+    ["aggiorna_squadra", { citta: "Roma" }],
+  ])("%s senza nome non scrive niente nell'anagrafe condivisa", async (strumento, args) => {
+    await rifiutato(strumento, args, /Manca il (nome|cognome)/);
+    expect(anagrafeApi.createSquadra).not.toHaveBeenCalled();
+    expect(anagrafeApi.createGiocatore).not.toHaveBeenCalled();
+    expect(anagrafeApi.updateSquadra).not.toHaveBeenCalled();
+  });
+
+  it.each<[string, unknown, RegExp]>([
+    ["negativo", -3, /Inserisci entrambi i punteggi/],
+    ["decimale", 21.5, /Inserisci entrambi i punteggi/],
+    ["decimale scritto come testo", "21.5", /Inserisci entrambi i punteggi/],
+    ["fuori scala", 40, /Punteggio insolito/],
+  ])("i punteggi anomali restano rifiutati (%s): nessuna partita cambia e nessun badge «Risultato registrato»", async (_caso, punti, motivo) => {
+    const prima = store().tappe[0];
+    await rifiutato("registra_risultato", { squadra_a: "Alfa", punti_a: punti, squadra_b: "Gamma", punti_b: 18 }, motivo);
+    expect(store().tappe[0]).toBe(prima);
+  });
+
+  it("FC-3: senza tappa indicata il sorteggio non tocca l'ultima tappa se è conclusa", async () => {
+    useAppStore.setState({ tappe: [{ ...romaOpenGiocata(), conclusa: true }] });
+    const prima = store().tappe[0];
+    await rifiutato("sorteggia_gironi", {}, /La tappa è conclusa: riaprila per modificarla/);
+    expect(store().tappe[0]).toBe(prima);
+  });
+});
+
 describe("Coach AI: uno strumento che fallisce non interrompe la richiesta", () => {
   it("l'errore diventa il risultato dello strumento: gli strumenti dopo vanno avanti e il modello spiega", async () => {
     vi.mocked(anagrafeApi.createSquadra).mockRejectedValue(new ApiError(403, "Non hai i permessi per questa operazione"));
