@@ -101,6 +101,12 @@ function leggiArgomenti(testo: string): Record<string, unknown> | null {
   return null;
 }
 
+/** Richiesta abbandonata (chat cancellata, logout): niente altre chiamate al modello né altri strumenti. Le chiamate
+ *  consumerebbero il limite di richieste e, dopo un nuovo accesso, partirebbero con il token di un altro utente */
+function fermaSeAbbandonata(segnale?: AbortSignal) {
+  if (segnale?.aborted) throw segnale.reason;
+}
+
 /** Esegue uno strumento senza mai interrompere il ciclo. Con argomenti non validi lo strumento non parte (prima
  *  partiva con argomenti vuoti). Un errore dello strumento (un rifiuto, un 403, la rete) diventa il suo risultato:
  *  il modello sa che cosa è fallito e lo spiega. `eseguito` false = l'azione non è avvenuta, niente badge. */
@@ -131,6 +137,8 @@ async function eseguiProtetto(onToolCall: OnToolCall, name: string, argomenti: s
  * evitando di bruciare i round con un modello bloccato che ripete la stessa azione.
  *
  * @param onToolCall - vedi OnToolCall: un errore lanciato diventa il risultato dello strumento
+ * @param segnale - interrompe la richiesta: prima di ogni chiamata al modello e di ogni strumento si controlla, e se è
+ *   interrotta la promessa è rifiutata con il motivo del segnale
  * @returns testo finale da mostrare in chat + nomi degli strumenti eseguiti (non quelli falliti o non partiti)
  */
 export async function askCoachWithTools(
@@ -138,6 +146,7 @@ export async function askCoachWithTools(
   history: ChatMsg[],
   tools: ToolDef[],
   onToolCall: OnToolCall,
+  segnale?: AbortSignal,
 ): Promise<{ text: string; calledTools: string[] }> {
   const messages: ApiMsg[] = [
     { role: "system", content: preamble },
@@ -153,6 +162,7 @@ export async function askCoachWithTools(
   const MAX_TOOL_ROUNDS = 8;
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+    fermaSeAbbandonata(segnale);
     const res = await callGroq(messages, tools);
 
     // Nessun tool richiesto: è la risposta finale da mostrare in chat
@@ -166,6 +176,7 @@ export async function askCoachWithTools(
     // Esegue i tool in sequenza e accoda ogni risultato come messaggio tool
     let eseguitoQualcosa = false; // false se il round contiene SOLO ricicli → si esce
     for (const tc of res.tool_calls) {
+      fermaSeAbbandonata(segnale);
       // Guardia anti-stallo: stesso tool con gli stessi argomenti già chiamato → non ripetere. Il testo non dice
       // «eseguita»: la prima chiamata può essere fallita, e il modello direbbe all'utente che è fatta
       const firma = `${tc.function.name}:${tc.function.arguments}`;
@@ -186,6 +197,7 @@ export async function askCoachWithTools(
   }
 
   // Cap raggiunto o loop interrotto: una chiamata finale senza tool forza la risposta di chiusura.
+  fermaSeAbbandonata(segnale);
   const final = await callGroq(messages);
   return { text: final.content || "Fatto!", calledTools };
 }

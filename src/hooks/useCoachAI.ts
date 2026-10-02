@@ -67,13 +67,14 @@ function salvaChat(msgs: ChatMsg[]) {
   } catch { /* quota exceeded: ignora */ }
 }
 
-/** Conversazione in corso: cresce a ogni cancellazione. Una richiesta partita prima non scrive più nella chat e gli
- *  strumenti che chiede da lì in poi non agiscono */
-let conversazione = 0;
+/** Richiesta al Coach in corso. Cancellando la chat si interrompe: la sua risposta non riempie di nuovo la chat, il
+ *  modello non viene più chiamato e nessuno strumento agisce più (askCoachWithTools e crea_tappa guardano il segnale) */
+let richiestaInCorso: AbortController | null = null;
 
 /** Cancella la chat («Cancella» e logout) e abbandona la richiesta in corso, compresa una conferma in attesa */
 function cancellaChat() {
-  conversazione++;
+  richiestaInCorso?.abort();
+  richiestaInCorso = null;
   useChat.getState().conferma?.rispondi(false);
   useChat.setState({ msgs: [], loading: false, conferma: null });
   try {
@@ -451,8 +452,9 @@ export function useCoachAI() {
   /**
    * Esegue un tool richiesto dall'AI e restituisce il risultato come stringa; se l'azione non si può fare lancia un
    * errore con il motivo. Risultato o motivo vengono rispediti all'AI per generare la risposta finale.
+   * `segnale` è quello della richiesta: interrotto se intanto la chat viene cancellata.
    */
-  const executeTool = async (name: string, args: Record<string, unknown>): Promise<string> => {
+  const executeTool = async (name: string, args: Record<string, unknown>, segnale: AbortSignal): Promise<string> => {
 
     if (name === "crea_lega") {
       const nomeLega = obbligatorio(args, "nome", "il nome della lega");
@@ -524,7 +526,10 @@ export function useCoachAI() {
         })
       );
 
-      // Durante le attese dell'anagrafe l'utente può aver aperto un'altra lega: addTappa metterebbe la tappa lì
+      // Durante le attese dell'anagrafe la chat può essere stata cancellata (o l'utente è uscito): la richiesta è
+      // abbandonata e la tappa non va creata
+      if (segnale.aborted) throw new Error("La chat è stata cancellata: tappa non creata.");
+      // Oppure l'utente ha aperto un'altra lega: addTappa metterebbe la tappa lì
       if (useAppStore.getState().legaId !== legaId) {
         let motivo = "La lega aperta è cambiata mentre la tappa veniva preparata: tappa non creata.";
         if (autoRegistrate.length) motivo += ` Registrate comunque nell'anagrafe: ${autoRegistrate.join(", ")}.`;
@@ -795,14 +800,12 @@ export function useCoachAI() {
 
     salvaChat(history);
     useChat.setState({ loading: true });
-    // Se intanto la chat viene cancellata (anche dal logout), la richiesta è abbandonata: la risposta non la riempie
-    // di nuovo e gli strumenti chiesti da lì in poi non agiscono
-    const mia = conversazione;
-    const attiva = () => mia === conversazione;
-    const eseguiSeAttiva = (name: string, args: Record<string, unknown>) => {
-      if (!attiva()) throw new Error("La chat è stata cancellata: azione non eseguita.");
-      return executeTool(name, args);
-    };
+    // Se intanto la chat viene cancellata (anche dal logout) la richiesta si interrompe: niente altre chiamate al
+    // modello, niente altri strumenti, e la risposta non riempie di nuovo la chat
+    const richiesta = new AbortController();
+    richiestaInCorso = richiesta;
+    const attiva = () => !richiesta.signal.aborted;
+    const esegui = (name: string, args: Record<string, unknown>) => executeTool(name, args, richiesta.signal);
     try {
       const context = buildCoachContext(legaName, tappe);
       const preamble = [
@@ -818,7 +821,7 @@ export function useCoachAI() {
         context ? `\nDati lega dell'utente:\n${context}` : "",
       ].filter(Boolean).join(" ");
 
-      const { text: reply, calledTools } = await askCoachWithTools(preamble, history, COACH_TOOLS, eseguiSeAttiva);
+      const { text: reply, calledTools } = await askCoachWithTools(preamble, history, COACH_TOOLS, esegui, richiesta.signal);
       if (!attiva()) return;
       // Allega i tool eseguiti: la UI li mostra come badge sotto la risposta
       const assistantMsg: ChatMsg = { role: "assistant", content: reply };
@@ -829,6 +832,7 @@ export function useCoachAI() {
       salvaChat([...history, { role: "assistant", content: errorMsg(err) }]);
     } finally {
       if (attiva()) useChat.setState({ loading: false });
+      if (richiestaInCorso === richiesta) richiestaInCorso = null;
     }
   };
 

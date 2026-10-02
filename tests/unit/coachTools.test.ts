@@ -638,7 +638,7 @@ describe("Coach AI: la chat", () => {
     expect(sessionStorage.getItem("coach_chat")).toBeNull();
   });
 
-  it("«Cancella» durante una richiesta: la risposta non torna e gli strumenti chiesti dopo non agiscono", async () => {
+  it("«Cancella» durante una richiesta: la risposta non torna, gli strumenti chiesti non agiscono e il modello non viene più chiamato", async () => {
     const prima = store().tappe[0];
     const risposta = differita<Risposta>();
     modello(risposta.p, testo("Fatto."));
@@ -651,6 +651,37 @@ describe("Coach AI: la chat", () => {
     });
     expect(store().tappe[0]).toBe(prima);
     expect(c.current.msgs).toEqual([]);
+    expect(fetch).toHaveBeenCalledTimes(1); // consumerebbe il limite di richieste, e dopo un nuovo accesso con il token di un altro
+  });
+
+  it("dopo il logout gli strumenti chiesti non agiscono e il modello non viene più chiamato", async () => {
+    const risposta = differita<Risposta>();
+    modello(risposta.p, testo("Fatto."));
+    const c = coach();
+    const invio = inviaSenzaAspettare(c, "Registra la squadra Delta");
+    await esci();
+    await act(async () => {
+      risposta.ok(strumenti(["registra_squadra", { nome: "Delta" }]));
+      await invio;
+    });
+    expect(anagrafeApi.createSquadra).not.toHaveBeenCalled();
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("uno strumento già partito si ferma: crea_tappa che aspetta l'anagrafe non crea la tappa dopo «Cancella»", async () => {
+    const anagrafe = differita<RegSquadra[]>();
+    vi.mocked(anagrafeApi.listSquadre).mockReturnValue(anagrafe.p);
+    modello(strumenti(["crea_tappa", { nome: "Tappa 2", squadre: ["Alfa", "Beta"] }]), testo("Fatto."));
+    const c = coach();
+    const invio = inviaSenzaAspettare(c, "Crea la Tappa 2 con Alfa e Beta");
+    await waitFor(() => expect(anagrafeApi.listSquadre).toHaveBeenCalled());
+    act(() => { c.current.clearChat(); });
+    await act(async () => {
+      anagrafe.ok([]);
+      await invio;
+    });
+    expect(store().tappe.map((t) => t.nome)).toEqual(["Roma Open"]);
+    expect(store().inSospeso).toBe(0);
   });
 });
 
