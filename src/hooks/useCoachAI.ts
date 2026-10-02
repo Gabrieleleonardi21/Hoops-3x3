@@ -420,7 +420,7 @@ export function useCoachAI() {
   const executeTool = async (name: string, args: Record<string, unknown>): Promise<string> => {
 
     if (name === "crea_lega") {
-      const nomeLega = str(args, "nome") || "Nuova lega";
+      const nomeLega = obbligatorio(args, "nome", "il nome della lega");
       await useAppStore.getState().createLega(nomeLega);
       navigate("/lega");
       return `Lega "${nomeLega}" creata con successo e impostata come attiva.`;
@@ -431,7 +431,7 @@ export function useCoachAI() {
       const { legaId, tappe } = useAppStore.getState();
       if (!legaId) throw new Error("Nessuna lega attiva: crea prima una lega prima di aggiungere tappe.");
 
-      const nomeTappa = str(args, "nome") || `Tappa ${tappe.length + 1}`;
+      const nomeTappa = obbligatorio(args, "nome", "il nome della tappa");
       // Guard: evita che il modello crei duplicati chiamando il tool più volte
       if (tappe.some((t) => t.nome === nomeTappa)) {
         throw new Error(`La tappa "${nomeTappa}" esiste già in questa lega: non ne creo un'altra.`);

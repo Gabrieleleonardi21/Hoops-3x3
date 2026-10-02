@@ -256,6 +256,16 @@ describe("Coach AI: argomenti mancanti o non validi → nessuna azione, il model
   });
 
   it.each<[string, Record<string, unknown>]>([
+    ["crea_lega", {}],
+    ["crea_tappa", { squadre: ["Alfa", "Beta"] }],
+  ])("%s senza nome non crea niente", async (strumento, args) => {
+    await rifiutato(strumento, args, /Manca il nome della (lega|tappa)/);
+    expect(legheApi.create).not.toHaveBeenCalled();
+    expect(store().legaId).toBe("l1");
+    expect(store().tappe.map((t) => t.nome)).toEqual(["Roma Open"]);
+  });
+
+  it.each<[string, Record<string, unknown>]>([
     ["registra_squadra", { citta: "Roma" }],
     ["registra_giocatore", { cognome: "Rossi" }],
     ["registra_giocatore", { nome: "Luca", cognome: " " }],
