@@ -126,7 +126,7 @@ async function eseguiProtetto(onToolCall: OnToolCall, name: string, argomenti: s
  * Ogni esecuzione è protetta (eseguiProtetto): uno strumento che fallisce non ferma gli altri.
  *
  * Guardia anti-stallo: una chiamata con firma (nome + argomenti) identica a una già
- * eseguita non viene rieseguita; se un round contiene solo ricicli il loop si chiude,
+ * fatta (riuscita o no) non viene rieseguita; se un round contiene solo ricicli il loop si chiude,
  * evitando di bruciare i round con un modello bloccato che ripete la stessa azione.
  *
  * @param onToolCall - vedi OnToolCall: un errore lanciato diventa il risultato dello strumento

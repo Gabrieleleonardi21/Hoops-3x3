@@ -229,7 +229,7 @@ describe("Coach AI: gli strumenti leggono lega, tappe e utente al momento dell'e
   });
 });
 
-describe("Coach AI: argomenti mancanti o non validi → nessuna azione, il modello sa che cosa manca", () => {
+describe("Coach AI: argomenti mancanti o non validi, o azione vietata da tappaOps → nessuna modifica, il modello sa perché", () => {
   /** Esegue lo strumento e controlla che il modello abbia ricevuto l'errore e che non ci sia il badge dell'azione */
   async function rifiutato(strumento: string, args: Record<string, unknown>, motivo: RegExp) {
     const richieste = modello(strumenti([strumento, args]), testo("Non ho potuto farlo."));
