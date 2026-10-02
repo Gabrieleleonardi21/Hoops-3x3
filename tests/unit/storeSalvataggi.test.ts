@@ -4,9 +4,10 @@ import { act, renderHook } from "@testing-library/react";
 import { useAppStore } from "../../src/stores/useAppStore";
 import { useAuth } from "../../src/hooks/useAuth";
 import { legheApi } from "../../src/services/legheApi";
+import type { LegaDettaglio } from "../../src/services/legheApi";
 import { ApiError, token } from "../../src/services/api";
 import { DEFAULT_RULES } from "../../src/constants/rules";
-import type { Tappa, User } from "../../src/types";
+import type { Partita, Tappa, User } from "../../src/types";
 
 // Si sostituisce solo la rete delle leghe (legheApi): store e coda dei salvataggi sono quelli veri
 vi.mock("../../src/services/legheApi", () => ({
@@ -136,6 +137,58 @@ describe("store: creazione e modifica delle tappe passano dalla coda dei salvata
     window.dispatchEvent(new Event("pagehide"));
     expect(api.putTappa).toHaveBeenCalledWith(expect.objectContaining({ id: "t1", nome: "Finale" }), true);
     expect(api.addTappa).toHaveBeenCalledWith("l1", expect.objectContaining({ id: "t2" }), true);
+  });
+});
+
+describe("riaprire una lega con salvataggi in sospeso", () => {
+  const partitaDaGiocare: Partita = { id: "m1", g: 0, a: "s1", b: "s2", sa: 0, sb: 0, done: false };
+  /** La tappa come la conosce il server: la partita risulta ancora da giocare */
+  const tappaDelServer = (): Tappa => ({ ...tappa("t1"), partite: [{ ...partitaDaGiocare }] });
+  const risultato = { sa: 21, sb: 15, done: true };
+
+  /** Registra il risultato mentre la rete è assente: la PUT fallisce e la versione con il risultato resta in coda */
+  async function risultatoNonSalvato() {
+    useAppStore.setState({ tappe: [tappaDelServer()] });
+    api.putTappa.mockRejectedValue(new ApiError(0, "Server non raggiungibile"));
+    store().updateTappaPartita("t1", "m1", risultato);
+    await vi.advanceTimersByTimeAsync(400);
+  }
+
+  it("il risultato non salvato resta sullo schermo e la modifica successiva non lo perde", async () => {
+    await risultatoNonSalvato();
+    api.get.mockResolvedValue({ id: "l1", nome: "Lega", tappe: [tappaDelServer()] }); // il server ha la versione vecchia
+    await store().selectLega("l1");                 // «Le mie leghe» → riapre la stessa lega
+    expect(store().tappe[0].partite[0]).toMatchObject(risultato);
+    api.putTappa.mockImplementation(async (t) => t); // torna la rete
+    store().updateTappa("t1", { luogo: "Testaccio" });
+    await vi.advanceTimersByTimeAsync(400);
+    expect(api.putTappa).toHaveBeenLastCalledWith(
+      expect.objectContaining({ luogo: "Testaccio", partite: [expect.objectContaining(risultato)] }),
+    );
+  });
+
+  it("anche se un nuovo tentativo salva il risultato mentre il server risponde con la versione vecchia", async () => {
+    await risultatoNonSalvato();
+    const risposta = differita<LegaDettaglio>();
+    api.get.mockReturnValueOnce(risposta.p);
+    const apertura = store().selectLega("l1");
+    await vi.advanceTimersByTimeAsync(0);           // il salvataggio prima della GET fallisce ancora, poi parte la GET
+    expect(api.get).toHaveBeenCalledTimes(1);
+    api.putTappa.mockImplementation(async (t) => t);
+    await vi.advanceTimersByTimeAsync(5000);        // nuovo tentativo automatico, riuscito, con la GET ancora in corso
+    expect(store().inSospeso).toBe(0);
+    risposta.ok({ id: "l1", nome: "Lega", tappe: [tappaDelServer()] }); // letta dal server prima della PUT
+    await apertura;
+    expect(store().tappe[0].partite[0]).toMatchObject(risultato);
+  });
+
+  it("una tappa nuova non ancora creata sul server resta nella lega riaperta", async () => {
+    api.addTappa.mockRejectedValue(new ApiError(0, "Server non raggiungibile"));
+    store().addTappa(tappa("t2", "Tappa nuova"));
+    await vi.advanceTimersByTimeAsync(400);
+    api.get.mockResolvedValue({ id: "l1", nome: "Lega", tappe: [] }); // il server non la conosce ancora
+    await store().selectLega("l1");
+    expect(store().tappe.map((t) => t.nome)).toEqual(["Tappa nuova"]);
   });
 });
 

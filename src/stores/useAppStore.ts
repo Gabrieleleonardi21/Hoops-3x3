@@ -31,7 +31,7 @@ interface AppState {
   erroreSalvataggio: string | null;
   setUser: (u: User | null) => void;
   clearSyncError: () => void;
-  /** Salva subito le modifiche in attesa e aspetta le richieste in corso (logout, «Riprova ora»).
+  /** Salva subito le modifiche in attesa e aspetta le richieste in corso (logout, «Riprova ora», apertura di una lega).
    *  @returns quante tappe hanno ancora modifiche non salvate */
   salvaTutto: () => Promise<number>;
   createLega: (nome: string) => Promise<string>;
@@ -200,6 +200,20 @@ export const useAppStore = create<AppState>((set, get) => {
     if (t) coda.accoda(t);
   };
 
+  /** Tappe di una lega appena arrivate dal server, con sopra le versioni locali non ancora salvate: senza,
+   *  lo schermo tornerebbe alla versione del server e la modifica successiva sostituirebbe in coda quella
+   *  con i risultati. `inCoda` = versioni in attesa lette prima della GET (un nuovo tentativo partito durante
+   *  la GET può salvarle dopo che il server ha già letto la versione vecchia); si aggiungono quelle entrate in
+   *  coda nel frattempo. `nuove` = tappe della lega non ancora create sul server, assenti dalla risposta. */
+  const conVersioniLocali = (dalServer: Tappa[], inCoda: Tappa[], nuove: Tappa[]): Tappa[] => {
+    const locali = new Map([...inCoda, ...coda.inAttesa()].map((t) => [t.id, t]));
+    const tappe = dalServer.map((t) => locali.get(t.id) ?? t);
+    for (const t of nuove) {
+      if (!tappe.some((x) => x.id === t.id)) tappe.push(locali.get(t.id) ?? t);
+    }
+    return tappe;
+  };
+
   /** Aggiorna nTappe/ts della lega attiva nell'indice in memoria (il server lo fa da sé) */
   const touchIndex = () => {
     const s = get();
@@ -257,9 +271,13 @@ export const useAppStore = create<AppState>((set, get) => {
 
     selectLega: async (id) => {
       if (isRemote()) {
+        // Prima si salva ciò che è in attesa: quello che resta (rete assente) è più recente della risposta del server
+        await get().salvaTutto();
+        const inCoda = coda.inAttesa();
+        const nuove = inCoda.filter((t) => daCreare.get(t.id) === id);
         const lega = await legheApi.get(id);
         localStorage.setItem(ACTIVE_KEY, id);
-        set({ legaId: id, legaName: lega.nome, tappe: lega.tappe });
+        set({ legaId: id, legaName: lega.nome, tappe: conVersioniLocali(lega.tappe, inCoda, nuove) });
         return;
       }
       const lega = readLegaData(id);
