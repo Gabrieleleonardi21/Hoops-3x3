@@ -257,6 +257,29 @@ describe("Coach AI: argomenti mancanti o non validi → nessuna azione, il model
     expect(store().tappe[0]).toBe(prima);
   });
 
+  /** `n` nomi di squadra diversi */
+  const nomi = (n: number) => Array.from({ length: n }, (_, i) => `Squadra ${i + 1}`);
+
+  it.each<[string, Record<string, unknown>, RegExp]>([
+    ["una squadra sola", { nome: "Tappa 2", squadre: ["Alfa"] }, /da 2 a 64 squadre/],
+    ["65 squadre", { nome: "Tappa 2", squadre: nomi(65) }, /da 2 a 64 squadre/],
+    ["gironi non interi", { nome: "Tappa 2", squadre: nomi(8), nGironi: 2.5 }, /Numero di gironi non valido/],
+    ["più gironi che coppie di squadre", { nome: "Tappa 2", squadre: nomi(6), nGironi: 4 }, /Numero di gironi non valido/],
+    ["un nome vuoto nell'elenco", { nome: "Tappa 2", squadre: ["Alfa", " ", "Gamma"] }, /nome vuoto/],
+    ["senza elenco", { nome: "Tappa 2" }, /Manca l'elenco delle squadre/],
+  ])("crea_tappa (%s): nessuna tappa e nessuna squadra registrata in anagrafe", async (_caso, args, motivo) => {
+    await rifiutato("crea_tappa", args, motivo);
+    expect(store().tappe.map((t) => t.nome)).toEqual(["Roma Open"]);
+    expect(anagrafeApi.createSquadra).not.toHaveBeenCalled();
+  });
+
+  it.each([[4, 2], [3, 1]])("crea_tappa senza numero di gironi: con %i squadre ne fa %i", async (nSquadre, nGironi) => {
+    modello(strumenti(["crea_tappa", { nome: "Tappa 2", squadre: nomi(nSquadre) }]), testo("Fatto."));
+    const c = coach();
+    await chiedi(c, "Crea la Tappa 2");
+    expect(store().tappe[1]).toMatchObject({ nome: "Tappa 2", nGironi });
+  });
+
   it("FC-3: senza tappa indicata il sorteggio non tocca l'ultima tappa se è conclusa", async () => {
     useAppStore.setState({ tappe: [{ ...romaOpenGiocata(), conclusa: true }] });
     const prima = store().tappe[0];

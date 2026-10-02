@@ -9,7 +9,7 @@ import { uid } from "../utils/uid";
 import { DEFAULT_RULES } from "../constants/rules";
 import { buildCoachContext } from "../utils/buildCoachContext";
 import {
-  concludi, generaFasiDirette, registraRisultato, registraRisultatoBracket, sorteggia,
+  concludi, creaTappa, erroreLimitiTappa, generaFasiDirette, registraRisultato, registraRisultatoBracket, sorteggia,
   type Esito, type ModoSorteggio,
 } from "../domain/tappaOps";
 import type { Tappa, RegSquadra, RegGiocatore, SquadraTappa, GiocatoreRoster } from "../types";
@@ -43,8 +43,8 @@ const COACH_TOOLS: ToolDef[] = [
           nome:    { type: "string", description: "Nome della tappa (es. 'Tappa 1 Roma')" },
           luogo:   { type: "string", description: "Luogo dove si svolge la tappa" },
           data:    { type: "string", description: "Data in formato YYYY-MM-DD" },
-          squadre: { type: "array",  description: "Array con i nomi di TUTTE le squadre partecipanti. Esempio: ['Ballers Roma', 'Street Kings', 'Wildcats']", items: { type: "string" } },
-          nGironi: { type: "number", description: "Numero di gironi (default 2)" },
+          squadre: { type: "array",  description: "Array con i nomi di TUTTE le squadre partecipanti, da 2 a 64. Esempio: ['Ballers Roma', 'Street Kings', 'Wildcats']", items: { type: "string" } },
+          nGironi: { type: "number", description: "Numero di gironi: intero da 1 a metà delle squadre (default 2, oppure 1 con meno di 4 squadre)" },
         },
         required: ["nome", "squadre"],
       },
@@ -240,6 +240,25 @@ function numero(args: Record<string, unknown>, key: string): number {
   return Number(testo);
 }
 
+/** Nomi delle squadre di crea_tappa: un elenco di nomi non vuoti (quanti, lo controlla erroreLimitiTappa) */
+function nomiSquadre(args: Record<string, unknown>): string[] {
+  if (!Array.isArray(args.squadre)) throw new Error("Manca l'elenco delle squadre (squadre).");
+  const nomi = args.squadre.map((n) => {
+    if (typeof n === "string") return n.trim();
+    return "";
+  });
+  if (nomi.some((n) => !n)) throw new Error("Nell'elenco delle squadre c'è un nome vuoto: serve il nome di ogni squadra.");
+  return nomi;
+}
+
+/** Numero di gironi di crea_tappa: quello indicato (erroreLimitiTappa vuole un intero), altrimenti 2, oppure 1 con meno
+ *  di 4 squadre (ogni girone ne vuole almeno 2) */
+function gironiRichiesti(args: Record<string, unknown>, nSquadre: number): number {
+  if (args.nGironi !== undefined && args.nGironi !== null) return numero(args, "nGironi");
+  if (nSquadre < 4) return 1;
+  return 2;
+}
+
 /** Trova una tappa per nome (parziale, case-insensitive); se omesso restituisce l'ultima. */
 function findTappa(tappe: Tappa[], nomeTappa?: string): Tappa | null {
   if (!nomeTappa) return tappe.length > 0 ? tappe[tappe.length - 1] : null;
@@ -340,12 +359,14 @@ export function useCoachAI() {
       if (tappe.some((t) => t.nome === nomeTappa)) {
         throw new Error(`La tappa "${nomeTappa}" esiste già in questa lega: non ne creo un'altra.`);
       }
-      const luogo     = str(args, "luogo");
-      const data      = str(args, "data");
-      const nGironi   = typeof args.nGironi === "number" ? Math.max(1, args.nGironi) : 2;
-      const nomiRichiesti: string[] = Array.isArray(args.squadre)
-        ? (args.squadre as unknown[]).map(String)
-        : [];
+      const luogo = str(args, "luogo");
+      const data  = str(args, "data");
+      // Squadre e gironi con i limiti dell'interfaccia (tappaOps), controllati prima di toccare l'anagrafe: una tappa
+      // rifiutata non deve lasciare squadre registrate
+      const nomiRichiesti = nomiSquadre(args);
+      const nGironi = gironiRichiesti(args, nomiRichiesti.length);
+      const limiti = erroreLimitiTappa(nomiRichiesti.length, nGironi);
+      if (limiti) throw new Error(limiti);
 
       // Carica anagrafe in parallelo
       const [tutteSquadre, tuttiGiocatori] = await Promise.all([fetchSquadre(), fetchGiocatori()]);
@@ -398,16 +419,10 @@ export function useCoachAI() {
         throw new Error(motivo);
       }
 
-      const nG = Math.max(1, Math.min(Math.floor(squadreTappa.length / 2) || 1, nGironi));
-      const tappa: Tappa = {
-        id: uid(), nome: nomeTappa, luogo, data, nGironi: nG,
-        regole: { ...DEFAULT_RULES },
-        squadre: squadreTappa,
-        gironi: null, partite: [], video: [],
-      };
-
-      useAppStore.getState().addTappa(tappa);
-      navigate(`/lega/tappa/${tappa.id}`);
+      const esito = creaTappa({ nome: nomeTappa, luogo, data, nGironi, squadre: squadreTappa });
+      if (!esito.ok) throw new Error(esito.errore);
+      useAppStore.getState().addTappa(esito.tappa);
+      navigate(`/lega/tappa/${esito.tappa.id}`);
 
       const trovate = squadreTappa.length - autoRegistrate.length;
       let msg = `Tappa "${nomeTappa}" creata con ${squadreTappa.length} squadre`;
