@@ -414,8 +414,8 @@ export function useCoachAI() {
   const navigate = useNavigate();
 
   /**
-   * Esegue un tool richiesto dall'AI e restituisce il risultato come stringa.
-   * Il risultato viene rispedito all'AI per generare la risposta finale.
+   * Esegue un tool richiesto dall'AI e restituisce il risultato come stringa; se l'azione non si può fare lancia un
+   * errore con il motivo. Risultato o motivo vengono rispediti all'AI per generare la risposta finale.
    */
   const executeTool = async (name: string, args: Record<string, unknown>): Promise<string> => {
 
@@ -664,7 +664,7 @@ export function useCoachAI() {
       // darebbe comunque una tappa nuova e partirebbe un salvataggio identico
       const annulla = (t: Tappa): Esito => {
         if (!t.partite.some((m) => m.id === partita.id && m.done)) {
-          return { ok: false, errore: `la partita ${nomeOf(partita.a)}-${nomeOf(partita.b)} è già da giocare, non c'è niente da annullare.` };
+          return { ok: false, errore: `La partita ${nomeOf(partita.a)}-${nomeOf(partita.b)} è già da giocare: non c'è niente da annullare.` };
         }
         return annullaRisultato(t, partita.id);
       };
