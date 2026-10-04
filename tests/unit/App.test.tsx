@@ -81,12 +81,13 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  expect(inattese).toEqual([]);
   cleanup(); // senza le globali di Vitest, Testing Library non smonta da sola
   store().reset();
   vi.unstubAllGlobals();
   vi.useRealTimers();
   localStorage.clear();
+  // Per ultimo: se fallisce, la pulizia è già fatta e l'errore resta in questo test invece di passare ai successivi
+  expect(inattese).toEqual([]);
 });
 
 describe("App: sessione che finisce mentre l'utente lavora", () => {
