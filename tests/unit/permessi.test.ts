@@ -39,4 +39,14 @@ describe("puoModificare (come sul server: autore o ADMIN)", () => {
   it("un registrato senza id (sessione salvata prima degli id) non è l'autore di nessuna voce", () => {
     expect(puoModificare({ name: "Anna", guest: false }, AUTORE_ID)).toBe(false);
   });
+
+  it("due id mancanti non fanno un autore: un registrato senza id non modifica una voce arrivata senza autoreId", () => {
+    // Il tipo dice string e il server la manda sempre, ma a runtime può mancare (risposta di una versione vecchia o malformata)
+    const senzaAutoreId = undefined as unknown as string;
+    expect(puoModificare({ name: "Anna", guest: false }, senzaAutoreId)).toBe(false);
+  });
+
+  it("l'ADMIN resta abilitato anche senza id: il controllo dell'id viene dopo quello del ruolo", () => {
+    expect(puoModificare({ name: "Responsabile", guest: false, ruolo: "ADMIN" }, AUTORE_ID)).toBe(true);
+  });
 });

@@ -6,5 +6,8 @@ import type { User } from "../types";
 export function puoModificare(user: User | null, autoreId: string): boolean {
   if (!user || user.guest) return false;
   if (user.ruolo === "ADMIN") return true;
+  // Una sessione salvata da una versione precedente non ha l'id: senza id non si è autore di niente (e due id mancanti,
+  // undefined === undefined, darebbero «autore» su una voce arrivata senza autoreId)
+  if (!user.id) return false;
   return user.id === autoreId;
 }
