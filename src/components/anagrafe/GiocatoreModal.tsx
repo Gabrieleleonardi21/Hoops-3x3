@@ -84,9 +84,10 @@ export function GiocatoreModal({
       {/* ── Modalità modifica ── */}
       {editing && (
         <div className="mb-4 flex flex-col gap-2.5">
+          {/* maxLength come GiocatoreRequestDTO (nome e cognome 80, note 2000): oltre, il server risponde 400 */}
           <div className="grid-auto" style={{ "--min": "140px" }}>
-            <Input label="Nome" value={draft.nome} onChange={set("nome")} />
-            <Input label="Cognome" value={draft.cognome} onChange={set("cognome")} />
+            <Input label="Nome" value={draft.nome} onChange={set("nome")} maxLength={80} />
+            <Input label="Cognome" value={draft.cognome} onChange={set("cognome")} maxLength={80} />
             <Input label="Soprannome" value={draft.soprannome} onChange={set("soprannome")} />
             <Input label="Data di nascita" type="date" value={draft.nascita} onChange={set("nascita")} />
             <Input label="Città" value={draft.citta} onChange={set("citta")} />
@@ -103,7 +104,7 @@ export function GiocatoreModal({
             <Input label="Squadra" value={draft.squadra} onChange={set("squadra")} />
             <Input label="Anni di esperienza" type="number" min={0} value={draft.esperienza} onChange={set("esperienza")} />
           </div>
-          <Input label="Note sportive" value={draft.note} onChange={set("note")} placeholder="es. tiratore da fuori" />
+          <Input label="Note sportive" value={draft.note} onChange={set("note")} placeholder="es. tiratore da fuori" maxLength={2000} />
           <div className="mt-1 flex gap-2">
             <Button onClick={saveEdit}>Salva modifiche</Button>
             <Button variant="ghost" onClick={() => setEditing(false)}>Annulla</Button>

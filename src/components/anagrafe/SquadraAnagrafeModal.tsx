@@ -119,7 +119,8 @@ export function SquadraAnagrafeModal({
             <Input label="Sito web" value={draft.website} onChange={set("website")} placeholder="https://squadra.it" />
             <Input label="Instagram" value={draft.instagram} onChange={set("instagram")} placeholder="https://instagram.com/squadra" />
           </div>
-          <Input label="Note" value={draft.note} onChange={set("note")} placeholder="es. campioni tappa Roma 2025" />
+          {/* Note: 2000 caratteri come SquadraRequestDTO, oltre il server risponde 400 */}
+          <Input label="Note" value={draft.note} onChange={set("note")} placeholder="es. campioni tappa Roma 2025" maxLength={2000} />
           <div className="mt-1 flex gap-2">
             <Button onClick={saveEdit}>Salva modifiche</Button>
             <Button variant="ghost" onClick={() => setEditing(false)}>Annulla</Button>

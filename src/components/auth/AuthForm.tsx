@@ -30,7 +30,8 @@ import { Input } from "../ui/Input";
 import { Button } from "../ui/Button";
 
 const registerSchema = z.object({
-  name: z.string().min(1, "Inserisci il nome utente"),
+  // Da 2 a 80 caratteri come RegisterRequestDTO (gli 80 sono il maxLength del campo); il campo vuoto ha il suo messaggio
+  name: z.string().min(1, "Inserisci il nome utente").min(2, "Nome utente di almeno 2 caratteri"),
   email: z.string().email("Mail non valida"),
   pass: z.string().min(8, "Password di almeno 8 caratteri"),
 });
@@ -100,7 +101,7 @@ export function AuthForm() {
 
       {mode === "register" ? (
         <form className="flex flex-col gap-3" onSubmit={onRegister} noValidate>
-          <Input label="Nome utente" placeholder="Es. Gabriele" autoComplete="username" {...regForm.register("name")} error={!!regErr.name} hint={regErr.name?.message} />
+          <Input label="Nome utente" placeholder="Es. Gabriele" autoComplete="username" maxLength={80} {...regForm.register("name")} error={!!regErr.name} hint={regErr.name?.message} />
           <Input label="Mail" type="email" placeholder="nome@mail.it" autoComplete="email" {...regForm.register("email")} error={!!regErr.email} hint={regErr.email?.message} />
           <Input label="Password" type="password" autoComplete="new-password" {...regForm.register("pass")} error={!!regErr.pass} hint={regErr.pass?.message} />
           <p className="m-0 text-xs text-chalk-muted">

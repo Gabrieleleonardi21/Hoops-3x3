@@ -31,8 +31,9 @@ export function GiocatoreForm({ squadre, onSave }: { squadre: RegSquadra[]; onSa
     <Card className="mb-4">
       <h3 className="font-display text-xl mb-3">Registra un giocatore</h3>
       <div className="grid-auto">
-        <Input label="Nome *" value={d.nome} onChange={set("nome")} maxLength={100} />
-        <Input label="Cognome *" value={d.cognome} onChange={set("cognome")} maxLength={100} />
+        {/* Nome e cognome: 80 caratteri come GiocatoreRequestDTO, oltre il server risponde 400 */}
+        <Input label="Nome *" value={d.nome} onChange={set("nome")} maxLength={80} />
+        <Input label="Cognome *" value={d.cognome} onChange={set("cognome")} maxLength={80} />
         <Input label="Soprannome" value={d.soprannome} onChange={set("soprannome")} placeholder="da campo" maxLength={50} />
         <Input label="Data di nascita" type="date" value={d.nascita} onChange={set("nascita")} />
         <Input label="Città" value={d.citta} onChange={set("citta")} />

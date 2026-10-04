@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { GiocatoreCard } from "../../src/components/anagrafe/GiocatoreCard";
+import { GiocatoreForm } from "../../src/components/anagrafe/GiocatoreForm";
 import { GiocatoreModal } from "../../src/components/anagrafe/GiocatoreModal";
 import { SquadraAnagrafeCard } from "../../src/components/anagrafe/SquadraAnagrafeCard";
 import { SquadraAnagrafeModal } from "../../src/components/anagrafe/SquadraAnagrafeModal";
@@ -82,5 +83,30 @@ describe.each(casi)("$nome: comandi di modifica (FS-7)", ({ mostra, comandi }) =
   it("l'ospite non li vede, nemmeno se si chiama come l'autore", () => {
     mostra(ospite);
     for (const nome of comandi) expect(pulsante(nome), nome).toBeNull();
+  });
+});
+
+describe("Anagrafe: i campi di testo non accettano più caratteri del server (TR-3)", () => {
+  /** Quanti caratteri accetta il campo con questa etichetta (-1 = nessun limite) */
+  const limite = (etichetta: string) => (screen.getByLabelText(etichetta) as HTMLInputElement).maxLength;
+
+  it("GiocatoreForm: nome e cognome al massimo 80 caratteri (GiocatoreRequestDTO)", () => {
+    render(<GiocatoreForm squadre={[]} onSave={async () => {}} />);
+    expect(limite("Nome *")).toBe(80);
+    expect(limite("Cognome *")).toBe(80);
+  });
+
+  it("GiocatoreModal in modifica: nome e cognome 80, note 2000 (GiocatoreRequestDTO)", () => {
+    mostraGiocatoreModal(autore);
+    fireEvent.click(screen.getByRole("button", { name: "Modifica" }));
+    expect(limite("Nome")).toBe(80);
+    expect(limite("Cognome")).toBe(80);
+    expect(limite("Note sportive")).toBe(2000);
+  });
+
+  it("SquadraAnagrafeModal in modifica: note 2000 (SquadraRequestDTO)", () => {
+    mostraSquadraModal(autore);
+    fireEvent.click(screen.getByRole("button", { name: "Modifica" }));
+    expect(limite("Note")).toBe(2000);
   });
 });
