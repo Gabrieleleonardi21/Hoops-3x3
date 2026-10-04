@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import App from "../../src/App";
 import { useAppStore, SESSION_KEY } from "../../src/stores/useAppStore";
 import { legheApi } from "../../src/services/legheApi";
@@ -107,6 +107,22 @@ describe("App: sessione che finisce mentre l'utente lavora", () => {
     expect(store().user).toBeNull();
     expect(token.get()).toBeNull();
     expect(localStorage.getItem(SESSION_KEY)).toBeNull();
+  });
+
+  it("il messaggio non resta nella cronologia: resta visibile sul form, ma ricaricando la pagina non ricompare", async () => {
+    await dentro();
+    risposte["/api/leghe"] = respinto;
+    risposte["/api/auth/refresh"] = respinto;
+    await act(async () => { await api("/api/leghe").catch(() => {}); });
+    expect(await screen.findByText(MESSAGGIO)).toBeTruthy();
+    // React Router tiene lo stato della navigazione in history.state.usr: la voce viene sostituita senza
+    await waitFor(() => expect(window.history.state?.usr ?? null).toBeNull());
+    expect(screen.getByText(MESSAGGIO)).toBeTruthy();
+    // Ricaricando la pagina (stessa voce della cronologia) il form compare senza il messaggio
+    cleanup();
+    render(<App />);
+    expect(formDiAccesso()).not.toBeNull();
+    expect(screen.queryByText(MESSAGGIO)).toBeNull();
   });
 
   it("con modifiche che non si possono più salvare il messaggio dice quante tappe le hanno perse", async () => {

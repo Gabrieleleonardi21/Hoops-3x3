@@ -1,6 +1,6 @@
 /** Form di autenticazione: usa react-hook-form + Zod per la validazione dei campi.
  *  Registrazione e login passano dal backend (JWT); la modalità Ospite resta locale al browser. */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -44,7 +44,16 @@ type LoginData = z.infer<typeof loginSchema>;
 export function AuthForm() {
   const { register: doRegister, login: doLogin, enterGuest } = useAuth();
   const navigate = useNavigate();
-  const avviso = messaggioRicevuto(useLocation().state);
+  const ricevuto = messaggioRicevuto(useLocation().state);
+  // Il messaggio si copia qui e si toglie dalla voce della cronologia: resta visibile finché si sta sul form, ma
+  // ricaricando la pagina non ricompare (lo stato della navigazione sopravvive al ricaricamento)
+  const [copia, setCopia] = useState<string | null>(null);
+  useEffect(() => {
+    if (ricevuto === null) return;
+    setCopia(ricevuto);
+    navigate(".", { replace: true, state: null });
+  }, [ricevuto, navigate]);
+  const avviso = ricevuto ?? copia;
   // Chi ha già usato un account su questo browser parte dal tab "Accedi"
   const [mode, setMode] = useState<"register" | "login">(hasAccountHint() ? "login" : "register");
   const [authError, setAuthError] = useState<string | null>(null);
