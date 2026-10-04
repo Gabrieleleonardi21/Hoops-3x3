@@ -68,7 +68,11 @@ function useSessione() {
    *  browser (nome e ruolo possono essere cambiati). Sessione finita: form con il messaggio */
   const verifica = async () => {
     setNonVerificato(null);
+    const prima = useAppStore.getState().user;
     const r = await authService.me();
+    // Nel frattempo l'utente è uscito, qui o in un'altra scheda, oppure è entrato un altro: l'esito riguarda una
+    // sessione che non c'è più e non va applicato (rimetterebbe nello store e nel browser chi è appena uscito)
+    if (useAppStore.getState().user !== prima) return;
     if (r.esito === "scaduta") { await fineSessione(); return; }
     if (r.esito === "irraggiungibile") { setNonVerificato(useAppStore.getState().user); return; }
     setUser(r.user);

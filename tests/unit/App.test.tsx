@@ -170,6 +170,25 @@ describe("App: verifica della sessione all'avvio", () => {
     expect(screen.queryByText(/Server non raggiungibile/)).toBeNull();
   });
 
+  it("«Esci» mentre la verifica è in volo: la risposta tardiva di /api/auth/me non rimette dentro l'utente", async () => {
+    // /api/auth/me lento: risponde solo quando lo decide il test
+    let rispondi: (r: Response) => void = () => {};
+    risposte["/api/auth/me"] = () => new Promise<Response>((risolvi) => { rispondi = risolvi; });
+    avvia(registrato);
+    await screen.findByText("Caricamento delle tue leghe…");
+    fireEvent.click(esci()[0]);
+    await screen.findByRole("button", { name: /Continua come Ospite/ });
+    // Il server risponde solo adesso, con la sessione ancora valida
+    await act(async () => {
+      rispondi(json(200, { id: "u1", name: "Anna", email: "anna@example.it", ruolo: "USER" }));
+      await new Promise((fatto) => setTimeout(fatto, 0));
+    });
+    expect(store().user).toBeNull();
+    expect(localStorage.getItem(SESSION_KEY)).toBeNull();
+    expect(esci()).toHaveLength(0);
+    expect(leghe.list).not.toHaveBeenCalled();
+  });
+
   it("sessione valida: l'utente restituito dal server sostituisce la copia salvata nel browser", async () => {
     risposte["/api/auth/me"] = () => json(200, { id: "u1", name: "Anna Rossi", email: "anna@example.it", ruolo: "ADMIN" });
     avvia({ ...registrato, name: "Anna" });
