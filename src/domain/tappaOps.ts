@@ -49,9 +49,10 @@ const NOME_VUOTO = "Il nome della tappa non può essere vuoto.";
 const MAX_SQUADRE = 64;
 const LIMITE_SQUADRE = `Una tappa ha da 2 a ${MAX_SQUADRE} squadre.`;
 
-/** Limiti del server per nome e luogo (colonne di `tappe`), contati senza gli spazi ai lati, come li salva creaTappa */
-const MAX_NOME_TAPPA = 120;
-const MAX_LUOGO = 160;
+/** Limiti del server per nome e luogo (colonne di `tappe`), contati senza gli spazi ai lati, come li salva creaTappa.
+ *  I campi dei form li usano come maxLength: il numero sta qui e basta. */
+export const MAX_NOME_TAPPA = 120;
+export const MAX_LUOGO = 160;
 /** Data vuota oppure aaaa-mm-gg, come il valore del campo data del form: il server rifiuta ogni altro formato */
 const DATA_ISO = /^(\d{4}-\d{2}-\d{2})?$/;
 

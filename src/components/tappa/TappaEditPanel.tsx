@@ -7,7 +7,7 @@ import { Input } from "../ui/Input";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import { Icon } from "../ui/Icon";
-import { impostaNumeroGironi } from "../../domain/tappaOps";
+import { impostaNumeroGironi, MAX_LUOGO, MAX_NOME_TAPPA } from "../../domain/tappaOps";
 import { useConfermaPerdita } from "../../hooks/useConfermaPerdita";
 import type { useTappa } from "../../hooks/useTappa";
 
@@ -15,7 +15,7 @@ import type { useTappa } from "../../hooks/useTappa";
  *  cambia; dopo torna a mostrare il valore della tappa (quello nuovo, oppure quello di prima se è stato rifiutato). */
 function CampoConfermato({ valore, onConferma, ...campo }: {
   label: string; valore: string; onConferma: (valore: string) => void;
-} & Pick<InputHTMLAttributes<HTMLInputElement>, "type" | "min">) {
+} & Pick<InputHTMLAttributes<HTMLInputElement>, "type" | "min" | "maxLength">) {
   const [bozza, setBozza] = useState<string | null>(null);
   const conferma = () => {
     if (bozza !== null) onConferma(bozza);
@@ -48,9 +48,10 @@ export function TappaEditPanel({ h }: { h: ReturnType<typeof useTappa> }) {
     <Card className="mt-3">
       <h3 className="font-display text-lg mb-2.5">Modifica tappa</h3>
       <div className="grid-auto" style={{ "--min": "160px" }}>
-        {/* Un nome vuoto è rifiutato: il campo torna al nome di prima */}
-        <CampoConfermato label="Nome" valore={t.nome} onConferma={h.rinomina} />
-        <Input label="Luogo" value={t.luogo} onChange={(e) => h.setInfo("luogo", e.target.value)} />
+        {/* Un nome vuoto è rifiutato: il campo torna al nome di prima. Nome e luogo non vanno oltre i limiti del
+            server (TappaDTO): oltre, ogni salvataggio della tappa sarebbe un 400 */}
+        <CampoConfermato label="Nome" valore={t.nome} onConferma={h.rinomina} maxLength={MAX_NOME_TAPPA} />
+        <Input label="Luogo" value={t.luogo} onChange={(e) => h.setInfo("luogo", e.target.value)} maxLength={MAX_LUOGO} />
         <Input label="Data" type="date" value={t.data} onChange={(e) => h.setInfo("data", e.target.value)} />
         <CampoConfermato label="Numero gironi" type="number" min={1} valore={String(t.nGironi)} onConferma={cambiaGironi} />
       </div>

@@ -119,6 +119,14 @@ describe("TappaEditPanel: nome della tappa (R7)", () => {
   });
 });
 
+describe("TappaEditPanel: limiti del server (TappaDTO)", () => {
+  it("nome e luogo non si possono scrivere oltre 120 e 160 caratteri: oltre, il salvataggio sarebbe un 400", () => {
+    apri(tappa(false));
+    expect(campoNome().maxLength).toBe(120);
+    expect((screen.getByLabelText("Luogo") as HTMLInputElement).maxLength).toBe(160);
+  });
+});
+
 describe("TappaEditPanel: conferma prima di cancellare i risultati (R2)", () => {
   it("cambiare il numero di gironi con risultati chiede conferma; «Annulla» lascia tutto com'era", () => {
     apri(tappa(true));
