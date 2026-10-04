@@ -4,13 +4,14 @@ import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
 import { Input } from "../ui/Input";
 import type { RegGiocatore, RegSquadra, User } from "../../types";
+import { puoModificare } from "../../utils/permessi";
 import { safeUrl } from "../../utils/safeUrl";
 
 /** Campi modificabili (roster escluso: richiede UI dedicata) */
 type EditDraft = Pick<RegSquadra, "nome" | "citta" | "anno" | "rank" | "referente" | "logo" | "website" | "instagram" | "note">;
 
 /** Modale con tutte le informazioni di una squadra dell'anagrafe.
- *  L'autore può modificare tutti i campi principali o eliminare la squadra. */
+ *  L'autore (o un ADMIN) può modificare tutti i campi principali o eliminare la squadra. */
 export function SquadraAnagrafeModal({
   s,
   giocatori,
@@ -46,7 +47,7 @@ export function SquadraAnagrafeModal({
     return g ? `${g.nome} ${g.cognome}` : "?";
   };
 
-  const canEdit = !user.guest && s.autore === user.name;
+  const canEdit = puoModificare(user, s.autoreId);
 
   const handleRemove = () => { onRemove(); onClose(); };
 

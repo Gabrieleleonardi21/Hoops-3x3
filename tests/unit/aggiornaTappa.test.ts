@@ -65,7 +65,7 @@ const bozza21a15: MatchDraft = {
 /** La squadra «Alfa» come la restituisce l'anagrafe */
 const regAlfa: RegSquadra = {
   id: "r1", nome: "Alfa", citta: "", anno: "", rank: "40", referente: "", roster: [], logo: "/logos/alfa.svg",
-  website: "https://alfa.it", instagram: "", note: "", autore: "Anna", ts: 1,
+  website: "https://alfa.it", instagram: "", note: "", autore: "Anna", autoreId: "u1", ts: 1,
 };
 
 /** Promessa controllabile a mano: il test decide quando il "server" risponde */
@@ -90,7 +90,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.resetAllMocks();
   api.putTappa.mockImplementation(async (t) => t);
-  archivio.pubblica.mockImplementation(async (t, lega) => ({ tappa: t, lega, autore: "Anna", ts: 1 }));
+  archivio.pubblica.mockImplementation(async (t, lega) => ({ tappa: t, lega, autore: "Anna", autoreId: "u1", ts: 1 }));
   useAppStore.setState({
     user: registrato, legaId: "l1", leghe: [{ id: "l1", nome: "Lega", ts: 1, nTappe: 1 }], tappe: [tappa()],
   });

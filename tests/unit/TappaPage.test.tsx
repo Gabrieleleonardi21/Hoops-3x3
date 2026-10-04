@@ -48,7 +48,7 @@ const conUnRisultato = (): Tappa => ({
 
 const regAlfa: RegSquadra = {
   id: "r1", nome: "Alfa", citta: "", anno: "", rank: "40", referente: "", roster: [], logo: "",
-  website: "", instagram: "", note: "", autore: "Anna", ts: 1,
+  website: "", instagram: "", note: "", autore: "Anna", autoreId: "u1", ts: 1,
 };
 
 beforeEach(() => {

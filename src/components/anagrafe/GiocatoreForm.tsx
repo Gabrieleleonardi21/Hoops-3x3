@@ -4,9 +4,11 @@ import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import { REG_ROLES } from "../../constants/roles";
 import { Input } from "../ui/Input";
-import type { RegGiocatore, RegSquadra } from "../../types";
+import type { GiocatoreInput } from "../../services/anagrafeApi";
+import type { RegSquadra } from "../../types";
 
-type Draft = Omit<RegGiocatore, "id" | "autore" | "ts">;
+/** I campi che il server fa scrivere (senza id, autore, autoreId e ts) */
+type Draft = GiocatoreInput;
 const EMPTY: Draft = {
   nome: "", cognome: "", soprannome: "", nascita: "", citta: "", nazionalita: "Italia",
   altezza: "", peso: "", ruolo: "Universale", numero: "", squadra: "", esperienza: "", note: "",

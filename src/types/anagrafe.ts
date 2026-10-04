@@ -16,7 +16,8 @@ export interface RegGiocatore {
   squadra: string;
   esperienza: string;
   note: string;
-  autore: string;
+  autore: string;   // nome visualizzato dell'autore (non è unico: non decide i permessi)
+  autoreId: string; // id dell'autore: decide chi può modificare (utils/permessi)
   ts: number;
 }
 
@@ -33,7 +34,8 @@ export interface RegSquadra {
   website: string;   // URL sito web ufficiale (opzionale)
   instagram: string; // URL pagina Instagram (usato come link del logo se manca il sito)
   note: string;
-  autore: string;
+  autore: string;   // nome visualizzato dell'autore (non è unico: non decide i permessi)
+  autoreId: string; // id dell'autore: decide chi può modificare (utils/permessi)
   ts: number;
 }
 
@@ -41,6 +43,7 @@ export interface RegSquadra {
 export interface PubTappa {
   tappa: Tappa;
   lega: string;
-  autore: string;
+  autore: string;   // nome visualizzato dell'autore
+  autoreId: string; // id dell'autore
   ts: number;
 }

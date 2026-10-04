@@ -16,14 +16,14 @@ vi.mock("../../src/services/anagrafeApi", async (importOriginal) => {
 function giocatore(id: string, nome: string): RegGiocatore {
   return {
     id, nome, cognome: "Rossi", soprannome: "", nascita: "", citta: "", nazionalita: "", altezza: "",
-    peso: "", ruolo: "", numero: "", squadra: "", esperienza: "", note: "", autore: "Gabriele", ts: 1,
+    peso: "", ruolo: "", numero: "", squadra: "", esperienza: "", note: "", autore: "Gabriele", autoreId: "u1", ts: 1,
   };
 }
 
 function squadra(id: string, nome: string, roster: string[] = []): RegSquadra {
   return {
     id, nome, citta: "", anno: "", rank: "", referente: "", roster, logo: "", website: "", instagram: "",
-    note: "", autore: "Gabriele", ts: 1,
+    note: "", autore: "Gabriele", autoreId: "u1", ts: 1,
   };
 }
 
@@ -132,6 +132,28 @@ describe("useAnagrafeStore (cache dell'anagrafe)", () => {
     api.updateGiocatore.mockResolvedValue(dalServer);
     await store.getState().updateGiocatore(giocatore("g1", "Mario Jr"));
     expect(store.getState().giocatori).toEqual([dalServer]);
+  });
+
+  it("updateGiocatore manda al server i soli campi compilabili: né id, né autore, né autoreId, né ts", async () => {
+    const { api, store } = await nuovoStore();
+    await store.getState().load();
+    api.updateGiocatore.mockResolvedValue(giocatore("g1", "Mario Jr"));
+    await store.getState().updateGiocatore(giocatore("g1", "Mario Jr"));
+    const [id, corpo] = api.updateGiocatore.mock.calls[0];
+    expect(id).toBe("g1"); // l'id viaggia nel percorso, non nel corpo
+    expect(corpo).toMatchObject({ nome: "Mario Jr", cognome: "Rossi" });
+    for (const campo of ["id", "autore", "autoreId", "ts"]) expect(corpo, campo).not.toHaveProperty(campo);
+  });
+
+  it("updateSquadra manda al server i soli campi compilabili: né id, né autore, né autoreId, né ts", async () => {
+    const { api, store } = await nuovoStore();
+    await store.getState().load();
+    api.updateSquadra.mockResolvedValue(squadra("s1", "Ballers Roma", ["g1"]));
+    await store.getState().updateSquadra(squadra("s1", "Ballers Roma", ["g1"]));
+    const [id, corpo] = api.updateSquadra.mock.calls[0];
+    expect(id).toBe("s1");
+    expect(corpo).toMatchObject({ nome: "Ballers Roma", roster: ["g1"] });
+    for (const campo of ["id", "autore", "autoreId", "ts"]) expect(corpo, campo).not.toHaveProperty(campo);
   });
 
   it("una scrittura prima del caricamento non crea una cache parziale", async () => {

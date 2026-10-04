@@ -6,13 +6,16 @@ import { Icon } from "../ui/Icon";
 import { Input } from "../ui/Input";
 import { REG_ROLES } from "../../constants/roles";
 import { eta } from "../../utils/eta";
+import { puoModificare } from "../../utils/permessi";
 import { safeUrl } from "../../utils/safeUrl";
+import type { GiocatoreInput } from "../../services/anagrafeApi";
 import type { RegGiocatore, RegSquadra, User } from "../../types";
 
-type EditDraft = Omit<RegGiocatore, "id" | "autore" | "ts">;
+/** I campi che il server fa scrivere (senza id, autore, autoreId e ts) */
+type EditDraft = GiocatoreInput;
 
 /** Modale con tutte le informazioni di un giocatore dell'anagrafe.
- *  L'autore può modificare tutti i campi o eliminare il giocatore. */
+ *  L'autore (o un ADMIN) può modificare tutti i campi o eliminare il giocatore. */
 export function GiocatoreModal({
   g,
   user,
@@ -41,7 +44,7 @@ export function GiocatoreModal({
 
   const saveEdit = () => { onUpdate({ ...g, ...draft }); setEditing(false); };
   const handleRemove = () => { onRemove(); onClose(); };
-  const canEdit = !user.guest && g.autore === user.name;
+  const canEdit = puoModificare(user, g.autoreId);
   const age = eta(g.nascita);
   // Cerca il logo della squadra abbinando il nome del giocatore con la lista squadre
   const squadraLogo = squadre?.find((s) => s.nome === g.squadra)?.logo ?? null;
