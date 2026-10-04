@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { Lega, LegaMeta, Partita, Tappa, User } from "../types";
-import { uid, isUuid } from "../utils/uid";
+import { uid } from "../utils/uid";
 import { legheApi } from "../services/legheApi";
 import { ApiError } from "../services/api";
 import { createSaveQueue } from "./saveQueue";
@@ -47,7 +47,9 @@ interface AppState {
   updateTappa: (id: string, modifica: Partial<Tappa> | ((tappa: Tappa) => Tappa)) => void;
   /** Aggiorna una singola partita in modo atomico, evita race condition in chiamate parallele. */
   updateTappaPartita: (tappaId: string, partitaId: string, patch: Partial<Partita>) => void;
-  /** Crea una nuova lega importando dati JSON (nome + tappe). */
+  /** Crea una nuova lega con nome e tappe di un file importato. Le tappe arrivano da leggiFileLega (utils/legaFile), che le ha
+   *  già controllate e ha dato loro id nuovi: con gli id del file, ripristinare una lega esportata che esiste ancora avrebbe
+   *  il 409 del server. Chi la chiama con altre tappe deve darne id nuovi. */
   importLega: (nome: string, tappe: Tappa[]) => Promise<void>;
   replaceTappa: (t: Tappa) => void;
   removeTappa: (id: string) => void;
@@ -120,12 +122,6 @@ function testoErrore(e: unknown): string {
  *  Gli altri rifiuti riguardano i dati: ripetere la stessa richiesta non servirebbe. */
 function riprovabile(e: unknown): boolean {
   return e instanceof ApiError && (e.status === 0 || e.status === 401 || e.status >= 500);
-}
-
-/** Sostituisce gli id non-UUID (versioni vecchie / file importati) prima di mandare la tappa al server */
-function withUuid(t: Tappa): Tappa {
-  if (isUuid(t.id)) return t;
-  return { ...t, id: uid() };
 }
 
 const initial = getInitialState();
@@ -380,10 +376,9 @@ export const useAppStore = create<AppState>((set, get) => {
     importLega: async (nome, tappe) => {
       const trimmed = nome.trim() || "Lega importata";
       if (isRemote()) {
-        const fixed = tappe.map(withUuid);
-        const meta = await legheApi.create(trimmed, fixed);
+        const meta = await legheApi.create(trimmed, tappe);
         localStorage.setItem(ACTIVE_KEY, meta.id);
-        set({ legaId: meta.id, leghe: [meta, ...get().leghe], legaName: meta.nome, tappe: fixed });
+        set({ legaId: meta.id, leghe: [meta, ...get().leghe], legaName: meta.nome, tappe });
         return;
       }
       const id = uid();

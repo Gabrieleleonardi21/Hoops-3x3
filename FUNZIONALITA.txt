@@ -42,6 +42,10 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
 - Ogni lega ha un nome personalizzabile in qualsiasi momento.
 - Export della lega corrente come file JSON (backup / trasferimento).
 - Import di una lega da file JSON (ripristino / migrazione da altro dispositivo).
+  Il file viene controllato prima di importarlo: se è incompleto o supera i limiti
+  del server compare il motivo (es. "tappe[1]: manca il campo «squadre»") e non
+  cambia nulla. La lega importata è sempre una lega nuova, con id nuovi, anche se
+  l'originale esiste ancora.
 - Classifica circuito aggregata: ordina le squadre per punteggio ranking
   massimo ottenuto nelle tappe, con numero di tappe disputate.
 
