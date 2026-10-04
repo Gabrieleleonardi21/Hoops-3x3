@@ -54,6 +54,10 @@ interface ApiMsg {
   tool_call_id?: string;
 }
 
+/** Tempo massimo della chat (ms): il server aspetta il modello fino a 60 secondi (CoachAiService), quindi il client
+ *  aspetta un po' di più, per ricevere la risposta o l'errore del server invece di abbandonare prima */
+const TEMPO_MASSIMO_COACH = 65_000;
+
 /** Chiamata HTTP base verso il proxy. Accetta messaggi API-level e opzionali tool definitions. */
 async function callGroq(
   messages: ApiMsg[],
@@ -61,7 +65,9 @@ async function callGroq(
 ): Promise<{ content: string | null; tool_calls?: ToolCall[] }> {
   let data: { choices?: { message?: { content?: string; tool_calls?: ToolCall[] } }[]; error?: { message?: string } };
   try {
-    data = await api("/api/coach/chat", { method: "POST", body: { messages, tools: tools ?? [] } });
+    data = await api("/api/coach/chat", {
+      method: "POST", body: { messages, tools: tools ?? [] }, tempoMassimo: TEMPO_MASSIMO_COACH,
+    });
   } catch (e) {
     if (!(e instanceof ApiError)) throw new AiError("SERVER", "errore imprevisto");
     if (e.status === 0) throw new AiError("NETWORK", e.message);

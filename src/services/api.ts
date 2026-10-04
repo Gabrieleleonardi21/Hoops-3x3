@@ -74,6 +74,8 @@ interface Options {
   body?: unknown;
   /** true: la richiesta prosegue anche se la pagina si chiude (salvataggi in uscita) */
   keepalive?: boolean;
+  /** Tempo massimo in ms, lettura della risposta compresa: TEMPO_MASSIMO se manca, null = nessun limite */
+  tempoMassimo?: number | null;
 }
 
 /** Login, registrazione, refresh e logout non usano il JWT: partono senza Bearer e senza rinnovi */
@@ -87,14 +89,15 @@ async function chiama<T>(path: string, opts: Options, conBearer: boolean): Promi
   const t = token.get();
   if (conBearer && t) headers.Authorization = `Bearer ${t}`;
   // Tempo massimo su ogni richiesta, rinnovo e uscita compresi: una risposta che non arriva non tiene più in attesa le
-  // richieste che aspettano il rinnovo, né le altre schede ferme sul suo lock, né «Esci». Restano senza limite solo i
-  // salvataggi in chiusura pagina (keepalive fuori da /api/auth): devono arrivare al server anche se è lento. Le
-  // chiamate di autenticazione keepalive (revoca all'uscita) hanno il limite e restano keepalive: a pagina chiusa il
-  // timer non scatta più e la revoca prosegue. Dove AbortSignal.timeout manca (Safari prima della 16) la richiesta
-  // parte senza limite, come prima, invece di fallire
-  const salvataggioInChiusura = opts.keepalive && !isAuth(path);
+  // richieste che aspettano il rinnovo, né le altre schede ferme sul suo lock, né «Esci». Chi chiama può indicarne uno
+  // suo (tempoMassimo): più lungo per la chat del Coach, che aspetta il modello, nessuno (null) per i salvataggi in
+  // chiusura pagina, che devono arrivare al server anche se è lento. Una richiesta keepalive con il limite (revoca
+  // all'uscita) prosegue lo stesso a pagina chiusa: lì il timer non scatta più. Dove AbortSignal.timeout manca
+  // (Safari prima della 16) la richiesta parte senza limite, come prima, invece di fallire
+  let limite: number | null = TEMPO_MASSIMO;
+  if (opts.tempoMassimo !== undefined) limite = opts.tempoMassimo;
   let signal: AbortSignal | undefined;
-  if (!salvataggioInChiusura && typeof AbortSignal.timeout === "function") signal = AbortSignal.timeout(TEMPO_MASSIMO);
+  if (limite !== null && typeof AbortSignal.timeout === "function") signal = AbortSignal.timeout(limite);
 
   let res: Response;
   try {

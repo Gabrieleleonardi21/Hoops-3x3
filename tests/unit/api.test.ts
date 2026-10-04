@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { api, token, ApiError, suSessioneFinita, avviaRinnovoAutomatico } from "../../src/services/api";
+import { legheApi } from "../../src/services/legheApi";
+import { askCoach } from "../../src/services/aiService";
+import type { Tappa } from "../../src/types";
 
 /** localStorage e fetch non esistono nell'ambiente node: si sostituiscono con versioni in memoria */
 const memoria = new Map<string, string>();
@@ -506,13 +509,47 @@ describe("api: tempo massimo delle richieste", () => {
     }
   });
 
-  it("i salvataggi in chiusura pagina (keepalive) partono senza tempo massimo", async () => {
+  it("la chat del Coach non viene interrotta a 15 secondi ma a 65: il server aspetta il modello fino a 60", async () => {
+    token.set(jwt(3600));
+    fetchFinto.mockImplementation((_url: string, init: RequestInit) => new Promise<Response>((_risolvi, rifiuta) => {
+      init.signal?.addEventListener("abort", () => rifiuta(init.signal!.reason));
+    }));
+    let esito: unknown = "in attesa";
+    const risposta = askCoach("Sei il Coach", [{ role: "user", content: "Come si sorteggia?" }])
+      .then(() => { esito = "riuscita"; }, (e: unknown) => { esito = e; });
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(esito).toBe("in attesa");
+    await vi.advanceTimersByTimeAsync(49_999);
+    expect(esito).toBe("in attesa");
+    await vi.advanceTimersByTimeAsync(1);
+    expect(esito).toMatchObject({ code: "NETWORK", message: "Il server non risponde: controlla la connessione e riprova." });
+    expect(chiamata(0).url).toBe("/api/coach/chat");
+    await risposta;
+  });
+
+  it("il limite dipende solo da tempoMassimo: anche una richiesta keepalive che non lo indica ha i 15 secondi", async () => {
     token.set(jwt(3600));
     fetchFinto.mockImplementation(async () => ok({ id: "t1" }));
     await api("/api/tappe/t1", { method: "PUT", body: { id: "t1" }, keepalive: true });
-    await api("/api/leghe");
+    expect(chiamata(0).init.keepalive).toBe(true);
+    expect(chiamata(0).init.signal).toBeInstanceOf(AbortSignal);
+    expect(AbortSignal.timeout).toHaveBeenCalledWith(15_000);
+  });
+
+  it("i salvataggi in chiusura pagina (legheApi con keepalive) partono senza tempo massimo, gli altri con 15 secondi", async () => {
+    token.set(jwt(3600));
+    fetchFinto.mockImplementation(async () => ok({ id: "t1" }));
+    const tappa = { id: "t1" } as Tappa;
+    await legheApi.putTappa(tappa, true);
+    await legheApi.addTappa("l1", tappa, true);
+    await legheApi.putTappa(tappa);
+    expect(chiamata(0).init).toMatchObject({ method: "PUT", keepalive: true });
     expect(chiamata(0).init.signal).toBeUndefined();
-    expect(chiamata(1).init.signal).toBeInstanceOf(AbortSignal);
+    expect(chiamata(1).init).toMatchObject({ method: "POST", keepalive: true });
+    expect(chiamata(1).init.signal).toBeUndefined();
+    expect(chiamata(2).init.signal).toBeInstanceOf(AbortSignal);
+    expect(AbortSignal.timeout).toHaveBeenCalledTimes(1);
+    expect(AbortSignal.timeout).toHaveBeenCalledWith(15_000);
   });
 });
 
