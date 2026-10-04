@@ -1,0 +1,188 @@
+/** File di una lega: come si scrive nell'export e come si legge, e si controlla, nell'import.
+ *  Il file è input non fidato (un backup, un'altra versione dell'app, o scritto a mano): prima di toccare lo store si
+ *  verifica con zod che abbia la forma dei tipi di src/types. Una tappa incompleta non deve arrivare né nel browser
+ *  dell'ospite, dove farebbe uscire la pagina bianca a ogni ricarica, né al server, che la rifiuterebbe con un 400.
+ *  Il file si legge una volta sola: i campi che l'app non conosce si scartano, i campi che possono mancare prendono
+ *  il loro valore predefinito e gli id delle tappe sono sempre nuovi. */
+import { z } from "zod";
+import { DEFAULT_RULES } from "../constants/rules";
+import { erroreLimitiTappa } from "../domain/tappaOps";
+import { uid } from "./uid";
+import type { Lega, Tappa } from "../types";
+
+/** Esito della lettura: la lega pronta da importare, oppure il motivo per cui il file non va (senza il prefisso
+ *  «Import non riuscito», che lo aggiunge la pagina) */
+export type EsitoLettura = { ok: true; lega: Lega } | { ok: false; errore: string };
+
+const ko = (errore: string): EsitoLettura => ({ ok: false, errore });
+
+/** Limiti del server per l'import (NuovaLegaDTO): nome della lega e numero di tappe. Quelli di nome, luogo e data di
+ *  ogni tappa (TappaDTO) sono in tappaOps, gli stessi dei form: il numero sta in un posto solo. */
+const MAX_NOME_LEGA = 120;
+const MAX_TAPPE = 100;
+
+/* ── Forma del file: uno schema per ogni tipo di src/types ──
+ *  Un campo senza valore predefinito è obbligatorio: chi lo perde non ha un valore neutro da mettere al suo posto (gli id
+ *  a cui si riferiscono gironi e partite, le squadre di una tappa). */
+
+const stringa = z.string();
+const numero = z.number();
+const statistica = numero.optional();
+
+const giocatoreSchema = z.object({ id: stringa, nome: stringa });
+
+const squadraSchema = z.object({
+  id: stringa,
+  nome: stringa,
+  giocatori: z.array(giocatoreSchema).default([]),
+  rank: z.union([stringa, numero]).default(""),
+  regId: stringa.optional(),
+  logo: stringa.optional(),
+  website: stringa.optional(),
+  instagram: stringa.optional(),
+});
+
+const statisticheSchema = z.object({
+  pt: statistica, rb: statistica, as: statistica, ru: statistica, st: statistica, pe: statistica, fa: statistica,
+});
+
+/** Scheda di una squadra in una partita: id del giocatore → statistiche, oppure solo i punti come numero (formato vecchio) */
+const schedaSchema = z.record(z.union([numero, statisticheSchema]));
+
+const eventoSchema = z.object({
+  id: stringa,
+  tipo: stringa,
+  teamId: stringa,
+  pid: stringa.nullable().default(null),
+  min: stringa.default(""),
+  nota: stringa.default(""),
+});
+
+const partitaSchema = z.object({
+  id: stringa,
+  g: numero,
+  a: stringa,
+  b: stringa,
+  sa: numero,
+  sb: numero,
+  done: z.boolean(),
+  pa: schedaSchema.optional(),
+  pb: schedaSchema.optional(),
+  eventi: z.array(eventoSchema).optional(),
+});
+
+const matchTabelloneSchema = z.object({
+  id: stringa,
+  label: stringa,
+  squadraA: stringa.nullable(),
+  squadraB: stringa.nullable(),
+  pA: numero,
+  pB: numero,
+  done: z.boolean(),
+  bye: z.boolean().optional(),
+});
+
+const videoSchema = z.object({ id: stringa, titolo: stringa, url: stringa });
+
+/** Una regola di gara: intero da 1 in su come in RegoleDTO (@Min(1)); se manca vale quella predefinita */
+const regola = (predefinita: number) =>
+  numero.refine((n) => Number.isInteger(n) && n >= 1, "deve essere un numero intero da 1 in su").default(predefinita);
+
+const regoleSchema = z.object({
+  target: regola(DEFAULT_RULES.target),
+  durata: regola(DEFAULT_RULES.durata),
+  ot: regola(DEFAULT_RULES.ot),
+  shot: regola(DEFAULT_RULES.shot),
+}).default(DEFAULT_RULES);
+
+/** L'id non c'è: ogni tappa importata ne riceve uno nuovo in leggiFileLega. Il tipo dichiarato fa fallire la compilazione
+ *  se in src/types un campo obbligatorio cambia e lo schema no; un campo facoltativo nuovo invece va aggiunto qui a mano,
+ *  altrimenti l'import lo scarterebbe (il test dell'export completo in legaFile.test.ts lo segnala). */
+const tappaSchema: z.ZodType<Omit<Tappa, "id">, z.ZodTypeDef, unknown> = z
+  .object({
+    nome: stringa.trim().min(1, "non può essere vuoto"),
+    luogo: stringa.trim().default(""),
+    data: stringa.trim().default(""),
+    nGironi: numero.default(1),
+    regole: regoleSchema,
+    squadre: z.array(squadraSchema),
+    gironi: z.array(z.array(stringa)).nullable().default(null),
+    partite: z.array(partitaSchema).default([]),
+    video: z.array(videoSchema).default([]),
+    conclusa: z.boolean().optional(),
+    // Il server manda null per una tappa senza fase finale; nell'app, se la fase finale non c'è, il campo è assente
+    bracket: z.array(matchTabelloneSchema).nullish().transform((b) => b ?? undefined),
+  })
+  .superRefine((t, ctx) => {
+    // Gli stessi limiti di una tappa creata dall'interfaccia o dal Coach (da 2 a 64 squadre, gironi possibili e i limiti
+    // del server per nome, luogo e data), in tappaOps: oltre quelli la tappa sarebbe rifiutata a ogni salvataggio
+    const motivo = erroreLimitiTappa(t.squadre.length, t.nGironi, t);
+    if (motivo) ctx.addIssue({ code: z.ZodIssueCode.custom, message: motivo });
+  });
+
+const fileSchema = z.object({
+  // Senza un nome valido (assente, null o vuoto) la lega prende quello del file; i limiti si contano senza gli spazi ai lati
+  nome: stringa.trim().max(MAX_NOME_LEGA, `il nome della lega può avere al massimo ${MAX_NOME_LEGA} caratteri`).nullish(),
+  tappe: z.array(tappaSchema).max(MAX_TAPPE, `un file può avere al massimo ${MAX_TAPPE} tappe`),
+});
+
+/* ── Messaggi: dicono dove sta il problema, con le parole dei messaggi del server (tappe[0].squadre) ── */
+
+const TIPI: Record<string, string> = {
+  string: "un testo", number: "un numero", boolean: "vero o falso", array: "un elenco", object: "un oggetto",
+};
+
+/** Il punto del file come lo scrive il server: tappe[0].squadre[1].id */
+function percorso(chiavi: (string | number)[]): string {
+  let punto = "";
+  for (const chiave of chiavi) {
+    if (typeof chiave === "number") {
+      punto += `[${chiave}]`;
+      continue;
+    }
+    if (punto) punto += ".";
+    punto += chiave;
+  }
+  return punto;
+}
+
+/** Un problema trovato da zod, in italiano e con il punto del file in cui sta */
+function descrivi(problema: z.ZodIssue): string {
+  const chiavi = problema.path;
+  // Senza percorso il problema è il file stesso: non è un oggetto
+  if (chiavi.length === 0) return "il file deve contenere un oggetto con i campi «nome» e «tappe»";
+  if (problema.code === "invalid_type" && problema.received === "undefined") {
+    // Campo mancante: il punto da indicare è l'oggetto che lo dovrebbe contenere
+    const manca = `manca il campo «${chiavi[chiavi.length - 1]}»`;
+    const dove = percorso(chiavi.slice(0, -1));
+    if (!dove) return manca;
+    return `${dove}: ${manca}`;
+  }
+  if (problema.code === "invalid_type") return `${percorso(chiavi)}: deve essere ${TIPI[problema.expected] ?? "del tipo giusto"}`;
+  if (problema.code === "invalid_union") return `${percorso(chiavi)}: formato non valido`;
+  // Gli altri problemi (limiti, regole, tappa) portano già il loro messaggio, scritto nello schema o in tappaOps
+  return `${percorso(chiavi)}: ${problema.message}`;
+}
+
+/* ── Lettura e scrittura ── */
+
+/** Legge il testo di un file di lega. Rifiuta ciò che non è una lega dicendo il primo problema trovato; altrimenti
+ *  restituisce nome e tappe pronti per importLega, con gli id delle tappe sempre nuovi: gli originali possono essere di una
+ *  lega che esiste ancora (il server risponderebbe 409 al ripristino) o ripetuti nel file.
+ *  @param nomeFile nome del file scelto: dà il nome alla lega se il file non ne ha uno */
+export function leggiFileLega(testo: string, nomeFile: string): EsitoLettura {
+  let dati: unknown;
+  try {
+    dati = JSON.parse(testo);
+  } catch {
+    return ko("il file non è un JSON valido");
+  }
+  const letto = fileSchema.safeParse(dati);
+  if (!letto.success) return ko(descrivi(letto.error.issues[0]));
+  const nome = letto.data.nome || nomeFile.replace(/\.json$/i, "").slice(0, MAX_NOME_LEGA);
+  const tappe = letto.data.tappe.map((t) => ({ ...t, id: uid() }));
+  return { ok: true, lega: { nome, tappe } };
+}
+
+/** Il contenuto del file di export: nome e tappe, rientrati per essere leggibili */
+export const testoFileLega = (nome: string, tappe: Tappa[]): string => JSON.stringify({ nome, tappe }, null, 2);
