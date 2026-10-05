@@ -1,15 +1,17 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import App from "../../src/App";
 import { ErrorBoundary } from "../../src/components/ui/ErrorBoundary";
 import { AnagrafePage } from "../../src/pages/AnagrafePage";
 import { ArchivioPage } from "../../src/pages/ArchivioPage";
 import { GiocatorePage } from "../../src/pages/GiocatorePage";
+import { LegheListPage } from "../../src/pages/LegheListPage";
 import { useAppStore, SESSION_KEY } from "../../src/stores/useAppStore";
 import { useAnagrafeStore } from "../../src/stores/useAnagrafeStore";
 import { anagrafeApi } from "../../src/services/anagrafeApi";
+import { legheApi } from "../../src/services/legheApi";
 import { archivioApi } from "../../src/services/archivioApi";
 import { ApiError } from "../../src/services/api";
 import { DEFAULT_RULES } from "../../src/constants/rules";
@@ -36,6 +38,7 @@ vi.mock("../../src/services/archivioApi", () => ({
 const store = () => useAppStore.getState();
 const ospite: User = { name: "Ospite", guest: true };
 const registrato: User = { id: "u1", name: "Anna", email: "anna@example.it", ruolo: "USER", guest: false };
+const leghe = vi.mocked(legheApi);
 const anagrafe = vi.mocked(anagrafeApi);
 const archivio = vi.mocked(archivioApi);
 
@@ -317,6 +320,109 @@ describe("Archivio non caricato: l'errore si distingue dal «vuoto» (FS-4)", ()
     archivio.list.mockResolvedValue([]);
     apri("/archivio");
     expect(await screen.findByText(/L'archivio è vuoto/)).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+});
+
+/* ── FS-4 e Ruling 3: creare, aprire ed eliminare una lega con un messaggio per ogni errore ── */
+
+/** Promessa controllabile a mano: il test decide quando il «server» risponde */
+function differita<T>() {
+  let ok!: (v: T) => void;
+  const p = new Promise<T>((res) => { ok = res; });
+  return { p, ok };
+}
+
+describe("Elenco delle leghe: errori di creazione, apertura ed eliminazione", () => {
+  const estate = { id: "l1", nome: "Estate", ts: 1, nTappe: 2 };
+
+  /** Apre l'elenco delle leghe di questo utente; la pagina della lega è un segnaposto per vedere se si naviga */
+  function apriLeghe(utente: User, elenco = [estate]) {
+    useAppStore.setState({ user: utente, leghe: elenco });
+    render(
+      <MemoryRouter initialEntries={["/leghe"]}>
+        <Routes>
+          <Route path="/leghe" element={<LegheListPage />} />
+          <Route path="/lega" element={<p>Pagina della lega</p>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+  }
+  const campoNome = () => screen.getByLabelText(/Nome della nuova lega/) as HTMLInputElement;
+  const creaLega = () => screen.getByRole("button", { name: /Crea lega/ }) as HTMLButtonElement;
+
+  beforeEach(() => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+  });
+
+  it("creazione che fallisce: il messaggio dice perché, il nome resta nel campo e non si cambia pagina", async () => {
+    leghe.create.mockRejectedValue(rete());
+    apriLeghe(registrato);
+    fireEvent.change(campoNome(), { target: { value: "Estate 2026" } });
+    fireEvent.click(creaLega());
+    expect((await screen.findByRole("alert")).textContent)
+      .toBe("Creazione non riuscita: Server non raggiungibile: controlla la connessione o avvia il backend.");
+    expect(campoNome().value).toBe("Estate 2026");
+    expect(screen.queryByText("Pagina della lega")).toBeNull();
+    expect(creaLega().disabled).toBe(false); // si può riprovare
+  });
+
+  it("creazione riuscita al nuovo tentativo: si apre la lega e il messaggio di prima non c'è più", async () => {
+    leghe.create
+      .mockRejectedValueOnce(rete())
+      .mockResolvedValueOnce({ id: "l9", nome: "Estate 2026", ts: 2, nTappe: 0 });
+    apriLeghe(registrato);
+    fireEvent.change(campoNome(), { target: { value: "Estate 2026" } });
+    fireEvent.click(creaLega());
+    await screen.findByRole("alert");
+    fireEvent.click(creaLega());
+    expect(await screen.findByText("Pagina della lega")).toBeTruthy();
+    expect(store().legaId).toBe("l9");
+  });
+
+  it("durante la creazione il pulsante è disattivato e un secondo clic non crea un'altra lega", async () => {
+    const risposta = differita<{ id: string; nome: string; ts: number; nTappe: number }>();
+    leghe.create.mockReturnValue(risposta.p);
+    apriLeghe(registrato);
+    fireEvent.change(campoNome(), { target: { value: "Estate 2026" } });
+    fireEvent.click(creaLega());
+    fireEvent.click(creaLega());
+    fireEvent.keyDown(campoNome(), { key: "Enter" });
+    expect(creaLega().disabled).toBe(true);
+    expect(leghe.create).toHaveBeenCalledTimes(1);
+    await act(async () => { risposta.ok({ id: "l9", nome: "Estate 2026", ts: 2, nTappe: 0 }); });
+    expect(await screen.findByText("Pagina della lega")).toBeTruthy();
+    expect(leghe.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("apertura senza rete: «Apri» dice perché non si apre e resta sull'elenco", async () => {
+    leghe.get.mockRejectedValue(rete());
+    apriLeghe(registrato);
+    fireEvent.click(screen.getByRole("button", { name: /Apri/ }));
+    expect((await screen.findByRole("alert")).textContent)
+      .toBe("Apertura non riuscita: Server non raggiungibile: controlla la connessione o avvia il backend.");
+    expect(screen.queryByText("Pagina della lega")).toBeNull();
+    expect(store().legaId).toBeNull();
+  });
+
+  it("eliminazione che il server rifiuta: il messaggio dice perché e la lega resta nell'elenco", async () => {
+    leghe.remove.mockRejectedValue(new ApiError(403, "Non puoi modificare questa lega"));
+    apriLeghe(registrato);
+    fireEvent.click(screen.getByRole("button", { name: "Elimina lega Estate" }));
+    expect((await screen.findByRole("alert")).textContent).toBe("Eliminazione non riuscita: Non puoi modificare questa lega");
+    expect(screen.getByText("Estate")).toBeTruthy();
+    expect(store().leghe).toEqual([estate]);
+  });
+
+  it("ospite con una lega illeggibile: «Apri» dice perché, e eliminarla è la via d'uscita", async () => {
+    // L'indice la elenca ma i suoi dati nel browser non ci sono più
+    apriLeghe(ospite);
+    fireEvent.click(screen.getByRole("button", { name: /Apri/ }));
+    expect((await screen.findByRole("alert")).textContent)
+      .toBe("Apertura non riuscita: I dati della lega «Estate» non ci sono più nel browser o sono danneggiati: puoi eliminarla dall'elenco delle leghe.");
+    expect(screen.queryByText("Pagina della lega")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Elimina lega Estate" }));
+    await waitFor(() => expect(screen.getByText(/Nessuna lega ancora/)).toBeTruthy());
     expect(screen.queryByRole("alert")).toBeNull();
   });
 });
