@@ -162,6 +162,8 @@ export function MatchTimer({ regole, teamA, teamB, onClose }: {
     orologio = "OT"; // nel supplementare il cronometro di gara non c'è
     didascalia = `Supplementare: vince chi segna per primo ${regole.ot} pt`;
   }
+  // Vinto il supplementare l'istruzione per giocarlo non serve più: si dice come è finita
+  if (stato.fase === "vintaAlSupplementare") didascalia = "Vinta al supplementare";
 
   // Chiudere il timer (Esc, sfondo, X) fa perdere punteggio e tempo, che il timer non salva nella tappa: se la partita è cominciata,
   // cioè il cronometro è partito o il punteggio non è 0 a 0, lo si dice e si chiede conferma; altrimenti si chiude subito

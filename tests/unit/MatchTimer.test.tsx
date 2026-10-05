@@ -371,6 +371,20 @@ describe("MatchTimer: la partita si decide", () => {
     expect(mostra("24")).toBeTruthy();
   });
 
+  it("vinto il supplementare la didascalia dice «Vinta al supplementare», non più l'istruzione per giocarlo", () => {
+    apri(BREVE);
+    segna(A, "+1");
+    segna(B, "+1");
+    premi("START");
+    scadere();
+    premi("Avvia supplementare");
+    expect(mostra("Supplementare: vince chi segna per primo 2 pt")).toBeTruthy(); // mentre si gioca
+    segna(A, "+2");
+    expect(mostra("Squadra A — Partita conclusa")).toBeTruthy();
+    expect(mostra("Vinta al supplementare")).toBeTruthy();
+    manca("Supplementare: vince chi segna per primo 2 pt");
+  });
+
   it("al punteggio di vittoria i cronometri si fermano", () => {
     apri(ATRE);
     premi("START");
@@ -379,6 +393,7 @@ describe("MatchTimer: la partita si decide", () => {
     segna(A, "+1");
     expect(mostra("Squadra A — Partita conclusa")).toBeTruthy();
     expect(cronometro()).toBe("9:50");
+    manca("Vinta al supplementare"); // la didascalia nuova è solo del supplementare
     passa(30_000);
     expect(cronometro()).toBe("9:50");
   });

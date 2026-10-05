@@ -155,7 +155,8 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
       nuovo (i secondi della regola della tappa, non quelli rimasti dal tempo
       regolamentare) e resta fermo fino a «START», che fa correre solo lui.
       Vince chi per primo fa i punti previsti da allora; il punteggio di
-      vittoria non vale più. Togliere un punto del supplementare non lo annulla;
+      vittoria non vale più, e a vittoria ottenuta il timer scrive «Vinta al
+      supplementare». Togliere un punto del supplementare non lo annulla;
       scendere sotto il punteggio di partenza sì (la parità che lo giustificava
       è stata corretta): si giudica di nuovo il tempo regolamentare e per
       ripartire serve di nuovo il pulsante.
