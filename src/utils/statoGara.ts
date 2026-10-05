@@ -1,9 +1,11 @@
 /** Come sta una partita di 3x3 secondo le regole della tappa (FIBA 3x3): una funzione pura, senza orologio.
- *  Chi la usa le dà il punteggio, i secondi che restano e, se il supplementare è partito, il punteggio da cui è partito:
+ *  Chi la usa le dà il punteggio, i secondi che restano e, se il supplementare è stato avviato, il punteggio da cui è partito:
  *  il tempo si misura altrove (MatchTimer) e qui arriva già calcolato, così lo stesso risultato si ottiene sempre con gli stessi dati.
  *  - la partita finisce quando una squadra arriva al punteggio di vittoria (`target`);
  *  - a tempo scaduto vince chi è avanti;
- *  - in parità si gioca il supplementare, senza cronometro di gara: vince chi per primo fa `ot` punti da quando è partito. */
+ *  - in parità serve il supplementare. Nel 3x3 prima c'è una pausa, in cui si può ancora registrare un canestro del tempo
+ *    regolamentare: per questo il supplementare parte solo quando lo si avvia, e fino ad allora una correzione che rompe la parità dà
+ *    la vittoria a tempo a chi è avanti. Avviato, si gioca senza cronometro di gara e vince chi per primo fa `ot` punti da allora. */
 import type { Regole } from "../types";
 
 /** Le due squadre: stesse chiavi dei punti */
@@ -16,16 +18,24 @@ export interface SituazioneGara {
   punti: Punti;
   /** Secondi che restano sul cronometro di gara; 0 (o meno) è tempo scaduto. Nel supplementare il cronometro non c'è e non conta */
   rimasto: number;
-  /** Punteggio nel momento in cui è partito il supplementare. Assente: non è ancora partito, e se il tempo è scaduto in parità
-   *  parte adesso, dal punteggio di adesso (0 a 0 nel supplementare) */
+  /** Punteggio nel momento in cui è stato avviato il supplementare. Assente: non è stato avviato, e se il tempo è scaduto in parità
+   *  va avviato. Vale finché nessuna squadra scende sotto quel punteggio (vedi `supplementareValido`) */
   inizioSupplementare?: Punti | null;
 }
 
-/** I cinque stati della partita: i tre «vinta» hanno un vincitore, gli altri due no */
+/** I sei stati della partita: i tre «vinta» hanno un vincitore, gli altri tre no */
 export type StatoGara =
   | { fase: "inCorso" }
+  | { fase: "supplementareDaAvviare" }
   | { fase: "supplementare" }
   | { fase: "vintaAlPunteggio" | "vintaATempo" | "vintaAlSupplementare"; vincitore: Lato };
+
+/** Il supplementare avviato dal punteggio `inizio` vale ancora per questi punti: nessuna squadra è scesa sotto il punteggio di
+ *  partenza. Se una scende sotto, il pareggio che lo giustificava è stato corretto via, e la partita si giudica come se non fosse
+ *  stato avviato: senza questo i punti del supplementare di quella squadra sarebbero negativi. */
+export function supplementareValido(punti: Punti, inizio: Punti): boolean {
+  return punti.a >= inizio.a && punti.b >= inizio.b;
+}
 
 /** Chi sta davanti; null in parità */
 function inVantaggio(p: Punti): Lato | null {
@@ -45,8 +55,8 @@ export function statoGara(
   { punti, rimasto, inizioSupplementare }: SituazioneGara,
   regole: Pick<Regole, "target" | "ot">,
 ): StatoGara {
-  // Supplementare partito: contano solo i punti fatti da allora. Né il cronometro di gara né il punteggio di vittoria valgono più
-  if (inizioSupplementare) {
+  // Supplementare avviato: contano solo i punti fatti da allora. Né il cronometro di gara né il punteggio di vittoria valgono più
+  if (inizioSupplementare && supplementareValido(punti, inizioSupplementare)) {
     const dalLoro = { a: punti.a - inizioSupplementare.a, b: punti.b - inizioSupplementare.b };
     const vincitore = haRaggiunto(dalLoro, regole.ot);
     if (vincitore) return { fase: "vintaAlSupplementare", vincitore };
@@ -56,8 +66,8 @@ export function statoGara(
   const alPunteggio = haRaggiunto(punti, regole.target);
   if (alPunteggio) return { fase: "vintaAlPunteggio", vincitore: alPunteggio };
   if (rimasto > 0) return { fase: "inCorso" };
-  // Tempo scaduto: vince chi è avanti, in parità si va al supplementare
+  // Tempo scaduto: vince chi è avanti; in parità serve il supplementare, che parte solo quando lo si avvia
   const avanti = inVantaggio(punti);
   if (avanti) return { fase: "vintaATempo", vincitore: avanti };
-  return { fase: "supplementare" };
+  return { fase: "supplementareDaAvviare" };
 }

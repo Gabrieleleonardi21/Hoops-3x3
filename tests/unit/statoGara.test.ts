@@ -1,7 +1,7 @@
 /** statoGara: come sta la partita di 3x3 in un dato momento, secondo le regole della tappa.
- *  È una funzione pura: riceve punteggio, tempo rimasto e (se è partito) il punto da cui è partito il supplementare. */
+ *  È una funzione pura: riceve punteggio, tempo rimasto e (se è stato avviato) il punto da cui è partito il supplementare. */
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { statoGara, type Lato, type Punti } from "../../src/utils/statoGara";
+import { statoGara, supplementareValido, type Lato, type Punti } from "../../src/utils/statoGara";
 import { DEFAULT_RULES } from "../../src/constants/rules";
 
 const REGOLE = DEFAULT_RULES; // 21 punti, 10 minuti, supplementare a 2 punti
@@ -48,21 +48,34 @@ describe("statoGara: a tempo scaduto vince chi è avanti", () => {
   });
 });
 
-describe("statoGara: in parità a tempo scaduto parte il supplementare", () => {
+describe("statoGara: in parità a tempo scaduto serve il supplementare, che va avviato", () => {
   it.each<[string, Punti]>([
     ["15 pari", punti(15, 15)],
     ["0 a 0", punti(0, 0)],
-  ])("%s: parte il supplementare, senza vincitore", (_nome, p) => {
-    expect(statoGara({ punti: p, rimasto: SCADUTO }, REGOLE)).toEqual({ fase: "supplementare" });
+  ])("%s: serve il supplementare e non è ancora partito, senza vincitore", (_nome, p) => {
+    expect(statoGara({ punti: p, rimasto: SCADUTO }, REGOLE)).toEqual({ fase: "supplementareDaAvviare" });
+  });
+
+  it("finché non è avviato, un canestro registrato in ritardo o una correzione che rompe la parità dà la vittoria a tempo", () => {
+    const allo = (a: number, b: number) => statoGara({ punti: punti(a, b), rimasto: SCADUTO }, REGOLE);
+    expect(allo(15, 15)).toEqual({ fase: "supplementareDaAvviare" });
+    expect(allo(16, 15)).toEqual({ fase: "vintaATempo", vincitore: "a" }); // un canestro in ritardo
+    expect(allo(15, 16)).toEqual({ fase: "vintaATempo", vincitore: "b" });
+    expect(allo(15, 15)).toEqual({ fase: "supplementareDaAvviare" }); // la correzione torna indietro: ancora da avviare
+  });
+
+  it("senza il punto di partenza (assente o null) il supplementare non è avviato", () => {
+    expect(statoGara({ punti: punti(8, 8), rimasto: SCADUTO, inizioSupplementare: null }, REGOLE)).toEqual({ fase: "supplementareDaAvviare" });
+    expect(statoGara({ punti: punti(8, 8), rimasto: SCADUTO, inizioSupplementare: undefined }, REGOLE)).toEqual({ fase: "supplementareDaAvviare" });
   });
 });
 
 describe("statoGara: nel supplementare vince chi segna per primo i punti previsti", () => {
-  // Il supplementare è partito dal 15 pari
+  // Il supplementare è stato avviato sul 15 pari
   const INIZIO = punti(15, 15);
   const supplementare = (a: number, b: number) => statoGara({ punti: punti(a, b), rimasto: SCADUTO, inizioSupplementare: INIZIO }, REGOLE);
 
-  it("finché nessuno ha fatto 2 punti continua", () => {
+  it("avviato, e finché nessuno ha fatto 2 punti, continua", () => {
     expect(supplementare(15, 15)).toEqual({ fase: "supplementare" });
     expect(supplementare(16, 15)).toEqual({ fase: "supplementare" });
     expect(supplementare(16, 16)).toEqual({ fase: "supplementare" });
@@ -95,6 +108,37 @@ describe("statoGara: nel supplementare vince chi segna per primo i punti previst
   });
 });
 
+describe("statoGara: sotto il punteggio di partenza il supplementare non vale più", () => {
+  // Avviato sul 15 pari: se poi una squadra scende sotto 15, il pareggio che lo giustificava è stato corretto via
+  const INIZIO = punti(15, 15);
+  const dopoLaCorrezione = (a: number, b: number) => statoGara({ punti: punti(a, b), rimasto: SCADUTO, inizioSupplementare: INIZIO }, REGOLE);
+
+  it("si giudica di nuovo il tempo regolamentare: vince a tempo chi è avanti, e niente punti negativi del supplementare", () => {
+    expect(dopoLaCorrezione(15, 14)).toEqual({ fase: "vintaATempo", vincitore: "a" });
+    expect(dopoLaCorrezione(14, 15)).toEqual({ fase: "vintaATempo", vincitore: "b" });
+  });
+
+  it("anche se l'altra squadra è sopra: conta il tempo regolamentare, non i punti del supplementare", () => {
+    // A ha 1 punto del supplementare e B −1: giudicata sul supplementare nessuno avrebbe finito; sul tempo regolamentare vince A
+    expect(dopoLaCorrezione(16, 14)).toEqual({ fase: "vintaATempo", vincitore: "a" });
+  });
+
+  it("se tornano pari, sotto, serve di nuovo avviare il supplementare", () => {
+    expect(dopoLaCorrezione(14, 14)).toEqual({ fase: "supplementareDaAvviare" });
+  });
+
+  it("al punteggio di partenza esatto il supplementare vale ancora", () => {
+    expect(dopoLaCorrezione(15, 15)).toEqual({ fase: "supplementare" });
+  });
+
+  it("supplementareValido: vale finché nessuna squadra scende sotto il punteggio di partenza", () => {
+    expect(supplementareValido(punti(15, 15), INIZIO)).toBe(true);
+    expect(supplementareValido(punti(17, 16), INIZIO)).toBe(true);
+    expect(supplementareValido(punti(15, 14), INIZIO)).toBe(false);
+    expect(supplementareValido(punti(14, 16), INIZIO)).toBe(false);
+  });
+});
+
 describe("statoGara: casi limite", () => {
   it("il punteggio raggiunto nello stesso istante in cui scade il tempo vale come vittoria al punteggio", () => {
     expect(statoGara({ punti: punti(21, 18), rimasto: SCADUTO }, REGOLE)).toEqual({ fase: "vintaAlPunteggio", vincitore: "a" });
@@ -102,7 +146,7 @@ describe("statoGara: casi limite", () => {
 
   it("una parità non decide mai, nemmeno oltre il punteggio di vittoria", () => {
     expect(statoGara({ punti: punti(21, 21), rimasto: METAPARTITA }, REGOLE)).toEqual({ fase: "inCorso" });
-    expect(statoGara({ punti: punti(21, 21), rimasto: SCADUTO }, REGOLE)).toEqual({ fase: "supplementare" });
+    expect(statoGara({ punti: punti(21, 21), rimasto: SCADUTO }, REGOLE)).toEqual({ fase: "supplementareDaAvviare" });
   });
 
   it("usa il punteggio di vittoria della tappa, non 21: gara a 11", () => {
@@ -122,10 +166,6 @@ describe("statoGara: casi limite", () => {
     expect(statoGara({ punti: punti(10, 8), rimasto: SCADUTO, inizioSupplementare: inizioOtto }, REGOLE)).toEqual({ fase: "vintaAlSupplementare", vincitore: "a" });
   });
 
-  it("senza il punto di partenza e con il tempo scaduto in parità il supplementare parte da lì: 0 a 0", () => {
-    expect(statoGara({ punti: punti(8, 8), rimasto: SCADUTO, inizioSupplementare: null }, REGOLE)).toEqual({ fase: "supplementare" });
-  });
-
   it("per ogni punteggio e tempo: il vincitore è sempre chi sta davanti, e la parità non vince mai", () => {
     for (let a = 0; a <= 25; a++) {
       for (let b = 0; b <= 25; b++) {
@@ -137,7 +177,8 @@ describe("statoGara: casi limite", () => {
             if (stato.fase === "vintaAlPunteggio") expect(suoi).toBeGreaterThanOrEqual(REGOLE.target);
             if (stato.fase === "vintaATempo") expect(rimasto).toBe(SCADUTO);
           } else if (a === b && rimasto === SCADUTO) {
-            expect(stato.fase).toBe("supplementare");
+            // Senza supplementare avviato, la parità a tempo scaduto chiede di avviarlo: non lo considera mai già in corso
+            expect(stato.fase).toBe("supplementareDaAvviare");
           }
         }
       }
@@ -148,12 +189,13 @@ describe("statoGara: casi limite", () => {
 describe("statoGara è pura", () => {
   afterEach(() => vi.restoreAllMocks());
 
-  it("non legge l'orologio, in nessuno dei cinque esiti", () => {
+  it("non legge l'orologio, in nessuno dei sei esiti", () => {
     const orologio = vi.spyOn(Date, "now");
     statoGara({ punti: punti(5, 4), rimasto: METAPARTITA }, REGOLE);
     statoGara({ punti: punti(21, 4), rimasto: METAPARTITA }, REGOLE);
     statoGara({ punti: punti(9, 4), rimasto: SCADUTO }, REGOLE);
     statoGara({ punti: punti(9, 9), rimasto: SCADUTO }, REGOLE);
+    statoGara({ punti: punti(9, 9), rimasto: SCADUTO, inizioSupplementare: punti(9, 9) }, REGOLE);
     statoGara({ punti: punti(11, 9), rimasto: SCADUTO, inizioSupplementare: punti(9, 9) }, REGOLE);
     expect(orologio).not.toHaveBeenCalled();
   });

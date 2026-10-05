@@ -147,6 +147,7 @@ describe("MatchTimer: usa le regole della tappa", () => {
     segna(B, "+2");
     premi("START");
     scadere();
+    premi("Avvia supplementare");
     expect(mostra("Supplementare: vince chi segna per primo 3 pt")).toBeTruthy();
   });
 
@@ -182,19 +183,79 @@ describe("MatchTimer: la partita si decide", () => {
     expect(mostra("Squadra B — Partita conclusa")).toBeTruthy();
   });
 
-  it("in parità a tempo scaduto parte il supplementare: «OT», niente «Partita conclusa», e si può avviare", () => {
+  it("in parità a tempo scaduto il timer dice che serve il supplementare e mostra il pulsante: né «OT» né «Partita conclusa»", () => {
     apri(BREVE);
     segna(A, "+1");
     segna(B, "+1");
     premi("START");
     scadere();
+    expect(cronometro()).toBe("0:00");
+    expect(mostra("Pareggio: serve il supplementare")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Avvia supplementare" })).toBeTruthy();
+    manca("OT");
+    manca(/Partita conclusa/);
+    // Il supplementare non è partito: il possesso non ha ancora niente da cronometrare
+    expect(screen.queryByRole("button", { name: "START" })).toBeNull();
+  });
+
+  it("«Avvia supplementare» lo avvia: «OT», i punti della tappa e «START» per il possesso, e il pulsante sparisce", () => {
+    apri(BREVE);
+    segna(A, "+1");
+    segna(B, "+1");
+    premi("START");
+    scadere();
+    premi("Avvia supplementare");
     expect(mostra("OT")).toBeTruthy();
     expect(mostra("Supplementare: vince chi segna per primo 2 pt")).toBeTruthy();
+    manca("Pareggio: serve il supplementare");
     manca(/Partita conclusa/);
+    expect(screen.queryByRole("button", { name: "Avvia supplementare" })).toBeNull();
     expect(screen.getByRole("button", { name: "START" })).toBeTruthy();
   });
 
-  it("nel supplementare vince chi segna per primo i punti previsti, contati da quando il supplementare parte", () => {
+  it("un canestro registrato in ritardo, prima del pulsante, rompe la parità: vince a tempo chi è avanti e il supplementare non parte", () => {
+    apri(BREVE);
+    segna(A, "+1");
+    segna(B, "+1");
+    premi("START");
+    scadere(); // 1 pari
+    segna(A, "+1"); // il canestro del tempo regolamentare, registrato dopo la sirena
+    expect(mostra("Squadra A — Partita conclusa")).toBeTruthy();
+    manca("OT");
+    manca("Pareggio: serve il supplementare");
+    expect(screen.queryByRole("button", { name: "Avvia supplementare" })).toBeNull();
+  });
+
+  it("una correzione che rompe la parità, prima del pulsante, dà la vittoria a tempo; se la parità torna serve ancora avviare il supplementare", () => {
+    apri(BREVE);
+    segna(A, "+1");
+    segna(B, "+1");
+    premi("START");
+    scadere();
+    fireEvent.click(screen.getByRole("button", { name: "Togli un punto a Squadra A" })); // A non aveva segnato: 0 a 1
+    expect(mostra("Squadra B — Partita conclusa")).toBeTruthy();
+    segna(A, "+1"); // di nuovo 1 pari
+    manca(/Partita conclusa/);
+    expect(mostra("Pareggio: serve il supplementare")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Avvia supplementare" })).toBeTruthy();
+  });
+
+  it("il punteggio di partenza del supplementare è quello di quando si preme il pulsante, non quello della sirena", () => {
+    apri(BREVE);
+    segna(A, "+1");
+    segna(B, "+1");
+    premi("START");
+    scadere(); // 1 pari alla sirena
+    segna(A, "+1"); // in pausa si registrano due canestri in ritardo, uno per squadra: prima 2 a 1…
+    segna(B, "+1"); // …poi 2 pari
+    premi("Avvia supplementare"); // il supplementare parte dal 2 pari
+    segna(A, "+1"); // 3 a 2: un solo punto del supplementare (dall'1 pari della sirena sarebbero già 2 e la partita sarebbe finita)
+    manca(/Partita conclusa/);
+    segna(A, "+1");
+    expect(mostra("Squadra A — Partita conclusa")).toBeTruthy();
+  });
+
+  it("nel supplementare vince chi segna per primo i punti previsti, contati da quando si preme il pulsante", () => {
     apri({ ...BREVE, ot: 3 });
     segna(A, "+2");
     segna(A, "+2");
@@ -202,6 +263,7 @@ describe("MatchTimer: la partita si decide", () => {
     segna(B, "+2"); // 4 pari
     premi("START");
     scadere();
+    premi("Avvia supplementare");
     segna(A, "+2"); // 2 punti del supplementare: con 3 da fare non basta, anche se il totale è già 6
     manca(/Partita conclusa/);
     segna(B, "+2"); // 2 pari nel supplementare
@@ -216,39 +278,45 @@ describe("MatchTimer: la partita si decide", () => {
     segna(B, "+2");
     premi("START");
     scadere();
+    premi("Avvia supplementare");
     segna(A, "+1"); // 3 a 2: A è al punteggio di vittoria, ma nel supplementare ha fatto un punto solo
     manca(/Partita conclusa/);
     segna(A, "+1");
     expect(mostra("Squadra A — Partita conclusa")).toBeTruthy();
   });
 
-  it("una correzione prima del primo punto del supplementare corregge il tempo regolamentare: il supplementare non è ancora partito", () => {
+  it("dopo il pulsante, togliere un punto del supplementare non lo annulla: si torna a 0 a 0 nel supplementare", () => {
     apri(BREVE);
     segna(A, "+1");
     segna(B, "+1");
     premi("START");
-    scadere(); // 1 pari: supplementare
-    fireEvent.click(screen.getByRole("button", { name: "Togli un punto a Squadra A" })); // A non aveva segnato: 0 a 1
-    expect(mostra("Squadra B — Partita conclusa")).toBeTruthy();
-    segna(A, "+1"); // di nuovo 1 pari: supplementare
+    scadere();
+    premi("Avvia supplementare");
+    segna(A, "+1"); // 2 a 1: il primo punto del supplementare
+    fireEvent.click(screen.getByRole("button", { name: "Togli un punto a Squadra A" })); // sbagliato: di nuovo 1 pari
+    expect(mostra("OT")).toBeTruthy();
+    manca("Pareggio: serve il supplementare");
     manca(/Partita conclusa/);
-    segna(A, "+1"); // il primo punto del supplementare (2 a 1)
-    manca(/Partita conclusa/);
-    segna(A, "+1"); // il secondo: A vince
+    expect(screen.queryByRole("button", { name: "Avvia supplementare" })).toBeNull();
+    segna(A, "+2"); // 3 a 1: 2 punti del supplementare, dal punteggio di partenza di prima
     expect(mostra("Squadra A — Partita conclusa")).toBeTruthy();
   });
 
-  it("togliere il primo punto del supplementare lo riporta a prima che partisse: una correzione dopo conta ancora sul tempo regolamentare", () => {
+  it("sotto il punteggio di partenza il supplementare non vale più: vince a tempo chi è avanti, e per ripartire serve di nuovo il pulsante", () => {
     apri(BREVE);
     segna(A, "+1");
     segna(B, "+1");
     premi("START");
-    scadere(); // 1 pari: supplementare
-    segna(A, "+1"); // 2 a 1: il primo punto del supplementare
-    fireEvent.click(screen.getByRole("button", { name: "Togli un punto a Squadra A" })); // sbagliato: di nuovo 1 pari
-    manca(/Partita conclusa/);
-    fireEvent.click(screen.getByRole("button", { name: "Togli un punto a Squadra B" })); // anche B non aveva segnato: 1 a 0
+    scadere();
+    premi("Avvia supplementare"); // dall'1 pari
+    fireEvent.click(screen.getByRole("button", { name: "Togli un punto a Squadra B" })); // B scende a 0: la parità non c'è più
     expect(mostra("Squadra A — Partita conclusa")).toBeTruthy();
+    manca("OT");
+    segna(B, "+1"); // di nuovo 1 pari: il supplementare non riparte da solo
+    manca(/Partita conclusa/);
+    manca("OT");
+    expect(mostra("Pareggio: serve il supplementare")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Avvia supplementare" })).toBeTruthy();
   });
 
   it("nel supplementare «START» fa correre solo il possesso: al posto del tempo resta «OT»", () => {
@@ -257,6 +325,7 @@ describe("MatchTimer: la partita si decide", () => {
     segna(B, "+1");
     premi("START");
     scadere();
+    premi("Avvia supplementare");
     premi("START");
     passa(5000);
     expect(mostra("OT")).toBeTruthy();
@@ -294,6 +363,7 @@ describe("MatchTimer: la partita si decide", () => {
     segna(B, "+1");
     premi("START");
     scadere();
+    premi("Avvia supplementare");
     segna(A, "+2");
     expect(mostra("Squadra A — Partita conclusa")).toBeTruthy();
 
@@ -301,10 +371,11 @@ describe("MatchTimer: la partita si decide", () => {
     expect(cronometro()).toBe("1:00");
     expect(screen.getAllByText("0")).toHaveLength(2);
     manca(/Partita conclusa/);
-    // Una seconda partita: 0 a 0 allo scadere, e il supplementare riparte da capo (non dall'1 pari di prima)
+    // Una seconda partita: 0 a 0 allo scadere, il supplementare è di nuovo da avviare e riparte da capo (non dall'1 pari di prima)
     premi("START");
     scadere();
-    expect(mostra("OT")).toBeTruthy();
+    expect(mostra("Pareggio: serve il supplementare")).toBeTruthy();
+    premi("Avvia supplementare");
     segna(A, "+1");
     manca(/Partita conclusa/);
     segna(A, "+1");

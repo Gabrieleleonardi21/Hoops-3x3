@@ -1,10 +1,12 @@
 /** Timer di gara per il 3x3: cronometro, shot clock e punteggio live, con le regole della tappa (punteggio di vittoria, durata,
- *  possesso, supplementare). Finestra (Modal) usata dal tavolo durante la partita: Esc, X e blocco dello scroll come le altre. */
+ *  possesso, supplementare). Finestra (Modal) usata dal tavolo durante la partita: Esc, X e blocco dello scroll come le altre.
+ *  A tempo scaduto in parità il supplementare non parte da solo: nel 3x3 c'è una pausa, in cui si può ancora registrare un canestro
+ *  del tempo regolamentare, e il supplementare parte quando l'operatore preme «Avvia supplementare». */
 import { useState, useEffect } from "react";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
 import { Modal } from "../ui/Modal";
-import { statoGara, type Lato, type Punti } from "../../utils/statoGara";
+import { statoGara, supplementareValido, type Lato, type Punti } from "../../utils/statoGara";
 import type { Regole } from "../../types";
 
 /** Un conto alla rovescia, in millisecondi. In marcia tiene l'istante in cui finisce (`fine`), in pausa il tempo che gli resta
@@ -87,7 +89,7 @@ export function MatchTimer({ regole, teamA, teamB, onClose }: {
 
   const [tempo, setTempo] = useState(() => daCapo(durataMs, possessoMs));
   const [punti, setPunti] = useState<Punti>({ a: 0, b: 0 });
-  // Il punteggio da cui è partito il supplementare, per contare da lì i suoi punti (null: non è partito)
+  // Il punteggio da cui è stato avviato il supplementare (con il suo pulsante), per contare da lì i suoi punti (null: non è avviato)
   const [inizioSupplementare, setInizioSupplementare] = useState<Punti | null>(null);
 
   const nomi: Record<Lato, string> = { a: teamA ?? "Squadra A", b: teamB ?? "Squadra B" };
@@ -123,16 +125,17 @@ export function MatchTimer({ regole, teamA, teamB, onClose }: {
 
   const resetShot = () => setTempo(possessoRiportato(tempo, Date.now(), possessoMs));
 
+  /** Avvia il supplementare dal punteggio di adesso: i suoi punti si contano da qui. Prima del pulsante un canestro registrato in
+   *  ritardo o una correzione contano ancora sul tempo regolamentare */
+  const avviaSupplementare = () => setInizioSupplementare(punti);
+
   /** Aggiunge `delta` punti alla squadra `lato` (con un valore negativo li toglie, per correggere) */
   const segna = (lato: Lato, delta: number) => {
     const nuovi = { ...punti, [lato]: Math.max(0, punti[lato] + delta) };
-    // Il supplementare parte dal pareggio a tempo scaduto: da quel punteggio, fissato al primo canestro, si contano i suoi punti.
-    // Una correzione (delta negativo) no: prima del primo canestro corregge ancora il tempo regolamentare
+    // Sotto il punteggio da cui è partito, il supplementare non c'è più: la parità che lo giustificava è stata corretta via, e per
+    // ripartire serve di nuovo il pulsante. Tornare al punteggio di partenza (togliere un punto del supplementare) non lo annulla
     let inizio = inizioSupplementare;
-    if (!inizio && delta > 0 && stato.fase === "supplementare") inizio = punti;
-    // Tolto quel primo canestro si è di nuovo al punteggio di partenza: il supplementare non ha punti, e come prima di
-    // cominciare una correzione conta ancora sul tempo regolamentare
-    if (inizio && nuovi.a === inizio.a && nuovi.b === inizio.b) inizio = null;
+    if (inizio && !supplementareValido(nuovi, inizio)) inizio = null;
     setPunti(nuovi);
     setInizioSupplementare(inizio);
     // Se questo canestro decide la partita i cronometri si fermano subito
@@ -147,12 +150,13 @@ export function MatchTimer({ regole, teamA, teamB, onClose }: {
 
   let orologio = fmt(timeLeft);
   let didascalia = "Tempo rimanente";
+  if (stato.fase === "supplementareDaAvviare") didascalia = "Pareggio: serve il supplementare";
   if (inSupplementare) {
     orologio = "OT"; // nel supplementare il cronometro di gara non c'è
     didascalia = `Supplementare: vince chi segna per primo ${regole.ot} pt`;
   }
 
-  // START/STOP, o il vincitore a partita decisa (togliendo un punto per errore la partita si riapre)
+  // START/STOP; a tempo scaduto in parità «Avvia supplementare»; a partita decisa il vincitore (togliendo un punto per errore si riapre)
   let etichetta = "START";
   let stileComando = "";
   if (inMarcia) {
@@ -160,6 +164,9 @@ export function MatchTimer({ regole, teamA, teamB, onClose }: {
     stileComando = "bg-loss text-chalk hover:bg-loss";
   }
   let comando = <Button onClick={avviaOFerma} className={`h-12 px-8 text-xl ${stileComando}`}>{etichetta}</Button>;
+  if (stato.fase === "supplementareDaAvviare") {
+    comando = <Button onClick={avviaSupplementare} className="h-12 px-8 text-xl">Avvia supplementare</Button>;
+  }
   if ("vincitore" in stato) {
     comando = <span className="font-display text-xl text-court">{nomi[stato.vincitore]} — Partita conclusa</span>;
   }
