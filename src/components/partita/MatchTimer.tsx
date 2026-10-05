@@ -1,8 +1,9 @@
 /** Timer di gara per il 3x3: cronometro, shot clock e punteggio live, con le regole della tappa (punteggio di vittoria, durata,
- *  possesso, supplementare). Modale a tutto schermo, usato dal tavolo durante la partita. */
+ *  possesso, supplementare). Finestra (Modal) usata dal tavolo durante la partita: Esc, X e blocco dello scroll come le altre. */
 import { useState, useEffect } from "react";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
+import { Modal } from "../ui/Modal";
 import { statoGara, type Lato, type Punti } from "../../utils/statoGara";
 import type { Regole } from "../../types";
 
@@ -163,62 +164,60 @@ export function MatchTimer({ regole, teamA, teamB, onClose }: {
   const scoreBtn = "h-11 min-w-11 px-4 font-display text-xl";
 
   return (
-    <div className="fixed inset-0 z-[1000] flex flex-col items-center justify-center bg-asphalt-950 p-5 text-chalk" role="dialog" aria-label="Timer di gara">
-      {/* Chiudi */}
-      <button onClick={onClose} className="absolute right-5 top-4 text-chalk-muted hover:text-chalk" aria-label="Chiudi timer">
-        <Icon name="close" size={24} />
-      </button>
+    <Modal label="Timer di gara" title="Timer di gara" width={560} onClose={onClose}>
+      <div className="flex flex-col items-center">
+        {/* Squadre */}
+        <div className="mb-2 flex gap-8 font-display text-base text-chalk-muted sm:text-lg">
+          <span>{nomi.a}</span>
+          <span className="text-chalk-dim">vs</span>
+          <span>{nomi.b}</span>
+        </div>
 
-      {/* Squadre */}
-      <div className="mb-2 flex gap-8 font-display text-base text-chalk-muted sm:text-lg">
-        <span>{nomi.a}</span>
-        <span className="text-chalk-dim">vs</span>
-        <span>{nomi.b}</span>
-      </div>
-
-      {/* Punteggio */}
-      <div className="mb-5 flex items-center gap-6">
-        {LATI.map((lato) => (
-          <div key={lato} className={`text-center ${ORDINE[lato]}`}>
-            <div className={`font-display leading-none text-[clamp(64px,14vw,112px)] ${colorePunti(punti[lato] > punti[ALTRO[lato]])}`}>
-              {punti[lato]}
+        {/* Punteggio. La finestra è più stretta dello schermo intero di prima: sotto i 480 px i due blocchi vanno uno sopra
+            l'altro, senza trattino, invece di uscire dai lati e restare tagliati */}
+        <div className="mb-5 flex flex-wrap items-center justify-center gap-x-6 gap-y-4">
+          {LATI.map((lato) => (
+            <div key={lato} className={`text-center ${ORDINE[lato]}`}>
+              <div className={`font-display leading-none text-[clamp(64px,14vw,112px)] ${colorePunti(punti[lato] > punti[ALTRO[lato]])}`}>
+                {punti[lato]}
+              </div>
+              <div className="mt-2 flex justify-center gap-1.5">
+                <Button className={scoreBtn} onClick={() => segna(lato, 1)}>+1</Button>
+                <Button className={scoreBtn} onClick={() => segna(lato, 2)}>+2</Button>
+                <Button variant="ghost" className={scoreBtn} onClick={() => segna(lato, -1)} aria-label={`Togli un punto a ${nomi[lato]}`}>
+                  <Icon name="minus" size={16} />
+                </Button>
+              </div>
             </div>
-            <div className="mt-2 flex justify-center gap-1.5">
-              <Button className={scoreBtn} onClick={() => segna(lato, 1)}>+1</Button>
-              <Button className={scoreBtn} onClick={() => segna(lato, 2)}>+2</Button>
-              <Button variant="ghost" className={scoreBtn} onClick={() => segna(lato, -1)} aria-label={`Togli un punto a ${nomi[lato]}`}>
-                <Icon name="minus" size={16} />
-              </Button>
+          ))}
+          <div className="order-2 hidden font-display text-4xl text-chalk-dim min-[480px]:block">–</div>
+        </div>
+
+        {/* Countdown + Shot clock */}
+        <div className="w-full max-w-md border-t border-asphalt-700 pt-4 text-center">
+          <div className={`font-display leading-none text-[clamp(48px,10vw,80px)] ${coloreTempo}`}>
+            {orologio}
+          </div>
+          <div className="mb-3 text-xs text-chalk-muted">{didascalia}</div>
+
+          {/* Shot clock */}
+          <div className="mb-5 flex items-center justify-center gap-3">
+            <div className={`min-w-16 rounded border px-2 font-display text-5xl ${coloreShot}`}>
+              {shotClock}
+            </div>
+            <div className="text-left">
+              <div className="kicker">Shot clock</div>
+              <Button variant="link" onClick={resetShot}>Reset {possesso}s</Button>
             </div>
           </div>
-        ))}
-        <div className="order-2 font-display text-4xl text-chalk-dim">–</div>
-      </div>
 
-      {/* Countdown + Shot clock */}
-      <div className="w-full max-w-md border-t border-asphalt-700 pt-4 text-center">
-        <div className={`font-display leading-none text-[clamp(48px,10vw,80px)] ${coloreTempo}`}>
-          {orologio}
-        </div>
-        <div className="mb-3 text-xs text-chalk-muted">{didascalia}</div>
-
-        {/* Shot clock */}
-        <div className="mb-5 flex items-center justify-center gap-3">
-          <div className={`min-w-16 rounded border px-2 font-display text-5xl ${coloreShot}`}>
-            {shotClock}
-          </div>
-          <div className="text-left">
-            <div className="kicker">Shot clock</div>
-            <Button variant="link" onClick={resetShot}>Reset {possesso}s</Button>
+          {/* Controlli */}
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            {comando}
+            <Button variant="link" className="text-chalk-muted" onClick={resetAll}>Reset tutto</Button>
           </div>
         </div>
-
-        {/* Controlli */}
-        <div className="flex flex-wrap items-center justify-center gap-3">
-          {comando}
-          <Button variant="link" className="text-chalk-muted" onClick={resetAll}>Reset tutto</Button>
-        </div>
       </div>
-    </div>
+    </Modal>
   );
 }

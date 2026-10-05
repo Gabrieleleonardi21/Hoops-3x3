@@ -16,6 +16,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup(); // senza le globali di Vitest, Testing Library non smonta da sola
   vi.useRealTimers();
+  document.body.style.overflow = "";
 });
 
 function apri(regole: Regole = DEFAULT_RULES) {
@@ -295,5 +296,38 @@ describe("MatchTimer: la partita si decide", () => {
     manca(/Partita conclusa/);
     segna(A, "+1");
     expect(mostra("Squadra A — Partita conclusa")).toBeTruthy();
+  });
+});
+
+describe("MatchTimer: è una finestra come le altre (Modal)", () => {
+  it("ha il suo nome: «Timer di gara»", () => {
+    apri();
+    expect(screen.getByRole("dialog", { name: "Timer di gara" })).toBeTruthy();
+  });
+
+  it("si chiude con Esc e con la X, come le altre finestre", () => {
+    const onClose = vi.fn();
+    render(<MatchTimer regole={DEFAULT_RULES} onClose={onClose} />);
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Chiudi" }));
+    expect(onClose).toHaveBeenCalledTimes(2);
+  });
+
+  it("usare i pulsanti del timer non lo chiude", () => {
+    const onClose = vi.fn();
+    render(<MatchTimer regole={DEFAULT_RULES} onClose={onClose} />);
+    segna(A, "+2");
+    premi("START");
+    premi("STOP");
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("blocca lo scorrimento della pagina finché è aperto, e lo rimette alla chiusura", () => {
+    document.body.style.overflow = "scroll";
+    const { unmount } = apri();
+    expect(document.body.style.overflow).toBe("hidden");
+    unmount();
+    expect(document.body.style.overflow).toBe("scroll");
   });
 });
