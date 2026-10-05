@@ -339,7 +339,7 @@ describe("Anagrafe non caricata: l'errore si distingue dal «vuoto» (FS-4)", ()
 });
 
 /** Una tappa pubblicata nell'archivio del circuito */
-const pubblicata = (): PubTappa => ({ tappa: { ...tappaValida("p1", "Finale di Roma") }, lega: "Estate", autore: "Anna", autoreId: "u1", ts: 1 });
+const pubblicata = (nome = "Finale di Roma"): PubTappa => ({ tappa: { ...tappaValida("p1", nome) }, lega: "Estate", autore: "Anna", autoreId: "u1", ts: 1 });
 
 describe("Archivio non caricato: l'errore si distingue dal «vuoto» (FS-4)", () => {
   it("server che risponde errore: compare il messaggio con «Riprova», non «L'archivio è vuoto»", async () => {
@@ -423,6 +423,70 @@ describe("Pagina pubblica di una tappa: il server in errore non è «non trovata
     expect(archivio.get).not.toHaveBeenCalled();
   });
 
+  describe("passando da una tappa a un'altra senza smontare la pagina (tasti avanti e indietro)", () => {
+    const ALTRO_ID = "223e4567-e89b-42d3-a456-426614174001";
+
+    /** La pagina della tappa ID, con un pulsante che porta a ALTRO_ID come farebbe la cronologia del browser */
+    function apriConPassaggio() {
+      function Passa() {
+        const navigate = useNavigate();
+        return <button onClick={() => navigate(`/tappa/${ALTRO_ID}`)}>Altra tappa</button>;
+      }
+      render(
+        <MemoryRouter initialEntries={[`/tappa/${ID}`]}>
+          <Passa />
+          <Routes>
+            <Route path="/tappa/:id" element={<TappaViewPage />} />
+          </Routes>
+        </MemoryRouter>,
+      );
+    }
+    const passa = () => fireEvent.click(screen.getByRole("button", { name: "Altra tappa" }));
+
+    it("la risposta in ritardo della tappa di prima non prende il posto di quella nuova", async () => {
+      const lenta = differita<PubTappa>();
+      archivio.get.mockImplementation((id) => {
+        if (id === ID) return lenta.p;
+        return Promise.resolve(pubblicata("Tappa nuova"));
+      });
+      apriConPassaggio();
+      passa();
+      expect(await screen.findByRole("heading", { name: "Tappa nuova" })).toBeTruthy();
+      await act(async () => { lenta.ok(pubblicata("Tappa di prima")); await lenta.p; });
+      expect(screen.getByRole("heading", { name: "Tappa nuova" })).toBeTruthy();
+      expect(screen.queryByRole("heading", { name: "Tappa di prima" })).toBeNull();
+    });
+
+    it("l'errore in ritardo della tappa di prima non compare su quella nuova", async () => {
+      const lenta = differita<PubTappa>();
+      archivio.get.mockImplementation((id) => {
+        if (id === ID) return lenta.p;
+        return Promise.resolve(pubblicata("Tappa nuova"));
+      });
+      apriConPassaggio();
+      passa();
+      await screen.findByRole("heading", { name: "Tappa nuova" });
+      await act(async () => { lenta.fallisci(new ApiError(503, "Servizio non disponibile")); await lenta.p.catch(() => {}); });
+      expect(screen.queryByRole("alert")).toBeNull();
+      expect(screen.getByRole("heading", { name: "Tappa nuova" })).toBeTruthy();
+    });
+
+    it("mentre la tappa nuova si carica non si vede quella di prima", async () => {
+      const nuova = differita<PubTappa>();
+      archivio.get.mockImplementation((id) => {
+        if (id === ID) return Promise.resolve(pubblicata("Tappa di prima"));
+        return nuova.p;
+      });
+      apriConPassaggio();
+      await screen.findByRole("heading", { name: "Tappa di prima" });
+      passa();
+      expect(await screen.findByText(/Sto caricando la tappa/)).toBeTruthy();
+      expect(screen.queryByRole("heading", { name: "Tappa di prima" })).toBeNull();
+      await act(async () => { nuova.ok(pubblicata("Tappa nuova")); await nuova.p; });
+      expect(screen.getByRole("heading", { name: "Tappa nuova" })).toBeTruthy();
+    });
+  });
+
   it("passando dalla cronologia a un id non valido l'errore della tappa di prima non resta", async () => {
     /** Un pulsante che porta a un'altra tappa senza smontare la pagina, come i tasti avanti e indietro del browser */
     function Altra() {
@@ -450,8 +514,9 @@ describe("Pagina pubblica di una tappa: il server in errore non è «non trovata
 /** Promessa controllabile a mano: il test decide quando il «server» risponde */
 function differita<T>() {
   let ok!: (v: T) => void;
-  const p = new Promise<T>((res) => { ok = res; });
-  return { p, ok };
+  let fallisci!: (e: unknown) => void;
+  const p = new Promise<T>((res, rej) => { ok = res; fallisci = rej; });
+  return { p, ok, fallisci };
 }
 
 describe("Elenco delle leghe: errori di creazione, apertura ed eliminazione", () => {
