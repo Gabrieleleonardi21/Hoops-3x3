@@ -9,6 +9,12 @@ export function conteggio(n: number, singolare: string, plurale: string): string
   return `${n} ${plurale}`;
 }
 
+/** «Riapri» toglie la tappa dall'Archivio circuito: è l'unica cosa che si perde, la tappa in sé resta com'è. Il testo è fisso e
+ *  vale per chi ha un account: l'ospite non pubblica niente. */
+export const PERDITA_RIAPERTURA =
+  "La tappa uscirà dall'Archivio circuito e il suo link pubblico smetterà di funzionare finché non la concluderai di nuovo. "
+  + "Sorteggio e risultati restano.";
+
 /** Eliminare una lega cancella le sue tappe: si dice quante sono (l'elenco delle leghe non carica i risultati) */
 export function perditaLega(m: LegaMeta): string {
   if (m.nTappe === 0) return `Verrà eliminata la lega «${m.nome}», che non ha tappe.`;

@@ -1,6 +1,7 @@
 import { useAppStore, tappaCorrente } from "../stores/useAppStore";
 import { archivioApi } from "../services/archivioApi";
 import { uid } from "../utils/uid";
+import { PERDITA_RIAPERTURA } from "../utils/testi";
 import * as ops from "../domain/tappaOps";
 import type { Esito, ModoSorteggio } from "../domain/tappaOps";
 import type { EventoGara, Partita, RegSquadra, SquadraTappa, StatLine, StatSheet, Tappa } from "../types";
@@ -106,7 +107,7 @@ export function useTappa(id: string | undefined) {
   /** Che cosa cancellerebbe «Riapri»: la pubblicazione nell'archivio, che solo chi ha un account può avere */
   const perditaRiapertura = () => {
     if (!user || user.guest) return null;
-    return ops.PERDITA_RIAPERTURA;
+    return PERDITA_RIAPERTURA;
   };
   // Cambi di struttura (regole e limiti in tappaOps): azzerano sorteggio, calendario e tabellone
   const setNGironi = (n: number) => applica((t) => ops.impostaNumeroGironi(t, n));

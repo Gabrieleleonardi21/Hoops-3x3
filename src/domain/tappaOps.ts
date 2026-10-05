@@ -229,12 +229,6 @@ export function perditaSquadra(tappa: Tappa, squadraId: string): string | null {
   return fraseEliminati([voce, ...datiDiGioco(tappa)]);
 }
 
-/** «Riapri» toglie la tappa dall'Archivio circuito: è l'unica cosa che si perde, la tappa in sé resta com'è. Il testo
- *  vale per chi ha un account: l'ospite non pubblica niente. */
-export const PERDITA_RIAPERTURA =
-  "La tappa uscirà dall'Archivio circuito e il suo link pubblico smetterà di funzionare finché non la concluderai di nuovo. "
-  + "Sorteggio e risultati restano.";
-
 /** Aggiunge una squadra con il nome provvisorio «Squadra N». Il sorteggio fatto non vale più. */
 export function aggiungiSquadra(tappa: Tappa): Esito {
   if (tappa.conclusa) return ko(CONCLUSA);

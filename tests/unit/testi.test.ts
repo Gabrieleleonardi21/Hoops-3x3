@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { conteggio, perditaGiocatore, perditaLega, perditaSquadraAnagrafe } from "../../src/utils/testi";
+import { PERDITA_RIAPERTURA, conteggio, perditaGiocatore, perditaLega, perditaSquadraAnagrafe } from "../../src/utils/testi";
 import type { LegaMeta, RegGiocatore, RegSquadra } from "../../src/types";
 
 describe("conteggio: il numero con il nome al singolare o al plurale", () => {
@@ -28,6 +28,12 @@ describe("testi di ciò che si perde eliminando una lega o una voce dell'anagraf
       .toBe("Verrà eliminato il giocatore «Mario Rossi» dall'anagrafe condivisa e da 1 roster.");
     expect(perditaGiocatore(g, [squadra("s1", ["g1"]), squadra("s2", ["g9", "g1"]), squadra("s3", [])]))
       .toBe("Verrà eliminato il giocatore «Mario Rossi» dall'anagrafe condivisa e da 2 roster.");
+  });
+
+  it("riapri: la tappa esce dall'Archivio circuito, il suo link smette di funzionare, il resto resta", () => {
+    expect(PERDITA_RIAPERTURA).toContain("uscirà dall'Archivio circuito");
+    expect(PERDITA_RIAPERTURA).toContain("link pubblico smetterà di funzionare");
+    expect(PERDITA_RIAPERTURA).toContain("Sorteggio e risultati restano");
   });
 
   it("squadra: i giocatori del roster restano registrati (solo se c'è un roster)", () => {
