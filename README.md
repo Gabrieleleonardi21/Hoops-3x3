@@ -15,7 +15,7 @@ App web per la gestione di un circuito italiano di basket 3x3: tornei, gironi, s
 - **Coach AI** — assistente virtuale che conosce le regole FIBA 3x3 e i dati della lega corrente (gratuito via Groq API)
 - **Home dashboard** — tappa in corso, classifica live, ultimo risultato, prossime partite e leader
 - **Profilo giocatore** — pagina `/giocatore/:id` con statistiche aggregate, andamento punti e storico tappe
-- **Campetti** — ricerca campi con filtri e mappa schematica (*dati di esempio*, senza persistenza)
+- **Campetti** — ricerca campi con filtri e mappa schematica (*dati di esempio*, dichiarati da un avviso in cima alla pagina; senza persistenza)
 - **Sessione persistente** — login e dati salvati nel browser; la sessione si rinnova da sola e «Esci» la chiude anche sul server; gli ospiti hanno dati locali separati
 
 ### Regole FIBA 3x3 (default)

@@ -58,7 +58,8 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
 - Aggiunta e rimozione squadre iscritte (minimo 3 giocatori per squadra
   obbligatori per il sorteggio, controllo disattivato in modalità Ospite).
 - Modifica dei dati della tappa in qualsiasi momento prima della conclusione.
-- Eliminazione tappa con conferma.
+- Eliminazione tappa con conferma: la finestra dice che cosa si perde (le squadre,
+  il sorteggio, i risultati).
 - Collegamento automatico all'anagrafe: quando si digita il nome di una squadra,
   l'app cerca in anagrafe e, se trovata, importa logo, sito, rank e roster.
   Se non trovata, crea automaticamente la scheda in anagrafe.
@@ -71,7 +72,9 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
   account registrato; la tappa passa in sola lettura). Servono tutti i
   risultati dei gironi e, se è stata generata la fase a eliminazione
   diretta, anche tutti i suoi match.
-- Riapertura di una tappa conclusa per correzioni.
+- Riapertura di una tappa conclusa per correzioni. Se è pubblicata chiede
+  conferma: esce dall'Archivio circuito e il suo link pubblico non funziona
+  finché non la si conclude di nuovo.
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -303,6 +306,14 @@ utenti registrati.
   scritto e disattivano i pulsanti durante l'invio; se una squadra di tappa
   non si riesce a collegare all'anagrafe il motivo compare sotto il suo nome,
   con «Riprova».
+- Conferme: ciò che fa perdere qualcosa apre una finestra che lo dice, con i
+  numeri veri («Verranno eliminati il sorteggio e 12 risultati.»). Sempre:
+  elimina tappa, elimina bracket, elimina lega, eliminazioni dell'anagrafe
+  (dalla card e dalla scheda). Quando si perde qualcosa: nuovo sorteggio e
+  cambio del numero di gironi o delle squadre con dei risultati registrati;
+  rimuovi squadra con un nome scritto, dei giocatori o dei risultati nella
+  tappa (una squadra appena aggiunta si toglie subito); riapri una tappa
+  pubblicata. «Annulla», Esc e la X non cambiano niente.
 - Operazioni di tappa (sorteggio, risultati, fasi dirette, conclusione) come
   funzioni pure in src/domain/tappaOps.ts: le stesse per l'interfaccia e per
   il Coach AI, coperte da test unitari.
