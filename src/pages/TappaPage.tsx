@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { useTappa } from "../hooks/useTappa";
 import { useAnagrafe } from "../hooks/useAnagrafe";
+import { testoErrore } from "../services/api";
 import { TappaEditPanel } from "../components/tappa/TappaEditPanel";
 import { TappaRules } from "../components/tappa/TappaRules";
 import { TappaConclusion } from "../components/tappa/TappaConclusion";
@@ -31,6 +32,9 @@ export function TappaPage() {
   const [timerOpen,   setTimerOpen]   = useState(false);
   const [shareOpen,   setShareOpen]   = useState(false);
   const [copied,      setCopied]      = useState(false);
+  // Squadre che non si sono potute collegare all'anagrafe: id della squadra → perché (null = nessun problema). Il motivo compare
+  // nella card, sotto il nome: la squadra resta com'è e si usa lo stesso nella tappa
+  const [erroriAnagrafe, setErroriAnagrafe] = useState<Record<string, string | null>>({});
 
   // useAnagrafe deve stare prima degli early return (regole degli hook)
   const { squadre: squadreAnagrafe, saveSquadra, trovaSquadra } = useAnagrafe();
@@ -46,6 +50,9 @@ export function TappaPage() {
   if (!h.tappa) return <Navigate to="/lega" replace />;
   const t = h.tappa;
 
+  const segnaErroreAnagrafe = (teamId: string, motivo: string | null) =>
+    setErroriAnagrafe((errori) => ({ ...errori, [teamId]: motivo }));
+
   /** Chiamato dall'input nome della squadra onBlur.
    *  Se il nome è reale (non placeholder), cerca o crea la RegSquadra nell'anagrafe e collega. */
   const handleTeamNameCommit = async (teamId: string, nome: string) => {
@@ -55,19 +62,26 @@ export function TappaPage() {
     const s = h.tappa?.squadre.find((x) => x.id === teamId);
     if (!s || s.regId) return; // già collegata, niente da fare
 
-    // Prima in cache, poi sul server: un altro utente può averla registrata dopo il caricamento
-    // della cache e non va creato un doppione nell'anagrafe condivisa
-    const existing = await trovaSquadra(trimmed);
-    if (existing) {
-      h.applyReg(teamId, existing);
-    } else {
-      // Crea una nuova RegSquadra nell'anagrafe e collega subito
-      const newReg = await saveSquadra({
-        nome: trimmed, citta: "", anno: "", rank: String(s.rank || ""),
-        referente: "", roster: [], logo: s.logo || "", website: s.website || "",
-        instagram: "", note: "",
-      });
-      h.applyReg(teamId, newReg);
+    segnaErroreAnagrafe(teamId, null);
+    try {
+      // Prima in cache, poi sul server: un altro utente può averla registrata dopo il caricamento
+      // della cache e non va creato un doppione nell'anagrafe condivisa
+      const existing = await trovaSquadra(trimmed);
+      if (existing) {
+        h.applyReg(teamId, existing);
+      } else {
+        // Crea una nuova RegSquadra nell'anagrafe e collega subito
+        const newReg = await saveSquadra({
+          nome: trimmed, citta: "", anno: "", rank: String(s.rank || ""),
+          referente: "", roster: [], logo: s.logo || "", website: s.website || "",
+          instagram: "", note: "",
+        });
+        h.applyReg(teamId, newReg);
+      }
+    } catch (e) {
+      // Chiamata dal campo del nome (onBlur), dove nessuno aspetta la promessa: se non si prende qui l'errore va perso, e l'utente
+      // non sa che la squadra non è collegata all'anagrafe
+      segnaErroreAnagrafe(teamId, `Squadra «${trimmed}» non collegata all'anagrafe: ${testoErrore(e)}`);
     }
   };
 
@@ -143,7 +157,7 @@ export function TappaPage() {
         </p>
         <div className="mb-4 grid gap-3 grid-cols-[repeat(auto-fill,minmax(240px,1fr))]">
           {t.squadre.map((s, i) => (
-            <SquadraCard key={s.id} s={s} index={i} h={h}
+            <SquadraCard key={s.id} s={s} index={i} h={h} erroreAnagrafe={erroriAnagrafe[s.id]}
               onNameCommit={(nome) => handleTeamNameCommit(s.id, nome)} />
           ))}
         </div>

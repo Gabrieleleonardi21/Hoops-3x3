@@ -6,6 +6,7 @@ import { TappaPage } from "../../src/pages/TappaPage";
 import { useAppStore } from "../../src/stores/useAppStore";
 import { useAnagrafeStore } from "../../src/stores/useAnagrafeStore";
 import { legheApi } from "../../src/services/legheApi";
+import { ApiError } from "../../src/services/api";
 import { DEFAULT_RULES } from "../../src/constants/rules";
 import type { RegSquadra, Tappa, User } from "../../src/types";
 
@@ -110,6 +111,55 @@ describe("TappaPage: collegare una squadra all'anagrafe", () => {
 
     expect(campiNome().map((c) => c.value)).toEqual(["Alfa", "Beta"]);
     expect(store().tappe[0].squadre).toMatchObject([{ nome: "Alfa", regId: "r1" }, { nome: "Beta" }]);
+  });
+});
+
+describe("TappaPage: il collegamento all'anagrafe che fallisce si vede (FS-4)", () => {
+  const nonRisponde = () => new ApiError(0, "Il server non risponde: controlla la connessione e riprova.");
+  const MESSAGGIO = "Squadra «Alfa» non collegata all'anagrafe: Il server non risponde: controlla la connessione e riprova.";
+
+  it("la creazione in anagrafe fallisce: il motivo compare sotto il nome, la squadra resta com'è e nessuna promessa resta senza gestore", async () => {
+    apriPagina({ trovaSquadra: vi.fn(async () => undefined), saveSquadra: vi.fn().mockRejectedValue(nonRisponde()) });
+    scrivi(0, "Alfa");
+    fireEvent.blur(campiNome()[0]);
+    expect((await screen.findByRole("alert")).textContent).toContain(MESSAGGIO);
+    expect(campiNome()[0].value).toBe("Alfa");
+    expect(store().tappe[0].squadre[0].regId).toBeUndefined();
+    // Il messaggio sta nella card della squadra, non nelle altre
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+  });
+
+  it("anche la ricerca in anagrafe, se fallisce, dice perché", async () => {
+    apriPagina({ trovaSquadra: vi.fn().mockRejectedValue(new ApiError(503, "Servizio non disponibile")) });
+    scrivi(0, "Alfa");
+    fireEvent.blur(campiNome()[0]);
+    expect((await screen.findByRole("alert")).textContent).toContain("Squadra «Alfa» non collegata all'anagrafe: Servizio non disponibile");
+  });
+
+  it("«Riprova» ritenta: riuscito, il messaggio sparisce e la squadra si collega", async () => {
+    const saveSquadra = vi.fn().mockRejectedValueOnce(nonRisponde()).mockResolvedValueOnce(regAlfa);
+    apriPagina({ trovaSquadra: vi.fn(async () => undefined), saveSquadra });
+    scrivi(0, "Alfa");
+    fireEvent.blur(campiNome()[0]);
+    await screen.findByRole("alert");
+    fireEvent.click(screen.getByRole("button", { name: "Riprova" }));
+    await act(async () => {});
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(saveSquadra).toHaveBeenCalledTimes(2);
+    expect(store().tappe[0].squadre[0]).toMatchObject({ nome: "Alfa", regId: "r1" });
+  });
+
+  it("un nuovo tentativo toglie il messaggio di prima, anche se poi non riesce di nuovo per un altro motivo", async () => {
+    const saveSquadra = vi.fn()
+      .mockRejectedValueOnce(nonRisponde())
+      .mockRejectedValueOnce(new ApiError(403, "Non puoi creare squadre"));
+    apriPagina({ trovaSquadra: vi.fn(async () => undefined), saveSquadra });
+    scrivi(0, "Alfa");
+    fireEvent.blur(campiNome()[0]);
+    await screen.findByText(/Il server non risponde/);
+    fireEvent.blur(campiNome()[0]);
+    expect((await screen.findByRole("alert")).textContent).toContain("Squadra «Alfa» non collegata all'anagrafe: Non puoi creare squadre");
+    expect(screen.queryByText(/Il server non risponde/)).toBeNull();
   });
 });
 
