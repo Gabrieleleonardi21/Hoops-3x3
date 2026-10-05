@@ -239,3 +239,79 @@ describe("useAnagrafeStore (cache dell'anagrafe)", () => {
     expect(store.getState().squadre!.map((s) => s.id)).toEqual(["s2", "s1"]);
   });
 });
+
+describe("useAnagrafeStore: creazione senza risposta del server, nessun doppione (Ruling 3)", () => {
+  // La voce che il server ha creato con i dati del form, quando la risposta non è arrivata
+  const creataDalServer = { ...nuovoGiocatore, id: "g2", autore: "Gabriele", autoreId: "u1", ts: 2 };
+  const squadraCreata = { ...nuovaSquadra, id: "s2", autore: "Gabriele", autoreId: "u1", ts: 2 };
+
+  it("giocatore: il nuovo tentativo trova quello creato dal primo e non ne crea un altro", async () => {
+    const { api, store, ApiError } = await nuovoStore();
+    await store.getState().load();
+    api.createGiocatore.mockRejectedValueOnce(new ApiError(0, "Il server non risponde: controlla la connessione e riprova."));
+    await expect(store.getState().saveGiocatore(nuovoGiocatore)).rejects.toMatchObject({ status: 0 });
+    api.listGiocatori.mockResolvedValue([creataDalServer, giocatore("g1", "Mario")]);
+    await store.getState().saveGiocatore(nuovoGiocatore);
+    expect(api.createGiocatore).toHaveBeenCalledTimes(1);   // una sola POST
+    expect(store.getState().giocatori!.map((g) => g.id)).toEqual(["g2", "g1"]);
+  });
+
+  it("squadra: lo stesso; saveSquadra restituisce la squadra trovata", async () => {
+    const { api, store, ApiError } = await nuovoStore();
+    await store.getState().load();
+    api.createSquadra.mockRejectedValueOnce(new ApiError(0, "Il server non risponde: controlla la connessione e riprova."));
+    await expect(store.getState().saveSquadra(nuovaSquadra)).rejects.toMatchObject({ status: 0 });
+    api.listSquadre.mockResolvedValue([squadraCreata, squadra("s1", "Ballers", ["g1"])]);
+    expect(await store.getState().saveSquadra(nuovaSquadra)).toEqual(squadraCreata);
+    expect(api.createSquadra).toHaveBeenCalledTimes(1);
+    expect(store.getState().squadre!.map((s) => s.id)).toEqual(["s2", "s1"]);
+  });
+
+  it("se nel frattempo la cache si è aggiornata e la voce c'è già, non compare due volte", async () => {
+    const { api, store, ApiError } = await nuovoStore();
+    await store.getState().load();
+    api.createGiocatore.mockRejectedValueOnce(new ApiError(0, "Il server non risponde"));
+    await expect(store.getState().saveGiocatore(nuovoGiocatore)).rejects.toBeInstanceOf(ApiError);
+    // La pagina ha ricaricato l'anagrafe (per esempio con «Riprova»): c'è già anche il giocatore creato dal primo tentativo
+    api.listGiocatori.mockResolvedValue([creataDalServer, giocatore("g1", "Mario")]);
+    store.setState({ caricata: false });
+    await store.getState().load();
+    await store.getState().saveGiocatore(nuovoGiocatore);
+    expect(store.getState().giocatori!.map((g) => g.id)).toEqual(["g2", "g1"]);
+  });
+
+  it("un giocatore con lo stesso nome ma altri dati non è quello cercato: si crea il nuovo", async () => {
+    const { api, store, ApiError } = await nuovoStore();
+    await store.getState().load();
+    api.createGiocatore.mockRejectedValueOnce(new ApiError(0, "Il server non risponde"));
+    await expect(store.getState().saveGiocatore(nuovoGiocatore)).rejects.toBeInstanceOf(ApiError);
+    // Un altro Luca Rossi, di un'altra città, comparso nel frattempo
+    api.listGiocatori.mockResolvedValue([{ ...creataDalServer, citta: "Napoli" }, giocatore("g1", "Mario")]);
+    api.createGiocatore.mockResolvedValue({ ...creataDalServer, id: "g3" });
+    await store.getState().saveGiocatore(nuovoGiocatore);
+    expect(api.createGiocatore).toHaveBeenCalledTimes(2);
+    expect(store.getState().giocatori![0].id).toBe("g3");
+  });
+
+  it("gli spazi ai lati, che il server toglie, non impediscono di riconoscere la voce", async () => {
+    const { api, store, ApiError } = await nuovoStore();
+    await store.getState().load();
+    const scritto = { ...nuovoGiocatore, nome: "  Luca ", note: " tiratore " };
+    api.createGiocatore.mockRejectedValueOnce(new ApiError(0, "Il server non risponde"));
+    await expect(store.getState().saveGiocatore(scritto)).rejects.toBeInstanceOf(ApiError);
+    api.listGiocatori.mockResolvedValue([{ ...creataDalServer, nome: "Luca", note: "tiratore" }]);
+    await store.getState().saveGiocatore(scritto);
+    expect(api.createGiocatore).toHaveBeenCalledTimes(1);
+  });
+
+  it("se il server rifiuta i dati (400) il nuovo tentativo non legge l'elenco e crea", async () => {
+    const { api, store, ApiError } = await nuovoStore();
+    await store.getState().load();
+    api.createSquadra.mockRejectedValueOnce(new ApiError(400, "nome: non può essere vuoto"));
+    await expect(store.getState().saveSquadra(nuovaSquadra)).rejects.toMatchObject({ status: 400 });
+    api.createSquadra.mockResolvedValue(squadraCreata);
+    await store.getState().saveSquadra(nuovaSquadra);
+    expect(api.listSquadre).toHaveBeenCalledTimes(1);   // solo il load iniziale
+    expect(api.createSquadra).toHaveBeenCalledTimes(2);
+  });
+});

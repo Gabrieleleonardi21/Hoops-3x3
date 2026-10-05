@@ -381,6 +381,7 @@ describe("Elenco delle leghe: errori di creazione, apertura ed eliminazione", ()
     leghe.create
       .mockRejectedValueOnce(rete())
       .mockResolvedValueOnce({ id: "l9", nome: "Estate 2026", ts: 2, nTappe: 0 });
+    leghe.list.mockResolvedValue([]); // dopo una richiesta senza risposta il nuovo tentativo guarda prima l'elenco: la lega non c'è
     apriLeghe(registrato);
     fireEvent.change(campoNome(), { target: { value: "Estate 2026" } });
     fireEvent.click(creaLega());
@@ -706,5 +707,64 @@ describe("Anagrafe: il server rifiuta, la pagina non mostra il dato come salvato
     expect((await screen.findByRole("alert")).textContent).toContain("richiede un account");
     expect((screen.getByLabelText("Nome *") as HTMLInputElement).value).toBe("Luca");
     expect(anagrafe.createGiocatore).not.toHaveBeenCalled();
+  });
+});
+
+describe("Lega creata senza risposta del server: il nuovo tentativo non fa un doppione (Ruling 3)", () => {
+  const sulServer = { id: "l7", nome: "Estate", ts: 5, nTappe: 0 };
+
+  beforeEach(() => {
+    useAppStore.setState({ user: registrato, leghe: [] });
+  });
+
+  it("la lega creata dal primo tentativo si apre al secondo, senza una seconda POST", async () => {
+    leghe.create.mockRejectedValueOnce(new ApiError(0, "Il server non risponde: controlla la connessione e riprova."));
+    await expect(store().createLega("Estate")).rejects.toMatchObject({ status: 0 });
+    leghe.list.mockResolvedValue([sulServer]);   // il server l'aveva creata
+    expect(await store().createLega("Estate")).toBe("l7");
+    expect(leghe.create).toHaveBeenCalledTimes(1);
+    expect(store().legaId).toBe("l7");
+    expect(store().leghe).toEqual([sulServer]);
+  });
+
+  it("se la lega sul server non c'è, il secondo tentativo la crea", async () => {
+    leghe.create
+      .mockRejectedValueOnce(new ApiError(0, "Server non raggiungibile"))
+      .mockResolvedValueOnce(sulServer);
+    await expect(store().createLega("Estate")).rejects.toMatchObject({ status: 0 });
+    leghe.list.mockResolvedValue([]);
+    expect(await store().createLega("Estate")).toBe("l7");
+    expect(leghe.create).toHaveBeenCalledTimes(2);
+  });
+
+  it("nell'elenco leghe: «Crea lega» dopo l'errore apre la lega che il server aveva già creato", async () => {
+    leghe.create.mockRejectedValueOnce(new ApiError(0, "Il server non risponde: controlla la connessione e riprova."));
+    leghe.list.mockResolvedValue([sulServer]);
+    render(
+      <MemoryRouter initialEntries={["/leghe"]}>
+        <Routes>
+          <Route path="/leghe" element={<LegheListPage />} />
+          <Route path="/lega" element={<p>Pagina della lega</p>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    fireEvent.change(screen.getByLabelText(/Nome della nuova lega/), { target: { value: "Estate" } });
+    fireEvent.click(screen.getByRole("button", { name: /Crea lega/ }));
+    await screen.findByRole("alert");
+    fireEvent.click(screen.getByRole("button", { name: /Crea lega/ }));
+    expect(await screen.findByText("Pagina della lega")).toBeTruthy();
+    expect(leghe.create).toHaveBeenCalledTimes(1);
+    expect(store().leghe).toHaveLength(1);
+  });
+
+  it("all'uscita la memoria dei tentativi si cancella: chi entra dopo non vede le leghe di chi è uscito", async () => {
+    leghe.create.mockRejectedValueOnce(new ApiError(0, "Il server non risponde"));
+    await expect(store().createLega("Estate")).rejects.toBeInstanceOf(ApiError);
+    store().reset();
+    useAppStore.setState({ user: registrato, leghe: [] });
+    leghe.create.mockResolvedValueOnce(sulServer);
+    await store().createLega("Estate");
+    expect(leghe.list).not.toHaveBeenCalled();
+    expect(leghe.create).toHaveBeenCalledTimes(2);
   });
 });
