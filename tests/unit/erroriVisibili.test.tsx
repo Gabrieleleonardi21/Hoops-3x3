@@ -5,6 +5,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
 import App from "../../src/App";
 import { ErrorBoundary } from "../../src/components/ui/ErrorBoundary";
+import { ErroreCaricamento } from "../../src/components/ui/ErroreCaricamento";
 import { GiocatoreForm } from "../../src/components/anagrafe/GiocatoreForm";
 import { GiocatoreModal } from "../../src/components/anagrafe/GiocatoreModal";
 import { SquadraAnagrafeForm } from "../../src/components/anagrafe/SquadraAnagrafeForm";
@@ -78,6 +79,19 @@ afterEach(() => {
 function Rotto(): never {
   throw new Error("dati inattesi");
 }
+
+describe("ErroreCaricamento: il pulsante di un errore", () => {
+  it("di solito dice «Riprova»; con `azione` prende un'altra etichetta (il boundary dice «Ricarica»); il clic chiama onRiprova", () => {
+    const onRiprova = vi.fn();
+    render(<ErroreCaricamento cosa="Non è stato possibile caricare X." motivo="Servizio non disponibile" onRiprova={onRiprova} />);
+    fireEvent.click(screen.getByRole("button", { name: "Riprova" }));
+    cleanup();
+    render(<ErroreCaricamento cosa="Qualcosa è andato storto." motivo="Ricarica per riprovare." azione="Ricarica" onRiprova={onRiprova} />);
+    expect(screen.queryByRole("button", { name: "Riprova" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Ricarica" }));
+    expect(onRiprova).toHaveBeenCalledTimes(2);
+  });
+});
 
 describe("ErrorBoundary (FS-6)", () => {
   it("una pagina che si rompe nel disegno mostra un messaggio con «Ricarica», non una pagina bianca", () => {

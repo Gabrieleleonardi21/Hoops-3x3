@@ -3,7 +3,7 @@
  *  compare un messaggio con «Ricarica», e intestazione e navigazione restano visibili. Deve essere una classe: i boundary non
  *  esistono come funzioni. L'errore in sé lo registra già React sulla console. */
 import { Component, type ReactNode } from "react";
-import { Button } from "./Button";
+import { ErroreCaricamento } from "./ErroreCaricamento";
 
 interface Props {
   children: ReactNode;
@@ -32,11 +32,9 @@ export class ErrorBoundary extends Component<Props, Stato> {
   render() {
     if (!this.state.errore) return this.props.children;
     return (
-      <div role="alert" className="rounded border border-loss/40 bg-loss/10 p-4 text-[13px] text-chalk">
-        <p className="m-0 font-semibold">Qualcosa è andato storto: questa pagina non si può mostrare.</p>
-        <p className="mt-1 mb-3 text-chalk-muted">Ricarica per riprovare; se succede ancora, apri un'altra pagina dal menu.</p>
-        <Button size="sm" onClick={() => window.location.reload()}>Ricarica</Button>
-      </div>
+      <ErroreCaricamento cosa="Qualcosa è andato storto: questa pagina non si può mostrare."
+        motivo="Ricarica per riprovare; se succede ancora, apri un'altra pagina dal menu."
+        azione="Ricarica" onRiprova={() => window.location.reload()} />
     );
   }
 }
