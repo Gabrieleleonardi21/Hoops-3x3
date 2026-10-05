@@ -284,10 +284,12 @@ utenti registrati.
   fallito è segnalato da una barra in alto.
 - Persistenza (ospite): localStorage per la lega (multi-lega con indice);
   anagrafe e archivio in sola lettura dal server. All'avvio la lega aperta
-  si controlla con lo stesso schema dell'import: le tappe non valide non si
-  caricano e un avviso dice quali e perché (spariscono dal browser al primo
-  salvataggio della lega); una lega illeggibile non si apre e si può
-  eliminare dall'elenco delle leghe.
+  si controlla con gli stessi campi dell'import, ma senza i limiti del
+  server (nome vuoto, numero di gironi e regole fuori limite si tengono: si
+  correggono dall'app): le tappe con la forma sbagliata non si caricano e un
+  avviso dice quali e perché (spariscono dal browser al primo salvataggio
+  della lega); una lega illeggibile non si apre e si può eliminare
+  dall'elenco delle leghe.
 - Anagrafe in cache nello store (useAnagrafeStore): scaricata una volta e
   aggiornata a ogni scrittura, non a ogni apertura di pagina; le modifiche
   di altri utenti si vedono ricaricando la pagina.

@@ -4,8 +4,8 @@
  *  dell'ospite, dove farebbe uscire la pagina bianca a ogni ricarica, né al server, che la rifiuterebbe con un 400.
  *  Il file si legge una volta sola: i campi che l'app non conosce si scartano, i campi che possono mancare prendono
  *  il loro valore predefinito e gli id delle tappe sono sempre nuovi.
- *  Lo stesso schema controlla anche la lega che l'ospite ha nel browser (leggiLegaSalvata): è il caso di chi in passato
- *  ha importato un file incompleto, prima che l'import lo controllasse. */
+ *  Gli stessi campi controllano anche la lega che l'ospite ha nel browser (leggiLegaSalvata), ma senza i limiti del server:
+ *  è il caso di chi in passato ha importato un file incompleto, prima che l'import lo controllasse. */
 import { z } from "zod";
 import { DEFAULT_RULES } from "../constants/rules";
 import { MAX_GIRONI, erroreTestiTappa } from "../domain/tappaOps";
@@ -135,8 +135,27 @@ const tappaSchema: z.ZodType<Omit<Tappa, "id">, z.ZodTypeDef, unknown> = tappaCa
   });
 
 /** Tappa nel browser dell'ospite: gli stessi campi, con il loro id e senza i limiti del server. L'ospite non ha un server che
- *  li faccia valere, e una tappa con il nome lungo si disegna lo stesso: a scartarla conta solo la forma che la romperebbe. */
-const tappaSalvataSchema: z.ZodType<Tappa, z.ZodTypeDef, unknown> = tappaCampi.extend({ id: stringa });
+ *  li faccia valere, e una tappa con un valore fuori limite si disegna lo stesso: a scartarla conta solo la forma che la
+ *  romperebbe, cioè il tipo sbagliato o un campo che manca. Per questo tre campi di tappaCampi, che portano un limite del
+ *  server, qui tengono solo il tipo:
+ *  - `nome` può essere vuoto (@NotBlank del server): una tappa senza nome si disegna, e gli avvisi la chiamano per numero;
+ *  - `nGironi` può essere non intero o fuori da 1-32 (@Min/@Max di TappaDTO, il caso FD-9 delle versioni vecchie): compare solo
+ *    come testo, il sorteggio risponde con un messaggio e si corregge dal pannello «Modifica»;
+ *  - le regole possono essere 0 o non intere (@Min(1) di RegoleDTO): si correggono dal pannello «Regole della tappa».
+ *  Perderle scartando la tappa vorrebbe dire perdere squadre, roster e risultati di chi ha i dati vecchi. */
+const regolaOspite = (predefinita: number) => numero.default(predefinita);
+
+const tappaSalvataSchema: z.ZodType<Tappa, z.ZodTypeDef, unknown> = tappaCampi.extend({
+  id: stringa,
+  nome: stringa.trim(),
+  nGironi: numero.default(1),
+  regole: z.object({
+    target: regolaOspite(DEFAULT_RULES.target),
+    durata: regolaOspite(DEFAULT_RULES.durata),
+    ot: regolaOspite(DEFAULT_RULES.ot),
+    shot: regolaOspite(DEFAULT_RULES.shot),
+  }).default(DEFAULT_RULES),
+});
 
 const fileSchema = z.object({
   // Senza un nome valido (assente, null o vuoto) la lega prende quello del file; i limiti si contano senza gli spazi ai lati

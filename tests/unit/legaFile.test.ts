@@ -383,6 +383,48 @@ describe("leggiLegaSalvata: la lega dell'ospite nel browser, controllata all'avv
     expect(letta.lega.tappe[0]).toMatchObject({ id: "x", data: "14/06/2026" });
   });
 
+  it.each([[2.5], [0], [-1], [33]])(
+    "nGironi %s non scarta la tappa: compare solo come testo, il sorteggio risponde con un messaggio e si corregge da «Modifica»",
+    (nGironi) => {
+      const letta = leggiLegaSalvata(dati("Estate", [{ id: "x", ...tappaMinima(), nGironi }]))!;
+      expect(letta.avviso).toBeNull();
+      expect(letta.lega.tappe).toHaveLength(1);
+      expect(letta.lega.tappe[0].nGironi).toBe(nGironi);
+    },
+  );
+
+  it("una regola a 0 o non intera non scarta la tappa: resta com'è, e quelle che mancano prendono il valore predefinito", () => {
+    const regole = { target: 0, shot: 12.5, ot: 2 };
+    const letta = leggiLegaSalvata(dati("Estate", [{ id: "x", ...tappaMinima(), regole }]))!;
+    expect(letta.avviso).toBeNull();
+    expect(letta.lega.tappe[0].regole).toEqual({ target: 0, durata: 10, ot: 2, shot: 12.5 });
+  });
+
+  it.each([[""], ["   "]])("una tappa con il nome vuoto (%j) si disegna: resta, e il nome è vuoto", (nome) => {
+    const letta = leggiLegaSalvata(dati("Estate", [{ id: "x", ...tappaMinima(), nome }]))!;
+    expect(letta.avviso).toBeNull();
+    expect(letta.lega.tappe).toHaveLength(1);
+    expect(letta.lega.tappe[0].nome).toBe("");
+  });
+
+  it("dei campi allentati conta ancora il tipo: un testo al posto del numero di gironi, di una regola o del nome scarta la tappa", () => {
+    const letta = leggiLegaSalvata(dati("Estate", [
+      { id: "a", ...tappaMinima("Gironi"), nGironi: "due" },
+      { id: "b", ...tappaMinima("Regola"), regole: { target: "ventuno" } },
+      { id: "c", ...tappaMinima("Nome"), nome: 5 },
+    ]))!;
+    expect(letta.lega.tappe).toEqual([]);
+    expect(letta.avviso).toContain("«Gironi» (nGironi: deve essere un numero)");
+    expect(letta.avviso).toContain("«Regola» (regole.target: deve essere un numero)");
+    expect(letta.avviso).toContain("n. 3 (nome: deve essere un testo)");
+  });
+
+  it("l'import da file resta com'era, con tutti i limiti: gli stessi valori lì sono rifiutati", () => {
+    expect(errore(leggi({ nome: "L", tappe: [{ ...tappaMinima(), nGironi: 2.5 }] }))).toBe("tappe[0].nGironi: deve essere un numero intero da 1 a 32");
+    expect(errore(leggi({ nome: "L", tappe: [{ ...tappaMinima(), regole: { target: 0 } }] }))).toBe("tappe[0].regole.target: deve essere un numero intero da 1 in su");
+    expect(errore(leggi({ nome: "L", tappe: [tappaMinima("   ")] }))).toBe("tappe[0].nome: non può essere vuoto");
+  });
+
   it("senza nome la lega si legge lo stesso (nome vuoto), e l'avviso la chiama «senza nome»", () => {
     const letta = leggiLegaSalvata(dati(undefined, [{ nome: "T" }]))!;
     expect(letta.lega.nome).toBe("");

@@ -175,6 +175,23 @@ describe("Dati vecchi dell'ospite nel browser (Ruling 3, T1.12)", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
+  it("una tappa con valori fuori limite (nome vuoto, 2,5 gironi, regola a 0) resta: si disegna senza avvisi e il sorteggio risponde con un messaggio", async () => {
+    // È ciò che le versioni vecchie lasciavano scrivere: non rompe il disegno, e scartarla farebbe perdere squadre e risultati
+    const fuoriLimite = { ...tappaValida("a", ""), nGironi: 2.5, regole: { target: 0, durata: 10, ot: 2, shot: 12 } };
+    browserDellOspite({ nome: "Estate", tappe: [fuoriLimite] });
+    window.history.replaceState(null, "", "/lega/tappa/a");
+    const { App: AppNuova, store } = await ricarica();
+    render(<AppNuova />);
+    expect(store().tappe).toHaveLength(1);
+    expect(store().tappe[0]).toMatchObject({ id: "a", nome: "", nGironi: 2.5 });
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByText(/Qualcosa è andato storto/)).toBeNull();
+    expect(screen.getByText(/2\.5 gironi/)).toBeTruthy();
+    // Il sorteggio non parte con un numero di gironi non valido e dice perché; il valore si corregge dal pannello «Modifica»
+    fireEvent.click(screen.getByRole("button", { name: /Sorteggio casuale/ }));
+    expect(screen.getByRole("alert").textContent).toMatch(/Numero di gironi non valido/);
+  });
+
   it("i dati nel browser non si toccano all'avvio: la tappa scartata sparisce solo al primo salvataggio della lega", async () => {
     const originale = JSON.stringify({ nome: "Estate", tappe: [tappaValida("a", "Tappa buona"), tappaSenzaSquadre()] });
     browserDellOspite(originale);
