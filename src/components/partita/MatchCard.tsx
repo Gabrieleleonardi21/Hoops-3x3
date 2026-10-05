@@ -108,7 +108,7 @@ export function MatchCard({ m, h, label }: { m: Partita; h: ReturnType<typeof us
       {/* Barra azioni: salva/correggi + toggle statistiche ed eventi */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
         {m.done ? (
-          <Button variant="link" className="text-chalk-muted" onClick={() => h.reopenScore(m.id)}>Correggi</Button>
+          <Button variant="link" className="text-chalk-muted" onClick={() => setError(h.reopenScore(m.id))}>Correggi</Button>
         ) : (
           <Button size="sm" onClick={save}>Salva risultato</Button>
         )}

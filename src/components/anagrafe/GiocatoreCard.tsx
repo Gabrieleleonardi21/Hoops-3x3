@@ -1,8 +1,9 @@
 /** Card di un giocatore registrato nell'anagrafe. Il nome è un pulsante che apre la modale
  *  di dettaglio (niente controlli annidati: card = <article>), "Profilo" porta alla pagina con
- *  le statistiche; solo l'autore può eliminarlo. */
+ *  le statistiche; solo l'autore o un ADMIN può eliminarlo. */
 import { Link } from "react-router-dom";
 import { eta } from "../../utils/eta";
+import { puoModificare } from "../../utils/permessi";
 import { safeUrl } from "../../utils/safeUrl";
 import { Icon } from "../ui/Icon";
 import type { RegGiocatore, RegSquadra, User } from "../../types";
@@ -32,7 +33,7 @@ export function GiocatoreCard({ g, user, squadre, onRemove, onOpen }: {
             {g.nome} {g.cognome}{g.numero ? <span className="text-court"> #{g.numero}</span> : null}
           </span>
         </button>
-        {!user.guest && g.autore === user.name && (
+        {puoModificare(user, g.autoreId) && (
           <button onClick={onRemove} className="shrink-0 text-chalk-dim hover:text-loss" aria-label={`Elimina ${g.nome} ${g.cognome}`}>
             <Icon name="close" size={14} />
           </button>

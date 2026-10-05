@@ -6,13 +6,16 @@ import { Icon } from "../ui/Icon";
 import { Input } from "../ui/Input";
 import { REG_ROLES } from "../../constants/roles";
 import { eta } from "../../utils/eta";
+import { puoModificare } from "../../utils/permessi";
 import { safeUrl } from "../../utils/safeUrl";
+import type { GiocatoreInput } from "../../services/anagrafeApi";
 import type { RegGiocatore, RegSquadra, User } from "../../types";
 
-type EditDraft = Omit<RegGiocatore, "id" | "autore" | "ts">;
+/** I campi che il server fa scrivere (senza id, autore, autoreId e ts) */
+type EditDraft = GiocatoreInput;
 
 /** Modale con tutte le informazioni di un giocatore dell'anagrafe.
- *  L'autore può modificare tutti i campi o eliminare il giocatore. */
+ *  L'autore (o un ADMIN) può modificare tutti i campi o eliminare il giocatore. */
 export function GiocatoreModal({
   g,
   user,
@@ -41,7 +44,7 @@ export function GiocatoreModal({
 
   const saveEdit = () => { onUpdate({ ...g, ...draft }); setEditing(false); };
   const handleRemove = () => { onRemove(); onClose(); };
-  const canEdit = !user.guest && g.autore === user.name;
+  const canEdit = puoModificare(user, g.autoreId);
   const age = eta(g.nascita);
   // Cerca il logo della squadra abbinando il nome del giocatore con la lista squadre
   const squadraLogo = squadre?.find((s) => s.nome === g.squadra)?.logo ?? null;
@@ -81,9 +84,10 @@ export function GiocatoreModal({
       {/* ── Modalità modifica ── */}
       {editing && (
         <div className="mb-4 flex flex-col gap-2.5">
+          {/* maxLength come GiocatoreRequestDTO (nome e cognome 80, note 2000): oltre, il server risponde 400 */}
           <div className="grid-auto" style={{ "--min": "140px" }}>
-            <Input label="Nome" value={draft.nome} onChange={set("nome")} />
-            <Input label="Cognome" value={draft.cognome} onChange={set("cognome")} />
+            <Input label="Nome" value={draft.nome} onChange={set("nome")} maxLength={80} />
+            <Input label="Cognome" value={draft.cognome} onChange={set("cognome")} maxLength={80} />
             <Input label="Soprannome" value={draft.soprannome} onChange={set("soprannome")} />
             <Input label="Data di nascita" type="date" value={draft.nascita} onChange={set("nascita")} />
             <Input label="Città" value={draft.citta} onChange={set("citta")} />
@@ -100,7 +104,7 @@ export function GiocatoreModal({
             <Input label="Squadra" value={draft.squadra} onChange={set("squadra")} />
             <Input label="Anni di esperienza" type="number" min={0} value={draft.esperienza} onChange={set("esperienza")} />
           </div>
-          <Input label="Note sportive" value={draft.note} onChange={set("note")} placeholder="es. tiratore da fuori" />
+          <Input label="Note sportive" value={draft.note} onChange={set("note")} placeholder="es. tiratore da fuori" maxLength={2000} />
           <div className="mt-1 flex gap-2">
             <Button onClick={saveEdit}>Salva modifiche</Button>
             <Button variant="ghost" onClick={() => setEditing(false)}>Annulla</Button>

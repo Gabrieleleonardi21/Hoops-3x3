@@ -2,9 +2,9 @@
 import { api } from "./api";
 import type { RegGiocatore, RegSquadra } from "../types";
 
-/** Campi compilabili (id, autore e ts li assegna il server) */
-export type GiocatoreInput = Omit<RegGiocatore, "id" | "autore" | "ts">;
-export type SquadraInput = Omit<RegSquadra, "id" | "autore" | "ts">;
+/** Campi compilabili (id, autore, autoreId e ts li assegna il server) */
+export type GiocatoreInput = Omit<RegGiocatore, "id" | "autore" | "autoreId" | "ts">;
+export type SquadraInput = Omit<RegSquadra, "id" | "autore" | "autoreId" | "ts">;
 
 export const anagrafeApi = {
   listGiocatori: () => api<RegGiocatore[]>("/api/anagrafe/giocatori"),
@@ -22,13 +22,13 @@ export const anagrafeApi = {
   removeSquadra: (id: string) => api<void>(`/api/anagrafe/squadre/${id}`, { method: "DELETE" }),
 };
 
-/** Toglie id/autore/ts da un record completo per rimandarlo in modifica */
+/** Toglie id/autore/autoreId/ts da un record completo per rimandarlo in modifica */
 export function toSquadraInput(s: RegSquadra): SquadraInput {
-  const { id: _id, autore: _autore, ts: _ts, ...rest } = s;
+  const { id: _id, autore: _autore, autoreId: _autoreId, ts: _ts, ...rest } = s;
   return rest;
 }
 
 export function toGiocatoreInput(g: RegGiocatore): GiocatoreInput {
-  const { id: _id, autore: _autore, ts: _ts, ...rest } = g;
+  const { id: _id, autore: _autore, autoreId: _autoreId, ts: _ts, ...rest } = g;
   return rest;
 }

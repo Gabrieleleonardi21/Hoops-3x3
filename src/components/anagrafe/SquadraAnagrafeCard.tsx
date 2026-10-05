@@ -1,5 +1,6 @@
 /** Card di una squadra dell'anagrafe: il nome è un pulsante che apre la modale di dettaglio
- *  (niente controlli annidati), il × elimina (solo autore). */
+ *  (niente controlli annidati), il × elimina (solo autore o ADMIN). */
+import { puoModificare } from "../../utils/permessi";
 import { safeUrl } from "../../utils/safeUrl";
 import { Icon } from "../ui/Icon";
 import type { RegGiocatore, RegSquadra, User } from "../../types";
@@ -21,7 +22,7 @@ export function SquadraAnagrafeCard({ s, giocatori, user, onRemove, onOpen }: {
           )}
           <span className="min-w-0 truncate font-display text-lg text-chalk transition-colors hover:text-court">{s.nome}</span>
         </button>
-        {!user.guest && s.autore === user.name && (
+        {puoModificare(user, s.autoreId) && (
           <button onClick={onRemove} className="shrink-0 text-chalk-dim hover:text-loss" aria-label={`Elimina ${s.nome}`}>
             <Icon name="close" size={14} />
           </button>

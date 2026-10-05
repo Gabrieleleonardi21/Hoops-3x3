@@ -1,14 +1,16 @@
 /** Operazioni di tappa come funzioni pure: ricevono la tappa, applicano le regole del torneo e
  *  restituiscono la NUOVA tappa (quella ricevuta non viene mai modificata) oppure il motivo per cui
- *  l'operazione non si può fare. Le usano sia l'interfaccia (useTappa, BracketSection) sia i tool
+ *  l'operazione non si può fare. Le usano sia l'interfaccia (useTappa, useLega, BracketSection) sia i tool
  *  del Coach AI, che salvano il risultato con replaceTappa: la logica sta in un posto solo ed è
- *  testabile con Vitest senza React. */
-import type { Partita, Regole, StatSheet, Tappa } from "../types";
+ *  testabile con Vitest senza React. Una tappa conclusa non si modifica: ogni operazione la rifiuta. */
+import type { Partita, Regole, SquadraTappa, StatSheet, Tappa } from "../types";
 import { buildGironi } from "../utils/buildGironi";
 import { buildGironiSeeded } from "../utils/buildGironiSeeded";
 import { buildMatches } from "../utils/buildMatches";
 import { buildBracket, nextBracketSlot } from "../utils/buildBracket";
 import { replaceById } from "../utils/replaceById";
+import { uid } from "../utils/uid";
+import { DEFAULT_RULES } from "../constants/rules";
 
 export type ModoSorteggio = "casuale" | "ranking";
 
@@ -23,8 +25,107 @@ export interface Punteggio {
   pb?: StatSheet;
 }
 
+/** Dati di una tappa da creare. Le squadre le prepara chi la crea: segnaposto «Squadra N» l'interfaccia, prese
+ *  dall'anagrafe il Coach. */
+export interface NuovaTappa {
+  nome: string;
+  luogo: string;
+  data: string;
+  nGironi: number;
+  squadre: SquadraTappa[];
+}
+
 const ok = (tappa: Tappa): Esito => ({ ok: true, tappa });
 const ko = (errore: string): Esito => ({ ok: false, errore });
+
+/** Una tappa conclusa è pubblicata nell'archivio e non si modifica più: ogni operazione di questo modulo la rifiuta.
+ *  Restano possibili solo i video e «Riapri», che non passano da qui. */
+const CONCLUSA = "La tappa è conclusa: riaprila per modificarla.";
+
+/** Il server rifiuta una tappa senza nome: nello store il nome non è mai vuoto */
+const NOME_VUOTO = "Il nome della tappa non può essere vuoto.";
+
+/** Squadre ammesse in una tappa */
+const MAX_SQUADRE = 64;
+const LIMITE_SQUADRE = `Una tappa ha da 2 a ${MAX_SQUADRE} squadre.`;
+/** Gironi al massimo in una tappa: il limite di TappaDTO.nGironi (@Min(1) @Max(32)). Lo usa anche l'import di una lega */
+export const MAX_GIRONI = 32;
+
+/** Limiti del server per nome e luogo (colonne di `tappe`), contati senza gli spazi ai lati, come li salva creaTappa.
+ *  I campi dei form li usano come maxLength: il numero sta qui e basta. */
+export const MAX_NOME_TAPPA = 120;
+export const MAX_LUOGO = 160;
+/** Data vuota oppure aaaa-mm-gg, come il valore del campo data del form: il server rifiuta ogni altro formato */
+const DATA_ISO = /^(\d{4}-\d{2}-\d{2})?$/;
+
+/** Testi di una tappa, controllati con i limiti del server */
+export interface TestiTappa {
+  nome: string;
+  luogo: string;
+  data: string;
+}
+
+/** Limiti del server per i testi di una tappa (TappaDTO): nome fino a 120 caratteri e luogo fino a 160, contati senza gli
+ *  spazi ai lati, e data vuota oppure aaaa-mm-gg. Li controllano la creazione (erroreLimitiTappa) e l'import di una lega da
+ *  file (utils/legaFile), che è un ripristino: accetta ciò che accetta il server, quindi non applica gli altri limiti di
+ *  creazione (squadre e gironi). null se vanno bene. */
+export function erroreTestiTappa(testi: TestiTappa): string | null {
+  if (testi.nome.trim().length > MAX_NOME_TAPPA) return `Il nome della tappa può avere al massimo ${MAX_NOME_TAPPA} caratteri.`;
+  if (testi.luogo.trim().length > MAX_LUOGO) return `Il luogo può avere al massimo ${MAX_LUOGO} caratteri.`;
+  if (!DATA_ISO.test(testi.data)) return "La data deve essere vuota oppure nel formato aaaa-mm-gg (per esempio 2026-06-14).";
+  return null;
+}
+
+/** Gironi possibili con `nSquadre` squadre: almeno 2 squadre per girone e non più di MAX_GIRONI gironi */
+const massimoGironi = (nSquadre: number) => Math.max(1, Math.min(MAX_GIRONI, Math.floor(nSquadre / 2)));
+
+/** Il numero di gironi è un intero tra 1 e metà delle squadre, al massimo 32. null se va bene */
+function erroreGironi(nSquadre: number, nGironi: number): string | null {
+  const massimo = massimoGironi(nSquadre);
+  if (Number.isInteger(nGironi) && nGironi >= 1 && nGironi <= massimo) return null;
+  return `Numero di gironi non valido: con ${nSquadre} squadre deve essere un intero da 1 a ${massimo}.`;
+}
+
+/** Limiti di una tappa, gli stessi per interfaccia e Coach: da 2 a 64 squadre, un numero di gironi intero tra 1 e
+ *  metà delle squadre (al massimo 32) e i limiti del server per i testi (erroreTestiTappa: nome fino a 120 caratteri,
+ *  luogo fino a 160, data vuota o aaaa-mm-gg). Oltre quelli del server la tappa sarebbe rifiutata alla creazione e poi a
+ *  ogni salvataggio, perché ogni salvataggio manda la tappa intera. null se vanno bene. Si controllano prima di preparare
+ *  le squadre: così nessuno crea squadre (o le registra in anagrafe) per una tappa che poi verrebbe rifiutata. */
+export function erroreLimitiTappa(nSquadre: number, nGironi: number, testi: TestiTappa): string | null {
+  if (!Number.isInteger(nSquadre) || nSquadre < 2 || nSquadre > MAX_SQUADRE) return LIMITE_SQUADRE;
+  const gironi = erroreGironi(nSquadre, nGironi);
+  if (gironi) return gironi;
+  return erroreTestiTappa(testi);
+}
+
+/** Crea una tappa non ancora sorteggiata, con le regole predefinite: rispetta i limiti di erroreLimitiTappa e, come
+ *  ogni tappa nello store, ha un nome non vuoto. */
+export function creaTappa(dati: NuovaTappa): Esito {
+  const limiti = erroreLimitiTappa(dati.squadre.length, dati.nGironi, dati);
+  if (limiti) return ko(limiti);
+  const nome = dati.nome.trim();
+  if (!nome) return ko(NOME_VUOTO);
+  return ok({
+    id: uid(), nome, luogo: dati.luogo.trim(), data: dati.data, nGironi: dati.nGironi,
+    regole: { ...DEFAULT_RULES }, squadre: dati.squadre, gironi: null, partite: [], video: [],
+  });
+}
+
+/** Cambia il nome della tappa, senza spazi ai lati. Un nome vuoto è rifiutato: arrivato al server, farebbe fallire
+ *  ogni salvataggio della tappa. Lo stesso nome non cambia niente (restituisce la tappa ricevuta). */
+export function rinominaTappa(tappa: Tappa, nome: string): Esito {
+  if (tappa.conclusa) return ko(CONCLUSA);
+  const pulito = nome.trim();
+  if (!pulito) return ko(NOME_VUOTO);
+  if (pulito === tappa.nome) return ok(tappa);
+  return ok({ ...tappa, nome: pulito });
+}
+
+/** La tappa senza sorteggio: gironi, calendario e tabellone ripartono da zero. Serve a ogni cambio di struttura
+ *  (numero di gironi, squadre): con squadre o gironi diversi né il vecchio calendario né il vecchio tabellone valgono. */
+function senzaSorteggio(tappa: Tappa): Tappa {
+  return { ...tappa, gironi: null, partite: [], bracket: undefined };
+}
 
 /** Controlli validi per ogni risultato: due numeri interi non negativi e nessun pareggio */
 function erroreRisultato(regole: Regole, a: number, b: number): string | null {
@@ -34,22 +135,78 @@ function erroreRisultato(regole: Regole, a: number, b: number): string | null {
 }
 
 /** Sorteggia i gironi (casuale o a serpentina per ranking) e genera il calendario all'italiana.
- *  Un nuovo sorteggio riparte da zero: i risultati già registrati vanno persi. */
+ *  Un nuovo sorteggio riparte da zero: i risultati già registrati e il tabellone vanno persi. */
 export function sorteggia(tappa: Tappa, modo: ModoSorteggio): Esito {
+  if (tappa.conclusa) return ko(CONCLUSA);
   if (tappa.squadre.length < 2) return ko("Servono almeno 2 squadre per sorteggiare i gironi.");
+  // Una tappa salvata prima di questi controlli può avere un numero di gironi non valido (2.5, o più di metà delle
+  // squadre): costruire i gironi andrebbe in errore o lascerebbe gironi con una squadra sola
+  const gironiNonValidi = erroreGironi(tappa.squadre.length, tappa.nGironi);
+  if (gironiNonValidi) return ko(gironiNonValidi);
   let gironi: string[][];
   if (modo === "ranking") {
     gironi = buildGironiSeeded(tappa.squadre, tappa.nGironi);
   } else {
     gironi = buildGironi(tappa.squadre.map((s) => s.id), tappa.nGironi);
   }
-  return ok({ ...tappa, gironi, partite: buildMatches(gironi) });
+  return ok({ ...senzaSorteggio(tappa), gironi, partite: buildMatches(gironi) });
+}
+
+/** Che cosa cancellano un nuovo sorteggio o un cambio di struttura (numero di gironi, squadre): il testo da mostrare
+ *  nella richiesta di conferma, oppure null se non c'è nessun risultato da perdere e si può procedere senza chiedere.
+ *  Lo usano l'interfaccia e il Coach (decisione D4). I turni superati d'ufficio (`bye`) non sono risultati. */
+export function perditaRisultati(tappa: Tappa): string | null {
+  const giocate = tappa.partite.filter((m) => m.done).length
+    + (tappa.bracket ?? []).filter((m) => m.done && !m.bye).length;
+  if (giocate === 0) return null;
+  let risultati = `${giocate} risultati`;
+  if (giocate === 1) risultati = "1 risultato";
+  if (tappa.bracket?.length) return `Verranno eliminati il sorteggio, la fase finale e ${risultati}.`;
+  return `Verranno eliminati il sorteggio e ${risultati}.`;
+}
+
+/** Aggiunge una squadra con il nome provvisorio «Squadra N». Il sorteggio fatto non vale più. */
+export function aggiungiSquadra(tappa: Tappa): Esito {
+  if (tappa.conclusa) return ko(CONCLUSA);
+  if (tappa.squadre.length >= MAX_SQUADRE) return ko(LIMITE_SQUADRE);
+  const squadra: SquadraTappa = { id: uid(), nome: `Squadra ${tappa.squadre.length + 1}`, giocatori: [], rank: "" };
+  return ok(senzaSorteggio({ ...tappa, squadre: [...tappa.squadre, squadra] }));
+}
+
+/** Toglie una squadra dalla tappa. Il sorteggio fatto non vale più; se i gironi diventano più di metà delle
+ *  squadre scendono al massimo possibile, altrimenti il prossimo sorteggio avrebbe gironi con una squadra sola. */
+export function rimuoviSquadra(tappa: Tappa, squadraId: string): Esito {
+  if (tappa.conclusa) return ko(CONCLUSA);
+  if (!tappa.squadre.some((s) => s.id === squadraId)) return ko("Squadra non trovata.");
+  if (tappa.squadre.length <= 2) return ko(LIMITE_SQUADRE);
+  const squadre = tappa.squadre.filter((s) => s.id !== squadraId);
+  const nGironi = Math.min(tappa.nGironi, massimoGironi(squadre.length));
+  return ok(senzaSorteggio({ ...tappa, squadre, nGironi }));
+}
+
+/** Cambia il numero di gironi: un intero tra 1 e metà delle squadre, al massimo 32. Il sorteggio fatto non vale più;
+ *  lo stesso numero invece non cambia niente (restituisce la tappa ricevuta), così ridigitarlo non cancella nulla. */
+export function impostaNumeroGironi(tappa: Tappa, nGironi: number): Esito {
+  if (tappa.conclusa) return ko(CONCLUSA);
+  if (nGironi === tappa.nGironi) return ok(tappa);
+  const errore = erroreGironi(tappa.squadre.length, nGironi);
+  if (errore) return ko(errore);
+  return ok(senzaSorteggio({ ...tappa, nGironi }));
+}
+
+/** Con la fase finale generata i risultati dei gironi non cambiano più: il tabellone è nato da quelle classifiche */
+function erroreFaseFinale(tappa: Tappa): string | null {
+  if (!tappa.bracket?.length) return null;
+  return "Per correggere o annullare un risultato dei gironi elimina prima la fase finale, generata da questi risultati.";
 }
 
 /** Registra il risultato di una partita dei gironi */
 export function registraRisultato(tappa: Tappa, partitaId: string, punteggio: Punteggio): Esito {
+  if (tappa.conclusa) return ko(CONCLUSA);
   const partita = tappa.partite.find((m) => m.id === partitaId);
   if (!partita) return ko("Partita non trovata.");
+  const faseFinale = erroreFaseFinale(tappa);
+  if (faseFinale) return ko(faseFinale);
   const { sa, sb, pa, pb } = punteggio;
   const errore = erroreRisultato(tappa.regole, sa, sb);
   if (errore) return ko(errore);
@@ -63,9 +220,23 @@ export function registraRisultato(tappa: Tappa, partitaId: string, punteggio: Pu
   return ok({ ...tappa, partite: replaceById(tappa.partite, aggiornata) });
 }
 
-/** Registra il risultato di un match della fase a eliminazione diretta e fa avanzare il vincitore
- *  nel primo slot libero dei round successivi (dopo la finale non avanza nessuno). */
+/** Annulla il risultato di una partita dei gironi: la partita torna da giocare e non conta più in classifica. Serve sia
+ *  per correggerlo («Correggi» nell'interfaccia: punteggi e schede restano come bozza) sia per annullarlo (Coach). */
+export function annullaRisultato(tappa: Tappa, partitaId: string): Esito {
+  if (tappa.conclusa) return ko(CONCLUSA);
+  const partita = tappa.partite.find((m) => m.id === partitaId);
+  if (!partita) return ko("Partita non trovata.");
+  const faseFinale = erroreFaseFinale(tappa);
+  if (faseFinale) return ko(faseFinale);
+  return ok({ ...tappa, partite: replaceById(tappa.partite, { ...partita, done: false }) });
+}
+
+/** Registra il risultato di un match della fase a eliminazione diretta e fa avanzare il vincitore nella
+ *  gara del turno successivo che gli spetta per posizione, qualunque sia l'ordine dei risultati (vedi
+ *  nextBracketSlot; solo i tabelloni nati con la vecchia logica ricadono sul primo posto libero).
+ *  Dopo la finale non avanza nessuno. */
 export function registraRisultatoBracket(tappa: Tappa, matchId: string, pA: number, pB: number): Esito {
+  if (tappa.conclusa) return ko(CONCLUSA);
   const bracket = tappa.bracket ?? [];
   const match = bracket.find((m) => m.id === matchId);
   if (!match) return ko("Match non trovato nella fase a eliminazione diretta.");
@@ -90,6 +261,7 @@ export function registraRisultatoBracket(tappa: Tappa, matchId: string, pA: numb
 
 /** Genera la fase a eliminazione diretta dalla classifica dei gironi (nPass qualificate per girone) */
 export function generaFasiDirette(tappa: Tappa, nPass = 2): Esito {
+  if (tappa.conclusa) return ko(CONCLUSA);
   if (!tappa.gironi) return ko("Sorteggia i gironi prima di generare la fase a eliminazione diretta.");
   const mancanti = tappa.partite.filter((m) => !m.done).length;
   if (mancanti > 0) return ko(`Completa prima i gironi: mancano ${mancanti} partite.`);
@@ -102,6 +274,7 @@ export function generaFasiDirette(tappa: Tappa, nPass = 2): Esito {
 
 /** Conclude la tappa: gironi tutti registrati e, se è stata generata, fase diretta completa */
 export function concludi(tappa: Tappa): Esito {
+  if (tappa.conclusa) return ko(CONCLUSA);
   if (!tappa.gironi || !tappa.partite.length) return ko("Sorteggia i gironi e registra le partite prima di concludere.");
   const left = tappa.partite.filter((m) => !m.done).length;
   if (left > 0) return ko(`Mancano ancora ${left} partite da registrare.`);

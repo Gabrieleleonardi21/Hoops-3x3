@@ -1,6 +1,6 @@
 /** Pannello chat del Coach AI: input utente, lista messaggi, bottone "Cancella chat".
- *  La cronologia viene persistita in sessionStorage (si azzera alla chiusura della scheda). */
-import { useState } from "react";
+ *  La chat sta nello store di useCoachAI, non qui: chiudendo il pannello durante l'attesa la risposta non si perde. */
+import { useEffect, useRef, useState } from "react";
 import { RED, ORANGE } from "../../constants/colors";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
@@ -41,11 +41,19 @@ function riepilogoTool(tools: string[]): Array<{ label: string; count: number; c
 }
 
 export function CoachPanel({ onClose }: { onClose: () => void }) {
-  const { msgs, loading, send, clearChat } = useCoachAI();
+  const { msgs, loading, conferma, send, clearChat } = useCoachAI();
   const [input, setInput] = useState("");
+  const richiestaRef = useRef<HTMLDivElement>(null);
+
+  // D4: la lista non scorre da sola e, con una chat lunga, la richiesta di conferma resterebbe sotto il bordo visibile
+  // mentre «Invia» è disattivato: la si porta in vista
+  useEffect(() => {
+    if (conferma) richiestaRef.current?.scrollIntoView({ block: "nearest" });
+  }, [conferma]);
 
   const submit = () => {
-    if (!input.trim()) return;
+    // Durante l'attesa send non parte: il testo resta nel campo invece di sparire
+    if (!input.trim() || loading) return;
     send(input);
     setInput("");
   };
@@ -83,7 +91,18 @@ export function CoachPanel({ onClose }: { onClose: () => void }) {
             )}
           </div>
         ))}
-        {loading && <div className="bubble-a pulse">Il coach sta pensando…</div>}
+        {/* D4: l'azione distruttiva aspetta qui, nella chat dove l'utente sta guardando, e parte solo con «Conferma» */}
+        {conferma && (
+          <div ref={richiestaRef} role="group" aria-label={conferma.titolo} className="bubble-a border-court">
+            <p className="m-0 font-semibold text-chalk">{conferma.titolo}</p>
+            <p className="m-0 mt-1 text-chalk-muted">{conferma.testo}</p>
+            <div className="mt-2 flex justify-end gap-2">
+              <Button variant="ghost" size="sm" onClick={() => conferma.rispondi(false)}>Annulla</Button>
+              <Button size="sm" onClick={() => conferma.rispondi(true)}>Conferma</Button>
+            </div>
+          </div>
+        )}
+        {loading && !conferma && <div className="bubble-a pulse">Il coach sta pensando…</div>}
       </div>
       <div className="flex gap-2 border-t border-asphalt-700 p-2.5">
         <input className="statin flex-1" value={input}

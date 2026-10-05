@@ -1,7 +1,8 @@
 /** Pagina principale della lega attiva: gestisce nome, creazione, lista tappe e classifica circuito. */
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate, Link } from "react-router-dom";
 import { useLega } from "../hooks/useLega";
+import type { NuovaTappaInput } from "../hooks/useLega";
 import { TappaForm } from "../components/tappa/TappaForm";
 import { TappaCard } from "../components/tappa/TappaCard";
 import { GuestBanner } from "../components/auth/GuestBanner";
@@ -9,8 +10,9 @@ import { Input } from "../components/ui/Input";
 import { Button } from "../components/ui/Button";
 import { Icon } from "../components/ui/Icon";
 import { Section } from "../components/ui/Section";
+import { ApiError } from "../services/api";
 import { useAppStore } from "../stores/useAppStore";
-import type { Tappa } from "../types";
+import { leggiFileLega, testoFileLega } from "../utils/legaFile";
 
 export function LegaPage() {
   const { user, legaName, tappe, setLegaName, createTappa } = useLega();
@@ -18,13 +20,20 @@ export function LegaPage() {
   const importLega = useAppStore((s) => s.importLega);
   const navigate  = useNavigate();
   const fileRef   = useRef<HTMLInputElement>(null);
+  /** Perché l'ultimo import non è riuscito: resta finché non si sceglie un altro file */
+  const [erroreImport, setErroreImport] = useState<string | null>(null);
+
+  /** Crea la tappa e la apre; se i dati sono fuori dai limiti restituisce il motivo, che il form mostra */
+  const creaEApri = (input: NuovaTappaInput) => {
+    const esito = createTappa(input);
+    if (!esito.ok) return esito.errore;
+    navigate(`/lega/tappa/${esito.tappa.id}`);
+    return null;
+  };
 
   /** Scarica la lega corrente come file JSON. */
   const esportaLega = () => {
-    const blob = new Blob(
-      [JSON.stringify({ nome: legaName, tappe }, null, 2)],
-      { type: "application/json" },
-    );
+    const blob = new Blob([testoFileLega(legaName, tappe)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -33,27 +42,36 @@ export function LegaPage() {
     URL.revokeObjectURL(url);
   };
 
+  /** Dice nella pagina perché l'import non è riuscito: la lega aperta resta com'era */
+  const rifiutaImport = (motivo: string) => setErroreImport(`Import non riuscito: ${motivo}`);
+
+  /** Controlla il testo del file, poi importa la lega. Il file è input non fidato: se non è una lega valida non arriva
+   *  né nel browser né al server (leggiFileLega). Ogni esito negativo finisce in un messaggio nella pagina. */
+  const importaDaTesto = async (testo: string, nomeFile: string) => {
+    try {
+      const esito = leggiFileLega(testo, nomeFile);
+      if (!esito.ok) {
+        rifiutaImport(esito.errore);
+        return;
+      }
+      await importLega(esito.lega.nome, esito.lega.tappe);
+      navigate("/lega");
+    } catch (e) {
+      // Il server risponde con il campo sbagliato (per esempio «tappe[0].nome: …»); l'ospite può fallire solo nel salvataggio nel browser
+      if (e instanceof ApiError) rifiutaImport(e.message);
+      else rifiutaImport("errore imprevisto");
+    }
+  };
+
   /** Importa una lega da un file JSON selezionato dall'utente. */
   const importaLega = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setErroreImport(null);
     const reader = new FileReader();
-    reader.onload = async (ev) => {
-      let data: { nome?: string; tappe?: Tappa[] };
-      try {
-        data = JSON.parse(ev.target?.result as string);
-      } catch {
-        alert("File JSON non valido.");
-        return;
-      }
-      if (!Array.isArray(data.tappe)) { alert("File non valido: manca il campo 'tappe'."); return; }
-      try {
-        await importLega(data.nome ?? file.name.replace(".json", ""), data.tappe);
-        navigate("/lega");
-      } catch {
-        alert("Import non riuscito: il server ha rifiutato il file.");
-      }
-    };
+    reader.onload = () => { void importaDaTesto(String(reader.result), file.name); };
+    // File spostato o senza permessi dopo averlo scelto
+    reader.onerror = () => rifiutaImport("impossibile leggere il file");
     reader.readAsText(file);
     // Resetta il file input così si può reimportare lo stesso file
     e.target.value = "";
@@ -106,12 +124,14 @@ export function LegaPage() {
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={esportaLega}><Icon name="download" size={14} /> Esporta JSON</Button>
           <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()}><Icon name="upload" size={14} /> Importa JSON</Button>
-          {/* Input file nascosto: sicuro perché accetta solo .json e il contenuto è parsato */}
+          {/* Input file nascosto: .json è solo un suggerimento al selettore dei file; il contenuto, che è input non fidato, si controlla in leggiFileLega */}
           <input ref={fileRef} type="file" accept=".json" className="hidden" onChange={importaLega} />
         </div>
+        {/* Sulla riga sotto (w-full): il motivo per cui l'ultimo import non è riuscito */}
+        {erroreImport && <p className="w-full text-[13px] font-semibold text-loss" role="alert">{erroreImport}</p>}
       </div>
 
-      <TappaForm onCreate={(input) => { const t = createTappa(input); navigate(`/lega/tappa/${t.id}`); }} />
+      <TappaForm onCreate={creaEApri} />
 
       <Section title="Le tappe del circuito" kicker={`${tappe.length} ${tappe.length === 1 ? "tappa" : "tappe"}`}>
         {tappe.length > 0 ? (

@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   sorteggia, registraRisultato, registraRisultatoBracket, generaFasiDirette, concludi,
+  aggiungiSquadra, rimuoviSquadra, impostaNumeroGironi, perditaRisultati, annullaRisultato, rinominaTappa,
+  erroreLimitiTappa, erroreTestiTappa, creaTappa,
 } from "../../src/domain/tappaOps";
 import type { Esito } from "../../src/domain/tappaOps";
 import type { Tappa } from "../../src/types";
@@ -68,6 +70,18 @@ function errore(esito: Esito): string {
   return esito.errore;
 }
 
+/** Verifica che della vecchia struttura non resti niente: né gironi, né calendario, né tabellone */
+function senzaSorteggio(t: Tappa) {
+  expect(t.gironi).toBeNull();
+  expect(t.partite).toEqual([]);
+  expect(t.bracket).toBeUndefined();
+}
+
+/** Tappa con `n` squadre, non ancora sorteggiata */
+function tappaCon(n: number): Tappa {
+  return { ...tappaNuova(), squadre: Array.from({ length: n }, (_, i) => ({ id: `q${i}`, nome: `Squadra ${i + 1}`, giocatori: [], rank: "" })) };
+}
+
 describe("sorteggia", () => {
   it("casuale: distribuisce tutte le squadre nei gironi e genera una partita per girone", () => {
     const t = nuova(sorteggia(tappaNuova(), "casuale"));
@@ -88,6 +102,11 @@ describe("sorteggia", () => {
     expect(t.partite.map((m) => [m.sa, m.sb, m.done])).toEqual([[0, 0, false], [0, 0, false]]);
   });
 
+  it("R1 (sonda): dopo un nuovo sorteggio il tabellone del sorteggio precedente non c'è più", () => {
+    const t = nuova(sorteggia(tappaConBracket(), "ranking"));
+    expect(t.bracket).toBeUndefined();
+  });
+
   it("non modifica la tappa ricevuta", () => {
     const originale = tappaNuova();
     sorteggia(originale, "casuale");
@@ -98,6 +117,11 @@ describe("sorteggia", () => {
     const t = tappaNuova();
     t.squadre = [t.squadre[0]];
     expect(errore(sorteggia(t, "casuale"))).toMatch(/2 squadre/);
+  });
+
+  it("R3: con un numero di gironi non valido (tappe di prima) risponde con un messaggio invece di andare in errore", () => {
+    expect(errore(sorteggia({ ...tappaNuova(), nGironi: 2.5 }, "casuale"))).toMatch(/Numero di gironi non valido/);
+    expect(errore(sorteggia({ ...tappaNuova(), nGironi: 3 }, "ranking"))).toMatch(/da 1 a 2/);
   });
 });
 
@@ -151,6 +175,34 @@ describe("registraRisultato (gironi)", () => {
   });
 });
 
+describe("annullaRisultato (gironi): «Correggi» dell'interfaccia e annulla_risultato del Coach", () => {
+  it("riporta la partita a da giocare, senza toccare le altre", () => {
+    const t = nuova(annullaRisultato(tappaGironiConclusi(), "m1"));
+    expect(t.partite[0]).toMatchObject({ id: "m1", done: false });
+    expect(t.partite[1]).toEqual(tappaGironiConclusi().partite[1]);
+  });
+
+  it("rifiuta una partita che non esiste", () => {
+    expect(errore(annullaRisultato(tappaGironiConclusi(), "inesistente"))).toMatch(/non trovata/);
+  });
+
+  it("non modifica la tappa ricevuta", () => {
+    const originale = tappaGironiConclusi();
+    annullaRisultato(originale, "m1");
+    expect(originale).toEqual(tappaGironiConclusi());
+  });
+});
+
+describe("risultati dei gironi con la fase finale già generata (R6)", () => {
+  it("annullare un risultato è rifiutato: prima va eliminata la fase finale", () => {
+    expect(errore(annullaRisultato(tappaConBracket(), "m1"))).toMatch(/elimina prima la fase finale/);
+  });
+
+  it("anche correggerlo registrandolo di nuovo è rifiutato", () => {
+    expect(errore(registraRisultato(tappaConBracket(), "m1", { sa: 21, sb: 10 }))).toMatch(/elimina prima la fase finale/);
+  });
+});
+
 describe("registraRisultatoBracket (fase a eliminazione diretta)", () => {
   it("registra la semifinale e porta il vincitore nel primo slot libero della finale", () => {
     const t = nuova(registraRisultatoBracket(tappaConBracket(), "sf1", 21, 17));
@@ -180,8 +232,8 @@ describe("registraRisultatoBracket (fase a eliminazione diretta)", () => {
     expect(errore(registraRisultatoBracket(tappaConBracket(), "sf1", 21, 21))).toMatch(/pareggi/);
   });
 
-  it("rifiuta un punteggio mancante", () => {
-    expect(registraRisultatoBracket(tappaConBracket(), "sf1", NaN, 21).ok).toBe(false);
+  it("rifiuta un punteggio mancante con il messaggio che l'interfaccia mostra (R4)", () => {
+    expect(errore(registraRisultatoBracket(tappaConBracket(), "sf1", NaN, 21))).toBe("Inserisci entrambi i punteggi.");
   });
 
   it("rifiuta un match con le squadre ancora da definire", () => {
@@ -270,5 +322,210 @@ describe("concludi", () => {
     const originale = tappaGironiConclusi();
     concludi(originale);
     expect(originale.conclusa).toBeUndefined();
+  });
+});
+
+describe("cambi di struttura: squadre e numero di gironi (R1)", () => {
+  it("aggiungiSquadra aggiunge «Squadra N» e azzera gironi, calendario e tabellone", () => {
+    const t = nuova(aggiungiSquadra(tappaConBracket()));
+    expect(t.squadre).toHaveLength(5);
+    expect(t.squadre[4]).toMatchObject({ nome: "Squadra 5", giocatori: [], rank: "" });
+    senzaSorteggio(t);
+  });
+
+  it("aggiungiSquadra rifiuta la 65ª squadra", () => {
+    expect(errore(aggiungiSquadra(tappaCon(64)))).toMatch(/da 2 a 64 squadre/);
+  });
+
+  it("rimuoviSquadra toglie la squadra e azzera gironi, calendario e tabellone", () => {
+    const t = nuova(rimuoviSquadra(tappaConBracket(), "b"));
+    expect(t.squadre.map((s) => s.id)).toEqual(["a", "c", "d"]);
+    senzaSorteggio(t);
+  });
+
+  it("rimuoviSquadra non scende sotto le 2 squadre", () => {
+    expect(errore(rimuoviSquadra(tappaCon(2), "q0"))).toMatch(/da 2 a 64 squadre/);
+  });
+
+  it("rimuoviSquadra rifiuta una squadra che non c'è", () => {
+    expect(errore(rimuoviSquadra(tappaNuova(), "inesistente"))).toMatch(/non trovata/);
+  });
+
+  it("impostaNumeroGironi cambia il numero e azzera gironi, calendario e tabellone", () => {
+    const t = nuova(impostaNumeroGironi(tappaConBracket(), 1));
+    expect(t.nGironi).toBe(1);
+    senzaSorteggio(t);
+  });
+
+  it("non modificano la tappa ricevuta", () => {
+    const originale = tappaConBracket();
+    aggiungiSquadra(originale);
+    rimuoviSquadra(originale, "b");
+    impostaNumeroGironi(originale, 1);
+    expect(originale).toEqual(tappaConBracket());
+  });
+});
+
+describe("perditaRisultati: che cosa cancellano un nuovo sorteggio o un cambio di struttura (R2)", () => {
+  it("senza risultati non c'è niente da confermare, anche a sorteggio fatto", () => {
+    expect(perditaRisultati(tappaNuova())).toBeNull();
+    expect(perditaRisultati(tappaSorteggiata())).toBeNull();
+  });
+
+  it("con risultati dice quanti se ne perdono", () => {
+    expect(perditaRisultati(tappaGironiConclusi())).toBe("Verranno eliminati il sorteggio e 2 risultati.");
+    const unRisultato = nuova(registraRisultato(tappaSorteggiata(), "m1", { sa: 21, sb: 15 }));
+    expect(perditaRisultati(unRisultato)).toBe("Verranno eliminati il sorteggio e 1 risultato.");
+  });
+
+  it("conta anche le gare della fase finale, non i turni superati d'ufficio, e la nomina", () => {
+    const partenza = tappaConBracket();
+    partenza.bracket = [
+      { ...partenza.bracket![0], pA: 21, pB: 17, done: true },
+      { id: "bye", label: "Turno 1 · Gara 3", squadraA: "c", squadraB: null, pA: 0, pB: 0, done: true, bye: true },
+      ...partenza.bracket!.slice(1),
+    ];
+    expect(perditaRisultati(partenza)).toBe("Verranno eliminati il sorteggio, la fase finale e 3 risultati.");
+  });
+});
+
+describe("numero di gironi: intero tra 1 e metà delle squadre, al massimo 32 (R3)", () => {
+  it("sonda: lo stesso numero non cambia niente, sorteggio e risultati restano", () => {
+    const partenza = tappaConBracket();
+    expect(nuova(impostaNumeroGironi(partenza, 2))).toBe(partenza);
+  });
+
+  it.each([
+    ["non intero", 2.5],
+    ["zero", 0],
+    ["oltre metà delle squadre", 3],
+    ["mancante", NaN],
+  ])("rifiuta un numero %s", (_caso, n) => {
+    expect(errore(impostaNumeroGironi(tappaNuova(), n))).toMatch(/Numero di gironi non valido: con 4 squadre deve essere un intero da 1 a 2/);
+  });
+
+  it("al massimo 32 gironi, anche con più di 64 squadre (tappe di prima)", () => {
+    expect(nuova(impostaNumeroGironi(tappaCon(70), 32)).nGironi).toBe(32);
+    expect(errore(impostaNumeroGironi(tappaCon(70), 33))).toMatch(/da 1 a 32/);
+  });
+
+  it("togliendo squadre il numero di gironi scende, se serve, a metà delle squadre", () => {
+    expect(nuova(rimuoviSquadra(tappaNuova(), "d")).nGironi).toBe(1);
+    expect(nuova(rimuoviSquadra({ ...tappaCon(6), nGironi: 2 }, "q0")).nGironi).toBe(2);
+  });
+});
+
+describe("una tappa conclusa non si modifica (R5)", () => {
+  /** La stessa tappa, conclusa e pubblicata */
+  const conclusa = (t: Tappa): Tappa => ({ ...t, conclusa: true });
+
+  // Ogni operazione, sulla stessa tappa non conclusa, riuscirebbe: l'unico motivo del rifiuto è la conclusione
+  it.each<[string, () => Esito]>([
+    ["sorteggia (sonda: sorteggio su una tappa conclusa)", () => sorteggia(conclusa(tappaGironiConclusi()), "casuale")],
+    ["registraRisultato", () => registraRisultato(conclusa(tappaSorteggiata()), "m1", { sa: 21, sb: 15 })],
+    ["annullaRisultato", () => annullaRisultato(conclusa(tappaGironiConclusi()), "m1")],
+    ["registraRisultatoBracket", () => registraRisultatoBracket(conclusa(tappaConBracket()), "sf1", 21, 17)],
+    ["generaFasiDirette", () => generaFasiDirette(conclusa(tappaGironiConclusi()))],
+    ["concludi", () => concludi(conclusa(tappaGironiConclusi()))],
+    ["aggiungiSquadra", () => aggiungiSquadra(conclusa(tappaGironiConclusi()))],
+    ["rimuoviSquadra", () => rimuoviSquadra(conclusa(tappaGironiConclusi()), "b")],
+    ["impostaNumeroGironi", () => impostaNumeroGironi(conclusa(tappaGironiConclusi()), 1)],
+    ["rinominaTappa", () => rinominaTappa(conclusa(tappaGironiConclusi()), "Milano Open")],
+  ])("%s è rifiutata", (_operazione, esegui) => {
+    expect(errore(esegui())).toBe("La tappa è conclusa: riaprila per modificarla.");
+  });
+});
+
+describe("rinominaTappa: il nome della tappa non è mai vuoto (R7)", () => {
+  it("rifiuta un nome vuoto o di soli spazi", () => {
+    expect(errore(rinominaTappa(tappaNuova(), ""))).toMatch(/non può essere vuoto/);
+    expect(errore(rinominaTappa(tappaNuova(), "   "))).toMatch(/non può essere vuoto/);
+  });
+
+  it("salva il nome senza spazi ai lati; lo stesso nome non cambia niente", () => {
+    expect(nuova(rinominaTappa(tappaNuova(), "  Milano Open ")).nome).toBe("Milano Open");
+    const partenza = tappaNuova();
+    expect(nuova(rinominaTappa(partenza, "Roma Open"))).toBe(partenza);
+  });
+});
+
+describe("creazione della tappa: stessi limiti per interfaccia e Coach (R8)", () => {
+  /** Dati di una tappa nuova con `n` squadre segnaposto */
+  const dati = (n: number, nGironi: number) => ({ nome: "Napoli Open", luogo: " Napoli ", data: "2026-07-01", nGironi, squadre: tappaCon(n).squadre });
+  /** Nome, luogo e data validi */
+  const testi = { nome: "Napoli Open", luogo: "Napoli", data: "2026-07-01" };
+
+  it("da 2 a 64 squadre e un numero di gironi intero tra 1 e metà delle squadre", () => {
+    expect(erroreLimitiTappa(2, 1, testi)).toBeNull();
+    expect(erroreLimitiTappa(64, 32, testi)).toBeNull();
+    expect(erroreLimitiTappa(1, 1, testi)).toMatch(/da 2 a 64 squadre/);
+    expect(erroreLimitiTappa(65, 2, testi)).toMatch(/da 2 a 64 squadre/);
+    expect(erroreLimitiTappa(8.5, 2, testi)).toMatch(/da 2 a 64 squadre/);
+    expect(erroreLimitiTappa(8, 2.5, testi)).toMatch(/Numero di gironi non valido: con 8 squadre deve essere un intero da 1 a 4/);
+    expect(erroreLimitiTappa(8, 5, testi)).toMatch(/da 1 a 4/);
+  });
+
+  it("nome fino a 120 caratteri, luogo fino a 160 e data vuota o aaaa-mm-gg: gli stessi limiti del server", () => {
+    const limiti = (cambia: Partial<typeof testi>) => erroreLimitiTappa(8, 2, { ...testi, ...cambia });
+    expect(limiti({ nome: "N".repeat(120) })).toBeNull();
+    expect(limiti({ nome: ` ${"N".repeat(120)} ` })).toBeNull(); // contano senza gli spazi ai lati, come li salva creaTappa
+    expect(limiti({ nome: "N".repeat(121) })).toBe("Il nome della tappa può avere al massimo 120 caratteri.");
+    expect(limiti({ luogo: "L".repeat(160) })).toBeNull();
+    expect(limiti({ luogo: "L".repeat(161) })).toBe("Il luogo può avere al massimo 160 caratteri.");
+    expect(limiti({ data: "" })).toBeNull();
+    expect(limiti({ data: "2026-06-14" })).toBeNull();
+    expect(limiti({ data: "14/06/2026" })).toBe("La data deve essere vuota oppure nel formato aaaa-mm-gg (per esempio 2026-06-14).");
+    expect(limiti({ data: "2026-6-14" })).toMatch(/aaaa-mm-gg/);
+  });
+
+  it("crea una tappa non sorteggiata, con le regole predefinite", () => {
+    const t = nuova(creaTappa(dati(8, 2)));
+    expect(t).toMatchObject({
+      nome: "Napoli Open", luogo: "Napoli", data: "2026-07-01", nGironi: 2,
+      regole: { target: 21, durata: 10, ot: 2, shot: 12 }, gironi: null, partite: [], video: [],
+    });
+    expect(t.squadre).toHaveLength(8);
+    expect(t.id).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it("rifiuta squadre fuori dai limiti, un numero di gironi non intero e un nome vuoto", () => {
+    expect(errore(creaTappa(dati(1, 1)))).toMatch(/da 2 a 64 squadre/);
+    expect(errore(creaTappa(dati(65, 2)))).toMatch(/da 2 a 64 squadre/);
+    expect(errore(creaTappa(dati(8, 2.5)))).toMatch(/Numero di gironi non valido/);
+    expect(errore(creaTappa({ ...dati(8, 2), nome: "  " }))).toMatch(/non può essere vuoto/);
+  });
+
+  it("rifiuta una data che il server non accetterebbe: la tappa non si potrebbe mai salvare", () => {
+    expect(errore(creaTappa({ ...dati(8, 2), data: "14/06/2026" }))).toMatch(/aaaa-mm-gg/);
+  });
+});
+
+describe("limiti dei testi di una tappa: gli stessi per la creazione e per l'import di una lega", () => {
+  const testi = { nome: "Napoli Open", luogo: "Napoli", data: "2026-07-01" };
+  const limiti = (cambia: Partial<typeof testi>) => erroreTestiTappa({ ...testi, ...cambia });
+
+  it("nome fino a 120 caratteri, luogo fino a 160 e data vuota o aaaa-mm-gg, contando senza gli spazi ai lati", () => {
+    expect(limiti({})).toBeNull();
+    expect(limiti({ nome: ` ${"N".repeat(120)} ` })).toBeNull();
+    expect(limiti({ nome: "N".repeat(121) })).toBe("Il nome della tappa può avere al massimo 120 caratteri.");
+    expect(limiti({ luogo: "L".repeat(160) })).toBeNull();
+    expect(limiti({ luogo: "L".repeat(161) })).toBe("Il luogo può avere al massimo 160 caratteri.");
+    expect(limiti({ data: "" })).toBeNull();
+    expect(limiti({ data: "14/06/2026" })).toBe("La data deve essere vuota oppure nel formato aaaa-mm-gg (per esempio 2026-06-14).");
+  });
+
+  it("non guarda né le squadre né i gironi: sono i limiti di creazione, che restano in erroreLimitiTappa", () => {
+    // Una squadra e cinque gironi: la creazione li rifiuta, i soli testi no
+    expect(erroreLimitiTappa(1, 5, testi)).toMatch(/da 2 a 64 squadre/);
+    expect(erroreTestiTappa(testi)).toBeNull();
+  });
+
+  it("la creazione dà gli stessi messaggi, dopo quelli di squadre e gironi", () => {
+    for (const cambia of [{ nome: "N".repeat(121) }, { luogo: "L".repeat(161) }, { data: "14/06/2026" }]) {
+      expect(erroreLimitiTappa(8, 2, { ...testi, ...cambia })).toBe(limiti(cambia));
+    }
+    // Con squadre e testi sbagliati insieme il primo messaggio resta quello delle squadre, come prima
+    expect(erroreLimitiTappa(1, 1, { ...testi, nome: "N".repeat(121) })).toMatch(/da 2 a 64 squadre/);
+    expect(erroreLimitiTappa(8, 5, { ...testi, nome: "N".repeat(121) })).toMatch(/Numero di gironi non valido/);
   });
 });

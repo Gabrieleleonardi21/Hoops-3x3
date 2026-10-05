@@ -13,6 +13,7 @@ export interface ToolParamProp {
   type: string;
   description: string;
   items?: { type: string }; // usato quando type === "array"
+  enum?: string[];          // valori ammessi (es. la modalità di sorteggio)
 }
 
 /** Definizione di uno strumento che l'AI può invocare (formato OpenAI function calling). */
@@ -35,8 +36,9 @@ export interface ToolCall {
   function: { name: string; arguments: string };
 }
 
-/** Codici di errore tipizzati per mostrare messaggi specifici all'utente. */
-export type AiErrorCode = "AUTH" | "RATE" | "UNAVAILABLE" | "SERVER" | "NETWORK";
+/** Codici di errore tipizzati per mostrare messaggi specifici all'utente.
+ *  BAD_REQUEST = richiesta rifiutata dal server (400): il suo messaggio dice che cosa fare. */
+export type AiErrorCode = "AUTH" | "RATE" | "UNAVAILABLE" | "BAD_REQUEST" | "SERVER" | "NETWORK";
 
 export class AiError extends Error {
   constructor(public code: AiErrorCode, message: string) {
@@ -52,6 +54,10 @@ interface ApiMsg {
   tool_call_id?: string;
 }
 
+/** Tempo massimo della chat (ms): il server aspetta il modello fino a 60 secondi (CoachAiService), quindi il client
+ *  aspetta un po' di più, per ricevere la risposta o l'errore del server invece di abbandonare prima */
+const TEMPO_MASSIMO_COACH = 65_000;
+
 /** Chiamata HTTP base verso il proxy. Accetta messaggi API-level e opzionali tool definitions. */
 async function callGroq(
   messages: ApiMsg[],
@@ -59,10 +65,13 @@ async function callGroq(
 ): Promise<{ content: string | null; tool_calls?: ToolCall[] }> {
   let data: { choices?: { message?: { content?: string; tool_calls?: ToolCall[] } }[]; error?: { message?: string } };
   try {
-    data = await api("/api/coach/chat", { method: "POST", body: { messages, tools: tools ?? [] } });
+    data = await api("/api/coach/chat", {
+      method: "POST", body: { messages, tools: tools ?? [] }, tempoMassimo: TEMPO_MASSIMO_COACH,
+    });
   } catch (e) {
     if (!(e instanceof ApiError)) throw new AiError("SERVER", "errore imprevisto");
     if (e.status === 0) throw new AiError("NETWORK", e.message);
+    if (e.status === 400) throw new AiError("BAD_REQUEST", e.message);
     if (e.status === 401) throw new AiError("AUTH", e.message);
     if (e.status === 429) throw new AiError("RATE", e.message);
     if (e.status === 503) throw new AiError("UNAVAILABLE", e.message);
@@ -85,6 +94,40 @@ export async function askCoach(preamble: string, history: ChatMsg[]): Promise<st
   return content || "Non ho una risposta ora, riprova.";
 }
 
+/** Esegue uno strumento: riceve nome e argomenti e restituisce il testo per il modello; se l'azione non si può fare
+ *  lancia un errore con il motivo. Può essere async. */
+type OnToolCall = (name: string, args: Record<string, unknown>) => string | Promise<string>;
+
+/** Argomenti di una chiamata: un oggetto JSON. null se il testo non si legge o non è un oggetto (null, un elenco…) */
+function leggiArgomenti(testo: string): Record<string, unknown> | null {
+  try {
+    const args: unknown = JSON.parse(testo);
+    if (typeof args === "object" && args !== null && !Array.isArray(args)) return args as Record<string, unknown>;
+  } catch { /* JSON non valido */ }
+  return null;
+}
+
+/** Richiesta abbandonata (chat cancellata, logout): niente altre chiamate al modello né altri strumenti. Le chiamate
+ *  consumerebbero il limite di richieste e, dopo un nuovo accesso, partirebbero con il token di un altro utente */
+function fermaSeAbbandonata(segnale?: AbortSignal) {
+  if (segnale?.aborted) throw segnale.reason;
+}
+
+/** Esegue uno strumento senza mai interrompere il ciclo. Con argomenti non validi lo strumento non parte (prima
+ *  partiva con argomenti vuoti). Un errore dello strumento (un rifiuto, un 403, la rete) diventa il suo risultato:
+ *  il modello sa che cosa è fallito e lo spiega. `eseguito` false = l'azione non è avvenuta, niente badge. */
+async function eseguiProtetto(onToolCall: OnToolCall, name: string, argomenti: string) {
+  const args = leggiArgomenti(argomenti);
+  if (!args) return { risultato: "Argomenti non validi (serve un oggetto JSON): azione non eseguita.", eseguito: false };
+  try {
+    return { risultato: await onToolCall(name, args), eseguito: true };
+  } catch (e) {
+    let motivo = "errore imprevisto";
+    if (e instanceof Error) motivo = e.message;
+    return { risultato: `Errore: ${motivo}`, eseguito: false };
+  }
+}
+
 /**
  * Chiamata con tool calling in loop agentico. Finché l'AI invoca strumenti:
  * 1. registra il turno assistant che li richiede
@@ -93,19 +136,23 @@ export async function askCoach(preamble: string, history: ChatMsg[]): Promise<st
  *
  * I tool dello stesso turno girano IN SEQUENZA: così un tool che dipende da un altro
  * (es. sorteggia_gironi dopo crea_tappa) legge lo stato già aggiornato, senza race.
+ * Ogni esecuzione è protetta (eseguiProtetto): uno strumento che fallisce non ferma gli altri.
  *
  * Guardia anti-stallo: una chiamata con firma (nome + argomenti) identica a una già
- * eseguita non viene rieseguita; se un round contiene solo ricicli il loop si chiude,
+ * fatta (riuscita o no) non viene rieseguita; se un round contiene solo ricicli il loop si chiude,
  * evitando di bruciare i round con un modello bloccato che ripete la stessa azione.
  *
- * @param onToolCall - riceve nome e argomenti dello strumento; può essere async
- * @returns testo finale da mostrare in chat + nomi degli strumenti chiamati
+ * @param onToolCall - vedi OnToolCall: un errore lanciato diventa il risultato dello strumento
+ * @param segnale - interrompe la richiesta: prima di ogni chiamata al modello e di ogni strumento si controlla, e se è
+ *   interrotta la promessa è rifiutata con il motivo del segnale
+ * @returns testo finale da mostrare in chat + nomi degli strumenti eseguiti (non quelli falliti o non partiti)
  */
 export async function askCoachWithTools(
   preamble: string,
   history: ChatMsg[],
   tools: ToolDef[],
-  onToolCall: (name: string, args: Record<string, unknown>) => string | Promise<string>,
+  onToolCall: OnToolCall,
+  segnale?: AbortSignal,
 ): Promise<{ text: string; calledTools: string[] }> {
   const messages: ApiMsg[] = [
     { role: "system", content: preamble },
@@ -121,6 +168,7 @@ export async function askCoachWithTools(
   const MAX_TOOL_ROUNDS = 8;
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+    fermaSeAbbandonata(segnale);
     const res = await callGroq(messages, tools);
 
     // Nessun tool richiesto: è la risposta finale da mostrare in chat
@@ -134,21 +182,20 @@ export async function askCoachWithTools(
     // Esegue i tool in sequenza e accoda ogni risultato come messaggio tool
     let eseguitoQualcosa = false; // false se il round contiene SOLO ricicli → si esce
     for (const tc of res.tool_calls) {
-      let args: Record<string, unknown> = {};
-      try { args = JSON.parse(tc.function.arguments) as Record<string, unknown>; } catch { /* args vuoti */ }
-
-      // Guardia anti-stallo: stesso tool con gli stessi argomenti già eseguito → non ripetere
+      fermaSeAbbandonata(segnale);
+      // Guardia anti-stallo: stesso tool con gli stessi argomenti già chiamato → non ripetere. Il testo non dice
+      // «eseguita»: la prima chiamata può essere fallita, e il modello direbbe all'utente che è fatta
       const firma = `${tc.function.name}:${tc.function.arguments}`;
       if (seen.has(firma)) {
-        messages.push({ role: "tool", tool_call_id: tc.id, content: `Azione "${tc.function.name}" già eseguita in questa richiesta: non ripeterla, rispondi all'utente.` });
+        messages.push({ role: "tool", tool_call_id: tc.id, content: `Azione "${tc.function.name}" già chiamata con gli stessi argomenti in questa richiesta (vedi il suo risultato): non ripeterla, rispondi all'utente.` });
         continue;
       }
 
       seen.add(firma);
       eseguitoQualcosa = true;
-      const result = await Promise.resolve(onToolCall(tc.function.name, args));
-      calledTools.push(tc.function.name);
-      messages.push({ role: "tool", tool_call_id: tc.id, content: result });
+      const { risultato, eseguito } = await eseguiProtetto(onToolCall, tc.function.name, tc.function.arguments);
+      if (eseguito) calledTools.push(tc.function.name);
+      messages.push({ role: "tool", tool_call_id: tc.id, content: risultato });
     }
 
     // Round di soli ricicli: il modello è bloccato, esci e chiudi con una risposta testuale
@@ -156,6 +203,7 @@ export async function askCoachWithTools(
   }
 
   // Cap raggiunto o loop interrotto: una chiamata finale senza tool forza la risposta di chiusura.
+  fermaSeAbbandonata(segnale);
   const final = await callGroq(messages);
   return { text: final.content || "Fatto!", calledTools };
 }

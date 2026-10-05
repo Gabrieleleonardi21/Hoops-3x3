@@ -1,7 +1,11 @@
 /** Barra superiore globale: logo (→ home), navigazione principale, utente e logout.
- *  Sticky con sfondo semitrasparente; la hero vive nella HomePage, non qui. */
+ *  Sticky con sfondo semitrasparente; la hero vive nella HomePage, non qui.
+ *  «Esci» chiede conferma se restano modifiche che non si è riusciti a salvare sul server. */
+import { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
+import { tappeNonSalvate } from "../../utils/tappeNonSalvate";
+import { ConfirmDialog } from "../ui/ConfirmDialog";
 
 const links = [
   ["/", "Home"],
@@ -11,11 +15,34 @@ const links = [
   ["/campetti", "Campetti"],
 ] as const;
 
+/** Conferma di uscita in corso: quante tappe si perderebbero e la risposta che logout sta aspettando */
+interface ConfermaUscita {
+  nonSalvate: number;
+  rispondi: (uscire: boolean) => void;
+}
+
 export function Header() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [conferma, setConferma] = useState<ConfermaUscita | null>(null);
+
+  /** Apre la finestra di conferma; la promessa si risolve con la scelta dell'utente (vedi chiudiConferma) */
+  const chiediConferma = (nonSalvate: number) =>
+    new Promise<boolean>((rispondi) => setConferma({ nonSalvate, rispondi }));
+
+  /** logout salva prima le modifiche in attesa; se qualcuna resta fuori dal server, decide l'utente */
+  const esci = async () => {
+    const { uscito } = await logout(chiediConferma);
+    if (uscito) navigate("/");
+  };
+
+  const chiudiConferma = (uscire: boolean) => {
+    conferma?.rispondi(uscire);
+    setConferma(null);
+  };
 
   return (
+    <>
     <header className="sticky top-0 z-40 border-b border-asphalt-700 bg-asphalt-950/90 backdrop-blur">
       <div className="mx-auto max-w-5xl px-4">
         <div className="flex h-14 items-center justify-between gap-4">
@@ -28,7 +55,7 @@ export function Header() {
             <span className="hidden sm:flex items-center gap-2 text-[13px] text-chalk-muted">
               <span className="text-chalk font-medium">{user.name}</span>
               {user.guest && <span className="text-chalk-dim">(ospite)</span>}
-              <button onClick={() => { logout(); navigate("/"); }}
+              <button onClick={esci}
                 className="ml-2 inline-flex items-center gap-1 rounded border border-asphalt-700 px-2.5 h-8 text-xs font-semibold uppercase tracking-[0.08em] hover:border-asphalt-500 hover:text-chalk">
                 Esci
               </button>
@@ -49,12 +76,19 @@ export function Header() {
               </NavLink>
             ))}
             {/* su mobile il logout sta nella riga di navigazione (l'utente in alto è nascosto) */}
-            <button onClick={() => { logout(); navigate("/"); }} className="ml-auto shrink-0 px-3 text-xs font-semibold uppercase tracking-[0.08em] text-chalk-muted hover:text-chalk sm:hidden">
+            <button onClick={esci} className="ml-auto shrink-0 px-3 text-xs font-semibold uppercase tracking-[0.08em] text-chalk-muted hover:text-chalk sm:hidden">
               Esci{user.guest ? " (ospite)" : ""}
             </button>
           </nav>
         )}
       </div>
     </header>
+    {/* Fuori dall'header: il suo backdrop-blur farebbe da riquadro di riferimento al position: fixed della modale */}
+    {conferma && (
+      <ConfirmDialog title="Uscire senza salvare?" onConfirm={() => chiudiConferma(true)} onCancel={() => chiudiConferma(false)}>
+        {tappeNonSalvate(conferma.nonSalvate)}: uscendo andranno perse.
+      </ConfirmDialog>
+    )}
+    </>
   );
 }

@@ -1,16 +1,19 @@
 import { create } from "zustand";
 import type { Lega, LegaMeta, Partita, Tappa, User } from "../types";
-import { uid, isUuid } from "../utils/uid";
+import { uid } from "../utils/uid";
 import { legheApi } from "../services/legheApi";
 import { ApiError } from "../services/api";
+import { createSaveQueue } from "./saveQueue";
 
 /**
  * Store globale: utente, indice leghe e lega attiva con le sue tappe.
  * Le azioni aggiornano SUBITO lo stato in memoria (la UI resta reattiva) e poi persistono:
  *  - ospite  → localStorage, come nelle versioni precedenti
- *  - registrato → backend REST (legheApi); le modifiche alle tappe sono raggruppate
- *    con un debounce per tappa, così una raffica di input non genera una PUT per tasto.
- * Gli errori di salvataggio finiscono in `syncError` (mostrato da SyncBanner in App).
+ *  - registrato → backend REST (legheApi); creazione e modifiche delle tappe passano dalla coda
+ *    dei salvataggi (saveQueue.ts): una raffica di input diventa un solo invio, mai due richieste
+ *    insieme per la stessa tappa, nuovi tentativi se la rete o il server hanno un problema temporaneo.
+ * Gli errori finiscono in `syncError`, le tappe non ancora salvate in `inSospeso` ed `erroreSalvataggio`
+ * (tutti mostrati da SyncBanner in App).
  */
 interface AppState {
   user: User | null;
@@ -21,18 +24,32 @@ interface AppState {
   /** false mentre si caricano i dati dal server dopo login/reload (per i registrati) */
   ready: boolean;
   syncError: string | null;
+  /** Tappe con modifiche non ancora confermate dal server (coda dei salvataggi) */
+  inSospeso: number;
+  /** Motivo dell'ultimo salvataggio non riuscito per un problema temporaneo (rete, sessione, server):
+   *  torna null da solo quando la coda ha salvato tutto */
+  erroreSalvataggio: string | null;
   setUser: (u: User | null) => void;
   clearSyncError: () => void;
+  /** Salva subito le modifiche in attesa (tappe e rinomina della lega) e aspetta le richieste in corso
+   *  (logout, «Riprova ora», apertura di una lega).
+   *  @returns quante tappe hanno ancora modifiche non salvate */
+  salvaTutto: () => Promise<number>;
   createLega: (nome: string) => Promise<string>;
   selectLega: (id: string) => Promise<void>;
   deleteLega: (id: string) => Promise<void>;
   setLegaName: (nome: string) => void;
   setLega: (nome: string, tappe: Tappa[]) => void;
   addTappa: (t: Tappa) => void;
-  updateTappa: (id: string, patch: Partial<Tappa>) => void;
+  /** Modifica una tappa. `modifica` è l'insieme dei campi da cambiare oppure una funzione `(tappa) => tappa`: la
+   *  funzione riceve la tappa com'è nello store nel momento in cui viene applicata, non una copia letta prima
+   *  (magari vecchia), e serve quando il nuovo valore dipende da ciò che c'è già, come l'elenco delle squadre. */
+  updateTappa: (id: string, modifica: Partial<Tappa> | ((tappa: Tappa) => Tappa)) => void;
   /** Aggiorna una singola partita in modo atomico, evita race condition in chiamate parallele. */
   updateTappaPartita: (tappaId: string, partitaId: string, patch: Partial<Partita>) => void;
-  /** Crea una nuova lega importando dati JSON (nome + tappe). */
+  /** Crea una nuova lega con nome e tappe di un file importato. Le tappe arrivano da leggiFileLega (utils/legaFile), che le ha
+   *  già controllate e ha dato loro id nuovi: con gli id del file, ripristinare una lega esportata che esiste ancora avrebbe
+   *  il 409 del server. Chi la chiama con altre tappe deve darne id nuovi. */
   importLega: (nome: string, tappe: Tappa[]) => Promise<void>;
   replaceTappa: (t: Tappa) => void;
   removeTappa: (id: string) => void;
@@ -88,15 +105,23 @@ function getInitialState(): Pick<AppState, "user" | "legaId" | "leghe" | "legaNa
   return { user, legaId: activeId, leghe, legaName: lega.nome || "", tappe: lega.tappe || [], ready: true };
 }
 
-/* ── Debounce dei salvataggi tappa (registrati) ───────────────────────────── */
+/* ── Salvataggi sul server (registrati) ───────────────────────────────────── */
 
+/** Attesa dopo l'ultima modifica prima di salvare una tappa o rinominare la lega */
 const SAVE_DELAY = 400;
-const pending = new Map<string, { tappa: Tappa; timer: number }>();
 
-/** Sostituisce gli id non-UUID (versioni vecchie / file importati) prima di mandare la tappa al server */
-function withUuid(t: Tappa): Tappa {
-  if (isUuid(t.id)) return t;
-  return { ...t, id: uid() };
+/** Testo dell'errore per l'utente: il messaggio del server o della rete, altrimenti uno generico */
+function testoErrore(e: unknown): string {
+  if (e instanceof ApiError) return e.message;
+  return "errore imprevisto";
+}
+
+/** Errori temporanei, per cui la coda riprova: rete assente (status 0), guasto del server (5xx) e JWT respinto
+ *  senza un rinnovo riuscito (401). Con il 401 la modifica resta in attesa invece di essere scartata: il rinnovo
+ *  può essere fallito solo per la rete e, se la sessione è finita davvero, il logout la conta tra quelle perse.
+ *  Gli altri rifiuti riguardano i dati: ripetere la stessa richiesta non servirebbe. */
+function riprovabile(e: unknown): boolean {
+  return e instanceof ApiError && (e.status === 0 || e.status === 401 || e.status >= 500);
 }
 
 const initial = getInitialState();
@@ -108,8 +133,7 @@ export const useAppStore = create<AppState>((set, get) => {
   };
 
   const reportError = (e: unknown, cosa: string) => {
-    const msg = e instanceof ApiError ? e.message : "errore imprevisto";
-    set({ syncError: `${cosa}: ${msg}` });
+    set({ syncError: `${cosa}: ${testoErrore(e)}` });
   };
 
   /** Ospite: salva la lega attiva su localStorage e aggiorna nTappe/ts nell'indice */
@@ -124,23 +148,77 @@ export const useAppStore = create<AppState>((set, get) => {
     set({ leghe });
   };
 
-  /** Registrato: PUT dell'ultima versione della tappa dopo SAVE_DELAY ms di quiete */
-  const scheduleSave = (tappaId: string) => {
-    const t = get().tappe.find((x) => x.id === tappaId);
-    if (!t) return;
-    const prev = pending.get(tappaId);
-    if (prev) window.clearTimeout(prev.timer);
-    const timer = window.setTimeout(() => {
-      pending.delete(tappaId);
-      legheApi.putTappa(t).catch((e) => reportError(e, "Salvataggio tappa non riuscito"));
-    }, SAVE_DELAY);
-    pending.set(tappaId, { tappa: t, timer });
+  /** Tappe aggiunte la cui POST non è ancora confermata dal server: id → id della lega */
+  const daCreare = new Map<string, string>();
+  /** Tappe eliminate prima che il server confermasse la creazione: se la POST era già in volo e riesce,
+   *  la tappa va cancellata subito dopo (una DELETE partita prima arriverebbe su una tappa ancora da creare) */
+  const eliminatePrimaDellaCreazione = new Set<string>();
+
+  const eliminaSulServer = (id: string) => {
+    legheApi.removeTappa(id).catch((e) => reportError(e, "Eliminazione tappa non riuscita"));
   };
 
-  /** Dopo una modifica alle tappe: localStorage per l'ospite, PUT differita per il registrato */
+  /** Invio di una versione della tappa (lo chiama la coda): POST finché la creazione non è confermata, poi PUT.
+   *  Un 409 sulla POST vuol dire che la tappa esiste già, perché la risposta di una POST precedente si è persa:
+   *  si passa alla PUT con questa versione, che è la più recente. */
+  const salvaSulServer = async (t: Tappa) => {
+    const legaId = daCreare.get(t.id);
+    if (legaId === undefined) {
+      await legheApi.putTappa(t);
+      return;
+    }
+    try {
+      await legheApi.addTappa(legaId, t);
+    } catch (e) {
+      if (!(e instanceof ApiError && e.status === 409)) throw e;
+      await legheApi.putTappa(t);
+    }
+    daCreare.delete(t.id);
+    if (eliminatePrimaDellaCreazione.delete(t.id)) eliminaSulServer(t.id);
+  };
+
+  /** Un 404 per una tappa che non è più nello stato non è un salvataggio fallito: la tappa è stata eliminata (la DELETE
+   *  è arrivata prima della PUT in volo, oppure se n'è andata con la sua lega) e non c'è più niente da salvare */
+  const eliminataNelFrattempo = (e: unknown, t: Tappa) =>
+    e instanceof ApiError && e.status === 404 && !get().tappe.some((x) => x.id === t.id);
+
+  const coda = createSaveQueue({
+    salva: (t) => salvaSulServer(t).catch((e: unknown) => {
+      if (!eliminataNelFrattempo(e, t)) throw e;
+    }),
+    riprovabile,
+    ritardo: SAVE_DELAY,
+    onErrore: (e, definitivo) => {
+      if (definitivo) { reportError(e, "Salvataggio tappa non riuscito"); return; }
+      set({ erroreSalvataggio: testoErrore(e) });
+    },
+    // Coda vuota = tutto confermato dal server: l'avviso del salvataggio non riuscito sparisce da solo
+    onInSospeso: (inSospeso) => {
+      if (inSospeso === 0) { set({ inSospeso, erroreSalvataggio: null }); return; }
+      set({ inSospeso });
+    },
+  });
+
+  /** Punto d'ingresso unico per «questa tappa è cambiata, salvala»: localStorage per l'ospite,
+   *  coda dei salvataggi per il registrato, con la versione della tappa presente adesso nello stato */
   const afterTappaChange = (tappaId: string) => {
-    if (isRemote()) { scheduleSave(tappaId); return; }
-    persistLocal();
+    if (!isRemote()) { persistLocal(); return; }
+    const t = get().tappe.find((x) => x.id === tappaId);
+    if (t) coda.accoda(t);
+  };
+
+  /** Tappe di una lega appena arrivate dal server, con sopra le versioni locali non ancora salvate: senza,
+   *  lo schermo tornerebbe alla versione del server e la modifica successiva sostituirebbe in coda quella
+   *  con i risultati. `inCoda` = versioni in attesa lette prima della GET (un nuovo tentativo partito durante
+   *  la GET può salvarle dopo che il server ha già letto la versione vecchia); si aggiungono quelle entrate in
+   *  coda nel frattempo. `nuove` = tappe della lega non ancora create sul server, assenti dalla risposta. */
+  const conVersioniLocali = (dalServer: Tappa[], inCoda: Tappa[], nuove: Tappa[]): Tappa[] => {
+    const locali = new Map([...inCoda, ...coda.inAttesa()].map((t) => [t.id, t]));
+    const tappe = dalServer.map((t) => locali.get(t.id) ?? t);
+    for (const t of nuove) {
+      if (!tappe.some((x) => x.id === t.id)) tappe.push(locali.get(t.id) ?? t);
+    }
+    return tappe;
   };
 
   /** Aggiorna nTappe/ts della lega attiva nell'indice in memoria (il server lo fa da sé) */
@@ -149,25 +227,49 @@ export const useAppStore = create<AppState>((set, get) => {
     set({ leghe: s.leghe.map((m) => m.id === s.legaId ? { ...m, nTappe: s.tappe.length, ts: Date.now() } : m) });
   };
 
-  // Chiusura pagina: le PUT in attesa partono subito (keepalive)
+  // Chiusura pagina: le versioni non ancora confermate dal server partono subito con keepalive (POST per le tappe non
+  // ancora create), comprese quelle di una richiesta in corso, che il browser interrompe chiudendo la pagina. Restano in
+  // coda: se la pagina torna dalla cache del browser vengono rinviate, e rinviarle non fa danni (la PUT sostituisce
+  // tutta la tappa, una POST già arrivata riceve un 409)
   if (typeof window !== "undefined") {
     window.addEventListener("pagehide", () => {
-      for (const [id, p] of pending) {
-        window.clearTimeout(p.timer);
-        pending.delete(id);
-        legheApi.putTappa(p.tappa, true).catch(() => {});
+      for (const t of coda.nonConfermate()) {
+        const legaId = daCreare.get(t.id);
+        if (legaId === undefined) {
+          legheApi.putTappa(t, true).catch(() => {});
+          continue;
+        }
+        legheApi.addTappa(legaId, t, true).catch(() => {});
       }
     });
   }
 
   let renameTimer = 0;
+  /** PATCH della rinomina che aspetta il suo timer; null se non ce n'è */
+  let rinominaInAttesa: (() => Promise<void>) | null = null;
+
+  /** Manda subito la rinomina in attesa, se c'è: allo scadere del timer, oppure da salvaTutto prima del logout,
+   *  quando il token sta per sparire */
+  const rinomina = async () => {
+    window.clearTimeout(renameTimer);
+    const invio = rinominaInAttesa;
+    rinominaInAttesa = null;
+    if (invio) await invio();
+  };
 
   return {
     ...initial,
     syncError: null,
+    inSospeso: 0,
+    erroreSalvataggio: null,
 
     setUser: (user) => set({ user }),
     clearSyncError: () => set({ syncError: null }),
+
+    salvaTutto: async () => {
+      await Promise.all([coda.svuota(), rinomina()]);
+      return coda.inAttesa().length;
+    },
 
     createLega: async (nome) => {
       const trimmed = nome.trim() || "Nuova lega";
@@ -189,9 +291,13 @@ export const useAppStore = create<AppState>((set, get) => {
 
     selectLega: async (id) => {
       if (isRemote()) {
+        // Prima si salva ciò che è in attesa: quello che resta (rete assente) è più recente della risposta del server
+        await get().salvaTutto();
+        const inCoda = coda.inAttesa();
+        const nuove = inCoda.filter((t) => daCreare.get(t.id) === id);
         const lega = await legheApi.get(id);
         localStorage.setItem(ACTIVE_KEY, id);
-        set({ legaId: id, legaName: lega.nome, tappe: lega.tappe });
+        set({ legaId: id, legaName: lega.nome, tappe: conVersioniLocali(lega.tappe, inCoda, nuove) });
         return;
       }
       const lega = readLegaData(id);
@@ -209,6 +315,12 @@ export const useAppStore = create<AppState>((set, get) => {
       const leghe = get().leghe.filter((m) => m.id !== id);
       if (!isRemote()) writeIndex(leghe);
       if (get().legaId === id) {
+        // Le tappe se ne vanno con la lega: i loro salvataggi in attesa o in nuovo tentativo partirebbero dopo la DELETE
+        // e avrebbero un 404 (la POST, su una lega che non c'è più), cioè un errore per dati eliminati apposta
+        for (const t of get().tappe) {
+          coda.annulla(t.id);
+          daCreare.delete(t.id);
+        }
         localStorage.removeItem(ACTIVE_KEY);
         set({ leghe, legaId: null, legaName: "", tappe: [] });
       } else {
@@ -223,12 +335,17 @@ export const useAppStore = create<AppState>((set, get) => {
       const leghe = s.leghe.map((m) => m.id === s.legaId ? { ...m, nome: legaName, ts: Date.now() } : m);
       set({ leghe });
       if (isRemote()) {
-        // L'input chiama setLegaName a ogni tasto: una sola PATCH a fine digitazione
+        // L'input chiama setLegaName a ogni tasto: una sola PATCH a fine digitazione (o prima, da salvaTutto)
+        const legaId = s.legaId;
+        rinominaInAttesa = async () => {
+          try {
+            await legheApi.rename(legaId, get().legaName.trim() || "Lega");
+          } catch (e) {
+            reportError(e, "Rinomina lega non riuscita");
+          }
+        };
         window.clearTimeout(renameTimer);
-        renameTimer = window.setTimeout(() => {
-          legheApi.rename(s.legaId!, get().legaName.trim() || "Lega")
-            .catch((e) => reportError(e, "Rinomina lega non riuscita"));
-        }, SAVE_DELAY);
+        renameTimer = window.setTimeout(() => { void rinomina(); }, SAVE_DELAY);
         return;
       }
       localStorage.setItem(legaStorageKey(s.legaId), JSON.stringify({ nome: legaName, tappe: s.tappe }));
@@ -242,14 +359,20 @@ export const useAppStore = create<AppState>((set, get) => {
       set((s) => ({ tappe: [...s.tappe, t] }));
       if (isRemote()) {
         touchIndex();
-        legheApi.addTappa(get().legaId!, t).catch((e) => reportError(e, "Creazione tappa non riuscita"));
-        return;
+        daCreare.set(t.id, get().legaId!); // il primo invio della coda sarà la POST di creazione
       }
-      persistLocal();
+      afterTappaChange(t.id);
     },
 
-    updateTappa: (id, patch) => {
-      set((s) => ({ tappe: s.tappe.map((t) => (t.id === id ? { ...t, ...patch } : t)) }));
+    updateTappa: (id, modifica) => {
+      set((s) => ({
+        tappe: s.tappe.map((t) => {
+          if (t.id !== id) return t;
+          // La funzione lavora sulla tappa dello store adesso, dentro lo stesso set: nessuna modifica si perde nel mezzo
+          if (typeof modifica === "function") return modifica(t);
+          return { ...t, ...modifica };
+        }),
+      }));
       afterTappaChange(id);
     },
 
@@ -268,10 +391,9 @@ export const useAppStore = create<AppState>((set, get) => {
     importLega: async (nome, tappe) => {
       const trimmed = nome.trim() || "Lega importata";
       if (isRemote()) {
-        const fixed = tappe.map(withUuid);
-        const meta = await legheApi.create(trimmed, fixed);
+        const meta = await legheApi.create(trimmed, tappe);
         localStorage.setItem(ACTIVE_KEY, meta.id);
-        set({ legaId: meta.id, leghe: [meta, ...get().leghe], legaName: meta.nome, tappe: fixed });
+        set({ legaId: meta.id, leghe: [meta, ...get().leghe], legaName: meta.nome, tappe });
         return;
       }
       const id = uid();
@@ -291,17 +413,24 @@ export const useAppStore = create<AppState>((set, get) => {
     removeTappa: (id) => {
       set((s) => ({ tappe: s.tappe.filter((t) => t.id !== id) }));
       if (isRemote()) {
-        // Una PUT in coda su una tappa eliminata darebbe 404: si annulla
-        const p = pending.get(id);
-        if (p) { window.clearTimeout(p.timer); pending.delete(id); }
+        coda.annulla(id); // un salvataggio ancora in attesa su una tappa eliminata darebbe 404
         touchIndex();
-        legheApi.removeTappa(id).catch((e) => reportError(e, "Eliminazione tappa non riuscita"));
+        // Creazione non ancora confermata: niente DELETE, la tappa potrebbe non essere mai arrivata al server
+        if (daCreare.delete(id)) {
+          eliminatePrimaDellaCreazione.add(id);
+          return;
+        }
+        eliminaSulServer(id);
         return;
       }
       persistLocal();
     },
 
     reset: () => {
+      // Chi esce rinuncia a ciò che non è stato salvato: nessun invio parte più dopo il logout
+      coda.azzera();
+      daCreare.clear();
+      eliminatePrimaDellaCreazione.clear();
       localStorage.removeItem(ACTIVE_KEY);
       set({ user: null, legaId: null, leghe: [], legaName: "", tappe: [], ready: true, syncError: null });
     },
@@ -334,3 +463,10 @@ export const useAppStore = create<AppState>((set, get) => {
     },
   };
 });
+
+/** La tappa com'è adesso nello store. Chi calcola una nuova versione con le funzioni di tappaOps parte da qui e non
+ *  dalla copia vista dal componente: dopo un'attesa, o se nel frattempo è cambiato qualcosa, quella copia è vecchia
+ *  e salvarne un derivato cancellerebbe le modifiche arrivate nel frattempo. */
+export function tappaCorrente(id: string | undefined): Tappa | null {
+  return useAppStore.getState().tappe.find((t) => t.id === id) ?? null;
+}

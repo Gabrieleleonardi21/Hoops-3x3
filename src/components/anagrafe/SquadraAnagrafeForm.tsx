@@ -3,9 +3,11 @@ import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import { Icon } from "../ui/Icon";
 import { Input } from "../ui/Input";
-import type { RegGiocatore, RegSquadra } from "../../types";
+import type { SquadraInput } from "../../services/anagrafeApi";
+import type { RegGiocatore } from "../../types";
 
-type Draft = Omit<RegSquadra, "id" | "autore" | "ts">;
+/** I campi che il server fa scrivere (senza id, autore, autoreId e ts) */
+type Draft = SquadraInput;
 const EMPTY: Draft = { nome: "", citta: "", anno: "", rank: "", referente: "", roster: [], logo: "", website: "", instagram: "", note: "" };
 
 export function SquadraAnagrafeForm({ giocatori, onSave }: { giocatori: RegGiocatore[]; onSave: (d: Draft) => Promise<void> }) {

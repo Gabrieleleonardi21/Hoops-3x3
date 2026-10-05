@@ -5,31 +5,9 @@ import { Bracket } from "./Bracket";
 import { Button } from "../ui/Button";
 import { Section } from "../ui/Section";
 import type { BracketMatch, Tappa } from "../../types";
-import { useAppStore } from "../../stores/useAppStore";
+import { useAppStore, tappaCorrente } from "../../stores/useAppStore";
 import { generaFasiDirette, registraRisultatoBracket } from "../../domain/tappaOps";
-
-/** Divide il bracket in round in base alla struttura ad albero:
- *  il primo round ha N match, il secondo N/2, il terzo N/4, ecc. */
-function splitRounds(matches: BracketMatch[]): BracketMatch[][] {
-  const rounds: BracketMatch[][] = [];
-  // Approccio semplificato: usa le etichette per raggruppare
-  const byLabel: Record<string, BracketMatch[]> = {};
-  for (const m of matches) {
-    const key = m.label.replace(/\s\d+$/, ""); // rimuove il numero finale (es. "Semifinale 1" → "Semifinale")
-    if (!byLabel[key]) byLabel[key] = [];
-    byLabel[key].push(m);
-  }
-  // Ordine dei round: QF → SF → Finale
-  const order = ["Quarto di finale", "Semifinale", "Finale"];
-  for (const key of order) {
-    if (byLabel[key]) rounds.push(byLabel[key]);
-  }
-  // Aggiunge eventuali chiavi non standard
-  for (const key of Object.keys(byLabel)) {
-    if (!order.includes(key)) rounds.push(byLabel[key]);
-  }
-  return rounds.length > 0 ? rounds : [matches];
-}
+import { splitRounds } from "../../utils/buildBracket";
 
 interface Props {
   tappa: Tappa;
@@ -44,29 +22,53 @@ export function BracketSection({ tappa, readOnly = false }: Props) {
 
   // Stato locale per inserimento punteggi
   const [scores, setScores] = useState<Record<string, { a: string; b: string }>>({});
+  // Perché l'ultimo «Salva» è stato rifiutato, e per quale match: il messaggio compare sotto i suoi punteggi
+  const [errore, setErrore] = useState<{ matchId: string; testo: string } | null>(null);
 
   const allGironiDone = tappa.gironi !== null &&
     tappa.partite.every((m) => m.done);
 
+  // Le due operazioni partono dalla tappa di adesso e non dalla prop `tappa`, che può essere vecchia (per esempio
+  // se nel frattempo il Coach ha registrato un altro match): salvarne un derivato cancellerebbe quelle modifiche.
+
   /** Genera il bracket dalla classifica dei gironi (regole in tappaOps) */
   const generaBracket = () => {
-    const esito = generaFasiDirette(tappa);
+    const corrente = tappaCorrente(tappa.id);
+    if (!corrente) return;
+    const esito = generaFasiDirette(corrente);
     if (esito.ok) replaceTappa(esito.tappa);
   };
 
   /** Registra il risultato di un match del bracket: validazione e avanzamento del vincitore
    *  sono in tappaOps (stessa logica del Coach AI). */
   const registraRisultato = (match: BracketMatch) => {
+    const corrente = tappaCorrente(tappa.id);
+    if (!corrente) return;
     const sc = scores[match.id] ?? { a: "", b: "" };
-    const esito = registraRisultatoBracket(tappa, match.id, parseInt(sc.a, 10), parseInt(sc.b, 10));
-    if (!esito.ok) return; // punteggio non valido: come prima, non succede nulla
+    const esito = registraRisultatoBracket(corrente, match.id, parseInt(sc.a, 10), parseInt(sc.b, 10));
+    // Punteggio non valido: non si salva niente e si dice perché (lo stesso messaggio che riceve il Coach)
+    if (!esito.ok) { setErrore({ matchId: match.id, testo: esito.errore }); return; }
     replaceTappa(esito.tappa);
     setScores((prev) => ({ ...prev, [match.id]: { a: "", b: "" } }));
+    setErrore(null);
   };
 
   // Prompt prima dei gironi
   if (!allGironiDone && !tappa.bracket?.length) {
     return null; // non mostrare nulla finché i gironi non sono completati
+  }
+
+  // Un solo girone: nessun incrocio possibile (generaFasiDirette lo rifiuta), quindi si spiega
+  // perché manca il pulsante invece di mostrarne uno che non fa nulla
+  if (!tappa.bracket?.length && tappa.gironi?.length === 1) {
+    return (
+      <Section title="Fase finale" kicker="Eliminazione diretta">
+        <p className="text-[13px] text-chalk-muted">
+          Il girone è concluso. Con un solo girone non c'è la fase a eliminazione diretta (servono almeno 2 gironi):
+          vale la classifica del girone.
+        </p>
+      </Section>
+    );
   }
 
   // Bottone per generare il bracket
@@ -87,17 +89,23 @@ export function BracketSection({ tappa, readOnly = false }: Props) {
   /** Input punteggio + salva per un match ancora da giocare (markup; la logica è registraRisultato) */
   const renderControls = (m: BracketMatch) => {
     const sc = scores[m.id] ?? { a: "", b: "" };
-    const setSc = (side: "a" | "b", v: string) =>
+    // Correggendo il punteggio il messaggio del rifiuto precedente non vale più
+    const setSc = (side: "a" | "b", v: string) => {
       setScores((p) => ({ ...p, [m.id]: { ...(p[m.id] ?? { a: "", b: "" }), [side]: v } }));
+      setErrore(null);
+    };
     return (
-      <div className="flex items-center gap-1.5">
-        <input type="number" min={0} inputMode="numeric" className="scorein w-12" value={sc.a}
-          onChange={(e) => setSc("a", e.target.value)} aria-label={`Punti ${nameOf(m.squadraA)}`} />
-        <span className="font-display text-chalk-dim">–</span>
-        <input type="number" min={0} inputMode="numeric" className="scorein w-12" value={sc.b}
-          onChange={(e) => setSc("b", e.target.value)} aria-label={`Punti ${nameOf(m.squadraB)}`} />
-        <Button size="sm" className="ml-auto" onClick={() => registraRisultato(m)}>Salva</Button>
-      </div>
+      <>
+        <div className="flex items-center gap-1.5">
+          <input type="number" min={0} inputMode="numeric" className="scorein w-12" value={sc.a}
+            onChange={(e) => setSc("a", e.target.value)} aria-label={`Punti ${nameOf(m.squadraA)}`} />
+          <span className="font-display text-chalk-dim">–</span>
+          <input type="number" min={0} inputMode="numeric" className="scorein w-12" value={sc.b}
+            onChange={(e) => setSc("b", e.target.value)} aria-label={`Punti ${nameOf(m.squadraB)}`} />
+          <Button size="sm" className="ml-auto" onClick={() => registraRisultato(m)}>Salva</Button>
+        </div>
+        {errore?.matchId === m.id && <p className="mt-1.5 text-xs font-semibold text-loss" role="alert">{errore.testo}</p>}
+      </>
     );
   };
 

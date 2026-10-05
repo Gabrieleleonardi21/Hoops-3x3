@@ -1,5 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { api, token } from "../../src/services/api";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { api, token, ApiError, suSessioneFinita, avviaRinnovoAutomatico } from "../../src/services/api";
+import { legheApi } from "../../src/services/legheApi";
+import { askCoach } from "../../src/services/aiService";
+import type { Tappa } from "../../src/types";
 
 /** localStorage e fetch non esistono nell'ambiente node: si sostituiscono con versioni in memoria */
 const memoria = new Map<string, string>();
@@ -10,6 +13,8 @@ vi.stubGlobal("localStorage", {
 });
 const fetchFinto = vi.fn();
 vi.stubGlobal("fetch", fetchFinto);
+/** Nemmeno document esiste: al rinnovo automatico servono solo la visibilità della scheda e i suoi eventi */
+vi.stubGlobal("document", Object.assign(new EventTarget(), { visibilityState: "visible" }));
 
 /** JWT finto (firma non verificata dal client) che scade tra `secondi` secondi (negativi = già scaduto) */
 function jwt(secondi: number): string {
@@ -309,5 +314,289 @@ describe("api: più schede, logout e lock", () => {
     await expect(api("/api/leghe")).rejects.toMatchObject({ status: 401 });
     expect(fetchFinto).toHaveBeenCalledTimes(1);
     expect(chiamata(0).url).toBe("/api/leghe");
+  });
+});
+
+describe("api: fine della sessione", () => {
+  it("se il rinnovo risponde 401 chiama il gestore di fine sessione una volta sola, anche con più richieste respinte", async () => {
+    const gestore = vi.fn();
+    const togli = suSessioneFinita(gestore);
+    try {
+      token.set(jwt(3600));
+      fetchFinto.mockImplementation(async (url: string) => {
+        if (url === "/api/auth/refresh") return errore(401, "Sessione scaduta: accedi di nuovo");
+        return errore(401, SCADUTO);
+      });
+      const esiti = await Promise.allSettled([api("/api/a"), api("/api/b"), api("/api/c")]);
+      expect(esiti.map((e) => e.status)).toEqual(["rejected", "rejected", "rejected"]);
+      // Le richieste successive partono senza token: nessun altro rinnovo e nessun'altra segnalazione
+      await expect(api("/api/d")).rejects.toMatchObject({ status: 401 });
+      expect(gestore).toHaveBeenCalledTimes(1);
+      expect(token.get()).toBeNull();
+    } finally {
+      togli();
+    }
+  });
+
+  it("un rinnovo non riuscito per la rete non chiude la sessione: gestore non chiamato e token lasciato", async () => {
+    const gestore = vi.fn();
+    const togli = suSessioneFinita(gestore);
+    try {
+      token.set(jwt(3600));
+      fetchFinto
+        .mockResolvedValueOnce(errore(401, SCADUTO))
+        .mockRejectedValueOnce(new TypeError("Failed to fetch"));
+      await expect(api("/api/leghe")).rejects.toMatchObject({ status: 401 });
+      expect(gestore).not.toHaveBeenCalled();
+      expect(token.get()).not.toBeNull();
+    } finally {
+      togli();
+    }
+  });
+
+  it("se il token è già sparito quando il rinnovo riceve 401 (uscita in corso) il gestore non viene chiamato", async () => {
+    const gestore = vi.fn();
+    const togli = suSessioneFinita(gestore);
+    try {
+      token.set(jwt(3600));
+      fetchFinto
+        .mockResolvedValueOnce(errore(401, SCADUTO))
+        // mentre il rinnovo è in volo l'utente esce: il token sparisce e il server respinge il cookie già revocato
+        .mockImplementationOnce(async () => { token.clear(); return errore(401, "Sessione scaduta: accedi di nuovo"); });
+      await expect(api("/api/leghe")).rejects.toMatchObject({ status: 401 });
+      expect(gestore).not.toHaveBeenCalled();
+    } finally {
+      togli();
+    }
+  });
+
+  it("un gestore tolto non viene più chiamato", async () => {
+    const gestore = vi.fn();
+    suSessioneFinita(gestore)();
+    token.set(jwt(3600));
+    fetchFinto
+      .mockResolvedValueOnce(errore(401, SCADUTO))
+      .mockResolvedValueOnce(errore(401, "Sessione scaduta: accedi di nuovo"));
+    await expect(api("/api/leghe")).rejects.toMatchObject({ status: 401 });
+    expect(gestore).not.toHaveBeenCalled();
+    expect(token.get()).toBeNull();
+  });
+});
+
+describe("api: tempo massimo delle richieste", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    // AbortSignal.timeout di Node non segue i timer finti: lo si sostituisce con lo stesso segnale costruito su setTimeout
+    vi.spyOn(AbortSignal, "timeout").mockImplementation((ms: number) => {
+      const controllo = new AbortController();
+      setTimeout(() => controllo.abort(new DOMException("The operation timed out.", "TimeoutError")), ms);
+      return controllo.signal;
+    });
+  });
+
+  afterEach(() => {
+    vi.mocked(AbortSignal.timeout).mockRestore();
+    vi.useRealTimers();
+  });
+
+  it("se il rinnovo non risponde, dopo 15 secondi la richiesta fallisce con ApiError e il token resta", async () => {
+    const vecchio = jwt(3600);
+    token.set(vecchio);
+    let sblocca = () => {};
+    fetchFinto.mockImplementation((url: string, init: RequestInit) => {
+      if (url !== "/api/auth/refresh") return Promise.resolve(errore(401, SCADUTO));
+      // Rinnovo senza risposta: come la fetch vera si interrompe solo quando scade il segnale
+      // (sblocca serve solo a non lasciare la promessa appesa se il segnale non arriva)
+      return new Promise<Response>((_risolvi, rifiuta) => {
+        sblocca = () => rifiuta(new TypeError("Failed to fetch"));
+        init.signal?.addEventListener("abort", () => rifiuta(init.signal!.reason));
+      });
+    });
+    let esito: unknown = "in attesa";
+    const richiesta = api("/api/leghe").then(() => { esito = "riuscita"; }, (e: unknown) => { esito = e; });
+    try {
+      await vi.advanceTimersByTimeAsync(14_999);
+      expect(esito).toBe("in attesa");
+      await vi.advanceTimersByTimeAsync(1);
+      expect(esito).toBeInstanceOf(ApiError);
+      expect(esito).toMatchObject({ status: 401, message: SCADUTO });
+      expect(token.get()).toBe(vecchio);
+      expect(AbortSignal.timeout).toHaveBeenCalledWith(15_000);
+    } finally {
+      sblocca();
+      await richiesta;
+    }
+  });
+
+  it("con il JWT scaduto e il rinnovo senza risposta, le richieste che lo aspettano falliscono invece di restare in attesa", async () => {
+    token.set(jwt(-10));
+    // Server che non risponde mai al rinnovo; il JWT scaduto viene respinto
+    fetchFinto.mockImplementation((url: string, init: RequestInit) => {
+      if (url !== "/api/auth/refresh") return Promise.resolve(errore(401, SCADUTO));
+      return new Promise<Response>((_risolvi, rifiuta) => {
+        init.signal?.addEventListener("abort", () => rifiuta(init.signal!.reason));
+      });
+    });
+    const esiti = Promise.allSettled([api("/api/a"), api("/api/b")]);
+    // Primo rinnovo (in anticipo) interrotto dopo 15 secondi, secondo (dopo il 401) dopo altri 15
+    await vi.advanceTimersByTimeAsync(30_000);
+    const [a, b] = await esiti;
+    expect(a).toMatchObject({ status: "rejected", reason: { status: 401 } });
+    expect(b).toMatchObject({ status: "rejected", reason: { status: 401 } });
+    expect(token.get()).not.toBeNull();
+  });
+
+  it("una richiesta senza risposta fallisce dopo 15 secondi con ApiError e status 0, come senza rete", async () => {
+    token.set(jwt(3600));
+    fetchFinto.mockImplementation((_url: string, init: RequestInit) => new Promise<Response>((_risolvi, rifiuta) => {
+      init.signal?.addEventListener("abort", () => rifiuta(init.signal!.reason));
+    }));
+    const esito = api("/api/leghe").catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(await esito).toMatchObject({ status: 0, message: "Il server non risponde: controlla la connessione e riprova." });
+  });
+
+  it("anche una risposta che non finisce di arrivare entro 15 secondi è un errore di rete, non una risposta non valida", async () => {
+    token.set(jwt(3600));
+    // Intestazioni arrivate, corpo fermo: come nella fetch vera, il segnale interrompe anche la lettura
+    fetchFinto.mockImplementation(async (_url: string, init: RequestInit) => new Response(new ReadableStream({
+      start(flusso) { init.signal?.addEventListener("abort", () => flusso.error(init.signal!.reason)); },
+    }), { status: 200 }));
+    const esito = api("/api/leghe").catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(await esito).toMatchObject({ status: 0 });
+  });
+
+  it("nei browser senza AbortSignal.timeout (Safari prima della 16) le richieste partono lo stesso, senza tempo massimo", async () => {
+    const timeout = AbortSignal.timeout;
+    Reflect.deleteProperty(AbortSignal, "timeout");
+    try {
+      token.set(jwt(3600));
+      fetchFinto.mockResolvedValueOnce(ok([{ id: "l1" }]));
+      await expect(api("/api/leghe")).resolves.toEqual([{ id: "l1" }]);
+      expect(chiamata(0).init.signal).toBeUndefined();
+    } finally {
+      AbortSignal.timeout = timeout;
+    }
+  });
+
+  it("un logout arrivato durante il rinnovo: se la chiusura sul server non risponde, il rinnovo finisce dopo 15 secondi", async () => {
+    token.set(jwt(3600));
+    let sblocca = () => {};
+    fetchFinto.mockImplementation((url: string, init: RequestInit) => {
+      if (url === "/api/leghe") return Promise.resolve(errore(401, SCADUTO));
+      // mentre il server rinnova, l'utente esce: il token locale sparisce
+      if (url === "/api/auth/refresh") { token.clear(); return Promise.resolve(ok({ token: "jwt-nuovo", user: {} })); }
+      // /api/auth/logout senza risposta: senza limite il rinnovo resterebbe fermo qui, con il lock delle altre schede
+      return new Promise<Response>((_risolvi, rifiuta) => {
+        sblocca = () => rifiuta(new TypeError("Failed to fetch"));
+        init.signal?.addEventListener("abort", () => rifiuta(init.signal!.reason));
+      });
+    });
+    let esito: unknown = "in attesa";
+    const richiesta = api("/api/leghe").then(() => { esito = "riuscita"; }, (e: unknown) => { esito = e; });
+    try {
+      await vi.advanceTimersByTimeAsync(14_999);
+      expect(esito).toBe("in attesa");
+      await vi.advanceTimersByTimeAsync(1);
+      expect(esito).toMatchObject({ status: 401 });
+      expect(chiamata(2).url).toBe("/api/auth/logout");
+      expect(chiamata(2).init.keepalive).toBe(true);
+      expect(token.get()).toBeNull();
+    } finally {
+      sblocca();
+      await richiesta;
+    }
+  });
+
+  it("la chat del Coach non viene interrotta a 15 secondi ma a 65: il server aspetta il modello fino a 60", async () => {
+    token.set(jwt(3600));
+    fetchFinto.mockImplementation((_url: string, init: RequestInit) => new Promise<Response>((_risolvi, rifiuta) => {
+      init.signal?.addEventListener("abort", () => rifiuta(init.signal!.reason));
+    }));
+    let esito: unknown = "in attesa";
+    const risposta = askCoach("Sei il Coach", [{ role: "user", content: "Come si sorteggia?" }])
+      .then(() => { esito = "riuscita"; }, (e: unknown) => { esito = e; });
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(esito).toBe("in attesa");
+    await vi.advanceTimersByTimeAsync(49_999);
+    expect(esito).toBe("in attesa");
+    await vi.advanceTimersByTimeAsync(1);
+    expect(esito).toMatchObject({ code: "NETWORK", message: "Il server non risponde: controlla la connessione e riprova." });
+    expect(chiamata(0).url).toBe("/api/coach/chat");
+    await risposta;
+  });
+
+  it("il limite dipende solo da tempoMassimo: anche una richiesta keepalive che non lo indica ha i 15 secondi", async () => {
+    token.set(jwt(3600));
+    fetchFinto.mockImplementation(async () => ok({ id: "t1" }));
+    await api("/api/tappe/t1", { method: "PUT", body: { id: "t1" }, keepalive: true });
+    expect(chiamata(0).init.keepalive).toBe(true);
+    expect(chiamata(0).init.signal).toBeInstanceOf(AbortSignal);
+    expect(AbortSignal.timeout).toHaveBeenCalledWith(15_000);
+  });
+
+  it("i salvataggi in chiusura pagina (legheApi con keepalive) partono senza tempo massimo, gli altri con 15 secondi", async () => {
+    token.set(jwt(3600));
+    fetchFinto.mockImplementation(async () => ok({ id: "t1" }));
+    const tappa = { id: "t1" } as Tappa;
+    await legheApi.putTappa(tappa, true);
+    await legheApi.addTappa("l1", tappa, true);
+    await legheApi.putTappa(tappa);
+    expect(chiamata(0).init).toMatchObject({ method: "PUT", keepalive: true });
+    expect(chiamata(0).init.signal).toBeUndefined();
+    expect(chiamata(1).init).toMatchObject({ method: "POST", keepalive: true });
+    expect(chiamata(1).init.signal).toBeUndefined();
+    expect(chiamata(2).init.signal).toBeInstanceOf(AbortSignal);
+    expect(AbortSignal.timeout).toHaveBeenCalledTimes(1);
+    expect(AbortSignal.timeout).toHaveBeenCalledWith(15_000);
+  });
+});
+
+describe("api: risposte senza corpo JSON", () => {
+  it("200 con corpo vuoto: ApiError invece di SyntaxError", async () => {
+    token.set(jwt(3600));
+    fetchFinto.mockResolvedValueOnce(new Response("", { status: 200 }));
+    const errore = await api("/api/leghe").catch((e: unknown) => e);
+    expect(errore).toBeInstanceOf(ApiError);
+    expect(errore).toMatchObject({ status: 200, message: "Risposta del server non valida" });
+  });
+
+  it("204 senza corpo continua a funzionare (DELETE e logout)", async () => {
+    token.set(jwt(3600));
+    fetchFinto.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await expect(api("/api/tappe/t1", { method: "DELETE" })).resolves.toBeUndefined();
+  });
+});
+
+describe("api: rinnovo automatico", () => {
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it("con il JWT in scadenza e la pagina ferma, dopo 60 secondi parte un rinnovo senza alcuna richiesta", async () => {
+    token.set(jwt(100));
+    fetchFinto.mockResolvedValueOnce(ok({ token: "jwt-nuovo", user: {} }));
+    const ferma = avviaRinnovoAutomatico();
+    try {
+      await vi.advanceTimersByTimeAsync(59_999);
+      expect(fetchFinto).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(fetchFinto).toHaveBeenCalledTimes(1);
+      expect(chiamata(0).url).toBe("/api/auth/refresh");
+      expect(token.get()).toBe("jwt-nuovo");
+    } finally {
+      ferma();
+    }
+  });
+
+  it("non rinnova un JWT a cui mancano più di due minuti e, fermato, non controlla più", async () => {
+    token.set(jwt(3600));
+    const ferma = avviaRinnovoAutomatico();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(fetchFinto).not.toHaveBeenCalled();
+    ferma();
+    token.set(jwt(100));
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(fetchFinto).not.toHaveBeenCalled();
   });
 });

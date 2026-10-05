@@ -1,6 +1,6 @@
 /** Form di autenticazione: usa react-hook-form + Zod per la validazione dei campi.
  *  Registrazione e login passano dal backend (JWT); la modalità Ospite resta locale al browser. */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -19,12 +19,19 @@ function messaggioErrore(e: unknown): string {
   if (e instanceof ApiError) return e.message;
   return "Errore imprevisto, riprova.";
 }
-import { useNavigate } from "react-router-dom";
+/** Messaggio arrivato con lo stato della navigazione, per esempio quello della fine della sessione (App.tsx) */
+function messaggioRicevuto(stato: unknown): string | null {
+  const messaggio = (stato as { messaggio?: unknown } | null)?.messaggio;
+  if (typeof messaggio === "string") return messaggio;
+  return null;
+}
+import { useLocation, useNavigate } from "react-router-dom";
 import { Input } from "../ui/Input";
 import { Button } from "../ui/Button";
 
 const registerSchema = z.object({
-  name: z.string().min(1, "Inserisci il nome utente"),
+  // Da 2 a 80 caratteri come RegisterRequestDTO (gli 80 sono il maxLength del campo); il campo vuoto ha il suo messaggio
+  name: z.string().min(1, "Inserisci il nome utente").min(2, "Nome utente di almeno 2 caratteri"),
   email: z.string().email("Mail non valida"),
   pass: z.string().min(8, "Password di almeno 8 caratteri"),
 });
@@ -38,6 +45,16 @@ type LoginData = z.infer<typeof loginSchema>;
 export function AuthForm() {
   const { register: doRegister, login: doLogin, enterGuest } = useAuth();
   const navigate = useNavigate();
+  const ricevuto = messaggioRicevuto(useLocation().state);
+  // Il messaggio si copia qui e si toglie dalla voce della cronologia: resta visibile finché si sta sul form, ma
+  // ricaricando la pagina non ricompare (lo stato della navigazione sopravvive al ricaricamento)
+  const [copia, setCopia] = useState<string | null>(null);
+  useEffect(() => {
+    if (ricevuto === null) return;
+    setCopia(ricevuto);
+    navigate(".", { replace: true, state: null });
+  }, [ricevuto, navigate]);
+  const avviso = ricevuto ?? copia;
   // Chi ha già usato un account su questo browser parte dal tab "Accedi"
   const [mode, setMode] = useState<"register" | "login">(hasAccountHint() ? "login" : "register");
   const [authError, setAuthError] = useState<string | null>(null);
@@ -79,11 +96,12 @@ export function AuthForm() {
 
   return (
     <section className="rounded border border-asphalt-600 bg-asphalt-900/95 p-5 backdrop-blur" aria-label="Accesso">
+      {avviso && <p className="mb-4 rounded border border-court/40 bg-court/10 px-3.5 py-2.5 text-[13px] font-medium text-chalk" role="alert">{avviso}</p>}
       <div className="mb-4 flex gap-5 border-b border-asphalt-700">{tab("register", "Registrati")}{tab("login", "Accedi")}</div>
 
       {mode === "register" ? (
         <form className="flex flex-col gap-3" onSubmit={onRegister} noValidate>
-          <Input label="Nome utente" placeholder="Es. Gabriele" autoComplete="username" {...regForm.register("name")} error={!!regErr.name} hint={regErr.name?.message} />
+          <Input label="Nome utente" placeholder="Es. Gabriele" autoComplete="username" maxLength={80} {...regForm.register("name")} error={!!regErr.name} hint={regErr.name?.message} />
           <Input label="Mail" type="email" placeholder="nome@mail.it" autoComplete="email" {...regForm.register("email")} error={!!regErr.email} hint={regErr.email?.message} />
           <Input label="Password" type="password" autoComplete="new-password" {...regForm.register("pass")} error={!!regErr.pass} hint={regErr.pass?.message} />
           <p className="m-0 text-xs text-chalk-muted">

@@ -4,9 +4,11 @@ import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import { REG_ROLES } from "../../constants/roles";
 import { Input } from "../ui/Input";
-import type { RegGiocatore, RegSquadra } from "../../types";
+import type { GiocatoreInput } from "../../services/anagrafeApi";
+import type { RegSquadra } from "../../types";
 
-type Draft = Omit<RegGiocatore, "id" | "autore" | "ts">;
+/** I campi che il server fa scrivere (senza id, autore, autoreId e ts) */
+type Draft = GiocatoreInput;
 const EMPTY: Draft = {
   nome: "", cognome: "", soprannome: "", nascita: "", citta: "", nazionalita: "Italia",
   altezza: "", peso: "", ruolo: "Universale", numero: "", squadra: "", esperienza: "", note: "",
@@ -29,8 +31,9 @@ export function GiocatoreForm({ squadre, onSave }: { squadre: RegSquadra[]; onSa
     <Card className="mb-4">
       <h3 className="font-display text-xl mb-3">Registra un giocatore</h3>
       <div className="grid-auto">
-        <Input label="Nome *" value={d.nome} onChange={set("nome")} maxLength={100} />
-        <Input label="Cognome *" value={d.cognome} onChange={set("cognome")} maxLength={100} />
+        {/* Nome e cognome: 80 caratteri come GiocatoreRequestDTO, oltre il server risponde 400 */}
+        <Input label="Nome *" value={d.nome} onChange={set("nome")} maxLength={80} />
+        <Input label="Cognome *" value={d.cognome} onChange={set("cognome")} maxLength={80} />
         <Input label="Soprannome" value={d.soprannome} onChange={set("soprannome")} placeholder="da campo" maxLength={50} />
         <Input label="Data di nascita" type="date" value={d.nascita} onChange={set("nascita")} />
         <Input label="Città" value={d.citta} onChange={set("citta")} />

@@ -2,6 +2,18 @@ import type { Tappa } from "../types";
 import { standings } from "./standings";
 import { tappaLeaders } from "./tappaLeaders";
 
+/** Lunghezza massima di un nome nel contesto */
+const MAX_NOME = 80;
+
+/** Un valore scritto dagli utenti (nomi di lega, tappe, squadre e giocatori, luogo, data) pronto per il prompt.
+ *  `<` e `>` diventano ‹ ›: un nome che contiene `</dati_lega>` chiuderebbe il blocco dei dati e il testo dopo
+ *  sembrerebbe un'istruzione. I nomi arrivano anche dall'anagrafe condivisa, scrivibile da ogni utente registrato.
+ *  La usano anche i risultati degli strumenti del Coach, che riportano gli stessi nomi.
+ *  String(): una tappa salvata da una versione vecchia può non avere tutti i campi. */
+export function pulisci(valore: string): string {
+  return String(valore).replace(/</g, "‹").replace(/>/g, "›").slice(0, MAX_NOME);
+}
+
 /** Classifica cumulativa del circuito: aggrega vittorie e partite su tutte le tappe. */
 function circuitStandings(tappe: Tappa[]): string {
   const wins: Record<string, { nome: string; v: number; g: number }> = {};
@@ -19,7 +31,7 @@ function circuitStandings(tappe: Tappa[]): string {
   }
   return Object.values(wins)
     .sort((a, b) => b.v - a.v || b.g - a.g)
-    .map((r, i) => `${i + 1}. ${r.nome} (${r.v}V/${r.g}P totali)`)
+    .map((r, i) => `${i + 1}. ${pulisci(r.nome)} (${r.v}V/${r.g}P totali)`)
     .join("; ");
 }
 
@@ -28,11 +40,15 @@ export function buildCoachContext(legaName: string, tappe: Tappa[]): string {
   if (!legaName && !tappe.length) return "";
 
   const lines: string[] = [];
-  if (legaName) lines.push(`Lega: ${legaName}`);
+  if (legaName) lines.push(`Lega: ${pulisci(legaName)}`);
   if (!tappe.length) return lines.join("\n");
 
   const tappeResume = tappe
-    .map((t) => `"${t.nome}" (${t.data}, ${t.luogo})${t.conclusa ? " [conclusa]" : ""}`)
+    .map((t) => {
+      let riga = `"${pulisci(t.nome)}" (${pulisci(t.data)}, ${pulisci(t.luogo)})`;
+      if (t.conclusa) riga += " [conclusa]";
+      return riga;
+    })
     .join("; ");
   lines.push(`Tappe (${tappe.length}): ${tappeResume}`);
 
@@ -44,12 +60,13 @@ export function buildCoachContext(legaName: string, tappe: Tappa[]): string {
 
   // Focus sulla tappa attiva più recente, altrimenti l'ultima
   const attiva = [...tappe].reverse().find((t) => !t.conclusa) ?? tappe[tappe.length - 1];
-  lines.push(`\nTappa in primo piano: ${attiva.nome} — ${attiva.luogo}, ${attiva.data}`);
+  lines.push(`\nTappa in primo piano: ${pulisci(attiva.nome)} — ${pulisci(attiva.luogo)}, ${pulisci(attiva.data)}`);
 
-  const nameOf = (id: string) => attiva.squadre.find((s) => s.id === id)?.nome ?? id;
+  // Nomi delle squadre già puliti: li usano le classifiche dei gironi
+  const nameOf = (id: string) => pulisci(attiva.squadre.find((s) => s.id === id)?.nome ?? id);
 
   if (attiva.squadre.length) {
-    lines.push(`Squadre (${attiva.squadre.length}): ${attiva.squadre.map((s) => s.nome).join(", ")}`);
+    lines.push(`Squadre (${attiva.squadre.length}): ${attiva.squadre.map((s) => pulisci(s.nome)).join(", ")}`);
   }
 
   // Classifiche per girone
@@ -74,7 +91,7 @@ export function buildCoachContext(legaName: string, tappe: Tappa[]): string {
     .slice(0, 5);
   if (leaders.length) {
     const top = leaders
-      .map((l) => `${l.nome} (${l.squadra}) ${(l.pt / l.g).toFixed(1)}pt/g`)
+      .map((l) => `${pulisci(l.nome)} (${pulisci(l.squadra)}) ${(l.pt / l.g).toFixed(1)}pt/g`)
       .join(", ");
     lines.push(`Top marcatori: ${top}`);
   }

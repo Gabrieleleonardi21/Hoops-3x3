@@ -3,8 +3,10 @@
  *  VITE_API_URL resta vuoto dietro un reverse proxy sulla stessa origine e contiene l'origine
  *  del backend solo se l'API ne ha una propria.
  *  Il JWT di accesso dura poco (30 minuti) e si rinnova da solo con il refresh token, che il server
- *  imposta in un cookie httpOnly: in anticipo quando sta per scadere, oppure dopo un 401
- *  ripetendo la richiesta una sola volta.
+ *  imposta in un cookie httpOnly: in anticipo quando sta per scadere (anche a pagina ferma, con
+ *  avviaRinnovoAutomatico), oppure dopo un 401 ripetendo la richiesta una sola volta. Ogni richiesta ha
+ *  un tempo massimo; quando il server respinge anche il refresh token la sessione è finita e l'app lo
+ *  sa dal gestore registrato con suSessioneFinita.
  *  Il cookie viaggia solo se pagina e API hanno la stessa origine (proxy di Vite o reverse proxy):
  *  per origini diverse vedi «Sessioni e refresh token» nel README del backend. */
 
@@ -12,12 +14,22 @@ const BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? "";
 const TOKEN_KEY = "hoop3x3_token";
 /** Secondi prima della scadenza entro cui il JWT viene rinnovato in anticipo */
 const MARGINE_SCADENZA = 120;
+/** Tempo massimo di una richiesta, lettura della risposta compresa (ms) */
+const TEMPO_MASSIMO = 15_000;
 
-/** Errore HTTP con lo status del server; status 0 = rete assente / server spento */
+/** Errore HTTP con lo status del server; status 0 = rete assente, server spento o che non risponde entro TEMPO_MASSIMO */
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
   }
+}
+
+/** La richiesta non ha avuto risposta: tempo massimo scaduto, rete assente o server spento */
+function erroreDiRete(e: unknown): ApiError {
+  if (e instanceof DOMException && e.name === "TimeoutError") {
+    return new ApiError(0, "Il server non risponde: controlla la connessione e riprova.");
+  }
+  return new ApiError(0, "Server non raggiungibile: controlla la connessione o avvia il backend.");
 }
 
 /** Token JWT in localStorage: sopravvive al reload, sparisce al logout.
@@ -62,6 +74,8 @@ interface Options {
   body?: unknown;
   /** true: la richiesta prosegue anche se la pagina si chiude (salvataggi in uscita) */
   keepalive?: boolean;
+  /** Tempo massimo in ms, lettura della risposta compresa: TEMPO_MASSIMO se manca, null = nessun limite */
+  tempoMassimo?: number | null;
 }
 
 /** Login, registrazione, refresh e logout non usano il JWT: partono senza Bearer e senza rinnovi */
@@ -74,6 +88,16 @@ async function chiama<T>(path: string, opts: Options, conBearer: boolean): Promi
   if (opts.body !== undefined) headers["Content-Type"] = "application/json";
   const t = token.get();
   if (conBearer && t) headers.Authorization = `Bearer ${t}`;
+  // Tempo massimo su ogni richiesta, rinnovo e uscita compresi: una risposta che non arriva non tiene più in attesa le
+  // richieste che aspettano il rinnovo, né le altre schede ferme sul suo lock, né «Esci». Chi chiama può indicarne uno
+  // suo (tempoMassimo): più lungo per la chat del Coach, che aspetta il modello, nessuno (null) per i salvataggi in
+  // chiusura pagina, che devono arrivare al server anche se è lento. Una richiesta keepalive con il limite (revoca
+  // all'uscita) prosegue lo stesso a pagina chiusa: lì il timer non scatta più. Dove AbortSignal.timeout manca
+  // (Safari prima della 16) la richiesta parte senza limite, come prima, invece di fallire
+  let limite: number | null = TEMPO_MASSIMO;
+  if (opts.tempoMassimo !== undefined) limite = opts.tempoMassimo;
+  let signal: AbortSignal | undefined;
+  if (limite !== null && typeof AbortSignal.timeout === "function") signal = AbortSignal.timeout(limite);
 
   let res: Response;
   try {
@@ -82,9 +106,10 @@ async function chiama<T>(path: string, opts: Options, conBearer: boolean): Promi
       headers,
       body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
       keepalive: opts.keepalive,
+      signal,
     });
-  } catch {
-    throw new ApiError(0, "Server non raggiungibile: controlla la connessione o avvia il backend.");
+  } catch (e) {
+    throw erroreDiRete(e);
   }
 
   if (!res.ok) {
@@ -97,8 +122,16 @@ async function chiama<T>(path: string, opts: Options, conBearer: boolean): Promi
     throw new ApiError(res.status, message);
   }
 
+  // 204: nessun corpo (DELETE, logout). Le altre risposte riuscite hanno sempre un corpo JSON
   if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
+  try {
+    return (await res.json()) as T;
+  } catch (e) {
+    // Corpo non JSON, anche vuoto: chi chiama riceve un ApiError come per ogni altro errore, non un SyntaxError.
+    // Una lettura interrotta dal tempo massimo resta invece un errore di rete
+    if (e instanceof SyntaxError) throw new ApiError(res.status, "Risposta del server non valida");
+    throw erroreDiRete(e);
+  }
 }
 
 /** Esegue il rinnovo tenendo il lock condiviso tra le schede (Web Locks API); dove manca
@@ -109,13 +142,35 @@ async function conLock(fn: () => Promise<boolean>): Promise<boolean> {
   return fn();
 }
 
+/** Gestore della fine della sessione registrato dall'app (vedi suSessioneFinita) */
+let gestoreFineSessione: (() => void) | null = null;
+
+/** Registra il gestore della fine della sessione. Lo chiamano il rinnovo respinto dal server (refresh token scaduto o
+ *  revocato) e, in ogni scheda, la cancellazione del token fatta da un'altra (uscita o sessione finita lì). Ce n'è uno
+ *  solo: uno nuovo sostituisce il precedente.
+ *  @returns la funzione che lo toglie */
+export function suSessioneFinita(fn: () => void): () => void {
+  gestoreFineSessione = fn;
+  return () => {
+    if (gestoreFineSessione === fn) gestoreFineSessione = null;
+  };
+}
+
+// Token cancellato da un'altra scheda: l'evento storage arriva solo alle altre schede dello stesso browser, e per
+// tutte la sessione è finita. Un token appena rinnovato o salvato da un accesso non chiude niente
+if (typeof window !== "undefined") {
+  window.addEventListener("storage", (e) => {
+    if (e.key === TOKEN_KEY && !token.get()) gestoreFineSessione?.();
+  });
+}
+
 let rinnovoInCorso: Promise<boolean> | null = null;
 
 /** Chiede un nuovo JWT con il cookie di refresh. Una sola chiamata in volo per scheda (promise condivisa)
  *  e una sola per browser (lock): se nel frattempo un'altra scheda ha rinnovato, si usa il suo JWT.
- *  Non lancia mai eccezioni. false = sessione finita (401 dal server: token cancellato), sessione chiusa
- *  da un logout nel frattempo, oppure rinnovo non riuscito per rete, gara o lock non utilizzabile
- *  (token lasciato). */
+ *  Non lancia mai eccezioni. false = sessione finita (401 dal server: token cancellato e gestore di fine sessione
+ *  chiamato), sessione chiusa da un logout nel frattempo, oppure rinnovo non riuscito per rete, tempo massimo,
+ *  gara o lock non utilizzabile (token lasciato). */
 function rinnova(): Promise<boolean> {
   if (!rinnovoInCorso) {
     const tokenVecchio = token.get();
@@ -141,7 +196,13 @@ function rinnova(): Promise<boolean> {
         // la sessione è viva, si usa il suo token e non si cancella nulla
         const dopo = token.get();
         if (dopo && dopo !== tokenVecchio) return true;
-        if (e instanceof ApiError && e.status === 401) token.clear();
+        // Refresh token respinto: la sessione è finita sul server e l'app lo deve sapere (ritorno al form). Se il token
+        // è già sparito non c'è niente da segnalare: un'uscita in questa scheda è già in corso, e per una sessione
+        // chiusa in un'altra scheda arriva l'evento storage
+        if (e instanceof ApiError && e.status === 401 && dopo) {
+          token.clear();
+          gestoreFineSessione?.();
+        }
         return false;
       }
     })
@@ -149,6 +210,29 @@ function rinnova(): Promise<boolean> {
       .finally(() => { rinnovoInCorso = null; });
   }
   return rinnovoInCorso;
+}
+
+/** Ogni quanto il rinnovo automatico controlla la scadenza del JWT (ms) */
+const INTERVALLO_RINNOVO = 60_000;
+
+/** Rinnovo automatico. Senza, il JWT si rinnova solo quando parte una richiesta: con la pagina ferma negli ultimi
+ *  2 minuti della sua vita scade, e una modifica seguita dalla chiusura della pagina va persa (il salvataggio in
+ *  chiusura parte subito, senza aspettare il rinnovo). Controlla il JWT ogni 60 secondi e quando la scheda torna
+ *  visibile (il browser rallenta i timer delle schede nascoste); se scade entro MARGINE_SCADENZA lo rinnova.
+ *  @returns la funzione che lo ferma (all'uscita) */
+export function avviaRinnovoAutomatico(): () => void {
+  const controlla = () => {
+    if (inScadenza()) void rinnova();
+  };
+  const alRitornoSullaScheda = () => {
+    if (document.visibilityState === "visible") controlla();
+  };
+  const timer = setInterval(controlla, INTERVALLO_RINNOVO);
+  document.addEventListener("visibilitychange", alRitornoSullaScheda);
+  return () => {
+    clearInterval(timer);
+    document.removeEventListener("visibilitychange", alRitornoSullaScheda);
+  };
 }
 
 /** Esegue una chiamata JSON rinnovando il JWT quando serve e converte gli errori in ApiError */
