@@ -44,7 +44,8 @@ export function AnagrafePage() {
   // rifiuterebbe comunque (403). Se riesce il form si chiude; se fallisce l'errore sale al form, che mostra il motivo e conserva
   // ciò che l'utente ha scritto
   const guard = async (fn: () => Promise<unknown>) => {
-    if (user.guest) throw new ApiError(403, "La registrazione nell'anagrafe richiede un account: l'Ospite può solo consultare.");
+    // Il testo prosegue «Salvataggio non riuscito: …», il prefisso che il form mette a ogni errore
+    if (user.guest) throw new ApiError(403, "serve un account, perché l'Ospite può solo consultare l'anagrafe.");
     await fn();
     setShowForm(false);
   };

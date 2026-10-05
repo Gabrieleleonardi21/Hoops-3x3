@@ -704,7 +704,8 @@ describe("Anagrafe: il server rifiuta, la pagina non mostra il dato come salvato
     scrivi("Nome *", "Luca");
     scrivi("Cognome *", "Rossi");
     fireEvent.click(screen.getByRole("button", { name: "Salva nell'anagrafe" }));
-    expect((await screen.findByRole("alert")).textContent).toContain("richiede un account");
+    expect((await screen.findByRole("alert")).textContent)
+      .toBe("Salvataggio non riuscito: serve un account, perché l'Ospite può solo consultare l'anagrafe.");
     expect((screen.getByLabelText("Nome *") as HTMLInputElement).value).toBe("Luca");
     expect(anagrafe.createGiocatore).not.toHaveBeenCalled();
   });
