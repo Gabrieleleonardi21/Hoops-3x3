@@ -43,7 +43,13 @@ const segna = (squadra: typeof A | typeof B, pt: "+1" | "+2") => fireEvent.click
 
 /** Un minuto di gara: con 60 secondi si arriva allo scadere senza far girare 600 secondi di scatti */
 const BREVE: Regole = { ...DEFAULT_RULES, durata: 1 };
-const scadere = () => passa(60_000);
+/** Il tempo scade mentre il timer è in marcia e se ne accorge un solo scatto, in ritardo (come con la scheda in secondo piano): i
+ *  cronometri si fermano nell'istante della scadenza e non in quello dello scatto, quindi l'esito è lo stesso di 600 scatti regolari,
+ *  con una frazione del lavoro */
+const scadere = () => {
+  passaSenzaScatti(60_000);
+  passa(100);
+};
 
 describe("MatchTimer: il tempo si calcola dall'orologio, non dagli scatti", () => {
   it("dopo 30 secondi senza scatti il cronometro di gara mostra il valore giusto", () => {
@@ -167,7 +173,7 @@ describe("MatchTimer: la partita si decide", () => {
     apri(BREVE);
     segna(A, "+2");
     premi("START");
-    scadere();
+    passa(60_000); // con tutti gli scatti, uno ogni 100 ms
     expect(mostra("Squadra A — Partita conclusa")).toBeTruthy();
     expect(cronometro()).toBe("0:00");
     manca("OT");
@@ -413,5 +419,132 @@ describe("MatchTimer: è una finestra come le altre (Modal)", () => {
     expect(document.body.style.overflow).toBe("hidden");
     unmount();
     expect(document.body.style.overflow).toBe("scroll");
+  });
+});
+
+describe("MatchTimer: chiuderlo con una partita cominciata chiede conferma", () => {
+  const esc = () => fireEvent.keyDown(window, { key: "Escape" });
+  const confermaAperta = () => screen.queryByRole("dialog", { name: "Chiudere il timer?" });
+  /** Il timer con `onClose` finto: chi lo apre decide se chiuderlo; qui si guarda solo se la richiesta arriva */
+  function apriConChiusura(regole: Regole = DEFAULT_RULES) {
+    const onClose = vi.fn();
+    render(<MatchTimer regole={regole} onClose={onClose} />);
+    return onClose;
+  }
+  /** Una partita cominciata: 2 a 1, cronometro partito da 5 secondi */
+  function inCorso(regole?: Regole) {
+    const onClose = apriConChiusura(regole);
+    segna(A, "+2");
+    segna(B, "+1");
+    premi("START");
+    passa(5000);
+    return onClose;
+  }
+
+  it("con la partita in corso, Esc chiede conferma e dice che cosa si perde: punteggio e tempo", () => {
+    const onClose = inCorso();
+    esc();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(confermaAperta()?.textContent).toContain("Chiudendo il timer si perdono il punteggio (2 a 1) e il tempo di gara (9:55)");
+  });
+
+  it("«Annulla» tiene tutto: la conferma si chiude, il timer resta con il suo punteggio e il cronometro continua a correre", () => {
+    const onClose = inCorso();
+    esc();
+    fireEvent.click(screen.getByRole("button", { name: "Annulla" }));
+    expect(confermaAperta()).toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(mostra("2")).toBeTruthy();
+    expect(mostra("1")).toBeTruthy();
+    expect(cronometro()).toBe("9:55");
+    passa(1000); // nel frattempo la partita è andata avanti: la conferma non ha fermato il cronometro
+    expect(cronometro()).toBe("9:54");
+    expect(screen.getByRole("button", { name: "STOP" })).toBeTruthy();
+  });
+
+  it("«Conferma» chiude il timer", () => {
+    const onClose = inCorso();
+    esc();
+    fireEvent.click(screen.getByRole("button", { name: "Conferma" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("con la conferma aperta, Esc chiude solo la conferma: il timer resta", () => {
+    const onClose = inCorso();
+    esc();
+    expect(confermaAperta()).toBeTruthy();
+    esc();
+    expect(confermaAperta()).toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "Timer di gara" })).toBeTruthy();
+  });
+
+  it("anche la X e un clic sullo sfondo chiedono conferma", () => {
+    const onClose = inCorso();
+    fireEvent.click(screen.getByRole("button", { name: "Chiudi" }));
+    expect(confermaAperta()).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Annulla" }));
+    // Lo sfondo del timer è l'elemento sopra la finestra
+    fireEvent.click(screen.getByRole("dialog", { name: "Timer di gara" }).parentElement!);
+    expect(confermaAperta()).toBeTruthy();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("con niente da perdere (0 a 0 e cronometro mai partito) si chiude subito, con Esc, con la X e con lo sfondo", () => {
+    const onClose = apriConChiusura();
+    esc();
+    expect(onClose).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Chiudi" }));
+    expect(onClose).toHaveBeenCalledTimes(2);
+    fireEvent.click(screen.getByRole("dialog", { name: "Timer di gara" }).parentElement!);
+    expect(onClose).toHaveBeenCalledTimes(3);
+    expect(confermaAperta()).toBeNull();
+  });
+
+  it("basta il punteggio: 1 a 0 con il cronometro mai partito", () => {
+    const onClose = apriConChiusura();
+    segna(A, "+1");
+    esc();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(confermaAperta()?.textContent).toContain("il punteggio (1 a 0) e il tempo di gara (10:00)");
+  });
+
+  it("basta il cronometro: partito, con il punteggio ancora 0 a 0", () => {
+    const onClose = apriConChiusura();
+    premi("START");
+    passa(1000);
+    esc();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(confermaAperta()?.textContent).toContain("il punteggio (0 a 0) e il tempo di gara (9:59)");
+  });
+
+  it("anche con il cronometro fermo a metà (STOP) e 0 a 0 c'è qualcosa da perdere: il tempo", () => {
+    const onClose = apriConChiusura();
+    premi("START");
+    passa(3000);
+    premi("STOP");
+    esc();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(confermaAperta()).toBeTruthy();
+  });
+
+  it("dopo «Reset tutto» non c'è più niente da perdere: si chiude subito", () => {
+    const onClose = inCorso();
+    premi("Reset tutto");
+    esc();
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(confermaAperta()).toBeNull();
+  });
+
+  it("nel supplementare il testo dice «OT» al posto del tempo", () => {
+    const onClose = apriConChiusura(BREVE);
+    segna(A, "+1");
+    segna(B, "+1");
+    premi("START");
+    scadere();
+    premi("Avvia supplementare");
+    esc();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(confermaAperta()?.textContent).toContain("il punteggio (1 a 1) e il tempo di gara (OT)");
   });
 });

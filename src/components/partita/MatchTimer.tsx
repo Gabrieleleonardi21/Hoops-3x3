@@ -1,8 +1,10 @@
 /** Timer di gara per il 3x3: cronometro, shot clock e punteggio live, con le regole della tappa (punteggio di vittoria, durata,
  *  possesso, supplementare). Finestra (Modal) usata dal tavolo durante la partita: Esc, X e blocco dello scroll come le altre.
  *  A tempo scaduto in parità il supplementare non parte da solo: nel 3x3 c'è una pausa, in cui si può ancora registrare un canestro
- *  del tempo regolamentare, e il supplementare parte quando l'operatore preme «Avvia supplementare». */
+ *  del tempo regolamentare, e il supplementare parte quando l'operatore preme «Avvia supplementare».
+ *  Il timer non salva niente nella tappa: chiuderlo con la partita cominciata chiede conferma, perché si perdono punteggio e tempo. */
 import { useState, useEffect } from "react";
+import { useConfermaPerdita } from "../../hooks/useConfermaPerdita";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
 import { Modal } from "../ui/Modal";
@@ -156,6 +158,17 @@ export function MatchTimer({ regole, teamA, teamB, onClose }: {
     didascalia = `Supplementare: vince chi segna per primo ${regole.ot} pt`;
   }
 
+  // Chiudere il timer (Esc, sfondo, X) fa perdere punteggio e tempo, che il timer non salva nella tappa: se la partita è cominciata,
+  // cioè il cronometro è partito o il punteggio non è 0 a 0, lo si dice e si chiede conferma; altrimenti si chiude subito
+  const cominciata = inMarcia || restoGara < durataMs || punti.a !== 0 || punti.b !== 0;
+  const { chiedi, finestra } = useConfermaPerdita(() => {
+    if (!cominciata) return null;
+    return `Chiudendo il timer si perdono il punteggio (${punti.a} a ${punti.b}) e il tempo di gara (${orologio}): il timer non li salva nella tappa.`;
+  });
+  // Con la conferma aperta, Esc annulla solo quella e il timer resta: la stessa guardia delle schede dell'anagrafe, finché Modal non
+  // saprà quale finestra è in primo piano
+  const chiudi = () => { if (!finestra) chiedi("Chiudere il timer?", onClose); };
+
   // START/STOP; a tempo scaduto in parità «Avvia supplementare»; a partita decisa il vincitore (togliendo un punto per errore si riapre)
   let etichetta = "START";
   let stileComando = "";
@@ -174,7 +187,7 @@ export function MatchTimer({ regole, teamA, teamB, onClose }: {
   const scoreBtn = "h-11 min-w-11 px-4 font-display text-xl";
 
   return (
-    <Modal label="Timer di gara" title="Timer di gara" width={560} onClose={onClose}>
+    <Modal label="Timer di gara" title="Timer di gara" width={560} onClose={chiudi}>
       <div className="flex flex-col items-center">
         {/* Squadre */}
         <div className="mb-2 flex gap-8 font-display text-base text-chalk-muted sm:text-lg">
@@ -228,6 +241,7 @@ export function MatchTimer({ regole, teamA, teamB, onClose }: {
           </div>
         </div>
       </div>
+      {finestra}
     </Modal>
   );
 }

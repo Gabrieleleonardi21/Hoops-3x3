@@ -130,7 +130,10 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
 
 - Finestra utilizzabile dal tavolo durante la partita: si chiude con la X, con
   Esc o con un clic sullo sfondo, come le altre finestre, e la pagina sotto non
-  scorre. Chiudendola si perdono punteggio e tempo.
+  scorre. Il timer non salva niente nella tappa: se la partita è cominciata
+  (cronometro partito o punteggio diverso da 0 a 0), chiuderlo chiede conferma e
+  dice che cosa si perde, il punteggio e il tempo; con la conferma aperta Esc
+  chiude solo quella. Senza niente da perdere si chiude subito.
 - Usa le regole della tappa: durata, punteggio di vittoria, secondi del possesso
   e punti del supplementare (di default 10 minuti, 21 punti, 12 secondi e 2 punti).
 - Countdown del tempo di gara e shot clock separato, che ricomincia da solo a

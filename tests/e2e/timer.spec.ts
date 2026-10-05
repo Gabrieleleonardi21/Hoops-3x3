@@ -6,7 +6,7 @@ test.beforeEach(async ({ page }) => {
   await page.route("**/api/anagrafe/**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: "[]" }));
 });
 
-test("il timer di gara usa le regole della tappa, resta giusto con la scheda in secondo piano e si chiude con Esc (FD-7)", async ({ page }) => {
+test("il timer di gara usa le regole della tappa, resta giusto con la scheda in secondo piano e con la partita cominciata si chiude solo dopo la conferma (FD-7)", async ({ page }) => {
   // Orologio finto del browser: parte da un istante noto e poi lo si ferma e lo si sposta a mano
   await page.clock.install({ time: new Date("2026-10-05T12:00:00Z") });
   await ospiteConLega(page);
@@ -29,8 +29,17 @@ test("il timer di gara usa le regole della tappa, resta giusto con la scheda in 
   await page.clock.fastForward(30_000);
   await expect(timer.getByText("1:30")).toBeVisible();
 
-  // Esc chiude la finestra e lo scorrimento della pagina torna
+  // La partita è cominciata: Esc non chiude subito, chiede conferma e dice che cosa si perde
   await page.keyboard.press("Escape");
+  const conferma = page.getByRole("dialog", { name: "Chiudere il timer?" });
+  await expect(conferma).toContainText("il tempo di gara (1:30)");
+  // Con la conferma aperta Esc chiude solo quella: il timer resta, con la partita com'era
+  await page.keyboard.press("Escape");
+  await expect(conferma).toHaveCount(0);
+  await expect(timer.getByText("1:30")).toBeVisible();
+  // «Conferma» chiude il timer e lo scorrimento della pagina torna
+  await page.keyboard.press("Escape");
+  await conferma.getByRole("button", { name: "Conferma" }).click();
   await expect(timer).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => document.body.style.overflow)).toBe("");
 });
