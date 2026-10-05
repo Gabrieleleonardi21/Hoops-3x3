@@ -122,6 +122,70 @@ describe("MatchTimer: il tempo si calcola dall'orologio, non dagli scatti", () =
   });
 });
 
+describe("MatchTimer: le azioni subito dopo una scadenza che lo scatto non ha ancora visto", () => {
+  // Tra la scadenza e il primo scatto passano fino a 100 ms, e molto di più dopo un'assenza lunga (scheda in secondo piano, telefono
+  // bloccato). In quel momento i cronometri sono ancora in marcia: un'azione dell'operatore deve prima registrare la scadenza,
+  // nell'istante in cui è avvenuta, e poi fare il suo lavoro, senza toccare cronometri in corsa oltre la fine
+
+  /** Un minuto di gara in pareggio, in marcia da poco */
+  function pareggioInMarcia(regole: Regole = BREVE) {
+    apri(regole);
+    segna(A, "+1");
+    segna(B, "+1");
+    premi("START");
+  }
+
+  it("«Reset 12s» pochi millisecondi dopo la scadenza e prima di uno scatto: il possesso è 12 e fermo, mai 13", () => {
+    pareggioInMarcia();
+    passa(59_950); // l'ultimo scatto è a 59,9 s e il prossimo è a 60 s, la scadenza
+    passaSenzaScatti(80); // sono passati 60,03 s: scaduto da 30 ms, ma lo scatto non è ancora arrivato
+    premi("Reset 12s");
+    passa(200); // ora lo scatto arriva
+    expect(mostra("12")).toBeTruthy();
+    manca("13");
+    expect(mostra("Pareggio: serve il supplementare")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "STOP" })).toBeNull();
+    passa(5000); // e il possesso è fermo
+    expect(mostra("12")).toBeTruthy();
+  });
+
+  it("«Reset 12s» e «Avvia supplementare» dopo una lunga assenza, prima di qualsiasi scatto: nessun cronometro resta in marcia", () => {
+    pareggioInMarcia();
+    passaSenzaScatti(300_000); // telefono bloccato per 5 minuti: la gara è scaduta da 4 minuti
+    premi("Reset 12s");
+    expect(vi.getTimerCount()).toBe(0); // la scadenza è registrata subito: nessun cronometro in marcia, nessuno scatto da aspettare
+    premi("Avvia supplementare");
+    expect(vi.getTimerCount()).toBe(0); // nemmeno dopo il pulsante
+    passa(1000); // arriva il primo scatto, se c'è
+    expect(mostra("12")).toBeTruthy();
+    expect(mostra("OT")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "STOP" })).toBeNull();
+    passa(5000);
+    expect(mostra("12")).toBeTruthy();
+  });
+
+  it("«STOP» dopo una lunga assenza, prima di qualsiasi scatto: il possesso resta com'era alla scadenza, non com'è adesso", () => {
+    pareggioInMarcia();
+    passaSenzaScatti(305_000); // alla scadenza, a 60 s, il possesso è a 12; a 305 s sarebbe a 7
+    premi("STOP");
+    expect(mostra("12")).toBeTruthy();
+    expect(mostra("Pareggio: serve il supplementare")).toBeTruthy();
+  });
+
+  it("un canestro che decide la partita dopo una lunga assenza, prima di qualsiasi scatto: i cronometri sono fermi com'erano alla scadenza", () => {
+    apri({ ...BREVE, target: 3 });
+    segna(A, "+2");
+    premi("START");
+    passaSenzaScatti(305_000);
+    segna(A, "+1"); // 3 a 0: il punteggio di vittoria, a gara già scaduta da 4 minuti
+    expect(mostra("Squadra A — Partita conclusa")).toBeTruthy();
+    expect(cronometro()).toBe("0:00");
+    expect(mostra("12")).toBeTruthy(); // il possesso alla scadenza, non quello di 305 s
+    passa(5000);
+    expect(mostra("12")).toBeTruthy();
+  });
+});
+
 describe("MatchTimer: usa le regole della tappa", () => {
   const REGOLE_DELLA_TAPPA: Regole = { target: 11, durata: 5, ot: 3, shot: 24 };
 

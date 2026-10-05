@@ -49,8 +49,8 @@ function fermati(t: Tempo, quando: number, periodo: number): Tempo {
   return { gara: { resto: mancano(t.gara, quando) }, possesso: { resto: mancano(t.possesso, quando, periodo) }, ora: quando };
 }
 
-/** Lo scatto del timer: legge l'orologio e, se il tempo di gara è finito, ferma tutto nell'istante della fine
- *  (non in quello, un po' dopo, dello scatto: con la scheda in secondo piano può essere molto dopo) */
+/** Lo scatto del timer, e il primo passo di ogni azione dell'operatore (`agisci`): legge l'orologio e, se il tempo di gara è finito,
+ *  ferma tutto nell'istante della fine (non in quello, un po' dopo, dello scatto: con la scheda in secondo piano può essere molto dopo) */
 function scattato(t: Tempo, ora: number, periodo: number): Tempo {
   if ("fine" in t.gara && ora >= t.gara.fine) return fermati(t, t.gara.fine, periodo);
   return { ...t, ora };
@@ -113,10 +113,19 @@ export function MatchTimer({ regole, teamA, teamB, onClose }: {
     return () => clearInterval(id);
   }, [inMarcia, possessoMs]);
 
-  const avviaOFerma = () => {
+  /** Un'azione dell'operatore sul tempo. Prima legge l'orologio con `scattato`: un tempo di gara scaduto che lo scatto non ha ancora
+   *  visto (fino a 100 ms, di più dopo un'assenza lunga con la scheda in secondo piano) si registra adesso, con i cronometri fermi
+   *  nell'istante della scadenza, e l'azione parte da lì. Senza questo toccherebbe cronometri ancora in marcia oltre la fine, e lo
+   *  scatto dopo li fermerebbe all'istante della scadenza, anteriore all'azione, disfacendola (un reset del possesso darebbe 13) */
+  const agisci = (azione: (t: Tempo, adesso: number, periodo: number) => Tempo) => {
     const adesso = Date.now();
-    if (inMarcia) setTempo(fermati(tempo, adesso, possessoMs));
-    else setTempo(avviati(tempo, adesso));
+    setTempo((t) => azione(scattato(t, adesso, possessoMs), adesso, possessoMs));
+  };
+
+  const avviaOFerma = () => {
+    // Si fa ciò che l'operatore vedeva sul pulsante: se premeva STOP si ferma tutto, anche se intanto il tempo è scaduto
+    if (inMarcia) agisci(fermati);
+    else agisci(avviati);
   };
 
   const resetAll = () => {
@@ -125,15 +134,15 @@ export function MatchTimer({ regole, teamA, teamB, onClose }: {
     setInizioSupplementare(null);
   };
 
-  const resetShot = () => setTempo(possessoRiportato(tempo, Date.now(), possessoMs));
+  const resetShot = () => agisci(possessoRiportato);
 
   /** Avvia il supplementare dal punteggio di adesso: i suoi punti si contano da qui. Prima del pulsante un canestro registrato in
    *  ritardo o una correzione contano ancora sul tempo regolamentare. Il supplementare comincia con un possesso nuovo e non con quello
-   *  rimasto dal tempo regolamentare (congelato allo scadere): a questo punto i cronometri sono fermi, quindi riparte da un periodo
+   *  rimasto dal tempo regolamentare (congelato allo scadere): i cronometri sono già fermi, quindi il possesso riparte da un periodo
    *  intero e resta fermo fino a START */
   const avviaSupplementare = () => {
     setInizioSupplementare(punti);
-    setTempo(possessoRiportato(tempo, Date.now(), possessoMs));
+    agisci(possessoRiportato);
   };
 
   /** Aggiunge `delta` punti alla squadra `lato` (con un valore negativo li toglie, per correggere) */
@@ -147,7 +156,7 @@ export function MatchTimer({ regole, teamA, teamB, onClose }: {
     setInizioSupplementare(inizio);
     // Se questo canestro decide la partita i cronometri si fermano subito
     const dopo = statoGara({ punti: nuovi, rimasto: restoGara / 1000, inizioSupplementare: inizio }, regole);
-    if ("vincitore" in dopo) setTempo(fermati(tempo, Date.now(), possessoMs));
+    if ("vincitore" in dopo) agisci(fermati);
   };
 
   let coloreTempo = "text-chalk";
