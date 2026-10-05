@@ -297,9 +297,6 @@ utenti registrati.
   elenco vuoto al posto dell'errore); creare, aprire ed eliminare una lega e
   i form e le modali dell'anagrafe mostrano il motivo del rifiuto, tengono
   ciò che l'utente ha scritto e disattivano i pulsanti durante l'invio.
-- Creare una lega o una voce dell'anagrafe è una POST non idempotente (l'id
-  lo assegna il server): se la risposta si perde, il nuovo tentativo cerca
-  prima la voce già creata invece di farne un doppione.
 - Operazioni di tappa (sorteggio, risultati, fasi dirette, conclusione) come
   funzioni pure in src/domain/tappaOps.ts: le stesse per l'interfaccia e per
   il Coach AI, coperte da test unitari.

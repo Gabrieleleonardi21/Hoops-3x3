@@ -3,7 +3,6 @@ import type { LegaMeta, Partita, Tappa, User } from "../types";
 import { uid } from "../utils/uid";
 import { legheApi } from "../services/legheApi";
 import { ApiError, testoErrore } from "../services/api";
-import { senzaDoppioni } from "../services/senzaDoppioni";
 import { createSaveQueue } from "./saveQueue";
 import { leggiLegaSalvata, type LegaSalvata } from "../utils/legaFile";
 
@@ -159,16 +158,6 @@ export const useAppStore = create<AppState>((set, get) => {
     set({ syncError: `${cosa}: ${testoErrore(e)}` });
   };
 
-  /** Creazione di una lega sul server. La POST non è idempotente (l'id lo assegna il server): se una risposta si perde, il nuovo
-   *  tentativo cerca la lega già creata invece di farne una seconda (vedi senzaDoppioni). */
-  const creaLega = senzaDoppioni<string, LegaMeta>({
-    crea: (nome) => legheApi.create(nome),
-    elenca: () => legheApi.list(),
-    // Una lega nuova, vuota e con quel nome: è quella del tentativo precedente
-    corrisponde: (meta, nome) => meta.nome === nome && meta.nTappe === 0,
-    noti: () => get().leghe.map((m) => m.id),
-  });
-
   /** Ospite: salva la lega attiva su localStorage e aggiorna nTappe/ts nell'indice */
   const persistLocal = () => {
     const s = get();
@@ -306,10 +295,9 @@ export const useAppStore = create<AppState>((set, get) => {
     createLega: async (nome) => {
       const trimmed = nome.trim() || "Nuova lega";
       if (isRemote()) {
-        const meta = await creaLega.crea(trimmed);
+        const meta = await legheApi.create(trimmed);
         localStorage.setItem(ACTIVE_KEY, meta.id);
-        // Il filtro serve se la lega è quella di un tentativo precedente e l'elenco la conteneva già
-        set({ legaId: meta.id, leghe: [meta, ...get().leghe.filter((m) => m.id !== meta.id)], legaName: meta.nome, tappe: [] });
+        set({ legaId: meta.id, leghe: [meta, ...get().leghe], legaName: meta.nome, tappe: [] });
         return meta.id;
       }
       const id = uid();
@@ -466,7 +454,6 @@ export const useAppStore = create<AppState>((set, get) => {
       coda.azzera();
       daCreare.clear();
       eliminatePrimaDellaCreazione.clear();
-      creaLega.dimentica(); // i tentativi senza risposta erano di chi esce
       localStorage.removeItem(ACTIVE_KEY);
       set({ user: null, legaId: null, leghe: [], legaName: "", tappe: [], ready: true, syncError: null });
     },

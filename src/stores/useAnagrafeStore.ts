@@ -4,7 +4,6 @@ import {
   type GiocatoreInput, type SquadraInput,
 } from "../services/anagrafeApi";
 import { testoErrore } from "../services/api";
-import { senzaDoppioni } from "../services/senzaDoppioni";
 import { replaceById } from "../utils/replaceById";
 import type { RegGiocatore, RegSquadra } from "../types";
 
@@ -38,18 +37,6 @@ interface AnagrafeState {
   updateSquadra: (updated: RegSquadra) => Promise<RegSquadra>;
 }
 
-/** Un campo com'è sul server: il server toglie gli spazi ai lati dei testi */
-function pulito(valore: unknown): unknown {
-  if (typeof valore === "string") return valore.trim();
-  return valore;
-}
-
-/** La voce del server ha tutti i campi con cui è stata creata (i campi del form, roster compreso: gli id si confrontano in ordine) */
-function haGliStessiCampi(voce: object, dati: object): boolean {
-  const campi = voce as Record<string, unknown>;
-  return Object.entries(dati).every(([campo, valore]) => JSON.stringify(pulito(campi[campo])) === JSON.stringify(pulito(valore)));
-}
-
 // Caricamento in corso: più componenti montati insieme (o lo StrictMode) condividono la stessa richiesta
 let inCorso: Promise<void> | null = null;
 // Scritture completate: un caricamento partito prima di una scrittura può non contenerla
@@ -62,21 +49,6 @@ export const useAnagrafeStore = create<AnagrafeState>((set, get) => {
     const { giocatori, squadre } = get();
     if (giocatori && squadre) set(fn(giocatori, squadre));
   };
-
-  // Le POST di creazione non sono idempotenti (l'id lo assegna il server): se una risposta si perde, il nuovo tentativo con gli
-  // stessi dati cerca la voce già creata invece di farne un doppione (vedi senzaDoppioni)
-  const creaGiocatore = senzaDoppioni<GiocatoreInput, RegGiocatore>({
-    crea: (dati) => anagrafeApi.createGiocatore(dati),
-    elenca: () => anagrafeApi.listGiocatori(),
-    corrisponde: haGliStessiCampi,
-    noti: () => (get().giocatori ?? []).map((g) => g.id),
-  });
-  const creaSquadra = senzaDoppioni<SquadraInput, RegSquadra>({
-    crea: (dati) => anagrafeApi.createSquadra(dati),
-    elenca: () => anagrafeApi.listSquadre(),
-    corrisponde: haGliStessiCampi,
-    noti: () => (get().squadre ?? []).map((s) => s.id),
-  });
 
   return {
     giocatori: null,
@@ -110,15 +82,14 @@ export const useAnagrafeStore = create<AnagrafeState>((set, get) => {
       return fresche.find(stessoNome);
     },
 
-    // I filtri servono se la voce è quella di un tentativo precedente e la cache la conteneva già
     saveGiocatore: async (data) => {
-      const rec = await creaGiocatore.crea(data);
-      aggiorna((giocatori) => ({ giocatori: [rec, ...giocatori.filter((x) => x.id !== rec.id)] }));
+      const rec = await anagrafeApi.createGiocatore(data);
+      aggiorna((giocatori) => ({ giocatori: [rec, ...giocatori] }));
     },
 
     saveSquadra: async (data) => {
-      const rec = await creaSquadra.crea(data);
-      aggiorna((_giocatori, squadre) => ({ squadre: [rec, ...squadre.filter((x) => x.id !== rec.id)] }));
+      const rec = await anagrafeApi.createSquadra(data);
+      aggiorna((_giocatori, squadre) => ({ squadre: [rec, ...squadre] }));
       return rec;
     },
 
