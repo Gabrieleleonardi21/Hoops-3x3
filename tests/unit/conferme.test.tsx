@@ -55,6 +55,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup(); // senza le globali di Vitest, Testing Library non smonta da sola
+  document.body.style.overflow = ""; // il blocco dello scroll delle finestre non deve passare da un test all'altro
   useAppStore.getState().reset();
   vi.restoreAllMocks();
   localStorage.clear();
@@ -235,6 +236,18 @@ describe("Anagrafe: le eliminazioni dalle schede (modali) chiedono conferma", ()
     expect(g.onRemove).not.toHaveBeenCalled();
     fireEvent.keyDown(window, { key: "Escape" });
     expect(g.onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["giocatore", mostraGiocatore],
+    ["squadra", mostraSquadra],
+  ])("%s: se con la conferma aperta si smonta tutto insieme (tasto «Indietro»), lo scroll della pagina torna", (_tipo, mostra) => {
+    const { unmount } = mostra(gestori());
+    elimina();
+    expect(screen.getByRole("dialog", { name: /Eliminare/ })).toBeTruthy();
+    expect(document.body.style.overflow).toBe("hidden");
+    unmount();
+    expect(document.body.style.overflow).toBe("");
   });
 
   it("giocatore: se il server rifiuta, la scheda resta aperta con il motivo e la conferma non si ripresenta da sola", async () => {
