@@ -687,6 +687,19 @@ describe("Anagrafe: il server rifiuta, la pagina non mostra il dato come salvato
     expect(screen.getByRole("button", { name: "Mario Rossi" })).toBeTruthy();
   });
 
+  it("un doppio clic sulla X della card elimina una volta sola: niente seconda DELETE né messaggio di «non trovato»", async () => {
+    const risposta = differita<void>();
+    anagrafe.removeGiocatore.mockReturnValue(risposta.p);
+    apri("/anagrafe");
+    const elimina = await screen.findByRole("button", { name: "Elimina Mario Rossi" });
+    fireEvent.click(elimina);
+    fireEvent.click(elimina);
+    expect(anagrafe.removeGiocatore).toHaveBeenCalledTimes(1);
+    await act(async () => { risposta.ok(); });
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Elimina Mario Rossi" })).toBeNull());
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   it("registrazione rifiutata dal server: i dati restano nel form; al nuovo tentativo riuscito il form si chiude", async () => {
     anagrafe.createGiocatore
       .mockRejectedValueOnce(nonRisponde())

@@ -4,7 +4,8 @@ import { useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useAppStore } from "../stores/useAppStore";
 import { useAnagrafe } from "../hooks/useAnagrafe";
-import { ApiError, testoErrore } from "../services/api";
+import { useInvio } from "../hooks/useInvio";
+import { ApiError } from "../services/api";
 import { StatsCircuito } from "../components/anagrafe/StatsCircuito";
 import { GiocatoreForm } from "../components/anagrafe/GiocatoreForm";
 import { GiocatoreCard } from "../components/anagrafe/GiocatoreCard";
@@ -24,7 +25,9 @@ export function AnagrafePage() {
   const [tab, setTab] = useState<"g" | "s" | "stats">("g");
   const [query, setQuery] = useState("");
   const [showForm, setShowForm] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
+  // Eliminazioni dalle card: una alla volta (un doppio clic non manda due DELETE), e se il server rifiuta il motivo compare
+  // nella pagina invece di perdersi
+  const eliminazione = useInvio();
   const [selSquadra, setSelSquadra] = useState<RegSquadra | null>(null);
   const [selGiocatore, setSelGiocatore] = useState<RegGiocatore | null>(null);
   const anagrafe = useAnagrafe();
@@ -50,11 +53,7 @@ export function AnagrafePage() {
     setShowForm(false);
   };
 
-  /** Eliminazione dalla card: se il server la rifiuta il motivo compare nella pagina, invece di perdersi */
-  const elimina = async (azione: () => Promise<unknown>) => {
-    setMsg(null);
-    try { await azione(); } catch (e) { setMsg(`Eliminazione non riuscita: ${testoErrore(e)}`); }
-  };
+  const elimina = (azione: () => Promise<unknown>) => eliminazione.esegui(azione, "Eliminazione non riuscita");
 
   /** « (3)» accanto al nome della scheda; niente finché l'elenco non è arrivato: «(0)» direbbe che è vuoto */
   const conteggio = (voci: unknown[] | null) => {
@@ -86,7 +85,7 @@ export function AnagrafePage() {
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <div className="flex gap-1 border-b border-asphalt-700" role="tablist">
           {tabs.map(([id, label]) => (
-            <button key={id} role="tab" aria-selected={tab === id} onClick={() => { setTab(id); setShowForm(false); setMsg(null); }}
+            <button key={id} role="tab" aria-selected={tab === id} onClick={() => { setTab(id); setShowForm(false); eliminazione.setErrore(null); }}
               className={`-mb-px border-b-2 px-3 py-2 font-display text-[15px] transition-colors ${tab === id ? "border-court text-chalk" : "border-transparent text-chalk-muted hover:text-chalk"}`}>
               {label}
             </button>
@@ -99,7 +98,7 @@ export function AnagrafePage() {
               <Icon name="search" size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-chalk-dim" />
               <input className="statin pl-9" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Cerca per nome, città, squadra…" />
             </label>
-            <Button onClick={() => { setShowForm(!showForm); setMsg(null); }}>
+            <Button onClick={() => { setShowForm(!showForm); eliminazione.setErrore(null); }}>
               {showForm ? "Chiudi" : <><Icon name="plus" size={16} /> {tab === "g" ? "Registra giocatore" : "Registra squadra"}</>}
             </Button>
           </>
@@ -111,7 +110,7 @@ export function AnagrafePage() {
         informazioni che possono essere rese pubbliche e per cui hai il consenso degli interessati.
       </p>
 
-      {msg && <p className="mb-2.5 text-[13px] font-semibold text-loss" role="alert">{msg}</p>}
+      {eliminazione.errore && <p className="mb-2.5 text-[13px] font-semibold text-loss" role="alert">{eliminazione.errore}</p>}
 
       {showForm && tab === "g" && <GiocatoreForm squadre={squadre || []} onSave={(d) => guard(() => saveGiocatore(d))} />}
       {showForm && tab === "s" && <SquadraAnagrafeForm giocatori={giocatori || []} onSave={(d) => guard(() => saveSquadra(d))} />}
