@@ -1,14 +1,15 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { TappaPage } from "../../src/pages/TappaPage";
 import { useAppStore } from "../../src/stores/useAppStore";
 import { useAnagrafeStore } from "../../src/stores/useAnagrafeStore";
 import { legheApi } from "../../src/services/legheApi";
+import { anagrafeApi } from "../../src/services/anagrafeApi";
 import { ApiError } from "../../src/services/api";
 import { DEFAULT_RULES } from "../../src/constants/rules";
-import type { RegSquadra, Tappa, User } from "../../src/types";
+import type { RegGiocatore, RegSquadra, Tappa, User } from "../../src/types";
 
 // Si sostituisce solo la rete delle leghe: pagina, hook, store e coda dei salvataggi sono quelli veri
 vi.mock("../../src/services/legheApi", () => ({
@@ -18,6 +19,17 @@ vi.mock("../../src/services/legheApi", () => ({
   },
 }));
 
+// Anche la rete dell'anagrafe, per i casi in cui è lo store vero a caricare e a cercare la squadra; negli altri test l'anagrafe è
+// già in cache e la rete non si usa
+vi.mock("../../src/services/anagrafeApi", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../src/services/anagrafeApi")>()),
+  anagrafeApi: {
+    listGiocatori: vi.fn(), createGiocatore: vi.fn(), updateGiocatore: vi.fn(), removeGiocatore: vi.fn(),
+    listSquadre: vi.fn(), createSquadra: vi.fn(), updateSquadra: vi.fn(), removeSquadra: vi.fn(),
+  },
+}));
+
+const anagrafe = vi.mocked(anagrafeApi);
 const store = () => useAppStore.getState();
 const registrato: User = { id: "u1", name: "Anna", email: "anna@example.it", guest: false };
 const ospite: User = { name: "Ospite", guest: true };
@@ -52,8 +64,13 @@ const regAlfa: RegSquadra = {
   website: "", instagram: "", note: "", autore: "Anna", autoreId: "u1", ts: 1,
 };
 
+// Le azioni vere dello store dell'anagrafe: alcuni test le sostituiscono con finte, e senza ripristino la finta passerebbe al test dopo
+const { load, trovaSquadra, saveSquadra } = useAnagrafeStore.getState();
+const azioniVere = { load, trovaSquadra, saveSquadra };
+
 beforeEach(() => {
   vi.resetAllMocks();
+  useAnagrafeStore.setState(azioniVere);
   vi.mocked(legheApi.putTappa).mockImplementation(async (t) => t);
   useAppStore.setState({ user: registrato, legaId: "l1", leghe: [{ id: "l1", nome: "Lega", ts: 1, nTappe: 1 }], tappe: [tappa()] });
 });
@@ -129,12 +146,63 @@ describe("TappaPage: il collegamento all'anagrafe che fallisce si vede (FS-4)", 
     expect(screen.getAllByRole("alert")).toHaveLength(1);
   });
 
-  it("anche la ricerca in anagrafe, se fallisce, dice perché", async () => {
-    apriPagina({ trovaSquadra: vi.fn().mockRejectedValue(new ApiError(503, "Servizio non disponibile")) });
+  it("con l'anagrafe non caricata (server giù all'apertura) il collegamento si tenta lo stesso, e riesce se il server è tornato", async () => {
+    // All'apertura il caricamento fallisce: le liste restano null e `errore` dice perché. Poi il server torna
+    anagrafe.listGiocatori.mockRejectedValue(new ApiError(0, "Server non raggiungibile"));
+    anagrafe.listSquadre.mockResolvedValue([]);
+    anagrafe.createSquadra.mockResolvedValue(regAlfa);
+    apriPagina({ giocatori: null, squadre: null, caricata: false });
+    await waitFor(() => expect(useAnagrafeStore.getState().errore).toBe("Server non raggiungibile"));
+    expect(useAnagrafeStore.getState().squadre).toBeNull();
+
     scrivi(0, "Alfa");
     fireEvent.blur(campiNome()[0]);
-    expect((await screen.findByRole("alert")).textContent).toContain("Squadra «Alfa» non collegata all'anagrafe: Servizio non disponibile");
+    await waitFor(() => expect(store().tappe[0].squadre[0].regId).toBe("r1"));
+    expect(anagrafe.createSquadra).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("alert")).toBeNull();
   });
+
+  it("con l'anagrafe non caricata e il server ancora giù il tentativo fallisce e il motivo compare nella card", async () => {
+    anagrafe.listGiocatori.mockRejectedValue(nonRisponde());
+    anagrafe.listSquadre.mockRejectedValue(nonRisponde());
+    anagrafe.createSquadra.mockRejectedValue(nonRisponde());
+    apriPagina({ giocatori: null, squadre: null, caricata: false });
+    await waitFor(() => expect(useAnagrafeStore.getState().errore).not.toBeNull());
+
+    scrivi(0, "Alfa");
+    fireEvent.blur(campiNome()[0]);
+    expect((await screen.findByRole("alert")).textContent).toContain(MESSAGGIO);
+    expect(store().tappe[0].squadre[0].regId).toBeUndefined();
+  });
+
+  it("mentre l'anagrafe si sta ancora caricando il collegamento non parte", async () => {
+    const giocatori = differita<RegGiocatore[]>();
+    const squadre = differita<RegSquadra[]>();
+    anagrafe.listGiocatori.mockReturnValue(giocatori.p);
+    anagrafe.listSquadre.mockReturnValue(squadre.p);
+    apriPagina({ giocatori: null, squadre: null, caricata: false });
+
+    scrivi(0, "Alfa");
+    fireEvent.blur(campiNome()[0]);
+    await act(async () => {});
+    expect(anagrafe.createSquadra).not.toHaveBeenCalled();
+    expect(anagrafe.listSquadre).toHaveBeenCalledTimes(1); // solo il caricamento della pagina
+    await act(async () => { giocatori.ok([]); squadre.ok([]); await Promise.all([giocatori.p, squadre.p]); });
+  });
+
+  it.each([["un segnaposto", "Squadra 3"], ["vuoto", ""]])(
+    "se dopo l'errore il nome diventa %s il messaggio di prima sparisce: niente «Riprova» che non può fare niente",
+    async (_caso, nuovoNome) => {
+      apriPagina({ trovaSquadra: vi.fn(async () => undefined), saveSquadra: vi.fn().mockRejectedValue(nonRisponde()) });
+      scrivi(0, "Alfa");
+      fireEvent.blur(campiNome()[0]);
+      await screen.findByRole("alert");
+      scrivi(0, nuovoNome);
+      fireEvent.blur(campiNome()[0]);
+      await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+      expect(screen.queryByRole("button", { name: "Riprova" })).toBeNull();
+    },
+  );
 
   it("«Riprova» ritenta: riuscito, il messaggio sparisce e la squadra si collega", async () => {
     const saveSquadra = vi.fn().mockRejectedValueOnce(nonRisponde()).mockResolvedValueOnce(regAlfa);

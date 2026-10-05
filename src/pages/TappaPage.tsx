@@ -37,7 +37,7 @@ export function TappaPage() {
   const [erroriAnagrafe, setErroriAnagrafe] = useState<Record<string, string | null>>({});
 
   // useAnagrafe deve stare prima degli early return (regole degli hook)
-  const { squadre: squadreAnagrafe, saveSquadra, trovaSquadra } = useAnagrafe();
+  const { squadre: squadreAnagrafe, errore: erroreCaricamento, saveSquadra, trovaSquadra } = useAnagrafe();
 
   // Quando l'anagrafe carica, sincronizza le squadre della tappa (per nome o regId)
   useEffect(() => {
@@ -56,13 +56,17 @@ export function TappaPage() {
   /** Chiamato dall'input nome della squadra onBlur.
    *  Se il nome è reale (non placeholder), cerca o crea la RegSquadra nell'anagrafe e collega. */
   const handleTeamNameCommit = async (teamId: string, nome: string) => {
+    // Il messaggio di un tentativo precedente si toglie subito, anche se questo non parte (nome vuoto o segnaposto, squadra già
+    // collegata): resterebbe un «Riprova» che non può fare niente, su un nome che non c'è più
+    segnaErroreAnagrafe(teamId, null);
     const trimmed = nome.trim();
     if (!h.user || h.user.guest || !trimmed || /^Squadra \d+$/.test(trimmed)) return;
-    if (!squadreAnagrafe) return;
+    // Si aspetta solo mentre l'anagrafe si sta caricando. Se il caricamento è fallito (liste ancora null, `erroreCaricamento` pieno)
+    // si prova lo stesso: trovaSquadra funziona anche con la cache vuota, guarda sul server, e un rifiuto compare nella card
+    if (!squadreAnagrafe && !erroreCaricamento) return;
     const s = h.tappa?.squadre.find((x) => x.id === teamId);
     if (!s || s.regId) return; // già collegata, niente da fare
 
-    segnaErroreAnagrafe(teamId, null);
     try {
       // Prima in cache, poi sul server: un altro utente può averla registrata dopo il caricamento
       // della cache e non va creato un doppione nell'anagrafe condivisa
