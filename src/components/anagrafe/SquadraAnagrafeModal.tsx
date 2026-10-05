@@ -47,6 +47,8 @@ export function SquadraAnagrafeModal({
     // Si esce dalla modifica solo se il server ha accettato: se rifiuta, i campi restano come scritti
     if (await esegui(() => onUpdate({ ...s, ...draft }), "Modifica non riuscita")) setEditing(false);
   };
+  // Entrando in modifica il messaggio di un'azione fallita prima (per esempio un'eliminazione) non resta sopra il form
+  const iniziaModifica = () => { setEditing(true); setErrore(null); };
   const annullaModifica = () => { setEditing(false); setErrore(null); };
 
   const gName = (id: string) => {
@@ -144,7 +146,7 @@ export function SquadraAnagrafeModal({
         <span className="text-[10.5px] text-chalk-dim">Registrata da {s.autore}</span>
         {canEdit && !editing && (
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => setEditing(true)} disabled={invio}><Icon name="edit" size={14} /> Modifica</Button>
+            <Button variant="outline" size="sm" onClick={iniziaModifica} disabled={invio}><Icon name="edit" size={14} /> Modifica</Button>
             <Button variant="ghost" size="sm" className="text-loss" onClick={handleRemove} disabled={invio}><Icon name="trash" size={14} /> Elimina</Button>
           </div>
         )}

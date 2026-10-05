@@ -55,6 +55,8 @@ export function GiocatoreModal({
   const handleRemove = async () => {
     if (await esegui(() => onRemove(), "Eliminazione non riuscita")) onClose();
   };
+  // Entrando in modifica il messaggio di un'azione fallita prima (per esempio un'eliminazione) non resta sopra il form
+  const iniziaModifica = () => { setEditing(true); setErrore(null); };
   const annullaModifica = () => { setEditing(false); setErrore(null); };
   const canEdit = puoModificare(user, g.autoreId);
   const age = eta(g.nascita);
@@ -131,7 +133,7 @@ export function GiocatoreModal({
         <span className="text-[10.5px] text-chalk-dim">Registrato da {g.autore}</span>
         {canEdit && !editing && (
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => setEditing(true)} disabled={invio}><Icon name="edit" size={14} /> Modifica</Button>
+            <Button variant="outline" size="sm" onClick={iniziaModifica} disabled={invio}><Icon name="edit" size={14} /> Modifica</Button>
             <Button variant="ghost" size="sm" className="text-loss" onClick={handleRemove} disabled={invio}><Icon name="trash" size={14} /> Elimina</Button>
           </div>
         )}

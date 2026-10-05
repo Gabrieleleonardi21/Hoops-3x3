@@ -789,6 +789,26 @@ describe("Modali dell'anagrafe: la modifica si chiude solo se il server ha accet
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
+  it("giocatore: dopo un'eliminazione rifiutata «Modifica» toglie il messaggio, che non resta sopra il form di modifica", async () => {
+    const g = gestori<RegGiocatore>();
+    g.onRemove.mockRejectedValue(nonRisponde());
+    mostraGiocatore(g);
+    fireEvent.click(pulsante("Elimina"));
+    await screen.findByRole("alert");
+    fireEvent.click(pulsante("Modifica"));
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("squadra: dopo un'eliminazione rifiutata «Modifica» toglie il messaggio, che non resta sopra il form di modifica", async () => {
+    const g = gestori<RegSquadra>();
+    g.onRemove.mockRejectedValue(nonRisponde());
+    mostraSquadra(g);
+    fireEvent.click(pulsante("Elimina"));
+    await screen.findByRole("alert");
+    fireEvent.click(pulsante("Modifica"));
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   it("squadra, eliminazione rifiutata: la modale resta aperta e dice perché", async () => {
     const g = gestori<RegSquadra>();
     g.onRemove.mockRejectedValue(nonRisponde());
