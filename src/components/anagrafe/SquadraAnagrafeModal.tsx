@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useInvio } from "../../hooks/useInvio";
 import { Modal } from "../ui/Modal";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
@@ -11,7 +12,9 @@ import { safeUrl } from "../../utils/safeUrl";
 type EditDraft = Pick<RegSquadra, "nome" | "citta" | "anno" | "rank" | "referente" | "logo" | "website" | "instagram" | "note">;
 
 /** Modale con tutte le informazioni di una squadra dell'anagrafe.
- *  L'autore (o un ADMIN) può modificare tutti i campi principali o eliminare la squadra. */
+ *  L'autore (o un ADMIN) può modificare tutti i campi principali o eliminare la squadra. `onUpdate` e `onRemove` rifiutano la
+ *  promessa se il server non accetta: la modifica si chiude e la modale si chiude solo se hanno riuscito, altrimenti restano
+ *  aperte con il motivo sotto i pulsanti. Finché un invio è in corso i pulsanti sono fermi e la modale non si chiude. */
 export function SquadraAnagrafeModal({
   s,
   giocatori,
@@ -24,10 +27,11 @@ export function SquadraAnagrafeModal({
   giocatori: RegGiocatore[];
   user: User;
   onClose: () => void;
-  onRemove: () => void;
-  onUpdate: (updated: RegSquadra) => void;
+  onRemove: () => Promise<void>;
+  onUpdate: (updated: RegSquadra) => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
+  const { invio, errore, setErrore, esegui } = useInvio();
   const [draft, setDraft] = useState<EditDraft>({
     nome: s.nome, citta: s.citta, anno: s.anno, rank: s.rank,
     referente: s.referente, logo: s.logo,
@@ -37,10 +41,13 @@ export function SquadraAnagrafeModal({
   const set = (k: keyof EditDraft) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setDraft((d) => ({ ...d, [k]: e.target.value }));
 
-  const saveEdit = () => {
-    onUpdate({ ...s, ...draft });
-    setEditing(false);
+  // Esc, sfondo e X non chiudono durante un invio: l'esito, soprattutto se è un errore, deve restare sotto gli occhi
+  const chiudi = () => { if (!invio) onClose(); };
+  const saveEdit = async () => {
+    // Si esce dalla modifica solo se il server ha accettato: se rifiuta, i campi restano come scritti
+    if (await esegui(() => onUpdate({ ...s, ...draft }), "Modifica non riuscita")) setEditing(false);
   };
+  const annullaModifica = () => { setEditing(false); setErrore(null); };
 
   const gName = (id: string) => {
     const g = giocatori.find((x) => x.id === id);
@@ -49,7 +56,9 @@ export function SquadraAnagrafeModal({
 
   const canEdit = puoModificare(user, s.autoreId);
 
-  const handleRemove = () => { onRemove(); onClose(); };
+  const handleRemove = async () => {
+    if (await esegui(() => onRemove(), "Eliminazione non riuscita")) onClose();
+  };
 
   // Fallback: se mancano sito e Instagram usa una ricerca Google del nome squadra
   const logoLink = safeUrl(s.website || s.instagram ||
@@ -65,7 +74,7 @@ export function SquadraAnagrafeModal({
   );
 
   return (
-    <Modal label={`Scheda squadra ${s.nome}`} title={s.nome} width={520} onClose={onClose}
+    <Modal label={`Scheda squadra ${s.nome}`} title={s.nome} width={520} onClose={chiudi}
       subtitle={Number(s.rank) > 0 ? `Ranking circuito: ${s.rank} pt` : undefined}>
       {/* Logo centrato — sempre cliccabile: sito > instagram > ricerca Google */}
       <div className="mb-4 flex justify-center">
@@ -122,19 +131,21 @@ export function SquadraAnagrafeModal({
           {/* Note: 2000 caratteri come SquadraRequestDTO, oltre il server risponde 400 */}
           <Input label="Note" value={draft.note} onChange={set("note")} placeholder="es. campioni tappa Roma 2025" maxLength={2000} />
           <div className="mt-1 flex gap-2">
-            <Button onClick={saveEdit}>Salva modifiche</Button>
-            <Button variant="ghost" onClick={() => setEditing(false)}>Annulla</Button>
+            <Button onClick={saveEdit} disabled={invio}>Salva modifiche</Button>
+            <Button variant="ghost" onClick={annullaModifica} disabled={invio}>Annulla</Button>
           </div>
         </div>
       )}
+
+      {errore && <p className="mb-3 text-[13px] font-semibold text-loss" role="alert">{errore}</p>}
 
       {/* Footer: autore + azioni */}
       <div className="mt-1 flex flex-wrap items-center justify-between gap-2 border-t border-asphalt-700 pt-3">
         <span className="text-[10.5px] text-chalk-dim">Registrata da {s.autore}</span>
         {canEdit && !editing && (
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => setEditing(true)}><Icon name="edit" size={14} /> Modifica</Button>
-            <Button variant="ghost" size="sm" className="text-loss" onClick={handleRemove}><Icon name="trash" size={14} /> Elimina</Button>
+            <Button variant="outline" size="sm" onClick={() => setEditing(true)} disabled={invio}><Icon name="edit" size={14} /> Modifica</Button>
+            <Button variant="ghost" size="sm" className="text-loss" onClick={handleRemove} disabled={invio}><Icon name="trash" size={14} /> Elimina</Button>
           </div>
         )}
       </div>

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { useInvio } from "../../hooks/useInvio";
 import { Modal } from "../ui/Modal";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
@@ -15,7 +16,9 @@ import type { RegGiocatore, RegSquadra, User } from "../../types";
 type EditDraft = GiocatoreInput;
 
 /** Modale con tutte le informazioni di un giocatore dell'anagrafe.
- *  L'autore (o un ADMIN) può modificare tutti i campi o eliminare il giocatore. */
+ *  L'autore (o un ADMIN) può modificare tutti i campi o eliminare il giocatore. `onUpdate` e `onRemove` rifiutano la promessa
+ *  se il server non accetta: la modifica si chiude e la modale si chiude solo se hanno riuscito, altrimenti restano aperte con
+ *  il motivo sotto i pulsanti. Finché un invio è in corso i pulsanti sono fermi e la modale non si chiude. */
 export function GiocatoreModal({
   g,
   user,
@@ -28,10 +31,11 @@ export function GiocatoreModal({
   user: User;
   squadre?: RegSquadra[];
   onClose: () => void;
-  onRemove: () => void;
-  onUpdate: (updated: RegGiocatore) => void;
+  onRemove: () => Promise<void>;
+  onUpdate: (updated: RegGiocatore) => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
+  const { invio, errore, setErrore, esegui } = useInvio();
   const [draft, setDraft] = useState<EditDraft>({
     nome: g.nome, cognome: g.cognome, soprannome: g.soprannome,
     nascita: g.nascita, citta: g.citta, nazionalita: g.nazionalita,
@@ -42,8 +46,16 @@ export function GiocatoreModal({
   const set = (k: keyof EditDraft) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setDraft((d) => ({ ...d, [k]: e.target.value }));
 
-  const saveEdit = () => { onUpdate({ ...g, ...draft }); setEditing(false); };
-  const handleRemove = () => { onRemove(); onClose(); };
+  // Esc, sfondo e X non chiudono durante un invio: l'esito, soprattutto se è un errore, deve restare sotto gli occhi
+  const chiudi = () => { if (!invio) onClose(); };
+  const saveEdit = async () => {
+    // Si esce dalla modifica solo se il server ha accettato: se rifiuta, i campi restano come scritti
+    if (await esegui(() => onUpdate({ ...g, ...draft }), "Modifica non riuscita")) setEditing(false);
+  };
+  const handleRemove = async () => {
+    if (await esegui(() => onRemove(), "Eliminazione non riuscita")) onClose();
+  };
+  const annullaModifica = () => { setEditing(false); setErrore(null); };
   const canEdit = puoModificare(user, g.autoreId);
   const age = eta(g.nascita);
   // Cerca il logo della squadra abbinando il nome del giocatore con la lista squadre
@@ -54,7 +66,7 @@ export function GiocatoreModal({
   );
 
   return (
-    <Modal label={`Scheda giocatore ${g.nome} ${g.cognome}`} onClose={onClose}
+    <Modal label={`Scheda giocatore ${g.nome} ${g.cognome}`} onClose={chiudi}
       title={<>{g.nome} {g.cognome}{g.numero && <span className="text-court"> #{g.numero}</span>}</>}
       subtitle={g.soprannome ? `"${g.soprannome}"` : undefined}>
       {/* Logo squadra */}
@@ -106,19 +118,21 @@ export function GiocatoreModal({
           </div>
           <Input label="Note sportive" value={draft.note} onChange={set("note")} placeholder="es. tiratore da fuori" maxLength={2000} />
           <div className="mt-1 flex gap-2">
-            <Button onClick={saveEdit}>Salva modifiche</Button>
-            <Button variant="ghost" onClick={() => setEditing(false)}>Annulla</Button>
+            <Button onClick={saveEdit} disabled={invio}>Salva modifiche</Button>
+            <Button variant="ghost" onClick={annullaModifica} disabled={invio}>Annulla</Button>
           </div>
         </div>
       )}
+
+      {errore && <p className="mb-3 text-[13px] font-semibold text-loss" role="alert">{errore}</p>}
 
       {/* Footer: autore + azioni */}
       <div className="mt-1 flex flex-wrap items-center justify-between gap-2 border-t border-asphalt-700 pt-3">
         <span className="text-[10.5px] text-chalk-dim">Registrato da {g.autore}</span>
         {canEdit && !editing && (
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => setEditing(true)}><Icon name="edit" size={14} /> Modifica</Button>
-            <Button variant="ghost" size="sm" className="text-loss" onClick={handleRemove}><Icon name="trash" size={14} /> Elimina</Button>
+            <Button variant="outline" size="sm" onClick={() => setEditing(true)} disabled={invio}><Icon name="edit" size={14} /> Modifica</Button>
+            <Button variant="ghost" size="sm" className="text-loss" onClick={handleRemove} disabled={invio}><Icon name="trash" size={14} /> Elimina</Button>
           </div>
         )}
       </div>

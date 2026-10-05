@@ -1,9 +1,14 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { Mock } from "vitest";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import App from "../../src/App";
 import { ErrorBoundary } from "../../src/components/ui/ErrorBoundary";
+import { GiocatoreForm } from "../../src/components/anagrafe/GiocatoreForm";
+import { GiocatoreModal } from "../../src/components/anagrafe/GiocatoreModal";
+import { SquadraAnagrafeForm } from "../../src/components/anagrafe/SquadraAnagrafeForm";
+import { SquadraAnagrafeModal } from "../../src/components/anagrafe/SquadraAnagrafeModal";
 import { AnagrafePage } from "../../src/pages/AnagrafePage";
 import { ArchivioPage } from "../../src/pages/ArchivioPage";
 import { GiocatorePage } from "../../src/pages/GiocatorePage";
@@ -15,7 +20,7 @@ import { legheApi } from "../../src/services/legheApi";
 import { archivioApi } from "../../src/services/archivioApi";
 import { ApiError } from "../../src/services/api";
 import { DEFAULT_RULES } from "../../src/constants/rules";
-import type { PubTappa, RegGiocatore, Tappa, User } from "../../src/types";
+import type { PubTappa, RegGiocatore, RegSquadra, Tappa, User } from "../../src/types";
 
 // Si sostituisce solo la rete (leghe, anagrafe, archivio): pagine, store e componenti sono quelli veri
 vi.mock("../../src/services/legheApi", () => ({
@@ -225,6 +230,11 @@ const giocatore = (id: string, nome: string): RegGiocatore => ({
   ruolo: "Guardia", numero: "", squadra: "", esperienza: "", note: "", autore: "Anna", autoreId: "u1", ts: 1,
 });
 
+const squadra = (id: string, nome: string): RegSquadra => ({
+  id, nome, citta: "", anno: "", rank: "", referente: "", roster: [], logo: "", website: "", instagram: "", note: "",
+  autore: "Anna", autoreId: "u1", ts: 1,
+});
+
 /** Apre una pagina dell'app a questo percorso, con questo utente */
 function apri(percorso: string, utente: User = registrato) {
   useAppStore.setState({ user: utente });
@@ -424,5 +434,277 @@ describe("Elenco delle leghe: errori di creazione, apertura ed eliminazione", ()
     fireEvent.click(screen.getByRole("button", { name: "Elimina lega Estate" }));
     await waitFor(() => expect(screen.getByText(/Nessuna lega ancora/)).toBeTruthy());
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+});
+
+/* ── FS-4: form e modali dell'anagrafe: i dati restano se il server rifiuta, pulsanti fermi durante l'invio ── */
+
+describe("Form dell'anagrafe: si svuotano solo a salvataggio riuscito", () => {
+  const SALVA = "Salvataggio non riuscito: Il server non risponde: controlla la connessione e riprova.";
+  const salva = () => screen.getByRole("button", { name: "Salva nell'anagrafe" }) as HTMLButtonElement;
+  const campo = (etichetta: string) => screen.getByLabelText(etichetta) as HTMLInputElement;
+  const scrivi = (etichetta: string, valore: string) => fireEvent.change(campo(etichetta), { target: { value: valore } });
+  const nonRisponde = () => new ApiError(0, "Il server non risponde: controlla la connessione e riprova.");
+
+  it("giocatore, salvataggio fallito: i dati digitati restano, il messaggio dice perché e si può riprovare", async () => {
+    const onSave = vi.fn().mockRejectedValue(nonRisponde());
+    render(<GiocatoreForm squadre={[]} onSave={onSave} />);
+    scrivi("Nome *", "Mario");
+    scrivi("Cognome *", "Rossi");
+    scrivi("Note sportive", "tiratore da fuori");
+    fireEvent.click(salva());
+    expect((await screen.findByRole("alert")).textContent).toBe(SALVA);
+    expect(campo("Nome *").value).toBe("Mario");
+    expect(campo("Cognome *").value).toBe("Rossi");
+    expect(campo("Note sportive").value).toBe("tiratore da fuori");
+    expect(salva().disabled).toBe(false);
+  });
+
+  it("giocatore, salvataggio riuscito: il form si svuota e il messaggio di un tentativo fallito sparisce", async () => {
+    const onSave = vi.fn().mockRejectedValueOnce(nonRisponde()).mockResolvedValueOnce(undefined);
+    render(<GiocatoreForm squadre={[]} onSave={onSave} />);
+    scrivi("Nome *", "Mario");
+    scrivi("Cognome *", "Rossi");
+    fireEvent.click(salva());
+    await screen.findByRole("alert");
+    fireEvent.click(salva());
+    await waitFor(() => expect(campo("Nome *").value).toBe(""));
+    expect(campo("Cognome *").value).toBe("");
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(onSave).toHaveBeenCalledTimes(2);
+  });
+
+  it("giocatore, durante l'invio il pulsante è disattivato e un secondo clic non invia di nuovo", async () => {
+    const risposta = differita<void>();
+    const onSave = vi.fn().mockReturnValue(risposta.p);
+    render(<GiocatoreForm squadre={[]} onSave={onSave} />);
+    scrivi("Nome *", "Mario");
+    scrivi("Cognome *", "Rossi");
+    fireEvent.click(salva());
+    fireEvent.click(salva());
+    expect(salva().disabled).toBe(true);
+    expect(onSave).toHaveBeenCalledTimes(1);
+    await act(async () => { risposta.ok(); });
+    expect(salva().disabled).toBe(false);
+  });
+
+  it("giocatore, campi obbligatori vuoti: il messaggio c'è, niente viene inviato e il resto resta", () => {
+    const onSave = vi.fn();
+    render(<GiocatoreForm squadre={[]} onSave={onSave} />);
+    scrivi("Nome *", "Mario");
+    fireEvent.click(salva());
+    expect(screen.getByRole("alert").textContent).toBe("Nome e cognome sono obbligatori.");
+    expect(onSave).not.toHaveBeenCalled();
+    expect(campo("Nome *").value).toBe("Mario");
+  });
+
+  it("squadra, salvataggio fallito: nome, note e roster scelto restano; riuscito: il form si svuota", async () => {
+    const onSave = vi.fn().mockRejectedValueOnce(nonRisponde()).mockResolvedValueOnce(undefined);
+    render(<SquadraAnagrafeForm giocatori={[giocatore("g1", "Mario")]} onSave={onSave} />);
+    scrivi("Nome squadra *", "Ballers");
+    scrivi("Note", "campioni di Roma");
+    fireEvent.change(screen.getByLabelText("Scegli un giocatore"), { target: { value: "g1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi" }));
+    fireEvent.click(salva());
+    expect((await screen.findByRole("alert")).textContent).toBe(SALVA);
+    expect(campo("Nome squadra *").value).toBe("Ballers");
+    expect(campo("Note").value).toBe("campioni di Roma");
+    expect(screen.getByRole("button", { name: "Rimuovi Mario Rossi" })).toBeTruthy();
+    fireEvent.click(salva());
+    await waitFor(() => expect(campo("Nome squadra *").value).toBe(""));
+    expect(screen.queryByRole("button", { name: "Rimuovi Mario Rossi" })).toBeNull();
+    expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ nome: "Ballers", roster: ["g1"] }));
+  });
+});
+
+describe("Modali dell'anagrafe: la modifica si chiude solo se il server ha accettato", () => {
+  const nonRisponde = () => new ApiError(0, "Il server non risponde: controlla la connessione e riprova.");
+  const mario = giocatore("g1", "Mario");
+  const ballers = squadra("s1", "Ballers");
+  const pulsante = (nome: string) => screen.getByRole("button", { name: nome }) as HTMLButtonElement;
+  const campo = (etichetta: string) => screen.getByLabelText(etichetta) as HTMLInputElement;
+
+  /** I gestori della modale: per `T` la voce che si modifica. Per default il server accetta tutto; i test cambiano ciò che serve */
+  interface Gestori<T> {
+    onClose: Mock<() => void>;
+    onRemove: Mock<() => Promise<void>>;
+    onUpdate: Mock<(updated: T) => Promise<void>>;
+  }
+  const gestori = <T,>(): Gestori<T> => ({
+    onClose: vi.fn<() => void>(),
+    onRemove: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+    onUpdate: vi.fn<(updated: T) => Promise<void>>().mockResolvedValue(undefined),
+  });
+
+  const mostraGiocatore = (g: Gestori<RegGiocatore>) => render(
+    <MemoryRouter><GiocatoreModal g={mario} user={registrato} {...g} /></MemoryRouter>,
+  );
+  const mostraSquadra = (g: Gestori<RegSquadra>) => render(
+    <SquadraAnagrafeModal s={ballers} giocatori={[]} user={registrato} {...g} />,
+  );
+
+  it("giocatore, modifica rifiutata: resta in modifica con i valori digitati e il motivo sotto i pulsanti", async () => {
+    const g = gestori<RegGiocatore>();
+    g.onUpdate.mockRejectedValue(new ApiError(403, "Non puoi modificare questa scheda giocatore"));
+    mostraGiocatore(g);
+    fireEvent.click(pulsante("Modifica"));
+    fireEvent.change(campo("Nome"), { target: { value: "Luigi" } });
+    fireEvent.click(pulsante("Salva modifiche"));
+    expect((await screen.findByRole("alert")).textContent).toBe("Modifica non riuscita: Non puoi modificare questa scheda giocatore");
+    expect(campo("Nome").value).toBe("Luigi");   // ancora in modifica, il dato scritto non si perde
+    expect(pulsante("Salva modifiche").disabled).toBe(false);
+    expect(g.onUpdate).toHaveBeenCalledWith({ ...mario, nome: "Luigi" });
+  });
+
+  it("giocatore, modifica accettata: si torna alla scheda, senza messaggi", async () => {
+    const g = gestori<RegGiocatore>();
+    mostraGiocatore(g);
+    fireEvent.click(pulsante("Modifica"));
+    fireEvent.click(pulsante("Salva modifiche"));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Salva modifiche" })).toBeNull());
+    expect(pulsante("Modifica")).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("giocatore, eliminazione rifiutata: la modale resta aperta e dice perché; riuscita: si chiude", async () => {
+    const g = gestori<RegGiocatore>();
+    g.onRemove.mockRejectedValueOnce(nonRisponde());
+    mostraGiocatore(g);
+    fireEvent.click(pulsante("Elimina"));
+    expect((await screen.findByRole("alert")).textContent)
+      .toBe("Eliminazione non riuscita: Il server non risponde: controlla la connessione e riprova.");
+    expect(g.onClose).not.toHaveBeenCalled();
+    fireEvent.click(pulsante("Elimina"));
+    await waitFor(() => expect(g.onClose).toHaveBeenCalledTimes(1));
+    expect(g.onRemove).toHaveBeenCalledTimes(2);
+  });
+
+  it("giocatore, durante l'invio i pulsanti sono disattivati e la modale non si chiude (Esc, sfondo, X)", async () => {
+    const g = gestori<RegGiocatore>();
+    const risposta = differita<void>();
+    g.onUpdate.mockReturnValue(risposta.p);
+    mostraGiocatore(g);
+    fireEvent.click(pulsante("Modifica"));
+    fireEvent.click(pulsante("Salva modifiche"));
+    fireEvent.click(pulsante("Salva modifiche"));
+    expect(g.onUpdate).toHaveBeenCalledTimes(1);
+    expect(pulsante("Salva modifiche").disabled).toBe(true);
+    expect(pulsante("Annulla").disabled).toBe(true);
+    fireEvent.keyDown(window, { key: "Escape" });
+    fireEvent.click(pulsante("Chiudi"));
+    expect(g.onClose).not.toHaveBeenCalled();
+    await act(async () => { risposta.ok(); });
+    // Finito l'invio la modale si chiude di nuovo come sempre
+    fireEvent.click(pulsante("Chiudi"));
+    expect(g.onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("squadra, modifica rifiutata: resta in modifica con i valori digitati; accettata: si torna alla scheda", async () => {
+    const g = gestori<RegSquadra>();
+    g.onUpdate.mockRejectedValueOnce(new ApiError(400, "nome: non può essere vuoto"));
+    mostraSquadra(g);
+    fireEvent.click(pulsante("Modifica"));
+    fireEvent.change(campo("Nome squadra"), { target: { value: "Ballers Roma" } });
+    fireEvent.click(pulsante("Salva modifiche"));
+    expect((await screen.findByRole("alert")).textContent).toBe("Modifica non riuscita: nome: non può essere vuoto");
+    expect(campo("Nome squadra").value).toBe("Ballers Roma");
+    fireEvent.click(pulsante("Salva modifiche"));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Salva modifiche" })).toBeNull());
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("squadra, eliminazione rifiutata: la modale resta aperta e dice perché", async () => {
+    const g = gestori<RegSquadra>();
+    g.onRemove.mockRejectedValue(nonRisponde());
+    mostraSquadra(g);
+    fireEvent.click(pulsante("Elimina"));
+    expect((await screen.findByRole("alert")).textContent).toContain("Eliminazione non riuscita");
+    expect(g.onClose).not.toHaveBeenCalled();
+  });
+});
+
+describe("Anagrafe: il server rifiuta, la pagina non mostra il dato come salvato (FS-4)", () => {
+  beforeEach(() => {
+    anagrafe.listGiocatori.mockResolvedValue([giocatore("g1", "Mario")]);
+    anagrafe.listSquadre.mockResolvedValue([squadra("s1", "Ballers")]);
+  });
+  const nonRisponde = () => new ApiError(0, "Il server non risponde: controlla la connessione e riprova.");
+  const scrivi = (etichetta: string, valore: string) =>
+    fireEvent.change(screen.getByLabelText(etichetta), { target: { value: valore } });
+
+  it("modifica rifiutata dal server: la scheda mostra ancora il dato di prima e dice perché", async () => {
+    anagrafe.updateGiocatore.mockRejectedValue(new ApiError(403, "Non puoi modificare questa scheda giocatore"));
+    apri("/anagrafe");
+    fireEvent.click(await screen.findByRole("button", { name: "Mario Rossi" }));
+    const scheda = within(screen.getByRole("dialog"));
+    fireEvent.click(scheda.getByRole("button", { name: "Modifica" }));
+    fireEvent.change(scheda.getByLabelText("Nome"), { target: { value: "Luigi" } });
+    fireEvent.click(scheda.getByRole("button", { name: "Salva modifiche" }));
+    expect((await scheda.findByRole("alert")).textContent).toBe("Modifica non riuscita: Non puoi modificare questa scheda giocatore");
+    // Il titolo della scheda è ancora il dato del server, non quello scritto
+    expect(scheda.getByText("Mario Rossi")).toBeTruthy();
+    expect(scheda.queryByText("Luigi Rossi")).toBeNull();
+    expect(useAnagrafeStore.getState().giocatori![0].nome).toBe("Mario");
+  });
+
+  it("modifica accettata: la scheda mostra il record che restituisce il server", async () => {
+    // Il server ha normalizzato il nome e aggiornato ts: la scheda deve mostrare questo, non ciò che si è scritto
+    anagrafe.updateGiocatore.mockResolvedValue({ ...giocatore("g1", "Luigi"), ts: 2 });
+    apri("/anagrafe");
+    fireEvent.click(await screen.findByRole("button", { name: "Mario Rossi" }));
+    const scheda = within(screen.getByRole("dialog"));
+    fireEvent.click(scheda.getByRole("button", { name: "Modifica" }));
+    fireEvent.change(scheda.getByLabelText("Nome"), { target: { value: "  luigi " } });
+    fireEvent.click(scheda.getByRole("button", { name: "Salva modifiche" }));
+    expect(await scheda.findByText("Luigi Rossi")).toBeTruthy();
+    expect(scheda.queryByRole("button", { name: "Salva modifiche" })).toBeNull();
+  });
+
+  it("eliminazione dalla scheda rifiutata: la scheda resta aperta, con il motivo; la voce resta nell'elenco", async () => {
+    anagrafe.removeGiocatore.mockRejectedValue(nonRisponde());
+    apri("/anagrafe");
+    fireEvent.click(await screen.findByRole("button", { name: "Mario Rossi" }));
+    const scheda = within(screen.getByRole("dialog"));
+    fireEvent.click(scheda.getByRole("button", { name: "Elimina" }));
+    expect((await scheda.findByRole("alert")).textContent).toContain("Eliminazione non riuscita");
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    expect(useAnagrafeStore.getState().giocatori).toHaveLength(1);
+  });
+
+  it("eliminazione dalla card rifiutata: il motivo compare nella pagina e la card resta", async () => {
+    anagrafe.removeGiocatore.mockRejectedValue(new ApiError(403, "Non puoi modificare questa scheda giocatore"));
+    apri("/anagrafe");
+    fireEvent.click(await screen.findByRole("button", { name: "Elimina Mario Rossi" }));
+    expect((await screen.findByRole("alert")).textContent).toBe("Eliminazione non riuscita: Non puoi modificare questa scheda giocatore");
+    expect(screen.getByRole("button", { name: "Mario Rossi" })).toBeTruthy();
+  });
+
+  it("registrazione rifiutata dal server: i dati restano nel form; al nuovo tentativo riuscito il form si chiude", async () => {
+    anagrafe.createGiocatore
+      .mockRejectedValueOnce(nonRisponde())
+      .mockResolvedValueOnce(giocatore("g2", "Luca"));
+    apri("/anagrafe");
+    await screen.findByRole("button", { name: "Mario Rossi" });
+    fireEvent.click(screen.getByRole("button", { name: /Registra giocatore/ }));
+    scrivi("Nome *", "Luca");
+    scrivi("Cognome *", "Rossi");
+    fireEvent.click(screen.getByRole("button", { name: "Salva nell'anagrafe" }));
+    expect((await screen.findByRole("alert")).textContent).toContain("Salvataggio non riuscito");
+    expect((screen.getByLabelText("Nome *") as HTMLInputElement).value).toBe("Luca");
+    fireEvent.click(screen.getByRole("button", { name: "Salva nell'anagrafe" }));
+    expect(await screen.findByRole("button", { name: "Luca Rossi" })).toBeTruthy();
+    expect(screen.queryByLabelText("Nome *")).toBeNull(); // form chiuso
+  });
+
+  it("l'ospite non può registrare: il form lo dice e conserva ciò che ha scritto, senza chiamare il server", async () => {
+    apri("/anagrafe", ospite);
+    await screen.findByRole("button", { name: "Mario Rossi" });
+    fireEvent.click(screen.getByRole("button", { name: /Registra giocatore/ }));
+    scrivi("Nome *", "Luca");
+    scrivi("Cognome *", "Rossi");
+    fireEvent.click(screen.getByRole("button", { name: "Salva nell'anagrafe" }));
+    expect((await screen.findByRole("alert")).textContent).toContain("richiede un account");
+    expect((screen.getByLabelText("Nome *") as HTMLInputElement).value).toBe("Luca");
+    expect(anagrafe.createGiocatore).not.toHaveBeenCalled();
   });
 });

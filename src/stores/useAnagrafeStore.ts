@@ -28,11 +28,13 @@ interface AnagrafeState {
   saveGiocatore: (data: GiocatoreInput) => Promise<void>;
   saveSquadra: (data: SquadraInput) => Promise<RegSquadra>;
   removeGiocatore: (id: string) => Promise<void>;
-  /** Sovrascrive un giocatore esistente (id e autore restano, il server aggiorna ts) */
-  updateGiocatore: (updated: RegGiocatore) => Promise<void>;
+  /** Sovrascrive un giocatore esistente (id e autore restano, il server aggiorna ts).
+   *  @returns il giocatore com'è sul server: è quello da mostrare, non ciò che si è scritto */
+  updateGiocatore: (updated: RegGiocatore) => Promise<RegGiocatore>;
   removeSquadra: (id: string) => Promise<void>;
-  /** Sovrascrive una squadra esistente (roster compreso) */
-  updateSquadra: (updated: RegSquadra) => Promise<void>;
+  /** Sovrascrive una squadra esistente (roster compreso).
+   *  @returns la squadra com'è sul server */
+  updateSquadra: (updated: RegSquadra) => Promise<RegSquadra>;
 }
 
 // Caricamento in corso: più componenti montati insieme (o lo StrictMode) condividono la stessa richiesta
@@ -103,6 +105,7 @@ export const useAnagrafeStore = create<AnagrafeState>((set, get) => {
     updateGiocatore: async (updated) => {
       const rec = await anagrafeApi.updateGiocatore(updated.id, toGiocatoreInput(updated));
       aggiorna((giocatori) => ({ giocatori: replaceById(giocatori, rec) }));
+      return rec;
     },
 
     removeSquadra: async (id) => {
@@ -113,6 +116,7 @@ export const useAnagrafeStore = create<AnagrafeState>((set, get) => {
     updateSquadra: async (updated) => {
       const rec = await anagrafeApi.updateSquadra(updated.id, toSquadraInput(updated));
       aggiorna((_giocatori, squadre) => ({ squadre: replaceById(squadre, rec) }));
+      return rec;
     },
   };
 });

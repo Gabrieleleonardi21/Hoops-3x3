@@ -28,6 +28,8 @@ const admin: User = { id: "u9", name: "Responsabile", email: "admin@example.it",
 const ospite: User = { name: "Anna", guest: true };
 
 const nulla = () => {};
+// Le modali aspettano l'esito di modifica ed eliminazione: i gestori rispondono con una promessa
+const riuscita = async () => {};
 
 afterEach(() => {
   cleanup(); // senza le globali di Vitest, Testing Library non smonta da sola
@@ -38,13 +40,13 @@ const mostraGiocatoreCard = (user: User) => {
   render(<MemoryRouter><GiocatoreCard g={giocatore} user={user} onRemove={nulla} onOpen={nulla} /></MemoryRouter>);
 };
 const mostraGiocatoreModal = (user: User) => {
-  render(<MemoryRouter><GiocatoreModal g={giocatore} user={user} onClose={nulla} onRemove={nulla} onUpdate={nulla} /></MemoryRouter>);
+  render(<MemoryRouter><GiocatoreModal g={giocatore} user={user} onClose={nulla} onRemove={riuscita} onUpdate={riuscita} /></MemoryRouter>);
 };
 const mostraSquadraCard = (user: User) => {
   render(<SquadraAnagrafeCard s={squadra} giocatori={[]} user={user} onRemove={nulla} onOpen={nulla} />);
 };
 const mostraSquadraModal = (user: User) => {
-  render(<SquadraAnagrafeModal s={squadra} giocatori={[]} user={user} onClose={nulla} onRemove={nulla} onUpdate={nulla} />);
+  render(<SquadraAnagrafeModal s={squadra} giocatori={[]} user={user} onClose={nulla} onRemove={riuscita} onUpdate={riuscita} />);
 };
 
 /** Un componente dell'anagrafe che mostra i comandi di modifica o di eliminazione solo a chi può usarli */

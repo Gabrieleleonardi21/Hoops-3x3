@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useAppStore } from "../stores/useAppStore";
 import { useAnagrafe } from "../hooks/useAnagrafe";
+import { ApiError, testoErrore } from "../services/api";
 import { StatsCircuito } from "../components/anagrafe/StatsCircuito";
 import { GiocatoreForm } from "../components/anagrafe/GiocatoreForm";
 import { GiocatoreCard } from "../components/anagrafe/GiocatoreCard";
@@ -39,11 +40,19 @@ export function AnagrafePage() {
   const gList = filtered(giocatori, ["nome", "cognome", "soprannome", "citta", "squadra", "ruolo"]);
   const sList = filtered(squadre, ["nome", "citta", "referente"]);
 
-  // Blocca le scritture per gli ospiti: possono solo consultare l'anagrafe
+  // Registrazione dai form. Le scritture sono solo per chi ha un account: l'ospite può solo consultare l'anagrafe, e il server la
+  // rifiuterebbe comunque (403). Se riesce il form si chiude; se fallisce l'errore sale al form, che mostra il motivo e conserva
+  // ciò che l'utente ha scritto
   const guard = async (fn: () => Promise<unknown>) => {
-    if (user.guest) { setMsg("La registrazione nell'anagrafe richiede un account: l'Ospite può solo consultare."); return; }
+    if (user.guest) throw new ApiError(403, "La registrazione nell'anagrafe richiede un account: l'Ospite può solo consultare.");
+    await fn();
+    setShowForm(false);
+  };
+
+  /** Eliminazione dalla card: se il server la rifiuta il motivo compare nella pagina, invece di perdersi */
+  const elimina = async (azione: () => Promise<unknown>) => {
     setMsg(null);
-    try { await fn(); setShowForm(false); } catch { setMsg("Salvataggio non riuscito, riprova."); }
+    try { await azione(); } catch (e) { setMsg(`Eliminazione non riuscita: ${testoErrore(e)}`); }
   };
 
   /** « (3)» accanto al nome della scheda; niente finché l'elenco non è arrivato: «(0)» direbbe che è vuoto */
@@ -111,7 +120,7 @@ export function AnagrafePage() {
         (g) => (
           <GiocatoreCard key={g.id} g={g} user={user} squadre={squadre || []}
             onOpen={() => setSelGiocatore(g)}
-            onRemove={() => removeGiocatore(g.id)} />
+            onRemove={() => elimina(() => removeGiocatore(g.id))} />
         ))}
 
       {tab === "s" && contenuto(squadre, sList,
@@ -119,7 +128,7 @@ export function AnagrafePage() {
         (s) => (
           <SquadraAnagrafeCard key={s.id} s={s} giocatori={giocatori || []} user={user}
             onOpen={() => setSelSquadra(s)}
-            onRemove={() => removeSquadra(s.id)} />
+            onRemove={() => elimina(() => removeSquadra(s.id))} />
         ))}
       {tab === "stats" && (
         <>
@@ -136,8 +145,8 @@ export function AnagrafePage() {
           user={user}
           squadre={squadre || []}
           onClose={() => setSelGiocatore(null)}
-          onRemove={() => { removeGiocatore(selGiocatore.id); setSelGiocatore(null); }}
-          onUpdate={(updated) => { updateGiocatore(updated); setSelGiocatore(updated); }}
+          onRemove={() => removeGiocatore(selGiocatore.id)}
+          onUpdate={async (updated) => setSelGiocatore(await updateGiocatore(updated))}
         />
       )}
       {selSquadra && (
@@ -146,8 +155,8 @@ export function AnagrafePage() {
           giocatori={giocatori || []}
           user={user}
           onClose={() => setSelSquadra(null)}
-          onRemove={() => { removeSquadra(selSquadra.id); setSelSquadra(null); }}
-          onUpdate={(updated) => { updateSquadra(updated); setSelSquadra(updated); }}
+          onRemove={() => removeSquadra(selSquadra.id)}
+          onUpdate={async (updated) => setSelSquadra(await updateSquadra(updated))}
         />
       )}
     </div>

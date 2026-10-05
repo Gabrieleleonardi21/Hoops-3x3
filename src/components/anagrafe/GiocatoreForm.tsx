@@ -1,5 +1,7 @@
-/** Form per registrare un nuovo giocatore nell'anagrafe condivisa del circuito. */
+/** Form per registrare un nuovo giocatore nell'anagrafe condivisa del circuito. Si svuota solo se il salvataggio riesce:
+ *  `onSave` rifiuta la promessa se il server non accetta, e allora il motivo compare sotto i pulsanti e i dati restano. */
 import { useState } from "react";
+import { useInvio } from "../../hooks/useInvio";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import { REG_ROLES } from "../../constants/roles";
@@ -16,15 +18,14 @@ const EMPTY: Draft = {
 
 export function GiocatoreForm({ squadre, onSave }: { squadre: RegSquadra[]; onSave: (d: Draft) => Promise<void> }) {
   const [d, setD] = useState<Draft>(EMPTY);
-  const [err, setErr] = useState<string | null>(null);
+  const { invio, errore, setErrore, esegui } = useInvio();
   const set = (k: keyof Draft) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setD({ ...d, [k]: e.target.value });
 
   const save = async () => {
-    if (!d.nome.trim() || !d.cognome.trim()) { setErr("Nome e cognome sono obbligatori."); return; }
-    setErr(null);
-    await onSave(d);
-    setD(EMPTY);
+    if (!d.nome.trim() || !d.cognome.trim()) { setErrore("Nome e cognome sono obbligatori."); return; }
+    // Si svuota solo se il server ha accettato: altrimenti chi scrive ritrova ciò che aveva scritto
+    if (await esegui(() => onSave(d), "Salvataggio non riuscito")) setD(EMPTY);
   };
 
   return (
@@ -54,8 +55,8 @@ export function GiocatoreForm({ squadre, onSave }: { squadre: RegSquadra[]; onSa
       </datalist>
       <Input label="Note sportive" labelStyle={{ marginTop: 10 }} value={d.note} onChange={set("note")}
         placeholder="es. tiratore da fuori, ex serie C" maxLength={500} />
-      {err && <p className="mt-2 text-[13px] font-semibold text-loss" role="alert">{err}</p>}
-      <Button className="mt-3" onClick={save}>Salva nell'anagrafe</Button>
+      {errore && <p className="mt-2 text-[13px] font-semibold text-loss" role="alert">{errore}</p>}
+      <Button className="mt-3" onClick={save} disabled={invio}>Salva nell'anagrafe</Button>
     </Card>
   );
 }
