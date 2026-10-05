@@ -341,6 +341,36 @@ describe("MatchTimer: la partita si decide", () => {
     expect(mostra("7")).toBeTruthy();
   });
 
+  it("il supplementare comincia con un possesso nuovo, non con quello rimasto dal tempo regolamentare, e fermo fino a «START»", () => {
+    apri(BREVE);
+    segna(A, "+1");
+    segna(B, "+1");
+    premi("START");
+    passa(53_000);
+    premi("Reset 12s"); // il possesso riparte da 12 a 7 secondi dalla fine…
+    passaSenzaScatti(7_000);
+    passa(100); // …e allo scadere gliene restano 5
+    expect(mostra("5")).toBeTruthy();
+    premi("Avvia supplementare");
+    expect(mostra("12")).toBeTruthy(); // un possesso nuovo, non i 5 rimasti
+    passa(3000);
+    expect(mostra("12")).toBeTruthy(); // fermo finché non si preme START
+    premi("START");
+    passa(5000);
+    expect(mostra("7")).toBeTruthy();
+  });
+
+  it("vale anche quando il possesso non divide la durata: con 24 secondi in una gara da 60, il supplementare parte da 24 e non da 12", () => {
+    apri({ ...BREVE, shot: 24 });
+    segna(A, "+1");
+    segna(B, "+1");
+    premi("START");
+    scadere(); // 60 secondi sono due possessi da 24 e 12 secondi del terzo: ne restano 12
+    expect(mostra("12")).toBeTruthy();
+    premi("Avvia supplementare");
+    expect(mostra("24")).toBeTruthy();
+  });
+
   it("al punteggio di vittoria i cronometri si fermano", () => {
     apri(ATRE);
     premi("START");

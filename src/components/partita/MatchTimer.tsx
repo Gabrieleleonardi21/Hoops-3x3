@@ -128,8 +128,13 @@ export function MatchTimer({ regole, teamA, teamB, onClose }: {
   const resetShot = () => setTempo(possessoRiportato(tempo, Date.now(), possessoMs));
 
   /** Avvia il supplementare dal punteggio di adesso: i suoi punti si contano da qui. Prima del pulsante un canestro registrato in
-   *  ritardo o una correzione contano ancora sul tempo regolamentare */
-  const avviaSupplementare = () => setInizioSupplementare(punti);
+   *  ritardo o una correzione contano ancora sul tempo regolamentare. Il supplementare comincia con un possesso nuovo e non con quello
+   *  rimasto dal tempo regolamentare (congelato allo scadere): a questo punto i cronometri sono fermi, quindi riparte da un periodo
+   *  intero e resta fermo fino a START */
+  const avviaSupplementare = () => {
+    setInizioSupplementare(punti);
+    setTempo(possessoRiportato(tempo, Date.now(), possessoMs));
+  };
 
   /** Aggiunge `delta` punti alla squadra `lato` (con un valore negativo li toglie, per correggere) */
   const segna = (lato: Lato, delta: number) => {
