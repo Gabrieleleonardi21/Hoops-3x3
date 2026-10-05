@@ -94,3 +94,19 @@ test("«Numero gironi» non cancella nulla mentre si scrive né ridigitando lo s
   await expect(page.getByRole("heading", { name: "Girone A" })).toBeVisible();
   await expect(page.getByText("21", { exact: true }).first()).toBeVisible();
 });
+
+test("un nome lungo e senza spazi resta dentro la finestra di conferma", async ({ page }) => {
+  await ospiteConLega(page);
+  await page.getByLabel(/Nome tappa/i).fill("N".repeat(120)); // il massimo che il campo ammette
+  await page.getByRole("button", { name: /Crea la tappa/i }).click();
+  await page.getByRole("button", { name: "Elimina", exact: true }).click();
+  const scheda = page.getByRole("dialog", { name: "Eliminare la tappa?" });
+  await expect(scheda).toContainText("N".repeat(120));
+  // Se il nome non va a capo, il testo è più largo del corpo della finestra, che scorrerebbe in orizzontale
+  const sbordo = await scheda.locator("p").evaluate((testo) => {
+    const corpo = testo.parentElement as HTMLElement;
+    return corpo.scrollWidth - corpo.clientWidth;
+  });
+  expect(sbordo).toBeLessThanOrEqual(0);
+  await scheda.getByRole("button", { name: "Annulla" }).click();
+});
