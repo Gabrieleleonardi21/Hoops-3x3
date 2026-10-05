@@ -7,8 +7,9 @@ import { perditaSquadraAnagrafe } from "../../utils/testi";
 import { Icon } from "../ui/Icon";
 import type { RegGiocatore, RegSquadra, User } from "../../types";
 
-export function SquadraAnagrafeCard({ s, giocatori, user, onRemove, onOpen }: {
-  s: RegSquadra; giocatori: RegGiocatore[]; user: User; onRemove: () => void; onOpen: () => void;
+/** `disabled`: un'altra eliminazione è in corso, quindi la X aspetta (un secondo invio verrebbe scartato senza dire niente) */
+export function SquadraAnagrafeCard({ s, giocatori, user, onRemove, onOpen, disabled = false }: {
+  s: RegSquadra; giocatori: RegGiocatore[]; user: User; onRemove: () => void; onOpen: () => void; disabled?: boolean;
 }) {
   const { chiedi, finestra } = useConfermaPerdita(() => perditaSquadraAnagrafe(s));
   const gName = (id: string) => {
@@ -26,7 +27,7 @@ export function SquadraAnagrafeCard({ s, giocatori, user, onRemove, onOpen }: {
           <span className="min-w-0 truncate font-display text-lg text-chalk transition-colors hover:text-court">{s.nome}</span>
         </button>
         {puoModificare(user, s.autoreId) && (
-          <button onClick={() => chiedi("Eliminare la squadra?", onRemove)} className="shrink-0 text-chalk-dim hover:text-loss" aria-label={`Elimina ${s.nome}`}>
+          <button onClick={() => chiedi("Eliminare la squadra?", onRemove)} disabled={disabled} className="shrink-0 text-chalk-dim hover:text-loss" aria-label={`Elimina ${s.nome}`}>
             <Icon name="close" size={14} />
           </button>
         )}

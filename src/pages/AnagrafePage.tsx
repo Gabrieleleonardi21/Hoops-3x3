@@ -25,8 +25,9 @@ export function AnagrafePage() {
   const [tab, setTab] = useState<"g" | "s" | "stats">("g");
   const [query, setQuery] = useState("");
   const [showForm, setShowForm] = useState(false);
-  // Eliminazioni dalle card: una alla volta (un doppio clic non manda due DELETE), e se il server rifiuta il motivo compare
-  // nella pagina invece di perdersi
+  // Eliminazioni dalle card: una alla volta, e se il server rifiuta il motivo compare nella pagina invece di perdersi. Finché una è
+  // in corso la X di tutte le card è disattivata: useInvio scarta in silenzio un secondo invio, e una conferma che poi non fa
+  // niente né dice niente sarebbe peggio di una X ferma
   const eliminazione = useInvio();
   const [selSquadra, setSelSquadra] = useState<RegSquadra | null>(null);
   const [selGiocatore, setSelGiocatore] = useState<RegGiocatore | null>(null);
@@ -118,7 +119,7 @@ export function AnagrafePage() {
       {tab === "g" && contenuto(giocatori, gList,
         { vuoto: "Nessun giocatore registrato: aggiungi il primo.", nessuno: "Nessun giocatore trovato con questa ricerca." },
         (g) => (
-          <GiocatoreCard key={g.id} g={g} user={user} squadre={squadre || []}
+          <GiocatoreCard key={g.id} g={g} user={user} squadre={squadre || []} disabled={eliminazione.invio}
             onOpen={() => setSelGiocatore(g)}
             onRemove={() => elimina(() => removeGiocatore(g.id))} />
         ))}
@@ -126,7 +127,7 @@ export function AnagrafePage() {
       {tab === "s" && contenuto(squadre, sList,
         { vuoto: "Nessuna squadra registrata: aggiungi la prima.", nessuno: "Nessuna squadra trovata con questa ricerca." },
         (s) => (
-          <SquadraAnagrafeCard key={s.id} s={s} giocatori={giocatori || []} user={user}
+          <SquadraAnagrafeCard key={s.id} s={s} giocatori={giocatori || []} user={user} disabled={eliminazione.invio}
             onOpen={() => setSelSquadra(s)}
             onRemove={() => elimina(() => removeSquadra(s.id))} />
         ))}

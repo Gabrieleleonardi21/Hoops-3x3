@@ -10,8 +10,9 @@ import { perditaGiocatore } from "../../utils/testi";
 import { Icon } from "../ui/Icon";
 import type { RegGiocatore, RegSquadra, User } from "../../types";
 
-export function GiocatoreCard({ g, user, squadre, onRemove, onOpen }: {
-  g: RegGiocatore; user: User; squadre?: RegSquadra[]; onRemove: () => void; onOpen: () => void;
+/** `disabled`: un'altra eliminazione è in corso, quindi la X aspetta (un secondo invio verrebbe scartato senza dire niente) */
+export function GiocatoreCard({ g, user, squadre, onRemove, onOpen, disabled = false }: {
+  g: RegGiocatore; user: User; squadre?: RegSquadra[]; onRemove: () => void; onOpen: () => void; disabled?: boolean;
 }) {
   const { chiedi, finestra } = useConfermaPerdita(() => perditaGiocatore(g));
   // Cerca il logo della squadra abbinando il nome del giocatore con la lista squadre
@@ -37,7 +38,7 @@ export function GiocatoreCard({ g, user, squadre, onRemove, onOpen }: {
           </span>
         </button>
         {puoModificare(user, g.autoreId) && (
-          <button onClick={() => chiedi("Eliminare il giocatore?", onRemove)} className="shrink-0 text-chalk-dim hover:text-loss" aria-label={`Elimina ${g.nome} ${g.cognome}`}>
+          <button onClick={() => chiedi("Eliminare il giocatore?", onRemove)} disabled={disabled} className="shrink-0 text-chalk-dim hover:text-loss" aria-label={`Elimina ${g.nome} ${g.cognome}`}>
             <Icon name="close" size={14} />
           </button>
         )}

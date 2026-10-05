@@ -897,19 +897,46 @@ describe("Anagrafe: il server rifiuta, la pagina non mostra il dato come salvato
     expect(screen.getByRole("button", { name: "Mario Rossi" })).toBeTruthy();
   });
 
-  it("una seconda eliminazione mentre la prima è in corso non manda un'altra DELETE né il messaggio di «non trovato»", async () => {
+  it("durante un'eliminazione la X di tutte le card dei giocatori è disattivata: niente conferma che poi non farebbe niente", async () => {
+    anagrafe.listGiocatori.mockResolvedValue([giocatore("g1", "Mario"), giocatore("g2", "Luigi")]);
     const risposta = differita<void>();
-    anagrafe.removeGiocatore.mockReturnValue(risposta.p);
+    anagrafe.removeGiocatore.mockReturnValueOnce(risposta.p);
     apri("/anagrafe");
-    const elimina = await screen.findByRole("button", { name: "Elimina Mario Rossi" });
-    fireEvent.click(elimina);
+    const xMario = await screen.findByRole("button", { name: "Elimina Mario Rossi" }) as HTMLButtonElement;
+    const xLuigi = screen.getByRole("button", { name: "Elimina Luigi Rossi" }) as HTMLButtonElement;
+    fireEvent.click(xMario);
     conferma();
-    fireEvent.click(elimina); // la card c'è ancora, in attesa del server: la X risponde e chiede di nuovo conferma
-    conferma();
+    // La DELETE di Mario è in corso: né la sua X né quella di Luigi aprono una conferma (useInvio scarterebbe in silenzio la seconda)
+    expect(xMario.disabled).toBe(true);
+    expect(xLuigi.disabled).toBe(true);
+    fireEvent.click(xLuigi);
+    expect(screen.queryByRole("dialog")).toBeNull();
     expect(anagrafe.removeGiocatore).toHaveBeenCalledTimes(1);
     await act(async () => { risposta.ok(); });
     await waitFor(() => expect(screen.queryByRole("button", { name: "Elimina Mario Rossi" })).toBeNull());
-    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull(); // né un messaggio di «non trovato» né altro
+    // Finita la prima, la X di Luigi torna attiva e si elimina anche lui
+    expect((screen.getByRole("button", { name: "Elimina Luigi Rossi" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("lo stesso vale per le card delle squadre", async () => {
+    anagrafe.listSquadre.mockResolvedValue([squadra("s1", "Ballers"), squadra("s2", "Falchi")]);
+    const risposta = differita<void>();
+    anagrafe.removeSquadra.mockReturnValueOnce(risposta.p);
+    apri("/anagrafe");
+    fireEvent.click(await screen.findByRole("tab", { name: /Squadre/ }));
+    const xBallers = await screen.findByRole("button", { name: "Elimina Ballers" }) as HTMLButtonElement;
+    const xFalchi = screen.getByRole("button", { name: "Elimina Falchi" }) as HTMLButtonElement;
+    fireEvent.click(xBallers);
+    conferma();
+    expect(xBallers.disabled).toBe(true);
+    expect(xFalchi.disabled).toBe(true);
+    fireEvent.click(xFalchi);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(anagrafe.removeSquadra).toHaveBeenCalledTimes(1);
+    await act(async () => { risposta.ok(); });
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Elimina Ballers" })).toBeNull());
+    expect((screen.getByRole("button", { name: "Elimina Falchi" }) as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("registrazione rifiutata dal server: i dati restano nel form; al nuovo tentativo riuscito il form si chiude", async () => {
