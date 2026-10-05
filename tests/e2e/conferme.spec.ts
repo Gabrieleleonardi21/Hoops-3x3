@@ -50,7 +50,7 @@ test("«Elimina lega» chiede conferma con la finestra dell'app, non con quella 
 
   await page.getByRole("button", { name: "Elimina lega Lega da eliminare" }).click();
   const finestra = page.getByRole("dialog", { name: "Eliminare la lega?" });
-  await expect(finestra).toContainText("Verrà eliminata la lega «Lega da eliminare» con 0 tappe, squadre e risultati compresi.");
+  await expect(finestra).toContainText("Verrà eliminata la lega «Lega da eliminare», che non ha tappe.");
 
   // «Annulla»: la lega resta nell'elenco
   await finestra.getByRole("button", { name: "Annulla" }).click();

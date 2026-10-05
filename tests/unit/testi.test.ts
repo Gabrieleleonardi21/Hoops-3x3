@@ -11,11 +11,11 @@ describe("conteggio: il numero con il nome al singolare o al plurale", () => {
 });
 
 describe("testi di ciò che si perde eliminando una lega o una voce dell'anagrafe", () => {
-  it("lega: dice quante tappe, con squadre e risultati", () => {
+  it("lega: dice quante tappe, con squadre e risultati; una lega vuota lo dice senza giri di parole", () => {
     const lega = (nTappe: number): LegaMeta => ({ id: "l1", nome: "Estate", ts: 1, nTappe });
     expect(perditaLega(lega(2))).toBe("Verrà eliminata la lega «Estate» con 2 tappe, squadre e risultati compresi.");
     expect(perditaLega(lega(1))).toBe("Verrà eliminata la lega «Estate» con 1 tappa, squadre e risultati compresi.");
-    expect(perditaLega(lega(0))).toBe("Verrà eliminata la lega «Estate» con 0 tappe, squadre e risultati compresi.");
+    expect(perditaLega(lega(0))).toBe("Verrà eliminata la lega «Estate», che non ha tappe.");
   });
 
   it("giocatore: sparisce dall'anagrafe condivisa e dai roster", () => {

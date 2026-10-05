@@ -11,6 +11,7 @@ export function conteggio(n: number, singolare: string, plurale: string): string
 
 /** Eliminare una lega cancella le sue tappe: si dice quante sono (l'elenco delle leghe non carica i risultati) */
 export function perditaLega(m: LegaMeta): string {
+  if (m.nTappe === 0) return `Verrà eliminata la lega «${m.nome}», che non ha tappe.`;
   return `Verrà eliminata la lega «${m.nome}» con ${conteggio(m.nTappe, "tappa", "tappe")}, squadre e risultati compresi.`;
 }
 
