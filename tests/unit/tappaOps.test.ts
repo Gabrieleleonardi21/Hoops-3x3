@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   sorteggia, registraRisultato, registraRisultatoBracket, generaFasiDirette, concludi,
   aggiungiSquadra, rimuoviSquadra, impostaNumeroGironi, perditaRisultati, annullaRisultato, rinominaTappa,
-  erroreLimitiTappa, creaTappa,
+  erroreLimitiTappa, erroreTestiTappa, creaTappa,
 } from "../../src/domain/tappaOps";
 import type { Esito } from "../../src/domain/tappaOps";
 import type { Tappa } from "../../src/types";
@@ -497,5 +497,35 @@ describe("creazione della tappa: stessi limiti per interfaccia e Coach (R8)", ()
 
   it("rifiuta una data che il server non accetterebbe: la tappa non si potrebbe mai salvare", () => {
     expect(errore(creaTappa({ ...dati(8, 2), data: "14/06/2026" }))).toMatch(/aaaa-mm-gg/);
+  });
+});
+
+describe("limiti dei testi di una tappa: gli stessi per la creazione e per l'import di una lega", () => {
+  const testi = { nome: "Napoli Open", luogo: "Napoli", data: "2026-07-01" };
+  const limiti = (cambia: Partial<typeof testi>) => erroreTestiTappa({ ...testi, ...cambia });
+
+  it("nome fino a 120 caratteri, luogo fino a 160 e data vuota o aaaa-mm-gg, contando senza gli spazi ai lati", () => {
+    expect(limiti({})).toBeNull();
+    expect(limiti({ nome: ` ${"N".repeat(120)} ` })).toBeNull();
+    expect(limiti({ nome: "N".repeat(121) })).toBe("Il nome della tappa può avere al massimo 120 caratteri.");
+    expect(limiti({ luogo: "L".repeat(160) })).toBeNull();
+    expect(limiti({ luogo: "L".repeat(161) })).toBe("Il luogo può avere al massimo 160 caratteri.");
+    expect(limiti({ data: "" })).toBeNull();
+    expect(limiti({ data: "14/06/2026" })).toBe("La data deve essere vuota oppure nel formato aaaa-mm-gg (per esempio 2026-06-14).");
+  });
+
+  it("non guarda né le squadre né i gironi: sono i limiti di creazione, che restano in erroreLimitiTappa", () => {
+    // Una squadra e cinque gironi: la creazione li rifiuta, i soli testi no
+    expect(erroreLimitiTappa(1, 5, testi)).toMatch(/da 2 a 64 squadre/);
+    expect(erroreTestiTappa(testi)).toBeNull();
+  });
+
+  it("la creazione dà gli stessi messaggi, dopo quelli di squadre e gironi", () => {
+    for (const cambia of [{ nome: "N".repeat(121) }, { luogo: "L".repeat(161) }, { data: "14/06/2026" }]) {
+      expect(erroreLimitiTappa(8, 2, { ...testi, ...cambia })).toBe(limiti(cambia));
+    }
+    // Con squadre e testi sbagliati insieme il primo messaggio resta quello delle squadre, come prima
+    expect(erroreLimitiTappa(1, 1, { ...testi, nome: "N".repeat(121) })).toMatch(/da 2 a 64 squadre/);
+    expect(erroreLimitiTappa(8, 5, { ...testi, nome: "N".repeat(121) })).toMatch(/Numero di gironi non valido/);
   });
 });

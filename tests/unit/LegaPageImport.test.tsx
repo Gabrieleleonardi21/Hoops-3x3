@@ -103,6 +103,16 @@ describe("LegaPage: «Importa JSON» da ospite", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
+  it("una tappa vecchia, con più gironi di metà delle squadre, si ripristina com'era", async () => {
+    apriLega(ospite);
+    // 4 squadre e 3 gironi: la creazione ne ammette al massimo 2, ma l'import è un ripristino e accetta ciò che accetta il server
+    scegli(fileDi(testoFileLega("Lega vecchia", [{ ...nuovaTappa("Tappa vecchia"), nGironi: 3 }])));
+    await screen.findByText("Tappa vecchia");
+    expect(store().legaName).toBe("Lega vecchia");
+    expect(store().tappe[0].nGironi).toBe(3);
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   it("un file che non è JSON: il motivo compare nella pagina e la lega resta com'era", async () => {
     apriLega(ospite);
     scegli(fileDi("{ non json"));

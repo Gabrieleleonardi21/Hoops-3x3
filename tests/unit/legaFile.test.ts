@@ -230,19 +230,38 @@ describe("leggiFileLega: limiti del server, con un messaggio al posto del 400", 
     expect(errore(leggi({ nome: "N".repeat(121), tappe: [] }))).toBe("nome: il nome della lega può avere al massimo 120 caratteri");
   });
 
-  it("una tappa fuori dai limiti di creazione (squadre e gironi) è rifiutata come lo sarebbe dall'interfaccia", () => {
-    const unaSquadra = { nome: "T", squadre: [{ id: "s1", nome: "Uno" }] };
-    expect(errore(leggi({ nome: "L", tappe: [unaSquadra] }))).toBe("tappe[0]: Una tappa ha da 2 a 64 squadre.");
-    const troppiGironi = { ...tappaCompleta("x"), nGironi: 3 };
-    expect(errore(leggi({ nome: "L", tappe: [troppiGironi] })))
-      .toBe("tappe[0]: Numero di gironi non valido: con 4 squadre deve essere un intero da 1 a 2.");
-  });
-
   it("le regole sono numeri interi da 1 in su (RegoleDTO)", () => {
     expect(errore(leggi({ nome: "L", tappe: [{ ...tappaMinima(), regole: { target: 0 } }] })))
       .toBe("tappe[0].regole.target: deve essere un numero intero da 1 in su");
     expect(errore(leggi({ nome: "L", tappe: [{ ...tappaMinima(), regole: { shot: 12.5 } }] })))
       .toBe("tappe[0].regole.shot: deve essere un numero intero da 1 in su");
+  });
+});
+
+describe("leggiFileLega: un ripristino non applica i limiti di creazione", () => {
+  it("una tappa esportata con la vecchia logica, con più gironi di metà delle squadre, torna com'era", () => {
+    // 4 squadre: oggi l'interfaccia ammette al massimo 2 gironi, ma le versioni precedenti lasciavano scrivere qualsiasi numero
+    const vecchia = { ...tappaCompleta(uid(), "Tappa vecchia"), nGironi: 3 };
+    const letta = lega(leggi({ nome: "L", tappe: [vecchia] }));
+    expect(letta.tappe[0].nGironi).toBe(3);
+    expect(senzaId(letta.tappe)).toEqual(senzaId([vecchia]));
+  });
+
+  it.each([
+    ["una sola squadra", { squadre: [{ id: "s1", nome: "Uno" }] }],
+    ["nessuna squadra", { squadre: [] }],
+    ["più di 64 squadre", { squadre: Array.from({ length: 70 }, (_, i) => ({ id: `s${i}`, nome: `Squadra ${i}` })) }],
+    ["un numero di gironi non intero (FD-9: «2,5» arrivava come 2.5)", { nGironi: 2.5 }],
+  ])("%s non blocca l'import: sono limiti di creazione, non del server", (_caso, cambia) => {
+    const letta = lega(leggi({ nome: "L", tappe: [{ ...tappaMinima(), ...cambia }] }));
+    expect(letta.tappe).toHaveLength(1);
+    expect(letta.tappe[0]).toMatchObject(cambia);
+  });
+
+  it("restano i limiti dei campi del server: nome, luogo e data", () => {
+    // Stessa tappa vecchia di sopra, con il nome troppo lungo
+    const vecchia = { ...tappaCompleta(uid(), "N".repeat(121)), nGironi: 3 };
+    expect(errore(leggi({ nome: "L", tappe: [vecchia] }))).toBe("tappe[0]: Il nome della tappa può avere al massimo 120 caratteri.");
   });
 });
 

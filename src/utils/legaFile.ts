@@ -6,7 +6,7 @@
  *  il loro valore predefinito e gli id delle tappe sono sempre nuovi. */
 import { z } from "zod";
 import { DEFAULT_RULES } from "../constants/rules";
-import { erroreLimitiTappa } from "../domain/tappaOps";
+import { erroreTestiTappa } from "../domain/tappaOps";
 import { uid } from "./uid";
 import type { Lega, Tappa } from "../types";
 
@@ -114,9 +114,10 @@ const tappaSchema: z.ZodType<Omit<Tappa, "id">, z.ZodTypeDef, unknown> = z
     bracket: z.array(matchTabelloneSchema).nullish().transform((b) => b ?? undefined),
   })
   .superRefine((t, ctx) => {
-    // Gli stessi limiti di una tappa creata dall'interfaccia o dal Coach (da 2 a 64 squadre, gironi possibili e i limiti
-    // del server per nome, luogo e data), in tappaOps: oltre quelli la tappa sarebbe rifiutata a ogni salvataggio
-    const motivo = erroreLimitiTappa(t.squadre.length, t.nGironi, t);
+    // Solo i limiti dei campi del server (nome, luogo e data, in tappaOps): oltre quelli la tappa sarebbe rifiutata a ogni
+    // salvataggio. Non si applicano i limiti di creazione (da 2 a 64 squadre, gironi tra 1 e metà delle squadre): l'import è
+    // un ripristino e deve accettare ciò che accetta il server, anche una tappa fatta con le regole delle versioni precedenti
+    const motivo = erroreTestiTappa(t);
     if (motivo) ctx.addIssue({ code: z.ZodIssueCode.custom, message: motivo });
   });
 
