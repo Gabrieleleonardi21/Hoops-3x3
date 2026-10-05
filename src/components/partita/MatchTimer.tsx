@@ -1,11 +1,59 @@
 /** Timer di gara per il 3x3: countdown 10 min, shot clock 12 s, punteggio live.
  *  Modale a tutto schermo, usato dal tavolo durante la partita. */
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
 
-const GAME_SECS  = 600; // 10 minuti
-const SHOT_SECS  = 12;  // shot clock FIBA 3x3
+const GAME_MS = 600_000; // 10 minuti
+const SHOT_MS = 12_000;  // shot clock FIBA 3x3
+
+/** Un conto alla rovescia, in millisecondi. In marcia tiene l'istante in cui finisce (`fine`), in pausa il tempo che gli resta
+ *  (`resto`): quanto manca si calcola sempre dall'orologio e mai contando gli scatti del timer, che con la scheda in secondo
+ *  piano o il telefono bloccato rallentano o non arrivano. */
+type Cronometro = { fine: number } | { resto: number };
+
+/** Il cronometro di gara e quello del possesso, letti all'istante `ora` (quello dell'ultimo scatto o dell'ultima azione) */
+interface Tempo { gara: Cronometro; possesso: Cronometro; ora: number }
+
+/** Ms che mancano alla fine di `c` all'istante `ora`. Scaduto, il cronometro di gara resta a 0; il possesso, che ha un `periodo`,
+ *  ricomincia da capo nell'istante in cui è scaduto: così, anche dopo scatti mancati, mostra il punto giusto del suo ciclo */
+function mancano(c: Cronometro, ora: number, periodo?: number): number {
+  if (!("fine" in c)) return c.resto;
+  if (ora < c.fine) return c.fine - ora;
+  if (periodo === undefined) return 0;
+  return periodo - ((ora - c.fine) % periodo);
+}
+
+/** `c` in marcia da `ora` (se lo è già, com'è) */
+function avviato(c: Cronometro, ora: number): Cronometro {
+  if ("fine" in c) return c;
+  return { fine: ora + c.resto };
+}
+
+/** Tutti e due i cronometri a durata intera e fermi */
+const daCapo = (durata: number, periodo: number): Tempo => ({ gara: { resto: durata }, possesso: { resto: periodo }, ora: 0 });
+
+/** Parte tutto da `ora` */
+const avviati = (t: Tempo, ora: number): Tempo => ({ gara: avviato(t.gara, ora), possesso: avviato(t.possesso, ora), ora });
+
+/** Si ferma tutto nell'istante `quando`, tenendo il tempo che resta a ciascuno */
+function fermati(t: Tempo, quando: number, periodo: number): Tempo {
+  return { gara: { resto: mancano(t.gara, quando) }, possesso: { resto: mancano(t.possesso, quando, periodo) }, ora: quando };
+}
+
+/** Lo scatto del timer: legge l'orologio e, se il tempo di gara è finito, ferma tutto nell'istante della fine
+ *  (non in quello, un po' dopo, dello scatto: con la scheda in secondo piano può essere molto dopo) */
+function scattato(t: Tempo, ora: number, periodo: number): Tempo {
+  if ("fine" in t.gara && ora >= t.gara.fine) return fermati(t, t.gara.fine, periodo);
+  return { ...t, ora };
+}
+
+/** Il possesso ricomincia da un periodo intero; continua a correre se correva */
+function possessoRiportato(t: Tempo, ora: number, periodo: number): Tempo {
+  let possesso: Cronometro = { resto: periodo };
+  if ("fine" in t.possesso) possesso = { fine: ora + periodo };
+  return { ...t, possesso, ora };
+}
 
 function fmt(s: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
@@ -16,47 +64,39 @@ export function MatchTimer({ teamA, teamB, onClose }: {
   teamB?: string;
   onClose: () => void;
 }) {
-  const [timeLeft,  setTimeLeft]  = useState(GAME_SECS);
-  const [shotClock, setShotClock] = useState(SHOT_SECS);
-  const [running,   setRunning]   = useState(false);
-  const [scoreA,    setScoreA]    = useState(0);
-  const [scoreB,    setScoreB]    = useState(0);
-  const [overtime,  setOvertime]  = useState(false);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [tempo,  setTempo]  = useState(() => daCapo(GAME_MS, SHOT_MS));
+  const [scoreA, setScoreA] = useState(0);
+  const [scoreB, setScoreB] = useState(0);
 
-  // Gestione tick principale
+  const inMarcia = "fine" in tempo.gara || "fine" in tempo.possesso;
+  // Secondi interi: un secondo conta finché non è passato per intero (il possesso mostra 12, 11, … 1 e poi ricomincia da 12)
+  const timeLeft  = Math.ceil(mancano(tempo.gara, tempo.ora) / 1000);
+  const shotClock = Math.ceil(mancano(tempo.possesso, tempo.ora, SHOT_MS) / 1000);
+  const overtime  = timeLeft === 0;
+
+  // Mentre un cronometro corre, uno scatto ogni 100 ms ridisegna lo schermo. Lo scatto non conta il tempo: legge l'orologio
   useEffect(() => {
-    if (!running) {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      return;
-    }
-    intervalRef.current = setInterval(() => {
-      setTimeLeft((t) => {
-        if (t <= 1) {
-          setRunning(false);
-          setOvertime(true);
-          return 0;
-        }
-        return t - 1;
-      });
-      setShotClock((s) => {
-        if (s <= 1) return SHOT_SECS; // auto-reset shot clock
-        return s - 1;
-      });
-    }, 1000);
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [running]);
+    if (!inMarcia) return;
+    const id = setInterval(() => {
+      const adesso = Date.now();
+      setTempo((t) => scattato(t, adesso, SHOT_MS));
+    }, 100);
+    return () => clearInterval(id);
+  }, [inMarcia]);
 
-  const resetAll = () => {
-    setRunning(false);
-    setTimeLeft(GAME_SECS);
-    setShotClock(SHOT_SECS);
-    setScoreA(0);
-    setScoreB(0);
-    setOvertime(false);
+  const avviaOFerma = () => {
+    const adesso = Date.now();
+    if (inMarcia) setTempo(fermati(tempo, adesso, SHOT_MS));
+    else setTempo(avviati(tempo, adesso));
   };
 
-  const resetShot = () => setShotClock(SHOT_SECS);
+  const resetAll = () => {
+    setTempo(daCapo(GAME_MS, SHOT_MS));
+    setScoreA(0);
+    setScoreB(0);
+  };
+
+  const resetShot = () => setTempo(possessoRiportato(tempo, Date.now(), SHOT_MS));
   const addPoint  = (team: "A" | "B", pts: number) => {
     if (team === "A") setScoreA((s) => s + pts);
     else              setScoreB((s) => s + pts);
@@ -129,8 +169,8 @@ export function MatchTimer({ teamA, teamB, onClose }: {
               {scoreA >= 21 ? (teamA ?? "A") : scoreB >= 21 ? (teamB ?? "B") : "Fine tempo"} — Partita conclusa
             </span>
           ) : (
-            <Button onClick={() => setRunning((r) => !r)} className={`h-12 px-8 text-xl ${running ? "bg-loss text-chalk hover:bg-loss" : ""}`}>
-              {running ? "STOP" : "START"}
+            <Button onClick={avviaOFerma} className={`h-12 px-8 text-xl ${inMarcia ? "bg-loss text-chalk hover:bg-loss" : ""}`}>
+              {inMarcia ? "STOP" : "START"}
             </Button>
           )}
           <Button variant="link" className="text-chalk-muted" onClick={resetAll}>Reset tutto</Button>
