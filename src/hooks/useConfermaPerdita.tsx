@@ -1,7 +1,11 @@
-/** Conferma prima delle azioni che cancellano i risultati di una tappa (nuovo sorteggio, cambi di struttura).
- *  `perdita` dice che cosa si perderebbe adesso (null = niente). `chiedi(titolo, azione)` esegue subito l'azione se non
- *  c'è niente da perdere; altrimenti apre la finestra di conferma, che il componente mostra mettendo `finestra` nel
- *  suo JSX, e l'azione parte solo con «Conferma». */
+/** Conferma prima delle azioni che fanno perdere qualcosa: i risultati di una tappa (nuovo sorteggio, cambi di struttura), ma
+ *  anche le eliminazioni (tappa, tabellone, lega, voci dell'anagrafe) e la riapertura di una tappa pubblicata.
+ *  `perdita` dice che cosa si perderebbe adesso, ed è il testo della finestra. Per chiedere sempre basta una `perdita` che non
+ *  è mai null; per chiedere solo quando c'è qualcosa da perdere (nuovo sorteggio, rimuovi squadra) restituisce null quando non
+ *  c'è niente. `chiedi(titolo, azione)` esegue subito l'azione se la perdita è null; altrimenti apre la finestra di conferma,
+ *  che il componente mostra mettendo `finestra` nel suo JSX (è null finché nessuna richiesta è aperta), e l'azione parte solo
+ *  con «Conferma»: «Annulla», Esc, lo sfondo e la X non fanno niente. Con un invio al server la conferma si chiede prima di
+ *  useInvio.esegui, così «Annulla» non manda niente. */
 import { useState } from "react";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 
