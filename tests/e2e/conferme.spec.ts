@@ -63,3 +63,34 @@ test("«Elimina lega» chiede conferma con la finestra dell'app, non con quella 
   await expect(page.getByText(/Nessuna lega ancora/)).toBeVisible();
   expect(dialoghiDelBrowser).toEqual([]);
 });
+
+test("«Numero gironi» non cancella nulla mentre si scrive né ridigitando lo stesso valore; un cambio vero con risultati chiede conferma", async ({ page }) => {
+  await ospiteConLega(page);
+  await page.getByRole("button", { name: /Crea la tappa/i }).click();
+  await page.getByRole("button", { name: /Sorteggio casuale/i }).click();
+  await page.locator("input.scorein").nth(0).fill("21");
+  await page.locator("input.scorein").nth(1).fill("15");
+  await page.getByRole("button", { name: /Salva risultato/i }).first().click();
+  await expect(page.getByText("21", { exact: true }).first()).toBeVisible();
+
+  await page.getByRole("button", { name: /Modifica/ }).click();
+  const gironi = page.getByLabel("Numero gironi");
+
+  // Mentre si scrive, e ridigitando lo stesso numero (2), sorteggio e risultato restano: nessuna finestra
+  await gironi.fill("");
+  await gironi.fill("2");
+  await gironi.press("Tab");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Girone A" })).toBeVisible();
+  await expect(page.getByText("21", { exact: true }).first()).toBeVisible();
+
+  // Un numero diverso, con un risultato registrato, chiede conferma; «Annulla» lascia tutto com'era
+  await gironi.fill("1");
+  await gironi.press("Tab");
+  const finestra = page.getByRole("dialog", { name: "Cambiare il numero di gironi?" });
+  await expect(finestra).toContainText("Verranno eliminati il sorteggio e 1 risultato.");
+  await finestra.getByRole("button", { name: "Annulla" }).click();
+  await expect(gironi).toHaveValue("2");
+  await expect(page.getByRole("heading", { name: "Girone A" })).toBeVisible();
+  await expect(page.getByText("21", { exact: true }).first()).toBeVisible();
+});
