@@ -220,11 +220,13 @@ export const useAppStore = create<AppState>((set, get) => {
     set({ leghe: s.leghe.map((m) => m.id === s.legaId ? { ...m, nTappe: s.tappe.length, ts: Date.now() } : m) });
   };
 
-  // Chiusura pagina: le versioni in attesa partono subito con keepalive (POST per le tappe non ancora create).
-  // Restano in coda: se la pagina torna dalla cache del browser vengono rinviate, e rinviarle non fa danni
+  // Chiusura pagina: le versioni non ancora confermate dal server partono subito con keepalive (POST per le tappe non
+  // ancora create), comprese quelle di una richiesta in corso, che il browser interrompe chiudendo la pagina. Restano in
+  // coda: se la pagina torna dalla cache del browser vengono rinviate, e rinviarle non fa danni (la PUT sostituisce
+  // tutta la tappa, una POST già arrivata riceve un 409)
   if (typeof window !== "undefined") {
     window.addEventListener("pagehide", () => {
-      for (const t of coda.inAttesa()) {
+      for (const t of coda.nonConfermate()) {
         const legaId = daCreare.get(t.id);
         if (legaId === undefined) {
           legheApi.putTappa(t, true).catch(() => {});

@@ -22,6 +22,7 @@ interface Opzioni {
 
 interface Voce {
   ultima: Tappa | null;                        // versione più recente ancora da salvare
+  versioneInVolo: Tappa | null;                // versione che la richiesta in corso sta salvando
   timer: ReturnType<typeof setTimeout> | null; // debounce oppure attesa prima di riprovare
   inVolo: Promise<void> | null;                // richiesta in corso
   tentativi: number;                           // tentativi falliti di fila
@@ -35,7 +36,7 @@ export function createSaveQueue(opz: Opzioni) {
   const voce = (id: string): Voce => {
     let v = voci.get(id);
     if (!v) {
-      v = { ultima: null, timer: null, inVolo: null, tentativi: 0 };
+      v = { ultima: null, versioneInVolo: null, timer: null, inVolo: null, tentativi: 0 };
       voci.set(id, v);
     }
     return v;
@@ -61,6 +62,7 @@ export function createSaveQueue(opz: Opzioni) {
     if (!t) return Promise.resolve();
 
     v.ultima = null;
+    v.versioneInVolo = t;
     let riparti = true; // a richiesta finita, invia subito un'eventuale versione più nuova
     const richiesta = opz.salva(t).then(
       () => { v.tentativi = 0; },
@@ -80,6 +82,7 @@ export function createSaveQueue(opz: Opzioni) {
       },
     ).then(() => {
       v.inVolo = null;
+      v.versioneInVolo = null;
       notifica();
       if (riparti && v.ultima) return invia(id);
     });
@@ -115,10 +118,21 @@ export function createSaveQueue(opz: Opzioni) {
       notifica();
     },
 
-    /** Versioni non ancora inviate (usato alla chiusura della pagina per l'invio con keepalive) */
+    /** Versioni non ancora inviate */
     inAttesa(): Tappa[] {
       return [...voci.values()].flatMap((v) => {
         if (v.ultima) return [v.ultima];
+        return [];
+      });
+    },
+
+    /** Per ogni tappa la versione più recente non ancora confermata dal server: quella in attesa oppure, se non ce n'è
+     *  una più nuova, quella della richiesta in corso. Serve alla chiusura della pagina, che interrompe anche le
+     *  richieste in corso: tutte vanno rinviate con keepalive, una sola versione per tappa */
+    nonConfermate(): Tappa[] {
+      return [...voci.values()].flatMap((v) => {
+        const t = v.ultima ?? v.versioneInVolo;
+        if (t) return [t];
         return [];
       });
     },

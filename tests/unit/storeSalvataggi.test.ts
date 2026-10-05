@@ -138,6 +138,33 @@ describe("store: creazione e modifica delle tappe passano dalla coda dei salvata
     expect(api.putTappa).toHaveBeenCalledWith(expect.objectContaining({ id: "t1", nome: "Finale" }), true);
     expect(api.addTappa).toHaveBeenCalledWith("l1", expect.objectContaining({ id: "t2" }), true);
   });
+
+  it("alla chiusura della pagina ripartono con keepalive anche le versioni con la richiesta ancora in volo", async () => {
+    useAppStore.setState({ tappe: [tappa("t1")] });
+    // Rete lenta al campetto: PUT e POST partono e non rispondono prima della chiusura, che le interrompe
+    api.putTappa.mockReturnValueOnce(differita<Tappa>().p);
+    api.addTappa.mockReturnValueOnce(differita<Tappa>().p);
+    store().updateTappa("t1", { nome: "Finale" });
+    store().addTappa(tappa("t2"));
+    await vi.advanceTimersByTimeAsync(400);
+    window.dispatchEvent(new Event("pagehide"));
+    expect(api.putTappa).toHaveBeenCalledTimes(2);
+    expect(api.putTappa).toHaveBeenLastCalledWith(expect.objectContaining({ id: "t1", nome: "Finale" }), true);
+    expect(api.addTappa).toHaveBeenCalledTimes(2);
+    expect(api.addTappa).toHaveBeenLastCalledWith("l1", expect.objectContaining({ id: "t2" }), true);
+  });
+
+  it("con una PUT in volo e una versione più nuova in attesa, alla chiusura riparte solo la più nuova", async () => {
+    useAppStore.setState({ tappe: [tappa("t1")] });
+    api.putTappa.mockReturnValueOnce(differita<Tappa>().p);
+    store().updateTappa("t1", { nome: "Semifinale" });
+    await vi.advanceTimersByTimeAsync(400);       // la PUT di «Semifinale» resta in volo
+    store().updateTappa("t1", { nome: "Finale" });
+    window.dispatchEvent(new Event("pagehide"));
+    // La PUT sostituisce tutta la tappa: due invii in parallelo potrebbero arrivare con la versione vecchia per ultima
+    expect(api.putTappa).toHaveBeenCalledTimes(2);
+    expect(api.putTappa).toHaveBeenLastCalledWith(expect.objectContaining({ nome: "Finale" }), true);
+  });
 });
 
 describe("riaprire una lega con salvataggi in sospeso", () => {
