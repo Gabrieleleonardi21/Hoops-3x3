@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { Mock } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
 import App from "../../src/App";
 import { ErrorBoundary } from "../../src/components/ui/ErrorBoundary";
 import { GiocatoreForm } from "../../src/components/anagrafe/GiocatoreForm";
@@ -13,6 +13,7 @@ import { AnagrafePage } from "../../src/pages/AnagrafePage";
 import { ArchivioPage } from "../../src/pages/ArchivioPage";
 import { GiocatorePage } from "../../src/pages/GiocatorePage";
 import { LegheListPage } from "../../src/pages/LegheListPage";
+import { TappaViewPage } from "../../src/pages/TappaViewPage";
 import { useAppStore, SESSION_KEY } from "../../src/stores/useAppStore";
 import { useAnagrafeStore } from "../../src/stores/useAnagrafeStore";
 import { anagrafeApi } from "../../src/services/anagrafeApi";
@@ -309,9 +310,10 @@ describe("Anagrafe non caricata: l'errore si distingue dal «vuoto» (FS-4)", ()
   });
 });
 
-describe("Archivio non caricato: l'errore si distingue dal «vuoto» (FS-4)", () => {
-  const pubblicata = (): PubTappa => ({ tappa: { ...tappaValida("p1", "Finale di Roma") }, lega: "Estate", autore: "Anna", autoreId: "u1", ts: 1 });
+/** Una tappa pubblicata nell'archivio del circuito */
+const pubblicata = (): PubTappa => ({ tappa: { ...tappaValida("p1", "Finale di Roma") }, lega: "Estate", autore: "Anna", autoreId: "u1", ts: 1 });
 
+describe("Archivio non caricato: l'errore si distingue dal «vuoto» (FS-4)", () => {
   it("server che risponde errore: compare il messaggio con «Riprova», non «L'archivio è vuoto»", async () => {
     archivio.list.mockRejectedValue(new ApiError(500, "Errore interno del server"));
     apri("/archivio");
@@ -337,6 +339,80 @@ describe("Archivio non caricato: l'errore si distingue dal «vuoto» (FS-4)", ()
     archivio.list.mockResolvedValue([]);
     apri("/archivio");
     expect(await screen.findByText(/L'archivio è vuoto/)).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+});
+
+describe("Pagina pubblica di una tappa: il server in errore non è «non trovata» (FS-4)", () => {
+  const ID = "123e4567-e89b-42d3-a456-426614174000";
+
+  /** Apre la pagina pubblica di questa tappa, senza bisogno di un utente (è raggiungibile da link) */
+  function apriPubblica(id: string = ID) {
+    render(
+      <MemoryRouter initialEntries={[`/tappa/${id}`]}>
+        <Routes>
+          <Route path="/tappa/:id" element={<TappaViewPage />} />
+          <Route path="/archivio" element={<p>Pagina dell'archivio</p>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+  }
+
+  it("server che risponde errore: compare il motivo con «Riprova», non «Tappa non trovata»", async () => {
+    archivio.get.mockRejectedValue(new ApiError(503, "Servizio non disponibile"));
+    apriPubblica();
+    const avviso = await screen.findByRole("alert");
+    expect(avviso.textContent).toContain("Non è stato possibile caricare la tappa");
+    expect(avviso.textContent).toContain("Servizio non disponibile");
+    expect(screen.queryByText(/Tappa non trovata/)).toBeNull();
+    expect(screen.queryByText(/Sto caricando la tappa/)).toBeNull();
+  });
+
+  it("senza rete: lo stesso, con il motivo della rete; «Riprova» ricarica e mostra la tappa", async () => {
+    archivio.get.mockRejectedValueOnce(rete());
+    apriPubblica();
+    expect((await screen.findByRole("alert")).textContent).toContain("Server non raggiungibile");
+    archivio.get.mockResolvedValue(pubblicata());
+    fireEvent.click(screen.getByRole("button", { name: "Riprova" }));
+    expect(await screen.findByRole("heading", { name: "Finale di Roma" })).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(archivio.get).toHaveBeenCalledTimes(2);
+    expect(archivio.get).toHaveBeenLastCalledWith(ID);
+  });
+
+  it("404: «Tappa non trovata nell'archivio» come prima, con il link all'archivio e senza «Riprova»", async () => {
+    archivio.get.mockRejectedValue(new ApiError(404, "Tappa non trovata nell'archivio"));
+    apriPubblica();
+    expect(await screen.findByText(/Tappa non trovata nell'archivio\./)).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Vai all'archivio" })).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Riprova" })).toBeNull();
+  });
+
+  it("un id che non è un UUID è «non trovata» senza chiamare il server", async () => {
+    apriPubblica("non-un-uuid");
+    expect(await screen.findByText(/Tappa non trovata nell'archivio\./)).toBeTruthy();
+    expect(archivio.get).not.toHaveBeenCalled();
+  });
+
+  it("passando dalla cronologia a un id non valido l'errore della tappa di prima non resta", async () => {
+    /** Un pulsante che porta a un'altra tappa senza smontare la pagina, come i tasti avanti e indietro del browser */
+    function Altra() {
+      const navigate = useNavigate();
+      return <button onClick={() => navigate("/tappa/non-un-uuid")}>Altra tappa</button>;
+    }
+    archivio.get.mockRejectedValue(new ApiError(503, "Servizio non disponibile"));
+    render(
+      <MemoryRouter initialEntries={[`/tappa/${ID}`]}>
+        <Altra />
+        <Routes>
+          <Route path="/tappa/:id" element={<TappaViewPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await screen.findByRole("alert");
+    fireEvent.click(screen.getByRole("button", { name: "Altra tappa" }));
+    expect(await screen.findByText(/Tappa non trovata nell'archivio\./)).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
   });
 });

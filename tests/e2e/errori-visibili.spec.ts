@@ -53,3 +53,26 @@ test("archivio con il server in errore: messaggio con «Riprova», non «L'archi
   await avviso.getByRole("button", { name: "Riprova" }).click();
   await expect(page.getByText(/L'archivio è vuoto/)).toBeVisible();
 });
+
+test("pagina pubblica di una tappa con il server in errore: il motivo con «Riprova», non «Tappa non trovata»; con 404 sì", async ({ page }) => {
+  const id = "123e4567-e89b-42d3-a456-426614174000";
+  let risposta: "errore" | "mancante" = "errore";
+  await page.route(`**/api/archivio/${id}`, (route) => {
+    if (risposta === "errore") return route.fulfill(errore503);
+    return route.fulfill({
+      status: 404, contentType: "application/json",
+      body: JSON.stringify({ message: "Tappa non trovata nell'archivio", timestamp: "2026-10-05T10:00:00" }),
+    });
+  });
+  await page.goto(`/tappa/${id}`);
+  const avviso = page.getByRole("alert");
+  await expect(avviso).toContainText("Non è stato possibile caricare la tappa");
+  await expect(avviso).toContainText("Servizio non disponibile");
+  await expect(page.getByText(/Tappa non trovata/)).toHaveCount(0);
+
+  // Il server risponde 404: adesso sì, la tappa non c'è
+  risposta = "mancante";
+  await avviso.getByRole("button", { name: "Riprova" }).click();
+  await expect(page.getByText(/Tappa non trovata nell'archivio/)).toBeVisible();
+  await expect(page.getByRole("alert")).toHaveCount(0);
+});
