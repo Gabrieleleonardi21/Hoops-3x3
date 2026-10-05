@@ -128,13 +128,23 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
 7. TIMER DI GARA
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-- Modale a schermo intero utilizzabile dal tavolo durante la partita.
-- Countdown del tempo di gara (10:00 minuti FIBA 3x3).
-- Shot clock separato (12 secondi) con reset automatico a 0 e reset manuale.
+- Finestra utilizzabile dal tavolo durante la partita: si chiude con la X, con
+  Esc o con un clic sullo sfondo, come le altre finestre, e la pagina sotto non
+  scorre. Chiudendola si perdono punteggio e tempo.
+- Usa le regole della tappa: durata, punteggio di vittoria, secondi del possesso
+  e punti del supplementare (di default 10 minuti, 21 punti, 12 secondi e 2 punti).
+- Countdown del tempo di gara e shot clock separato, che ricomincia da solo a
+  ogni scadenza e si può azzerare a mano. Il tempo si calcola dall'orologio e
+  non dal numero di scatti del timer: con la scheda in secondo piano o il
+  telefono bloccato il cronometro non rallenta.
 - Punteggio live per entrambe le squadre con tasti +1, +2 e correzione −.
-- Rilevamento automatico del "game over":
-    • Tempo scaduto → passa in modalità supplementare (OT).
-    • Una squadra raggiunge 21 punti → partita conclusa.
+- Rilevamento automatico della fine della partita (i cronometri si fermano):
+    • Una squadra raggiunge il punteggio di vittoria → vince subito.
+    • Tempo scaduto → vince chi è avanti.
+    • Tempo scaduto in parità → supplementare (OT), senza cronometro di gara:
+      vince chi per primo fa i punti previsti da quando è partito, e il
+      punteggio di vittoria non vale più. «START» fa correre solo lo shot clock.
+  Togliendo un punto per errore la partita si riapre.
 - Indicatori visivi di urgenza: il contatore diventa rosso sotto i 60 secondi,
   lo shot clock rosso sotto i 4 secondi.
 - Il vincitore del team viene evidenziato in arancione durante la partita.
