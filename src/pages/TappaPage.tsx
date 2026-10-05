@@ -190,7 +190,7 @@ export function TappaPage() {
 
       <TappaConclusion onConcludi={h.concludi} />
 
-      {timerOpen && <MatchTimer onClose={() => setTimerOpen(false)} />}
+      {timerOpen && <MatchTimer regole={t.regole} onClose={() => setTimerOpen(false)} />}
       {elimina.finestra}
     </div>
   );

@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
-/** Il timer di gara: i cronometri si calcolano dall'orologio e non dal numero di scatti. Con il tempo finto (fake timers) si
- *  simula ciò che succede con la scheda in secondo piano o il telefono bloccato: gli scatti rallentano o non arrivano, l'orologio no. */
+/** Il timer di gara: usa le regole della tappa, calcola i cronometri dall'orologio (non dal numero di scatti) e gestisce il
+ *  supplementare. Con il tempo finto (fake timers) si simula ciò che succede con la scheda in secondo piano o il telefono
+ *  bloccato: gli scatti rallentano o non arrivano, l'orologio no. */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MatchTimer } from "../../src/components/partita/MatchTimer";
+import { DEFAULT_RULES } from "../../src/constants/rules";
+import type { Regole } from "../../src/types";
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -15,8 +18,8 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-function apri() {
-  return render(<MatchTimer onClose={() => {}} />);
+function apri(regole: Regole = DEFAULT_RULES) {
+  return render(<MatchTimer regole={regole} onClose={() => {}} />);
 }
 
 /** Fa passare `ms` di orologio con tutti gli scatti: la scheda è in primo piano */
@@ -28,8 +31,18 @@ const passaSenzaScatti = (ms: number) => vi.setSystemTime(Date.now() + ms);
 
 const premi = (nome: string) => fireEvent.click(screen.getByRole("button", { name: nome }));
 const mostra = (testo: string) => screen.getByText(testo);
+const manca = (testo: string | RegExp) => expect(screen.queryByText(testo)).toBeNull();
 /** Il cronometro di gara com'è scritto adesso: l'unico testo nella forma m:ss */
 const cronometro = () => screen.getByText(/^\d+:\d{2}$/).textContent;
+
+const A = 0;
+const B = 1;
+/** Segna `pt` punti alla squadra A o B: i pulsanti «+1» e «+2» sono in ordine A, B */
+const segna = (squadra: typeof A | typeof B, pt: "+1" | "+2") => fireEvent.click(screen.getAllByRole("button", { name: pt })[squadra]);
+
+/** Un minuto di gara: con 60 secondi si arriva allo scadere senza far girare 600 secondi di scatti */
+const BREVE: Regole = { ...DEFAULT_RULES, durata: 1 };
+const scadere = () => passa(60_000);
 
 describe("MatchTimer: il tempo si calcola dall'orologio, non dagli scatti", () => {
   it("dopo 30 secondi senza scatti il cronometro di gara mostra il valore giusto", () => {
@@ -99,5 +112,188 @@ describe("MatchTimer: il tempo si calcola dall'orologio, non dagli scatti", () =
     passa(2000);
     unmount();
     expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe("MatchTimer: usa le regole della tappa", () => {
+  const REGOLE_DELLA_TAPPA: Regole = { target: 11, durata: 5, ot: 3, shot: 24 };
+
+  it("parte con la durata e il possesso della tappa, non con 10 minuti e 12 secondi", () => {
+    apri(REGOLE_DELLA_TAPPA);
+    expect(cronometro()).toBe("5:00");
+    expect(mostra("24")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Reset 24s" })).toBeTruthy();
+  });
+
+  it("il possesso ricomincia dai secondi della tappa", () => {
+    apri(REGOLE_DELLA_TAPPA);
+    premi("START");
+    passa(26_000); // 24 secondi, poi ne passano 2 del ciclo dopo
+    expect(mostra("22")).toBeTruthy();
+  });
+
+  it("la partita finisce al punteggio di vittoria della tappa, non a 21", () => {
+    apri(REGOLE_DELLA_TAPPA);
+    for (let i = 0; i < 5; i++) segna(A, "+2"); // 10 punti: ne manca ancora uno
+    manca(/Partita conclusa/);
+    segna(A, "+1"); // 11
+    expect(mostra("Squadra A — Partita conclusa")).toBeTruthy();
+  });
+
+  it("il supplementare dice quanti punti servono secondo la tappa", () => {
+    apri({ ...REGOLE_DELLA_TAPPA, durata: 1 });
+    segna(A, "+2");
+    segna(B, "+2");
+    premi("START");
+    scadere();
+    expect(mostra("Supplementare: vince chi segna per primo 3 pt")).toBeTruthy();
+  });
+
+  it("con il possesso a 0 (dati vecchi dell'ospite) il timer non si rompe: vale almeno 1 secondo", () => {
+    apri({ ...DEFAULT_RULES, shot: 0 });
+    premi("START");
+    passa(2500);
+    manca(/NaN/);
+    expect(mostra("1")).toBeTruthy();
+  });
+});
+
+describe("MatchTimer: la partita si decide", () => {
+  const ATRE: Regole = { ...DEFAULT_RULES, target: 3 };
+
+  it("a tempo scaduto vince chi è avanti, e «OT» e «Partita conclusa» non compaiono insieme", () => {
+    apri(BREVE);
+    segna(A, "+2");
+    premi("START");
+    scadere();
+    expect(mostra("Squadra A — Partita conclusa")).toBeTruthy();
+    expect(cronometro()).toBe("0:00");
+    manca("OT");
+    expect(screen.queryByRole("button", { name: "START" })).toBeNull();
+  });
+
+  it("vince anche la squadra B, se è avanti", () => {
+    apri(BREVE);
+    segna(A, "+1");
+    segna(B, "+2");
+    premi("START");
+    scadere();
+    expect(mostra("Squadra B — Partita conclusa")).toBeTruthy();
+  });
+
+  it("in parità a tempo scaduto parte il supplementare: «OT», niente «Partita conclusa», e si può avviare", () => {
+    apri(BREVE);
+    segna(A, "+1");
+    segna(B, "+1");
+    premi("START");
+    scadere();
+    expect(mostra("OT")).toBeTruthy();
+    expect(mostra("Supplementare: vince chi segna per primo 2 pt")).toBeTruthy();
+    manca(/Partita conclusa/);
+    expect(screen.getByRole("button", { name: "START" })).toBeTruthy();
+  });
+
+  it("nel supplementare vince chi segna per primo i punti previsti, contati da quando il supplementare parte", () => {
+    apri({ ...BREVE, ot: 3 });
+    segna(A, "+2");
+    segna(A, "+2");
+    segna(B, "+2");
+    segna(B, "+2"); // 4 pari
+    premi("START");
+    scadere();
+    segna(A, "+2"); // 2 punti del supplementare: con 3 da fare non basta, anche se il totale è già 6
+    manca(/Partita conclusa/);
+    segna(B, "+2"); // 2 pari nel supplementare
+    manca(/Partita conclusa/);
+    segna(A, "+1"); // il terzo punto di A, per primo
+    expect(mostra("Squadra A — Partita conclusa")).toBeTruthy();
+  });
+
+  it("nel supplementare il punteggio di vittoria non vale più: servono comunque i punti del supplementare", () => {
+    apri({ ...BREVE, target: 3 });
+    segna(A, "+2");
+    segna(B, "+2");
+    premi("START");
+    scadere();
+    segna(A, "+1"); // 3 a 2: A è al punteggio di vittoria, ma nel supplementare ha fatto un punto solo
+    manca(/Partita conclusa/);
+    segna(A, "+1");
+    expect(mostra("Squadra A — Partita conclusa")).toBeTruthy();
+  });
+
+  it("una correzione prima del primo punto del supplementare corregge il tempo regolamentare: il supplementare non è ancora partito", () => {
+    apri(BREVE);
+    segna(A, "+1");
+    segna(B, "+1");
+    premi("START");
+    scadere(); // 1 pari: supplementare
+    fireEvent.click(screen.getByRole("button", { name: "Togli un punto a Squadra A" })); // A non aveva segnato: 0 a 1
+    expect(mostra("Squadra B — Partita conclusa")).toBeTruthy();
+    segna(A, "+1"); // di nuovo 1 pari: supplementare
+    manca(/Partita conclusa/);
+    segna(A, "+1"); // il primo punto del supplementare (2 a 1)
+    manca(/Partita conclusa/);
+    segna(A, "+1"); // il secondo: A vince
+    expect(mostra("Squadra A — Partita conclusa")).toBeTruthy();
+  });
+
+  it("nel supplementare «START» fa correre solo il possesso: al posto del tempo resta «OT»", () => {
+    apri(BREVE);
+    segna(A, "+1");
+    segna(B, "+1");
+    premi("START");
+    scadere();
+    premi("START");
+    passa(5000);
+    expect(mostra("OT")).toBeTruthy();
+    expect(mostra("7")).toBeTruthy(); // il possesso: 12 meno 5
+    premi("STOP");
+    passa(10_000);
+    expect(mostra("7")).toBeTruthy();
+  });
+
+  it("al punteggio di vittoria i cronometri si fermano", () => {
+    apri(ATRE);
+    premi("START");
+    passa(10_000);
+    segna(A, "+2");
+    segna(A, "+1");
+    expect(mostra("Squadra A — Partita conclusa")).toBeTruthy();
+    expect(cronometro()).toBe("9:50");
+    passa(30_000);
+    expect(cronometro()).toBe("9:50");
+  });
+
+  it("togliere un punto riapre una partita decisa per errore", () => {
+    apri(ATRE);
+    segna(A, "+2");
+    segna(A, "+1");
+    expect(mostra("Squadra A — Partita conclusa")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Togli un punto a Squadra A" }));
+    manca(/Partita conclusa/);
+    expect(screen.getByRole("button", { name: "START" })).toBeTruthy();
+  });
+
+  it("«Reset tutto» riporta punteggio e cronometri all'inizio e dimentica il supplementare di prima", () => {
+    apri(BREVE);
+    segna(A, "+1");
+    segna(B, "+1");
+    premi("START");
+    scadere();
+    segna(A, "+2");
+    expect(mostra("Squadra A — Partita conclusa")).toBeTruthy();
+
+    premi("Reset tutto");
+    expect(cronometro()).toBe("1:00");
+    expect(screen.getAllByText("0")).toHaveLength(2);
+    manca(/Partita conclusa/);
+    // Una seconda partita: 0 a 0 allo scadere, e il supplementare riparte da capo (non dall'1 pari di prima)
+    premi("START");
+    scadere();
+    expect(mostra("OT")).toBeTruthy();
+    segna(A, "+1");
+    manca(/Partita conclusa/);
+    segna(A, "+1");
+    expect(mostra("Squadra A — Partita conclusa")).toBeTruthy();
   });
 });

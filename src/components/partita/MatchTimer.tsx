@@ -1,11 +1,10 @@
-/** Timer di gara per il 3x3: countdown 10 min, shot clock 12 s, punteggio live.
- *  Modale a tutto schermo, usato dal tavolo durante la partita. */
+/** Timer di gara per il 3x3: cronometro, shot clock e punteggio live, con le regole della tappa (punteggio di vittoria, durata,
+ *  possesso, supplementare). Modale a tutto schermo, usato dal tavolo durante la partita. */
 import { useState, useEffect } from "react";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
-
-const GAME_MS = 600_000; // 10 minuti
-const SHOT_MS = 12_000;  // shot clock FIBA 3x3
+import { statoGara, type Lato, type Punti } from "../../utils/statoGara";
+import type { Regole } from "../../types";
 
 /** Un conto alla rovescia, in millisecondi. In marcia tiene l'istante in cui finisce (`fine`), in pausa il tempo che gli resta
  *  (`resto`): quanto manca si calcola sempre dall'orologio e mai contando gli scatti del timer, che con la scheda in secondo
@@ -33,8 +32,12 @@ function avviato(c: Cronometro, ora: number): Cronometro {
 /** Tutti e due i cronometri a durata intera e fermi */
 const daCapo = (durata: number, periodo: number): Tempo => ({ gara: { resto: durata }, possesso: { resto: periodo }, ora: 0 });
 
-/** Parte tutto da `ora` */
-const avviati = (t: Tempo, ora: number): Tempo => ({ gara: avviato(t.gara, ora), possesso: avviato(t.possesso, ora), ora });
+/** Parte il possesso, e il cronometro di gara se gli resta tempo: nel supplementare il cronometro di gara non c'è */
+function avviati(t: Tempo, ora: number): Tempo {
+  let gara = t.gara;
+  if (mancano(gara, ora) > 0) gara = avviato(gara, ora);
+  return { gara, possesso: avviato(t.possesso, ora), ora };
+}
 
 /** Si ferma tutto nell'istante `quando`, tenendo il tempo che resta a ciascuno */
 function fermati(t: Tempo, quando: number, periodo: number): Tempo {
@@ -59,53 +62,103 @@ function fmt(s: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
-export function MatchTimer({ teamA, teamB, onClose }: {
+const LATI: Lato[] = ["a", "b"];
+const ALTRO: Record<Lato, Lato> = { a: "b", b: "a" };
+/** B sta a destra del trattino, che ha `order-2` */
+const ORDINE: Record<Lato, string> = { a: "", b: "order-3" };
+
+/** Il punteggio di chi è avanti è arancione */
+function colorePunti(inVantaggio: boolean): string {
+  if (inVantaggio) return "text-court";
+  return "text-chalk";
+}
+
+export function MatchTimer({ regole, teamA, teamB, onClose }: {
+  regole: Regole;
   teamA?: string;
   teamB?: string;
   onClose: () => void;
 }) {
-  const [tempo,  setTempo]  = useState(() => daCapo(GAME_MS, SHOT_MS));
-  const [scoreA, setScoreA] = useState(0);
-  const [scoreB, setScoreB] = useState(0);
+  // Un possesso a 0 non avrebbe un ciclo (le regole dell'ospite, salvate da versioni vecchie, possono esserlo): almeno 1 secondo
+  const possesso = Math.max(1, regole.shot);
+  const durataMs = regole.durata * 60_000;
+  const possessoMs = possesso * 1000;
 
+  const [tempo, setTempo] = useState(() => daCapo(durataMs, possessoMs));
+  const [punti, setPunti] = useState<Punti>({ a: 0, b: 0 });
+  // Il punteggio da cui è partito il supplementare, per contare da lì i suoi punti (null: non è partito)
+  const [inizioSupplementare, setInizioSupplementare] = useState<Punti | null>(null);
+
+  const nomi: Record<Lato, string> = { a: teamA ?? "Squadra A", b: teamB ?? "Squadra B" };
   const inMarcia = "fine" in tempo.gara || "fine" in tempo.possesso;
+  const restoGara = mancano(tempo.gara, tempo.ora);
   // Secondi interi: un secondo conta finché non è passato per intero (il possesso mostra 12, 11, … 1 e poi ricomincia da 12)
-  const timeLeft  = Math.ceil(mancano(tempo.gara, tempo.ora) / 1000);
-  const shotClock = Math.ceil(mancano(tempo.possesso, tempo.ora, SHOT_MS) / 1000);
-  const overtime  = timeLeft === 0;
+  const timeLeft  = Math.ceil(restoGara / 1000);
+  const shotClock = Math.ceil(mancano(tempo.possesso, tempo.ora, possessoMs) / 1000);
+  const stato = statoGara({ punti, rimasto: restoGara / 1000, inizioSupplementare }, regole);
+  const inSupplementare = stato.fase === "supplementare" || stato.fase === "vintaAlSupplementare";
 
   // Mentre un cronometro corre, uno scatto ogni 100 ms ridisegna lo schermo. Lo scatto non conta il tempo: legge l'orologio
   useEffect(() => {
     if (!inMarcia) return;
     const id = setInterval(() => {
       const adesso = Date.now();
-      setTempo((t) => scattato(t, adesso, SHOT_MS));
+      setTempo((t) => scattato(t, adesso, possessoMs));
     }, 100);
     return () => clearInterval(id);
-  }, [inMarcia]);
+  }, [inMarcia, possessoMs]);
 
   const avviaOFerma = () => {
     const adesso = Date.now();
-    if (inMarcia) setTempo(fermati(tempo, adesso, SHOT_MS));
+    if (inMarcia) setTempo(fermati(tempo, adesso, possessoMs));
     else setTempo(avviati(tempo, adesso));
   };
 
   const resetAll = () => {
-    setTempo(daCapo(GAME_MS, SHOT_MS));
-    setScoreA(0);
-    setScoreB(0);
+    setTempo(daCapo(durataMs, possessoMs));
+    setPunti({ a: 0, b: 0 });
+    setInizioSupplementare(null);
   };
 
-  const resetShot = () => setTempo(possessoRiportato(tempo, Date.now(), SHOT_MS));
-  const addPoint  = (team: "A" | "B", pts: number) => {
-    if (team === "A") setScoreA((s) => s + pts);
-    else              setScoreB((s) => s + pts);
+  const resetShot = () => setTempo(possessoRiportato(tempo, Date.now(), possessoMs));
+
+  /** Aggiunge `delta` punti alla squadra `lato` (con un valore negativo li toglie, per correggere) */
+  const segna = (lato: Lato, delta: number) => {
+    const nuovi = { ...punti, [lato]: Math.max(0, punti[lato] + delta) };
+    // Il supplementare parte dal pareggio a tempo scaduto: da quel punteggio, fissato al primo canestro, si contano i suoi punti.
+    // Una correzione (delta negativo) no: prima del primo canestro corregge ancora il tempo regolamentare
+    let inizio = inizioSupplementare;
+    if (!inizio && delta > 0 && stato.fase === "supplementare") inizio = punti;
+    setPunti(nuovi);
+    setInizioSupplementare(inizio);
+    // Se questo canestro decide la partita i cronometri si fermano subito
+    const dopo = statoGara({ punti: nuovi, rimasto: restoGara / 1000, inizioSupplementare: inizio }, regole);
+    if ("vincitore" in dopo) setTempo(fermati(tempo, Date.now(), possessoMs));
   };
 
-  // Segnale di fine: tempo scaduto o qualcuno a 21
-  const gameOver = timeLeft === 0 || scoreA >= 21 || scoreB >= 21;
-  const shotDanger = shotClock <= 4;
-  const timeDanger = timeLeft <= 60;
+  let coloreTempo = "text-chalk";
+  if (timeLeft <= 60) coloreTempo = "text-loss";
+  let coloreShot = "border-court/50 text-court";
+  if (shotClock <= 4) coloreShot = "border-loss text-loss";
+
+  let orologio = fmt(timeLeft);
+  let didascalia = "Tempo rimanente";
+  if (inSupplementare) {
+    orologio = "OT"; // nel supplementare il cronometro di gara non c'è
+    didascalia = `Supplementare: vince chi segna per primo ${regole.ot} pt`;
+  }
+
+  // START/STOP, o il vincitore a partita decisa (togliendo un punto per errore la partita si riapre)
+  let etichetta = "START";
+  let stileComando = "";
+  if (inMarcia) {
+    etichetta = "STOP";
+    stileComando = "bg-loss text-chalk hover:bg-loss";
+  }
+  let comando = <Button onClick={avviaOFerma} className={`h-12 px-8 text-xl ${stileComando}`}>{etichetta}</Button>;
+  if ("vincitore" in stato) {
+    comando = <span className="font-display text-xl text-court">{nomi[stato.vincitore]} — Partita conclusa</span>;
+  }
 
   const scoreBtn = "h-11 min-w-11 px-4 font-display text-xl";
 
@@ -118,22 +171,22 @@ export function MatchTimer({ teamA, teamB, onClose }: {
 
       {/* Squadre */}
       <div className="mb-2 flex gap-8 font-display text-base text-chalk-muted sm:text-lg">
-        <span>{teamA ?? "Squadra A"}</span>
+        <span>{nomi.a}</span>
         <span className="text-chalk-dim">vs</span>
-        <span>{teamB ?? "Squadra B"}</span>
+        <span>{nomi.b}</span>
       </div>
 
       {/* Punteggio */}
       <div className="mb-5 flex items-center gap-6">
-        {([["A", scoreA, setScoreA], ["B", scoreB, setScoreB]] as const).map(([side, score, setScore], i) => (
-          <div key={side} className={`text-center ${i === 1 ? "order-3" : ""}`}>
-            <div className={`font-display leading-none text-[clamp(64px,14vw,112px)] ${score > (side === "A" ? scoreB : scoreA) ? "text-court" : "text-chalk"}`}>
-              {score}
+        {LATI.map((lato) => (
+          <div key={lato} className={`text-center ${ORDINE[lato]}`}>
+            <div className={`font-display leading-none text-[clamp(64px,14vw,112px)] ${colorePunti(punti[lato] > punti[ALTRO[lato]])}`}>
+              {punti[lato]}
             </div>
             <div className="mt-2 flex justify-center gap-1.5">
-              <Button className={scoreBtn} onClick={() => addPoint(side, 1)}>+1</Button>
-              <Button className={scoreBtn} onClick={() => addPoint(side, 2)}>+2</Button>
-              <Button variant="ghost" className={scoreBtn} onClick={() => setScore((s) => Math.max(0, s - 1))} aria-label={`Togli un punto a ${side === "A" ? teamA ?? "A" : teamB ?? "B"}`}>
+              <Button className={scoreBtn} onClick={() => segna(lato, 1)}>+1</Button>
+              <Button className={scoreBtn} onClick={() => segna(lato, 2)}>+2</Button>
+              <Button variant="ghost" className={scoreBtn} onClick={() => segna(lato, -1)} aria-label={`Togli un punto a ${nomi[lato]}`}>
                 <Icon name="minus" size={16} />
               </Button>
             </div>
@@ -144,35 +197,25 @@ export function MatchTimer({ teamA, teamB, onClose }: {
 
       {/* Countdown + Shot clock */}
       <div className="w-full max-w-md border-t border-asphalt-700 pt-4 text-center">
-        <div className={`font-display leading-none text-[clamp(48px,10vw,80px)] ${timeDanger ? "text-loss" : "text-chalk"}`}>
-          {overtime ? "OT" : fmt(timeLeft)}
+        <div className={`font-display leading-none text-[clamp(48px,10vw,80px)] ${coloreTempo}`}>
+          {orologio}
         </div>
-        <div className="mb-3 text-xs text-chalk-muted">
-          {overtime ? "Supplementare: vince chi segna per primo 2 pt" : "Tempo rimanente"}
-        </div>
+        <div className="mb-3 text-xs text-chalk-muted">{didascalia}</div>
 
         {/* Shot clock */}
         <div className="mb-5 flex items-center justify-center gap-3">
-          <div className={`min-w-16 rounded border px-2 font-display text-5xl ${shotDanger ? "border-loss text-loss" : "border-court/50 text-court"}`}>
+          <div className={`min-w-16 rounded border px-2 font-display text-5xl ${coloreShot}`}>
             {shotClock}
           </div>
           <div className="text-left">
             <div className="kicker">Shot clock</div>
-            <Button variant="link" onClick={resetShot}>Reset 12s</Button>
+            <Button variant="link" onClick={resetShot}>Reset {possesso}s</Button>
           </div>
         </div>
 
         {/* Controlli */}
         <div className="flex flex-wrap items-center justify-center gap-3">
-          {gameOver ? (
-            <span className="font-display text-xl text-court">
-              {scoreA >= 21 ? (teamA ?? "A") : scoreB >= 21 ? (teamB ?? "B") : "Fine tempo"} — Partita conclusa
-            </span>
-          ) : (
-            <Button onClick={avviaOFerma} className={`h-12 px-8 text-xl ${inMarcia ? "bg-loss text-chalk hover:bg-loss" : ""}`}>
-              {inMarcia ? "STOP" : "START"}
-            </Button>
-          )}
+          {comando}
           <Button variant="link" className="text-chalk-muted" onClick={resetAll}>Reset tutto</Button>
         </div>
       </div>

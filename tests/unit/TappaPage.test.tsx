@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { TappaPage } from "../../src/pages/TappaPage";
 import { useAppStore } from "../../src/stores/useAppStore";
@@ -443,5 +443,17 @@ describe("TappaPage: risultati dei gironi con la fase finale già generata (R6)"
     fireEvent.click(screen.getAllByRole("button", { name: "Correggi" })[0]);
     expect(screen.getByRole("alert").textContent).toMatch(/elimina prima la fase finale/);
     expect(store().tappe[0]).toBe(prima);
+  });
+});
+
+describe("TappaPage: il timer di gara usa le regole della tappa (FD-7)", () => {
+  it("si apre con la durata e il possesso scritti nelle regole, non con 10 minuti e 12 secondi", () => {
+    useAppStore.setState({ tappe: [{ ...tappa(), regole: { target: 11, durata: 5, ot: 3, shot: 24 } }] });
+    apriPagina({});
+    fireEvent.click(screen.getByRole("button", { name: "Timer" }));
+    const timer = screen.getByRole("dialog", { name: "Timer di gara" });
+    expect(within(timer).getByText("5:00")).toBeTruthy();
+    expect(within(timer).getByText("24")).toBeTruthy();
+    expect(within(timer).getByRole("button", { name: "Reset 24s" })).toBeTruthy();
   });
 });
