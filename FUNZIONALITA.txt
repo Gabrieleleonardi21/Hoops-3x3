@@ -283,10 +283,23 @@ utenti registrati.
   UI e salva in background (debounce 400 ms per tappa); un salvataggio
   fallito è segnalato da una barra in alto.
 - Persistenza (ospite): localStorage per la lega (multi-lega con indice);
-  anagrafe e archivio in sola lettura dal server.
+  anagrafe e archivio in sola lettura dal server. All'avvio la lega aperta
+  si controlla con lo stesso schema dell'import: le tappe non valide non si
+  caricano e un avviso dice quali e perché (spariscono dal browser al primo
+  salvataggio della lega); una lega illeggibile non si apre e si può
+  eliminare dall'elenco delle leghe.
 - Anagrafe in cache nello store (useAnagrafeStore): scaricata una volta e
   aggiornata a ogni scrittura, non a ogni apertura di pagina; le modifiche
   di altri utenti si vedono ricaricando la pagina.
+- Errori visibili: una pagina che non si riesce a disegnare mostra un
+  messaggio con «Ricarica» e il resto dell'app resta usabile; anagrafe e
+  archivio che non si caricano dicono perché e offrono «Riprova» (mai un
+  elenco vuoto al posto dell'errore); creare, aprire ed eliminare una lega e
+  i form e le modali dell'anagrafe mostrano il motivo del rifiuto, tengono
+  ciò che l'utente ha scritto e disattivano i pulsanti durante l'invio.
+- Creare una lega o una voce dell'anagrafe è una POST non idempotente (l'id
+  lo assegna il server): se la risposta si perde, il nuovo tentativo cerca
+  prima la voce già creata invece di farne un doppione.
 - Operazioni di tappa (sorteggio, risultati, fasi dirette, conclusione) come
   funzioni pure in src/domain/tappaOps.ts: le stesse per l'interfaccia e per
   il Coach AI, coperte da test unitari.
