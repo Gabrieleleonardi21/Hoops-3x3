@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { api, token, ApiError, suSessioneFinita, avviaRinnovoAutomatico } from "../../src/services/api";
+import { api, token, ApiError, suSessioneFinita, avviaRinnovoAutomatico, testoErrore } from "../../src/services/api";
 import { legheApi } from "../../src/services/legheApi";
 import { askCoach } from "../../src/services/aiService";
 import type { Tappa } from "../../src/types";
@@ -598,5 +598,18 @@ describe("api: rinnovo automatico", () => {
     token.set(jwt(100));
     await vi.advanceTimersByTimeAsync(120_000);
     expect(fetchFinto).not.toHaveBeenCalled();
+  });
+});
+
+describe("testoErrore: il testo di un errore per l'utente", () => {
+  it("di un ApiError è il messaggio del server o della rete, com'è", () => {
+    expect(testoErrore(new ApiError(403, "Non puoi modificare questa lega"))).toBe("Non puoi modificare questa lega");
+    expect(testoErrore(new ApiError(0, "Il server non risponde: controlla la connessione e riprova."))).toBe("Il server non risponde: controlla la connessione e riprova.");
+  });
+
+  it("di qualsiasi altro errore è un testo generico: il messaggio tecnico di un bug non va all'utente", () => {
+    expect(testoErrore(new TypeError("x is not iterable"))).toBe("errore imprevisto");
+    expect(testoErrore("stringa")).toBe("errore imprevisto");
+    expect(testoErrore(undefined)).toBe("errore imprevisto");
   });
 });
