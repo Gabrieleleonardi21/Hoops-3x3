@@ -238,6 +238,19 @@ describe("MatchTimer: la partita si decide", () => {
     expect(mostra("Squadra A — Partita conclusa")).toBeTruthy();
   });
 
+  it("togliere il primo punto del supplementare lo riporta a prima che partisse: una correzione dopo conta ancora sul tempo regolamentare", () => {
+    apri(BREVE);
+    segna(A, "+1");
+    segna(B, "+1");
+    premi("START");
+    scadere(); // 1 pari: supplementare
+    segna(A, "+1"); // 2 a 1: il primo punto del supplementare
+    fireEvent.click(screen.getByRole("button", { name: "Togli un punto a Squadra A" })); // sbagliato: di nuovo 1 pari
+    manca(/Partita conclusa/);
+    fireEvent.click(screen.getByRole("button", { name: "Togli un punto a Squadra B" })); // anche B non aveva segnato: 1 a 0
+    expect(mostra("Squadra A — Partita conclusa")).toBeTruthy();
+  });
+
   it("nel supplementare «START» fa correre solo il possesso: al posto del tempo resta «OT»", () => {
     apri(BREVE);
     segna(A, "+1");

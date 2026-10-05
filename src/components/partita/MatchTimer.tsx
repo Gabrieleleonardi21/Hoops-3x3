@@ -130,6 +130,9 @@ export function MatchTimer({ regole, teamA, teamB, onClose }: {
     // Una correzione (delta negativo) no: prima del primo canestro corregge ancora il tempo regolamentare
     let inizio = inizioSupplementare;
     if (!inizio && delta > 0 && stato.fase === "supplementare") inizio = punti;
+    // Tolto quel primo canestro si è di nuovo al punteggio di partenza: il supplementare non ha punti, e come prima di
+    // cominciare una correzione conta ancora sul tempo regolamentare
+    if (inizio && nuovi.a === inizio.a && nuovi.b === inizio.b) inizio = null;
     setPunti(nuovi);
     setInizioSupplementare(inizio);
     // Se questo canestro decide la partita i cronometri si fermano subito
