@@ -3,7 +3,9 @@
  *  verifica con zod che abbia la forma dei tipi di src/types. Una tappa incompleta non deve arrivare né nel browser
  *  dell'ospite, dove farebbe uscire la pagina bianca a ogni ricarica, né al server, che la rifiuterebbe con un 400.
  *  Il file si legge una volta sola: i campi che l'app non conosce si scartano, i campi che possono mancare prendono
- *  il loro valore predefinito e gli id delle tappe sono sempre nuovi. */
+ *  il loro valore predefinito e gli id delle tappe sono sempre nuovi.
+ *  Lo stesso schema controlla anche la lega che l'ospite ha nel browser (leggiLegaSalvata): è il caso di chi in passato
+ *  ha importato un file incompleto, prima che l'import lo controllasse. */
 import { z } from "zod";
 import { DEFAULT_RULES } from "../constants/rules";
 import { MAX_GIRONI, erroreTestiTappa } from "../domain/tappaOps";
@@ -103,24 +105,27 @@ const nGironiSchema = numero
   .refine((n) => Number.isInteger(n) && n >= 1 && n <= MAX_GIRONI, `deve essere un numero intero da 1 a ${MAX_GIRONI}`)
   .default(1);
 
-/** L'id non c'è: ogni tappa importata ne riceve uno nuovo in leggiFileLega. Il tipo dichiarato fa fallire la compilazione
- *  se in src/types un campo obbligatorio cambia e lo schema no; un campo facoltativo nuovo invece va aggiunto qui a mano,
- *  altrimenti l'import lo scarterebbe (il test dell'export completo in legaFile.test.ts lo segnala). */
-const tappaSchema: z.ZodType<Omit<Tappa, "id">, z.ZodTypeDef, unknown> = z
-  .object({
-    nome: stringa.trim().min(1, "non può essere vuoto"),
-    luogo: stringa.trim().default(""),
-    data: stringa.trim().default(""),
-    nGironi: nGironiSchema,
-    regole: regoleSchema,
-    squadre: z.array(squadraSchema),
-    gironi: z.array(z.array(stringa)).nullable().default(null),
-    partite: z.array(partitaSchema).default([]),
-    video: z.array(videoSchema).default([]),
-    conclusa: z.boolean().optional(),
-    // Il server manda null per una tappa senza fase finale; nell'app, se la fase finale non c'è, il campo è assente
-    bracket: z.array(matchTabelloneSchema).nullish().transform((b) => b ?? undefined),
-  })
+/** I campi di una tappa senza l'id: la forma che l'app usa, uguale per il file e per il browser dell'ospite. */
+const tappaCampi = z.object({
+  nome: stringa.trim().min(1, "non può essere vuoto"),
+  luogo: stringa.trim().default(""),
+  data: stringa.trim().default(""),
+  nGironi: nGironiSchema,
+  regole: regoleSchema,
+  squadre: z.array(squadraSchema),
+  gironi: z.array(z.array(stringa)).nullable().default(null),
+  partite: z.array(partitaSchema).default([]),
+  video: z.array(videoSchema).default([]),
+  conclusa: z.boolean().optional(),
+  // Il server manda null per una tappa senza fase finale; nell'app, se la fase finale non c'è, il campo è assente
+  bracket: z.array(matchTabelloneSchema).nullish().transform((b) => b ?? undefined),
+});
+
+/** Tappa di un file, con in più i limiti del server. L'id non c'è: ogni tappa importata ne riceve uno nuovo in leggiFileLega.
+ *  Il tipo dichiarato fa fallire la compilazione se in src/types un campo obbligatorio cambia e lo schema no; un campo
+ *  facoltativo nuovo invece va aggiunto in tappaCampi a mano, altrimenti l'import lo scarterebbe (il test dell'export
+ *  completo in legaFile.test.ts lo segnala). */
+const tappaSchema: z.ZodType<Omit<Tappa, "id">, z.ZodTypeDef, unknown> = tappaCampi
   .superRefine((t, ctx) => {
     // Solo i limiti dei campi del server (nome, luogo e data, in tappaOps): oltre quelli la tappa sarebbe rifiutata a ogni
     // salvataggio. Non si applicano i limiti di creazione (da 2 a 64 squadre, gironi tra 1 e metà delle squadre): l'import è
@@ -128,6 +133,10 @@ const tappaSchema: z.ZodType<Omit<Tappa, "id">, z.ZodTypeDef, unknown> = z
     const motivo = erroreTestiTappa(t);
     if (motivo) ctx.addIssue({ code: z.ZodIssueCode.custom, message: motivo });
   });
+
+/** Tappa nel browser dell'ospite: gli stessi campi, con il loro id e senza i limiti del server. L'ospite non ha un server che
+ *  li faccia valere, e una tappa con il nome lungo si disegna lo stesso: a scartarla conta solo la forma che la romperebbe. */
+const tappaSalvataSchema: z.ZodType<Tappa, z.ZodTypeDef, unknown> = tappaCampi.extend({ id: stringa });
 
 const fileSchema = z.object({
   // Senza un nome valido (assente, null o vuoto) la lega prende quello del file; i limiti si contano senza gli spazi ai lati
@@ -195,3 +204,53 @@ export function leggiFileLega(testo: string, nomeFile: string): EsitoLettura {
 
 /** Il contenuto del file di export: nome e tappe, rientrati per essere leggibili */
 export const testoFileLega = (nome: string, tappe: Tappa[]): string => JSON.stringify({ nome, tappe }, null, 2);
+
+/** Lega com'è nel browser dell'ospite, controllata: le tappe valide e, se qualcuna non lo era, l'avviso da mostrare */
+export interface LegaSalvata {
+  lega: Lega;
+  avviso: string | null;
+}
+
+/** Come si nomina una tappa scartata: «nome» se ne ha uno, altrimenti il suo numero nell'elenco */
+function etichettaTappa(tappa: unknown, indice: number): string {
+  const nome = (tappa as { nome?: unknown } | null)?.nome;
+  if (typeof nome === "string" && nome.trim()) return `«${nome.trim()}»`;
+  return `n. ${indice + 1}`;
+}
+
+/** Controlla la lega che l'ospite ha nel localStorage prima di darla all'app. Sono dati scritti da questa app, ma anche da
+ *  versioni precedenti o da un import che non controllava il file: una tappa incompleta farebbe uscire la pagina bianca a ogni
+ *  ricarica. Si controlla una tappa per volta: quelle senza la forma giusta si scartano (l'avviso dice quali e perché) e le
+ *  altre restano usabili. Gli id restano quelli che erano: qui non si importa niente di nuovo, a differenza di leggiFileLega.
+ *  I dati nel browser non si toccano: la tappa scartata sparisce da lì solo al prossimo salvataggio della lega.
+ *  @returns null se i dati non sono una lega (non un oggetto, o senza l'elenco `tappe`) */
+export function leggiLegaSalvata(dati: unknown): LegaSalvata | null {
+  if (typeof dati !== "object" || dati === null) return null;
+  const { nome, tappe } = dati as { nome?: unknown; tappe?: unknown };
+  if (!Array.isArray(tappe)) return null;
+  const valide: Tappa[] = [];
+  const scartate: string[] = [];
+  tappe.forEach((dato: unknown, i) => {
+    if (typeof dato !== "object" || dato === null) {
+      scartate.push(`${etichettaTappa(dato, i)} (non è una tappa)`);
+      return;
+    }
+    const letta = tappaSalvataSchema.safeParse(dato);
+    if (letta.success) {
+      valide.push(letta.data);
+      return;
+    }
+    scartate.push(`${etichettaTappa(dato, i)} (${descrivi(letta.error.issues[0])})`);
+  });
+  const nomeLega = typeof nome === "string" ? nome : "";
+  return { lega: { nome: nomeLega, tappe: valide }, avviso: avvisoScartate(nomeLega, scartate) };
+}
+
+/** Il testo per l'utente sulle tappe scartate; null se non ce ne sono */
+function avvisoScartate(nomeLega: string, scartate: string[]): string | null {
+  if (scartate.length === 0) return null;
+  const lega = `La lega «${nomeLega.trim() || "senza nome"}»`;
+  const elenco = scartate.join("; ");
+  if (scartate.length === 1) return `${lega} ha una tappa non valida, che non è stata caricata: ${elenco}.`;
+  return `${lega} ha ${scartate.length} tappe non valide, che non sono state caricate: ${elenco}.`;
+}

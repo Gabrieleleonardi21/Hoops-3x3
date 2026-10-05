@@ -1,9 +1,10 @@
 import { create } from "zustand";
-import type { Lega, LegaMeta, Partita, Tappa, User } from "../types";
+import type { LegaMeta, Partita, Tappa, User } from "../types";
 import { uid } from "../utils/uid";
 import { legheApi } from "../services/legheApi";
 import { ApiError } from "../services/api";
 import { createSaveQueue } from "./saveQueue";
+import { leggiLegaSalvata, type LegaSalvata } from "../utils/legaFile";
 
 /**
  * Store globale: utente, indice leghe e lega attiva con le sue tappe.
@@ -13,7 +14,8 @@ import { createSaveQueue } from "./saveQueue";
  *    dei salvataggi (saveQueue.ts): una raffica di input diventa un solo invio, mai due richieste
  *    insieme per la stessa tappa, nuovi tentativi se la rete o il server hanno un problema temporaneo.
  * Gli errori finiscono in `syncError`, le tappe non ancora salvate in `inSospeso` ed `erroreSalvataggio`
- * (tutti mostrati da SyncBanner in App).
+ * (tutti mostrati da SyncBanner in App). `syncError` porta anche gli avvisi sui dati dell'ospite letti dal browser
+ * (tappe non valide scartate, lega illeggibile).
  */
 interface AppState {
   user: User | null;
@@ -68,17 +70,48 @@ const legaStorageKey = (id: string) => NS + `lega_${id}`;
 /* ── localStorage (ospite) ─────────────────────────────────────────────────── */
 
 function readIndex(): LegaMeta[] {
-  try { return JSON.parse(localStorage.getItem(INDEX_KEY) || "[]"); }
-  catch { return []; }
+  try {
+    const indice: unknown = JSON.parse(localStorage.getItem(INDEX_KEY) || "[]");
+    // Solo le voci con un id: un indice rovinato (non un elenco, voci vuote) non si può mostrare né aprire
+    if (Array.isArray(indice)) return indice.filter((m) => typeof m?.id === "string");
+  } catch { /* JSON rovinato */ }
+  return [];
 }
 
 function writeIndex(leghe: LegaMeta[]) {
   localStorage.setItem(INDEX_KEY, JSON.stringify(leghe));
 }
 
-function readLegaData(id: string): Lega | null {
-  try { return JSON.parse(localStorage.getItem(legaStorageKey(id)) || "null"); }
+/** Lega dell'ospite dal browser, controllata con lo schema del file di lega (utils/legaFile): solo le tappe valide, e un avviso
+ *  se ne ha scartata qualcuna. null se non c'è o non si legge. */
+function readLegaData(id: string): LegaSalvata | null {
+  try { return leggiLegaSalvata(JSON.parse(localStorage.getItem(legaStorageKey(id)) || "null")); }
   catch { return null; }
+}
+
+/** Perché una lega dell'ospite non si apre, con la via d'uscita: eliminarla dall'elenco */
+function legaIllegibile(leghe: LegaMeta[], id: string): string {
+  const nome = leghe.find((m) => m.id === id)?.nome || "senza nome";
+  return `I dati della lega «${nome}» non ci sono più nel browser o sono danneggiati: puoi eliminarla dall'elenco delle leghe.`;
+}
+
+type StatoOspite = Pick<AppState, "leghe" | "legaId" | "legaName" | "tappe" | "syncError">;
+
+/** Stato dell'ospite letto dal browser: indice delle leghe e lega aperta per ultima. Una lega che non si legge non si apre, e
+ *  l'avviso in `syncError` (la barra sotto l'intestazione) dice perché; una con tappe non valide si apre senza quelle, e
+ *  l'avviso dice quali. Così all'avvio non ci sono pagine bianche né un errore che torna a ogni ricarica. */
+function statoOspite(): StatoOspite {
+  const leghe = readIndex();
+  const vuoto: StatoOspite = { leghe, legaId: null, legaName: "", tappe: [], syncError: null };
+  const activeId = localStorage.getItem(ACTIVE_KEY);
+  if (!activeId) return vuoto;
+  const letta = readLegaData(activeId);
+  if (letta) return { leghe, legaId: activeId, legaName: letta.lega.nome, tappe: letta.lega.tappe, syncError: letta.avviso };
+  // Non si riapre a ogni ricarica; dell'id si dice qualcosa solo se la lega è nell'elenco: se non c'è più (eliminata da un'altra
+  // scheda) è un id rimasto, non un problema
+  localStorage.removeItem(ACTIVE_KEY);
+  if (!leghe.some((m) => m.id === activeId)) return vuoto;
+  return { ...vuoto, syncError: legaIllegibile(leghe, activeId) };
 }
 
 function readSession(): User | null {
@@ -92,17 +125,12 @@ function readSession(): User | null {
 }
 
 /** Stato iniziale sincrono: l'ospite ha già tutto in localStorage, il registrato aspetta rehydrate() */
-function getInitialState(): Pick<AppState, "user" | "legaId" | "leghe" | "legaName" | "tappe" | "ready"> {
-  const empty = { user: null, legaId: null, leghe: [], legaName: "", tappe: [], ready: true };
+function getInitialState(): Pick<AppState, "user" | "legaId" | "leghe" | "legaName" | "tappe" | "ready" | "syncError"> {
+  const empty = { user: null, legaId: null, leghe: [], legaName: "", tappe: [], ready: true, syncError: null };
   const user = readSession();
   if (!user) return empty;
   if (!user.guest) return { ...empty, user, ready: false };
-
-  const leghe = readIndex();
-  const activeId = localStorage.getItem(ACTIVE_KEY);
-  const lega = activeId ? readLegaData(activeId) : null;
-  if (!activeId || !lega) return { ...empty, user, leghe };
-  return { user, legaId: activeId, leghe, legaName: lega.nome || "", tappe: lega.tappe || [], ready: true };
+  return { ...empty, user, ...statoOspite() };
 }
 
 /* ── Salvataggi sul server (registrati) ───────────────────────────────────── */
@@ -259,7 +287,6 @@ export const useAppStore = create<AppState>((set, get) => {
 
   return {
     ...initial,
-    syncError: null,
     inSospeso: 0,
     erroreSalvataggio: null,
 
@@ -300,10 +327,12 @@ export const useAppStore = create<AppState>((set, get) => {
         set({ legaId: id, legaName: lega.nome, tappe: conVersioniLocali(lega.tappe, inCoda, nuove) });
         return;
       }
-      const lega = readLegaData(id);
-      if (!lega) return;
+      const letta = readLegaData(id);
+      // L'ospite non ha un server: una lega che nel browser non c'è o è rovinata si segnala come la segnalerebbe il server
+      // (404), e la pagina mostra il motivo come per ogni altro errore
+      if (!letta) throw new ApiError(404, legaIllegibile(get().leghe, id));
       localStorage.setItem(ACTIVE_KEY, id);
-      set({ legaId: id, legaName: lega.nome || "", tappe: lega.tappe || [] });
+      set({ legaId: id, legaName: letta.lega.nome, tappe: letta.lega.tappe, syncError: letta.avviso });
     },
 
     deleteLega: async (id) => {
@@ -455,11 +484,7 @@ export const useAppStore = create<AppState>((set, get) => {
         }
         return;
       }
-      const leghe = readIndex();
-      const activeId = localStorage.getItem(ACTIVE_KEY);
-      const lega = activeId ? readLegaData(activeId) : null;
-      if (!activeId || !lega) { set({ leghe, ready: true }); return; }
-      set({ leghe, legaId: activeId, legaName: lega.nome || "", tappe: lega.tappe || [], ready: true });
+      set({ ...statoOspite(), ready: true });
     },
   };
 });

@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import App from "../../src/App";
 import { ErrorBoundary } from "../../src/components/ui/ErrorBoundary";
-import { useAppStore } from "../../src/stores/useAppStore";
+import { useAppStore, SESSION_KEY } from "../../src/stores/useAppStore";
 import { DEFAULT_RULES } from "../../src/constants/rules";
 import type { Tappa, User } from "../../src/types";
 
@@ -81,5 +81,109 @@ describe("ErrorBoundary (FS-6)", () => {
     fireEvent.click(screen.getByRole("link", { name: "Le mie leghe" }));
     expect(screen.queryByText(/Qualcosa è andato storto/)).toBeNull();
     expect(screen.getByRole("heading", { name: /Le mie leghe/ })).toBeTruthy();
+  });
+});
+
+/* ── Dati vecchi nel browser dell'ospite: messaggio e via d'uscita, mai la pagina bianca ── */
+
+/** Tappa valida, com'è nel browser di un ospite */
+const tappaValida = (id: string, nome: string): Tappa => ({
+  id, nome, luogo: "", data: "", nGironi: 1, regole: { ...DEFAULT_RULES }, gironi: null, partite: [], video: [],
+  squadre: [{ id: "s1", nome: "Uno", giocatori: [], rank: "" }, { id: "s2", nome: "Due", giocatori: [], rank: "" }],
+});
+
+/** Il browser di un ospite com'è prima di ricaricare la pagina: sessione, indice delle leghe, lega aperta per ultima e i suoi
+ *  dati. `dati` è il testo salvato per la lega "l1" (oppure un oggetto, che si scrive come JSON). */
+function browserDellOspite(dati: unknown, opzioni: { aperta?: boolean } = {}) {
+  localStorage.setItem(SESSION_KEY, JSON.stringify(ospite));
+  localStorage.setItem("hoop3x3_leghe_index", JSON.stringify([
+    { id: "l1", nome: "Estate", ts: 1, nTappe: 2 },
+    { id: "l2", nome: "Inverno", ts: 1, nTappe: 0 },
+  ]));
+  localStorage.setItem("hoop3x3_lega_l1", typeof dati === "string" ? dati : JSON.stringify(dati));
+  localStorage.setItem("hoop3x3_lega_l2", JSON.stringify({ nome: "Inverno", tappe: [] }));
+  if (opzioni.aperta !== false) localStorage.setItem("hoop3x3_active_lega_id", "l1");
+}
+
+/** Ricarica della pagina: moduli nuovi, che rileggono il browser come all'avvio. Restituisce l'App e lo store nuovi. */
+async function ricarica() {
+  vi.resetModules();
+  const { default: AppNuova } = await import("../../src/App");
+  const { useAppStore: storeNuovo } = await import("../../src/stores/useAppStore");
+  return { App: AppNuova, store: () => storeNuovo.getState() };
+}
+
+describe("Dati vecchi dell'ospite nel browser (Ruling 3, T1.12)", () => {
+  it("una lega con una tappa senza squadre: niente pagina bianca, un messaggio dice quale tappa, il resto si usa", async () => {
+    browserDellOspite({ nome: "Estate", tappe: [tappaValida("a", "Tappa buona"), tappaSenzaSquadre()] });
+    const { App: AppNuova } = await ricarica();
+    render(<AppNuova />);
+    // La home mostra la tappa valida: l'app si disegna
+    expect(screen.getByRole("heading", { name: "Tappa buona" })).toBeTruthy();
+    expect(screen.queryByText(/Qualcosa è andato storto/)).toBeNull();
+    // Il messaggio dice quale tappa non è stata caricata e perché
+    const avviso = screen.getByRole("alert").textContent ?? "";
+    expect(avviso).toContain("La lega «Estate» ha una tappa non valida, che non è stata caricata");
+    expect(avviso).toContain("«Tappa rotta» (manca il campo «squadre»)");
+    // Il resto è usabile: si naviga e si torna alle leghe; l'avviso si chiude a mano
+    fireEvent.click(screen.getByRole("link", { name: "Le mie leghe" }));
+    expect(screen.getByRole("heading", { name: /Le mie leghe/ })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Chiudi avviso" }));
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("i dati nel browser non si toccano all'avvio: la tappa scartata sparisce solo al primo salvataggio della lega", async () => {
+    const originale = JSON.stringify({ nome: "Estate", tappe: [tappaValida("a", "Tappa buona"), tappaSenzaSquadre()] });
+    browserDellOspite(originale);
+    const { store } = await ricarica();
+    expect(store().tappe.map((t) => t.id)).toEqual(["a"]);
+    expect(localStorage.getItem("hoop3x3_lega_l1")).toBe(originale);
+    act(() => { store().updateTappa("a", { nome: "Tappa rinominata" }); });
+    const salvata = JSON.parse(localStorage.getItem("hoop3x3_lega_l1")!);
+    expect(salvata.tappe.map((t: Tappa) => t.nome)).toEqual(["Tappa rinominata"]);
+  });
+
+  it("una lega illeggibile non si apre: il messaggio dice la via d'uscita e le altre leghe restano", async () => {
+    browserDellOspite("{ non json");
+    const { App: AppNuova, store } = await ricarica();
+    render(<AppNuova />);
+    expect(store().legaId).toBeNull();
+    expect(localStorage.getItem("hoop3x3_active_lega_id")).toBeNull(); // non si riprova a ogni ricarica
+    expect(screen.getByRole("alert").textContent)
+      .toBe("I dati della lega «Estate» non ci sono più nel browser o sono danneggiati: puoi eliminarla dall'elenco delle leghe.");
+    // Le due leghe sono ancora nell'elenco, e l'app si usa
+    expect(store().leghe.map((m) => m.id)).toEqual(["l1", "l2"]);
+    expect(screen.getByText("Apri una lega esistente o creane una nuova.")).toBeTruthy();
+  });
+
+  it("un id di lega rimasto senza dati e fuori dall'elenco (eliminata da un'altra scheda) non dà nessun messaggio", async () => {
+    browserDellOspite({ nome: "Estate", tappe: [] });
+    localStorage.setItem("hoop3x3_active_lega_id", "l-eliminata");
+    const { store } = await ricarica();
+    expect(store().legaId).toBeNull();
+    expect(store().syncError).toBeNull();
+  });
+
+  it("un indice delle leghe rovinato non fa uscire la pagina bianca: l'elenco è vuoto", async () => {
+    browserDellOspite({ nome: "Estate", tappe: [] });
+    for (const indice of ["null", "{\"a\":1}", "[null, 7, {\"nome\":\"senza id\"}]", "non json"]) {
+      localStorage.setItem("hoop3x3_leghe_index", indice);
+      localStorage.removeItem("hoop3x3_active_lega_id");
+      const { store } = await ricarica();
+      expect(store().leghe, indice).toEqual([]);
+    }
+  });
+
+  it("«Continua come Ospite» controlla gli stessi dati: la lega si apre senza le tappe non valide, e un avviso lo dice", async () => {
+    browserDellOspite({ nome: "Estate", tappe: [tappaValida("a", "Tappa buona"), tappaSenzaSquadre()] });
+    localStorage.removeItem(SESSION_KEY); // pagina appena aperta: nessuna sessione
+    const { store } = await ricarica();
+    expect(store().user).toBeNull();
+    await act(async () => {
+      store().setUser(ospite);
+      await store().rehydrate();
+    });
+    expect(store().tappe.map((t) => t.id)).toEqual(["a"]);
+    expect(store().syncError).toContain("«Tappa rotta» (manca il campo «squadre»)");
   });
 });
