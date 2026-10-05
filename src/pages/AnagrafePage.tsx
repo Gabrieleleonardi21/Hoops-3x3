@@ -11,6 +11,7 @@ import { SquadraAnagrafeForm } from "../components/anagrafe/SquadraAnagrafeForm"
 import { SquadraAnagrafeCard } from "../components/anagrafe/SquadraAnagrafeCard";
 import { SquadraAnagrafeModal } from "../components/anagrafe/SquadraAnagrafeModal";
 import { GiocatoreModal } from "../components/anagrafe/GiocatoreModal";
+import { ErroreCaricamento } from "../components/ui/ErroreCaricamento";
 import { Loading } from "../components/ui/Loading";
 import { Button } from "../components/ui/Button";
 import { Icon } from "../components/ui/Icon";
@@ -27,7 +28,7 @@ export function AnagrafePage() {
   const [selGiocatore, setSelGiocatore] = useState<RegGiocatore | null>(null);
   const anagrafe = useAnagrafe();
   if (!user) return <Navigate to="/" replace />;
-  const { giocatori, squadre, saveGiocatore, saveSquadra, removeGiocatore, removeSquadra, updateSquadra, updateGiocatore } = anagrafe;
+  const { giocatori, squadre, errore, load, saveGiocatore, saveSquadra, removeGiocatore, removeSquadra, updateSquadra, updateGiocatore } = anagrafe;
 
   // Filtra un array su più campi testuali con la query di ricerca
   const filtered = <T,>(arr: T[] | null, fields: (keyof T)[]): T[] => {
@@ -45,7 +46,29 @@ export function AnagrafePage() {
     try { await fn(); setShowForm(false); } catch { setMsg("Salvataggio non riuscito, riprova."); }
   };
 
-  const tabs = [["g", `Giocatori (${(giocatori || []).length})`], ["s", `Squadre (${(squadre || []).length})`], ["stats", "Statistiche stagione"]] as const;
+  /** « (3)» accanto al nome della scheda; niente finché l'elenco non è arrivato: «(0)» direbbe che è vuoto */
+  const conteggio = (voci: unknown[] | null) => {
+    if (voci === null) return "";
+    return ` (${voci.length})`;
+  };
+  const tabs = [["g", `Giocatori${conteggio(giocatori)}`], ["s", `Squadre${conteggio(squadre)}`], ["stats", "Statistiche stagione"]] as const;
+
+  /** Contenuto di una scheda: il caricamento, l'errore con «Riprova», l'elenco vuoto o le card. Un caricamento non riuscito
+   *  non si mostra come elenco vuoto: direbbe che nessuno è registrato, mentre non si sa. */
+  const contenuto = <T extends { id: string }>(
+    voci: T[] | null, filtrate: T[], testi: { vuoto: string; nessuno: string }, card: (voce: T) => React.ReactNode,
+  ) => {
+    if (voci === null && errore) {
+      return <ErroreCaricamento cosa="Non è stato possibile caricare l'anagrafe." motivo={errore} onRiprova={() => { void load(); }} />;
+    }
+    if (voci === null) return <Loading>Sto aprendo l'anagrafe…</Loading>;
+    if (filtrate.length === 0) {
+      let testo = testi.vuoto;
+      if (query) testo = testi.nessuno;
+      return <p className="text-[15px] text-chalk-muted">{testo}</p>;
+    }
+    return <div className="grid gap-3 grid-cols-[repeat(auto-fill,minmax(250px,1fr))]">{filtrate.map(card)}</div>;
+  };
 
   return (
     <div>
@@ -83,39 +106,21 @@ export function AnagrafePage() {
       {showForm && tab === "g" && <GiocatoreForm squadre={squadre || []} onSave={(d) => guard(() => saveGiocatore(d))} />}
       {showForm && tab === "s" && <SquadraAnagrafeForm giocatori={giocatori || []} onSave={(d) => guard(() => saveSquadra(d))} />}
 
-      {tab === "g" && (
-        giocatori === null ? <Loading>Sto aprendo l'anagrafe…</Loading> :
-        gList.length === 0 ? (
-          <p className="text-[15px] text-chalk-muted">
-            {query ? "Nessun giocatore trovato con questa ricerca." : "Nessun giocatore registrato: aggiungi il primo."}
-          </p>
-        ) : (
-          <div className="grid gap-3 grid-cols-[repeat(auto-fill,minmax(250px,1fr))]">
-            {gList.map((g) => (
-              <GiocatoreCard key={g.id} g={g} user={user} squadre={squadre || []}
-                onOpen={() => setSelGiocatore(g)}
-                onRemove={() => removeGiocatore(g.id)} />
-            ))}
-          </div>
-        )
-      )}
+      {tab === "g" && contenuto(giocatori, gList,
+        { vuoto: "Nessun giocatore registrato: aggiungi il primo.", nessuno: "Nessun giocatore trovato con questa ricerca." },
+        (g) => (
+          <GiocatoreCard key={g.id} g={g} user={user} squadre={squadre || []}
+            onOpen={() => setSelGiocatore(g)}
+            onRemove={() => removeGiocatore(g.id)} />
+        ))}
 
-      {tab === "s" && (
-        squadre === null ? <Loading>Sto aprendo l'anagrafe…</Loading> :
-        sList.length === 0 ? (
-          <p className="text-[15px] text-chalk-muted">
-            {query ? "Nessuna squadra trovata con questa ricerca." : "Nessuna squadra registrata: aggiungi la prima."}
-          </p>
-        ) : (
-          <div className="grid gap-3 grid-cols-[repeat(auto-fill,minmax(250px,1fr))]">
-            {sList.map((s) => (
-              <SquadraAnagrafeCard key={s.id} s={s} giocatori={giocatori || []} user={user}
-                onOpen={() => setSelSquadra(s)}
-                onRemove={() => removeSquadra(s.id)} />
-            ))}
-          </div>
-        )
-      )}
+      {tab === "s" && contenuto(squadre, sList,
+        { vuoto: "Nessuna squadra registrata: aggiungi la prima.", nessuno: "Nessuna squadra trovata con questa ricerca." },
+        (s) => (
+          <SquadraAnagrafeCard key={s.id} s={s} giocatori={giocatori || []} user={user}
+            onOpen={() => setSelSquadra(s)}
+            onRemove={() => removeSquadra(s.id)} />
+        ))}
       {tab === "stats" && (
         <>
           <p className="mb-1 text-xs text-chalk-muted">

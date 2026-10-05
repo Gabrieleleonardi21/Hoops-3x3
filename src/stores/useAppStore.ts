@@ -2,7 +2,7 @@ import { create } from "zustand";
 import type { LegaMeta, Partita, Tappa, User } from "../types";
 import { uid } from "../utils/uid";
 import { legheApi } from "../services/legheApi";
-import { ApiError } from "../services/api";
+import { ApiError, testoErrore } from "../services/api";
 import { createSaveQueue } from "./saveQueue";
 import { leggiLegaSalvata, type LegaSalvata } from "../utils/legaFile";
 
@@ -137,12 +137,6 @@ function getInitialState(): Pick<AppState, "user" | "legaId" | "leghe" | "legaNa
 
 /** Attesa dopo l'ultima modifica prima di salvare una tappa o rinominare la lega */
 const SAVE_DELAY = 400;
-
-/** Testo dell'errore per l'utente: il messaggio del server o della rete, altrimenti uno generico */
-function testoErrore(e: unknown): string {
-  if (e instanceof ApiError) return e.message;
-  return "errore imprevisto";
-}
 
 /** Errori temporanei, per cui la coda riprova: rete assente (status 0), guasto del server (5xx) e JWT respinto
  *  senza un rinnovo riuscito (401). Con il 401 la modifica resta in attesa invece di essere scartata: il rinnovo

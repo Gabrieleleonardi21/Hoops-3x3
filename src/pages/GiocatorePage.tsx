@@ -13,6 +13,7 @@ import { Loading } from "../components/ui/Loading";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
+import { ErroreCaricamento } from "../components/ui/ErroreCaricamento";
 import { Section } from "../components/ui/Section";
 import { StatTile } from "../components/ui/StatTile";
 import { Icon } from "../components/ui/Icon";
@@ -37,7 +38,7 @@ export function GiocatorePage() {
   const user = useAppStore((s) => s.user);
   const tappe = useAppStore((s) => s.tappe);
   const navigate = useNavigate();
-  const { giocatori, squadre } = useAnagrafe();
+  const { giocatori, squadre, errore, load } = useAnagrafe();
 
   const g = giocatori?.find((x) => x.id === id) ?? null;
   const logo = g ? squadre?.find((s) => s.nome === g.squadra)?.logo : undefined;
@@ -90,6 +91,9 @@ export function GiocatorePage() {
   }, [g, tappe]);
 
   if (!user) return <Navigate to="/" replace />;
+  if (giocatori === null && errore) {
+    return <ErroreCaricamento cosa="Non è stato possibile caricare l'anagrafe." motivo={errore} onRiprova={() => { void load(); }} />;
+  }
   if (giocatori === null) return <Loading>Sto aprendo la scheda…</Loading>;
   if (!g) {
     return (

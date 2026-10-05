@@ -3,6 +3,7 @@ import {
   anagrafeApi, toGiocatoreInput, toSquadraInput,
   type GiocatoreInput, type SquadraInput,
 } from "../services/anagrafeApi";
+import { testoErrore } from "../services/api";
 import { replaceById } from "../utils/replaceById";
 import type { RegGiocatore, RegSquadra } from "../types";
 
@@ -13,9 +14,12 @@ import type { RegGiocatore, RegSquadra } from "../types";
  * Le modifiche fatte da altri utenti si vedono al reload della pagina.
  */
 interface AnagrafeState {
-  /** null = non ancora caricata (le pagine mostrano il caricamento) */
+  /** null = non ancora caricata (le pagine mostrano il caricamento, o l'errore se `errore` c'è) */
   giocatori: RegGiocatore[] | null;
   squadre: RegSquadra[] | null;
+  /** Perché l'ultimo caricamento non è riuscito; null se è andato bene o è in corso. Le liste restano a null: un caricamento
+   *  fallito non è un'anagrafe vuota, e la pagina deve dirlo con un «Riprova» */
+  errore: string | null;
   /** true dopo un caricamento riuscito: i load() successivi non richiamano il server */
   caricata: boolean;
   load: () => Promise<void>;
@@ -47,17 +51,20 @@ export const useAnagrafeStore = create<AnagrafeState>((set, get) => {
   return {
     giocatori: null,
     squadre: null,
+    errore: null,
     caricata: false,
 
     load: () => {
       if (get().caricata) return Promise.resolve();
       if (inCorso) return inCorso;
       const scrittureAllInizio = scritture;
+      set({ errore: null });
       inCorso = Promise.all([anagrafeApi.listGiocatori(), anagrafeApi.listSquadre()])
         // La cache vale solo se nel frattempo non ci sono state scritture: altrimenti il prossimo load() riscarica
         .then(([giocatori, squadre]) => set({ giocatori, squadre, caricata: scritture === scrittureAllInizio }))
-        // Server non raggiungibile: liste vuote come prima; la cache resta non valida e il prossimo mount riprova
-        .catch(() => set((s) => ({ giocatori: s.giocatori ?? [], squadre: s.squadre ?? [] })))
+        // Server non raggiungibile o che risponde con un errore: le liste restano come erano (null se non sono mai arrivate) e il
+        // motivo va in `errore`. La cache resta non valida: «Riprova», o il prossimo mount, ritenta
+        .catch((e) => set({ errore: testoErrore(e) }))
         .finally(() => { inCorso = null; });
       return inCorso;
     },

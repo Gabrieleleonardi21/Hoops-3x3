@@ -1,22 +1,46 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import App from "../../src/App";
 import { ErrorBoundary } from "../../src/components/ui/ErrorBoundary";
+import { AnagrafePage } from "../../src/pages/AnagrafePage";
+import { ArchivioPage } from "../../src/pages/ArchivioPage";
+import { GiocatorePage } from "../../src/pages/GiocatorePage";
 import { useAppStore, SESSION_KEY } from "../../src/stores/useAppStore";
+import { useAnagrafeStore } from "../../src/stores/useAnagrafeStore";
+import { anagrafeApi } from "../../src/services/anagrafeApi";
+import { archivioApi } from "../../src/services/archivioApi";
+import { ApiError } from "../../src/services/api";
 import { DEFAULT_RULES } from "../../src/constants/rules";
-import type { Tappa, User } from "../../src/types";
+import type { PubTappa, RegGiocatore, Tappa, User } from "../../src/types";
 
-// Si sostituisce solo la rete (leghe): pagine, store e componenti sono quelli veri
+// Si sostituisce solo la rete (leghe, anagrafe, archivio): pagine, store e componenti sono quelli veri
 vi.mock("../../src/services/legheApi", () => ({
   legheApi: {
     list: vi.fn(), create: vi.fn(), get: vi.fn(), rename: vi.fn(), remove: vi.fn(),
     addTappa: vi.fn(), putTappa: vi.fn(), removeTappa: vi.fn(),
   },
 }));
+vi.mock("../../src/services/anagrafeApi", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../src/services/anagrafeApi")>()),
+  anagrafeApi: {
+    listGiocatori: vi.fn(), createGiocatore: vi.fn(), updateGiocatore: vi.fn(), removeGiocatore: vi.fn(),
+    listSquadre: vi.fn(), createSquadra: vi.fn(), updateSquadra: vi.fn(), removeSquadra: vi.fn(),
+  },
+}));
+vi.mock("../../src/services/archivioApi", () => ({
+  archivioApi: { list: vi.fn(), get: vi.fn(), pubblica: vi.fn(), rimuovi: vi.fn() },
+}));
 
 const store = () => useAppStore.getState();
 const ospite: User = { name: "Ospite", guest: true };
+const registrato: User = { id: "u1", name: "Anna", email: "anna@example.it", ruolo: "USER", guest: false };
+const anagrafe = vi.mocked(anagrafeApi);
+const archivio = vi.mocked(archivioApi);
+
+/** Il server non risponde: l'errore che api.ts dà per rete assente o tempo massimo scaduto */
+const rete = () => new ApiError(0, "Server non raggiungibile: controlla la connessione o avvia il backend.");
 
 /** Una tappa com'è nel browser di un ospite che anni fa importò un file incompleto: manca l'elenco delle squadre */
 const tappaSenzaSquadre = (): Tappa => ({
@@ -24,8 +48,11 @@ const tappaSenzaSquadre = (): Tappa => ({
 } as unknown as Tappa);
 
 beforeEach(() => {
+  vi.resetAllMocks();
   localStorage.clear();
   window.history.replaceState(null, "", "/");
+  // La cache dell'anagrafe è stato di modulo: ogni test riparte da «non ancora caricata»
+  useAnagrafeStore.setState({ giocatori: null, squadre: null, errore: null, caricata: false });
   // React registra sulla console l'errore preso da un ErrorBoundary: nei test sarebbe solo rumore
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
@@ -185,5 +212,111 @@ describe("Dati vecchi dell'ospite nel browser (Ruling 3, T1.12)", () => {
     });
     expect(store().tappe.map((t) => t.id)).toEqual(["a"]);
     expect(store().syncError).toContain("«Tappa rotta» (manca il campo «squadre»)");
+  });
+});
+
+/* ── FS-4: anagrafe e archivio non caricati non sono «vuoti» ── */
+
+const giocatore = (id: string, nome: string): RegGiocatore => ({
+  id, nome, cognome: "Rossi", soprannome: "", nascita: "", citta: "", nazionalita: "Italia", altezza: "", peso: "",
+  ruolo: "Guardia", numero: "", squadra: "", esperienza: "", note: "", autore: "Anna", autoreId: "u1", ts: 1,
+});
+
+/** Apre una pagina dell'app a questo percorso, con questo utente */
+function apri(percorso: string, utente: User = registrato) {
+  useAppStore.setState({ user: utente });
+  render(
+    <MemoryRouter initialEntries={[percorso]}>
+      <Routes>
+        <Route path="/anagrafe" element={<AnagrafePage />} />
+        <Route path="/giocatore/:id" element={<GiocatorePage />} />
+        <Route path="/archivio" element={<ArchivioPage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+describe("Anagrafe non caricata: l'errore si distingue dal «vuoto» (FS-4)", () => {
+  it("server che risponde errore: compare il messaggio con «Riprova», non «Nessun giocatore registrato»", async () => {
+    anagrafe.listGiocatori.mockRejectedValue(new ApiError(503, "Servizio non disponibile"));
+    anagrafe.listSquadre.mockRejectedValue(new ApiError(503, "Servizio non disponibile"));
+    apri("/anagrafe");
+    const avviso = await screen.findByRole("alert");
+    expect(avviso.textContent).toContain("Non è stato possibile caricare l'anagrafe");
+    expect(avviso.textContent).toContain("Servizio non disponibile");
+    expect(screen.queryByText(/Nessun giocatore registrato/)).toBeNull();
+    expect(screen.queryByText(/Sto aprendo l'anagrafe/)).toBeNull();
+    // Senza il numero tra parentesi: non si sa quanti sono, «(0)» direbbe che non ce ne sono
+    expect(screen.getByRole("tab", { name: "Giocatori" })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "Squadre" })).toBeTruthy();
+    // Anche l'altra scheda dice lo stesso, non «Nessuna squadra registrata»
+    fireEvent.click(screen.getByRole("tab", { name: "Squadre" }));
+    expect(screen.getByRole("alert").textContent).toContain("Non è stato possibile caricare l'anagrafe");
+    expect(screen.queryByText(/Nessuna squadra registrata/)).toBeNull();
+  });
+
+  it("«Riprova» ricarica: tornato il server, compaiono i giocatori", async () => {
+    anagrafe.listGiocatori.mockRejectedValueOnce(rete());
+    anagrafe.listSquadre.mockResolvedValue([]);
+    apri("/anagrafe");
+    await screen.findByRole("alert");
+    anagrafe.listGiocatori.mockResolvedValue([giocatore("g1", "Mario")]);
+    fireEvent.click(screen.getByRole("button", { name: "Riprova" }));
+    expect(await screen.findByText("Mario Rossi")).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByRole("tab", { name: "Giocatori (1)" })).toBeTruthy();
+  });
+
+  it("anagrafe davvero vuota: il messaggio resta quello di prima", async () => {
+    anagrafe.listGiocatori.mockResolvedValue([]);
+    anagrafe.listSquadre.mockResolvedValue([]);
+    apri("/anagrafe");
+    expect(await screen.findByText("Nessun giocatore registrato: aggiungi il primo.")).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("la scheda di un giocatore con l'anagrafe non caricata dice l'errore, non «Sto aprendo la scheda» per sempre", async () => {
+    anagrafe.listGiocatori.mockRejectedValueOnce(rete());
+    anagrafe.listSquadre.mockResolvedValue([]);
+    apri("/giocatore/g1");
+    const avviso = await screen.findByRole("alert");
+    expect(avviso.textContent).toContain("Non è stato possibile caricare l'anagrafe");
+    expect(screen.queryByText(/Sto aprendo la scheda/)).toBeNull();
+    expect(screen.queryByText(/Giocatore non trovato/)).toBeNull();
+    anagrafe.listGiocatori.mockResolvedValue([giocatore("g1", "Mario")]);
+    fireEvent.click(screen.getByRole("button", { name: "Riprova" }));
+    expect(await screen.findByRole("heading", { name: "Mario Rossi" })).toBeTruthy();
+  });
+});
+
+describe("Archivio non caricato: l'errore si distingue dal «vuoto» (FS-4)", () => {
+  const pubblicata = (): PubTappa => ({ tappa: { ...tappaValida("p1", "Finale di Roma") }, lega: "Estate", autore: "Anna", autoreId: "u1", ts: 1 });
+
+  it("server che risponde errore: compare il messaggio con «Riprova», non «L'archivio è vuoto»", async () => {
+    archivio.list.mockRejectedValue(new ApiError(500, "Errore interno del server"));
+    apri("/archivio");
+    const avviso = await screen.findByRole("alert");
+    expect(avviso.textContent).toContain("Non è stato possibile caricare l'archivio del circuito");
+    expect(avviso.textContent).toContain("Errore interno del server");
+    expect(screen.queryByText(/L'archivio è vuoto/)).toBeNull();
+    expect(screen.queryByText(/Sto aprendo l'archivio/)).toBeNull();
+  });
+
+  it("«Riprova» ricarica l'elenco", async () => {
+    archivio.list.mockRejectedValueOnce(rete());
+    apri("/archivio");
+    await screen.findByRole("alert");
+    archivio.list.mockResolvedValue([pubblicata()]);
+    fireEvent.click(screen.getByRole("button", { name: "Riprova" }));
+    expect(await screen.findByText("Finale di Roma")).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(archivio.list).toHaveBeenCalledTimes(2);
+  });
+
+  it("archivio davvero vuoto: il messaggio resta quello di prima", async () => {
+    archivio.list.mockResolvedValue([]);
+    apri("/archivio");
+    expect(await screen.findByText(/L'archivio è vuoto/)).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 });

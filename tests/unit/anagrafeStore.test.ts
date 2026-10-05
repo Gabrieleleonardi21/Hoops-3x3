@@ -41,12 +41,14 @@ async function nuovoStore() {
   vi.resetModules();
   const { anagrafeApi } = await import("../../src/services/anagrafeApi");
   const { useAnagrafeStore } = await import("../../src/stores/useAnagrafeStore");
+  // La classe va presa dopo resetModules, dagli stessi moduli dello store: una importata prima non la riconoscerebbe
+  const { ApiError } = await import("../../src/services/api");
   const api = vi.mocked(anagrafeApi);
   // Il finto anagrafeApi è lo stesso oggetto per tutti i test: si azzerano chiamate e risposte del test prima
   vi.resetAllMocks();
   api.listGiocatori.mockResolvedValue([giocatore("g1", "Mario")]);
   api.listSquadre.mockResolvedValue([squadra("s1", "Ballers", ["g1"])]);
-  return { api, store: useAnagrafeStore };
+  return { api, store: useAnagrafeStore, ApiError };
 }
 
 describe("useAnagrafeStore (cache dell'anagrafe)", () => {
@@ -72,14 +74,46 @@ describe("useAnagrafeStore (cache dell'anagrafe)", () => {
     expect(api.listSquadre).toHaveBeenCalledTimes(1);
   });
 
-  it("se il server non risponde mostra liste vuote e il load successivo riprova", async () => {
-    const { api, store } = await nuovoStore();
-    api.listSquadre.mockRejectedValueOnce(new Error("server spento"));
+  it("se il server non risponde le liste restano non caricate e il motivo è in `errore`; il load successivo riprova (FS-4)", async () => {
+    const { api, store, ApiError } = await nuovoStore();
+    api.listSquadre.mockRejectedValueOnce(new ApiError(0, "Server non raggiungibile"));
     await store.getState().load();
-    expect(store.getState().giocatori).toEqual([]);
-    expect(store.getState().squadre).toEqual([]);
+    // null e non []: un elenco vuoto direbbe che l'anagrafe è vuota, mentre non si sa che cosa c'è
+    expect(store.getState().giocatori).toBeNull();
+    expect(store.getState().squadre).toBeNull();
+    expect(store.getState().errore).toBe("Server non raggiungibile");
     await store.getState().load();
     expect(store.getState().squadre).toEqual([squadra("s1", "Ballers", ["g1"])]);
+    expect(store.getState().errore).toBeNull();
+  });
+
+  it("un errore che non è del server o della rete dà un messaggio generico, non il testo tecnico", async () => {
+    const { api, store } = await nuovoStore();
+    api.listGiocatori.mockRejectedValueOnce(new TypeError("x is not iterable"));
+    await store.getState().load();
+    expect(store.getState().errore).toBe("errore imprevisto");
+  });
+
+  it("un nuovo tentativo toglie subito l'errore di prima, così la pagina torna al caricamento", async () => {
+    const { api, store, ApiError } = await nuovoStore();
+    api.listGiocatori.mockRejectedValueOnce(new ApiError(503, "Servizio non disponibile"));
+    await store.getState().load();
+    expect(store.getState().errore).not.toBeNull();
+    const ripresa = store.getState().load();
+    expect(store.getState().errore).toBeNull();
+    await ripresa;
+  });
+
+  it("con le liste già in memoria un caricamento fallito non le svuota", async () => {
+    const { api, store, ApiError } = await nuovoStore();
+    await store.getState().load();
+    // Una scrittura rende non valida la cache: il load successivo riscarica, e stavolta il server non risponde
+    api.createSquadra.mockResolvedValue(squadra("s2", "Wildcats"));
+    await store.getState().saveSquadra(nuovaSquadra);
+    api.listGiocatori.mockRejectedValueOnce(new ApiError(0, "Server non raggiungibile"));
+    await store.getState().load();
+    expect(store.getState().giocatori).toEqual([giocatore("g1", "Mario")]);
+    expect(store.getState().squadre!.map((s) => s.id)).toEqual(["s2", "s1"]);
   });
 
   it("saveSquadra restituisce la nuova squadra e la mette in testa alla cache", async () => {

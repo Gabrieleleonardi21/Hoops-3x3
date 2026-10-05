@@ -9,8 +9,8 @@ import { avviaRinnovoAutomatico, suSessioneFinita } from "./services/api";
 import { Header } from "./components/layout/Header";
 import { SyncBanner } from "./components/layout/SyncBanner";
 import { Loading } from "./components/ui/Loading";
-import { Button } from "./components/ui/Button";
 import { ErrorBoundary } from "./components/ui/ErrorBoundary";
+import { ErroreCaricamento } from "./components/ui/ErroreCaricamento";
 import { CoachFAB } from "./components/coach/CoachFAB";
 import { CoachPanel } from "./components/coach/CoachPanel";
 import { HomePage } from "./pages/HomePage";
@@ -102,11 +102,8 @@ function useSessione() {
 /** Avviso all'avvio quando il server non risponde: la sessione resta aperta e «Riprova» ripete la verifica */
 function AvvisoServer({ onRiprova }: { onRiprova: () => void }) {
   return (
-    <div role="alert" className="rounded border border-loss/40 bg-loss/10 p-4 text-[13px] text-chalk">
-      <p className="m-0 font-semibold">Server non raggiungibile: non è stato possibile caricare le tue leghe.</p>
-      <p className="mt-1 mb-3 text-chalk-muted">La sessione resta aperta: riprova quando la connessione torna.</p>
-      <Button size="sm" onClick={onRiprova}>Riprova</Button>
-    </div>
+    <ErroreCaricamento cosa="Server non raggiungibile: non è stato possibile caricare le tue leghe."
+      motivo="La sessione resta aperta: riprova quando la connessione torna." onRiprova={onRiprova} />
   );
 }
 

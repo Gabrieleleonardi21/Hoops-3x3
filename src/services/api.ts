@@ -24,6 +24,13 @@ export class ApiError extends Error {
   }
 }
 
+/** Testo dell'errore per l'utente: il messaggio del server o della rete (ApiError), altrimenti uno generico. Lo usano lo store
+ *  delle leghe e le pagine che mostrano un errore, così il testo di un errore è lo stesso ovunque. */
+export function testoErrore(e: unknown): string {
+  if (e instanceof ApiError) return e.message;
+  return "errore imprevisto";
+}
+
 /** La richiesta non ha avuto risposta: tempo massimo scaduto, rete assente o server spento */
 function erroreDiRete(e: unknown): ApiError {
   if (e instanceof DOMException && e.name === "TimeoutError") {
