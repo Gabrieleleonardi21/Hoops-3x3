@@ -5,7 +5,7 @@ import { Navigate, useNavigate } from "react-router-dom";
 import { useAppStore } from "../stores/useAppStore";
 import { useInvio } from "../hooks/useInvio";
 import { useConfermaPerdita } from "../hooks/useConfermaPerdita";
-import { perditaLega } from "../utils/testi";
+import { conteggio, perditaLega } from "../utils/testi";
 import { GuestBanner } from "../components/auth/GuestBanner";
 import { Input } from "../components/ui/Input";
 import { Button } from "../components/ui/Button";
@@ -28,7 +28,7 @@ function LegaCard({ m, disabled, onOpen, onDelete }: { m: LegaMeta; disabled: bo
         </button>
       </div>
       <div className="text-xs text-chalk-muted">
-        {m.nTappe} {m.nTappe === 1 ? "tappa" : "tappe"}{date ? ` · ${date}` : ""}
+        {conteggio(m.nTappe, "tappa", "tappe")}{date ? ` · ${date}` : ""}
       </div>
       <Button size="sm" className="mt-1 self-start" onClick={onOpen} disabled={disabled}>Apri <Icon name="chevron" size={14} /></Button>
       {finestra}

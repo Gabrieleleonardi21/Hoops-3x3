@@ -86,6 +86,27 @@ describe("Elenco delle leghe: «Elimina lega» chiede conferma con la finestra d
     expect(leghe.remove).not.toHaveBeenCalled(); // finché non si risponde il server non riceve niente
   });
 
+  it("la card dice quante tappe ha, e la conferma usa la stessa regola del singolare", () => {
+    useAppStore.setState({
+      user: registrato,
+      leghe: [
+        { id: "l0", nome: "Vuota", ts: 1, nTappe: 0 },
+        { id: "l1", nome: "Una", ts: 1, nTappe: 1 },
+        { id: "l2", nome: "Due", ts: 1, nTappe: 2 },
+      ],
+    });
+    render(
+      <MemoryRouter initialEntries={["/leghe"]}>
+        <Routes><Route path="/leghe" element={<LegheListPage />} /></Routes>
+      </MemoryRouter>,
+    );
+    expect(screen.getByText(/^0 tappe/)).toBeTruthy();
+    expect(screen.getByText(/^1 tappa/)).toBeTruthy();
+    expect(screen.getByText(/^2 tappe/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Elimina lega Una" }));
+    expect(screen.getByRole("dialog", { name: "Eliminare la lega?" }).textContent).toContain("con 1 tappa,");
+  });
+
   it("«Annulla» non elimina niente: nessuna DELETE, la lega resta nell'elenco", () => {
     apriLeghe();
     fireEvent.click(cestino());
