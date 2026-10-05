@@ -25,11 +25,12 @@ const tappa = (id: string, nome = "Tappa"): Tappa => ({
   id, nome, luogo: "", data: "", nGironi: 1, regole: { ...DEFAULT_RULES }, squadre: [], gironi: null, partite: [], video: [],
 });
 
-/** Promessa controllabile a mano: il test decide quando il "server" risponde */
+/** Promessa controllabile a mano: il test decide quando il "server" risponde (ok) o con quale errore (ko) */
 function differita<T>() {
   let ok!: (v: T) => void;
-  const p = new Promise<T>((res) => { ok = res; });
-  return { p, ok };
+  let ko!: (e: unknown) => void;
+  const p = new Promise<T>((res, rej) => { ok = res; ko = rej; });
+  return { p, ok, ko };
 }
 
 beforeEach(() => {
@@ -216,6 +217,42 @@ describe("riaprire una lega con salvataggi in sospeso", () => {
     api.get.mockResolvedValue({ id: "l1", nome: "Lega", tappe: [] }); // il server non la conosce ancora
     await store().selectLega("l1");
     expect(store().tappe.map((t) => t.nome)).toEqual(["Tappa nuova"]);
+  });
+});
+
+describe("eliminazioni con salvataggi in sospeso: nessun errore per dati eliminati apposta", () => {
+  it("una tappa eliminata con la PUT in volo: il 404 della PUT, arrivata dopo la DELETE, non è un errore", async () => {
+    useAppStore.setState({ tappe: [tappa("t1")] });
+    const put = differita<Tappa>();
+    api.putTappa.mockReturnValueOnce(put.p);
+    store().updateTappa("t1", { nome: "Finale" });
+    await vi.advanceTimersByTimeAsync(400);       // parte la PUT (lenta)
+    store().removeTappa("t1");                    // la DELETE parte subito e il server la esegue per prima
+    expect(api.removeTappa).toHaveBeenCalledWith("t1");
+    put.ko(new ApiError(404, "Tappa non trovata: t1"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(store().syncError).toBeNull();
+    expect(store().inSospeso).toBe(0);
+  });
+
+  it("eliminando la lega aperta, i salvataggi in attesa delle sue tappe non partono più", async () => {
+    useAppStore.setState({ tappe: [tappa("t1")] });
+    // Rete assente: la PUT di t1 e la POST di t2 falliscono e aspettano il nuovo tentativo
+    api.putTappa.mockRejectedValueOnce(new ApiError(0, "Server non raggiungibile"));
+    api.addTappa.mockRejectedValueOnce(new ApiError(0, "Server non raggiungibile"));
+    store().updateTappa("t1", { nome: "Finale" });
+    store().addTappa(tappa("t2"));
+    await vi.advanceTimersByTimeAsync(400);
+    // Torna la rete e la lega viene eliminata: da qui il server non conosce più né lei né le sue tappe
+    api.remove.mockResolvedValue(undefined);
+    api.putTappa.mockRejectedValue(new ApiError(404, "Tappa non trovata: t1"));
+    api.addTappa.mockRejectedValue(new ApiError(404, "Lega non trovata: l1"));
+    await store().deleteLega("l1");
+    expect(store().inSospeso).toBe(0);            // niente avviso di tappe non salvate per una lega eliminata
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(store().syncError).toBeNull();
+    expect(api.putTappa).toHaveBeenCalledTimes(1); // nessun nuovo tentativo dopo l'eliminazione
+    expect(api.addTappa).toHaveBeenCalledTimes(1);
   });
 });
 

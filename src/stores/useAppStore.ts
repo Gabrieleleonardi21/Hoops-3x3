@@ -177,8 +177,15 @@ export const useAppStore = create<AppState>((set, get) => {
     if (eliminatePrimaDellaCreazione.delete(t.id)) eliminaSulServer(t.id);
   };
 
+  /** Un 404 per una tappa che non è più nello stato non è un salvataggio fallito: la tappa è stata eliminata (la DELETE
+   *  è arrivata prima della PUT in volo, oppure se n'è andata con la sua lega) e non c'è più niente da salvare */
+  const eliminataNelFrattempo = (e: unknown, t: Tappa) =>
+    e instanceof ApiError && e.status === 404 && !get().tappe.some((x) => x.id === t.id);
+
   const coda = createSaveQueue({
-    salva: salvaSulServer,
+    salva: (t) => salvaSulServer(t).catch((e: unknown) => {
+      if (!eliminataNelFrattempo(e, t)) throw e;
+    }),
     riprovabile,
     ritardo: SAVE_DELAY,
     onErrore: (e, definitivo) => {
@@ -308,6 +315,12 @@ export const useAppStore = create<AppState>((set, get) => {
       const leghe = get().leghe.filter((m) => m.id !== id);
       if (!isRemote()) writeIndex(leghe);
       if (get().legaId === id) {
+        // Le tappe se ne vanno con la lega: i loro salvataggi in attesa o in nuovo tentativo partirebbero dopo la DELETE
+        // e avrebbero un 404 (la POST, su una lega che non c'è più), cioè un errore per dati eliminati apposta
+        for (const t of get().tappe) {
+          coda.annulla(t.id);
+          daCreare.delete(t.id);
+        }
         localStorage.removeItem(ACTIVE_KEY);
         set({ leghe, legaId: null, legaName: "", tappe: [] });
       } else {
