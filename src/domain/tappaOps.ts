@@ -10,6 +10,7 @@ import { buildMatches } from "../utils/buildMatches";
 import { buildBracket, nextBracketSlot } from "../utils/buildBracket";
 import { replaceById } from "../utils/replaceById";
 import { uid } from "../utils/uid";
+import { conteggio } from "../utils/testi";
 import { DEFAULT_RULES } from "../constants/rules";
 
 export type ModoSorteggio = "casuale" | "ranking";
@@ -152,18 +153,87 @@ export function sorteggia(tappa: Tappa, modo: ModoSorteggio): Esito {
   return ok({ ...senzaSorteggio(tappa), gironi, partite: buildMatches(gironi) });
 }
 
+/** Risultati registrati nella fase finale. I turni superati d'ufficio (`bye`) non sono risultati. */
+const risultatiFaseFinale = (tappa: Tappa) => (tappa.bracket ?? []).filter((m) => m.done && !m.bye).length;
+
+/** Risultati registrati in una tappa, gironi e fase finale */
+const risultati = (tappa: Tappa) => tappa.partite.filter((m) => m.done).length + risultatiFaseFinale(tappa);
+
+/** «Verranno eliminati a, b e c.»: la frase delle finestre di conferma. Una voce sola è sempre la tappa o la squadra, al
+ *  femminile: «Verrà eliminata a.» */
+function fraseEliminati(voci: string[]): string {
+  if (voci.length === 1) return `Verrà eliminata ${voci[0]}.`;
+  return `Verranno eliminati ${voci.slice(0, -1).join(", ")} e ${voci[voci.length - 1]}.`;
+}
+
+/** «la squadra «Falchi»», oppure solo «la squadra» se il nome è vuoto (campo svuotato, dati vecchi dell'ospite) */
+function nominata(cosa: string, nome: string): string {
+  const pulito = nome.trim();
+  if (!pulito) return cosa;
+  return `${cosa} «${pulito}»`;
+}
+
+/** Il sorteggio, la fase finale e i risultati che una tappa ha, nell'ordine in cui si elencano: vuoto se non ha niente.
+ *  Con almeno un risultato le voci sono sempre due o più (i risultati stanno nel calendario o nel tabellone). */
+function datiDiGioco(tappa: Tappa): string[] {
+  const voci: string[] = [];
+  if (tappa.gironi || tappa.partite.length > 0) voci.push("il sorteggio");
+  if (tappa.bracket?.length) voci.push("la fase finale");
+  const giocati = risultati(tappa);
+  if (giocati > 0) voci.push(conteggio(giocati, "risultato", "risultati"));
+  return voci;
+}
+
 /** Che cosa cancellano un nuovo sorteggio o un cambio di struttura (numero di gironi, squadre): il testo da mostrare
  *  nella richiesta di conferma, oppure null se non c'è nessun risultato da perdere e si può procedere senza chiedere.
- *  Lo usano l'interfaccia e il Coach (decisione D4). I turni superati d'ufficio (`bye`) non sono risultati. */
+ *  Lo usano l'interfaccia e il Coach (decisione D4). */
 export function perditaRisultati(tappa: Tappa): string | null {
-  const giocate = tappa.partite.filter((m) => m.done).length
-    + (tappa.bracket ?? []).filter((m) => m.done && !m.bye).length;
-  if (giocate === 0) return null;
-  let risultati = `${giocate} risultati`;
-  if (giocate === 1) risultati = "1 risultato";
-  if (tappa.bracket?.length) return `Verranno eliminati il sorteggio, la fase finale e ${risultati}.`;
-  return `Verranno eliminati il sorteggio e ${risultati}.`;
+  if (risultati(tappa) === 0) return null;
+  return fraseEliminati(datiDiGioco(tappa));
 }
+
+/** Che cosa cancella «Elimina»: la tappa con le sue squadre e, se ci sono, sorteggio, fase finale e risultati. Per questa
+ *  azione la conferma si chiede sempre, quindi il testo c'è sempre. */
+export function perditaTappa(tappa: Tappa): string {
+  const voce = `${nominata("la tappa", tappa.nome)} con ${conteggio(tappa.squadre.length, "squadra", "squadre")}`;
+  return fraseEliminati([voce, ...datiDiGioco(tappa)]);
+}
+
+/** Che cosa cancella «Elimina bracket e ricomincia»: il tabellone e i suoi risultati (quelli dei gironi restano). Anche
+ *  per questa azione la conferma si chiede sempre. */
+export function perditaTabellone(tappa: Tappa): string {
+  const giocati = risultatiFaseFinale(tappa);
+  const restano = "I risultati dei gironi restano.";
+  if (giocati === 0) return `Verrà eliminato il tabellone. ${restano}`;
+  return `Verranno eliminati il tabellone e ${conteggio(giocati, "risultato", "risultati")}. ${restano}`;
+}
+
+/** Il nome provvisorio di una squadra appena aggiunta, «Squadra 3» (lo dà aggiungiSquadra): finché resta quello nessuno ha
+ *  scritto un nome */
+export function eSegnaposto(nome: string): boolean {
+  return /^Squadra \d+$/.test(nome.trim());
+}
+
+/** Che cosa cancella «Rimuovi squadra»: ciò che l'utente ha scritto (il nome, i giocatori con il nome) e, se ci sono, il
+ *  sorteggio, la fase finale e i risultati, che il cambio di squadre azzera. null = niente di importante, si toglie senza
+ *  chiedere: una squadra appena aggiunta (nome provvisorio, nessun giocatore) e nessun risultato. Un sorteggio senza
+ *  risultati non fa chiedere da solo, come per un nuovo sorteggio: si rifà senza perdere niente. */
+export function perditaSquadra(tappa: Tappa, squadraId: string): string | null {
+  const squadra = tappa.squadre.find((s) => s.id === squadraId);
+  if (!squadra) return null;
+  const giocatori = (squadra.giocatori || []).filter((p) => p.nome.trim()).length;
+  const nomeScritto = squadra.nome.trim() !== "" && !eSegnaposto(squadra.nome);
+  if (!nomeScritto && giocatori === 0 && risultati(tappa) === 0) return null;
+  let voce = nominata("la squadra", squadra.nome);
+  if (giocatori > 0) voce += ` con ${conteggio(giocatori, "giocatore", "giocatori")}`;
+  return fraseEliminati([voce, ...datiDiGioco(tappa)]);
+}
+
+/** «Riapri» toglie la tappa dall'Archivio circuito: è l'unica cosa che si perde, la tappa in sé resta com'è. Il testo
+ *  vale per chi ha un account: l'ospite non pubblica niente. */
+export const PERDITA_RIAPERTURA =
+  "La tappa uscirà dall'Archivio circuito e il suo link pubblico smetterà di funzionare finché non la concluderai di nuovo. "
+  + "Sorteggio e risultati restano.";
 
 /** Aggiunge una squadra con il nome provvisorio «Squadra N». Il sorteggio fatto non vale più. */
 export function aggiungiSquadra(tappa: Tappa): Esito {

@@ -3,6 +3,7 @@ import {
   sorteggia, registraRisultato, registraRisultatoBracket, generaFasiDirette, concludi,
   aggiungiSquadra, rimuoviSquadra, impostaNumeroGironi, perditaRisultati, annullaRisultato, rinominaTappa,
   erroreLimitiTappa, erroreTestiTappa, creaTappa,
+  perditaTappa, perditaTabellone, perditaSquadra, eSegnaposto,
 } from "../../src/domain/tappaOps";
 import type { Esito } from "../../src/domain/tappaOps";
 import type { Tappa } from "../../src/types";
@@ -386,6 +387,137 @@ describe("perditaRisultati: che cosa cancellano un nuovo sorteggio o un cambio d
       ...partenza.bracket!.slice(1),
     ];
     expect(perditaRisultati(partenza)).toBe("Verranno eliminati il sorteggio, la fase finale e 3 risultati.");
+  });
+});
+
+describe("eSegnaposto: il nome provvisorio delle squadre appena aggiunte", () => {
+  it("«Squadra N» è un segnaposto (anche con gli spazi ai lati); ogni altro nome è scritto da qualcuno", () => {
+    expect(eSegnaposto("Squadra 3")).toBe(true);
+    expect(eSegnaposto("  Squadra 12 ")).toBe(true);
+    for (const nome of ["", "Squadra", "Squadra 3A", "squadra 3", "Falchi", "Squadra Tre"]) {
+      expect(eSegnaposto(nome)).toBe(false);
+    }
+  });
+});
+
+describe("perditaTappa: che cosa cancella «Elimina» (si chiede sempre)", () => {
+  it("una tappa non sorteggiata perde il nome e le squadre", () => {
+    expect(perditaTappa(tappaNuova())).toBe("Verrà eliminata la tappa «Roma Open» con 4 squadre.");
+  });
+
+  it("con il sorteggio ma senza risultati dice anche il sorteggio", () => {
+    expect(perditaTappa(tappaSorteggiata())).toBe("Verranno eliminati la tappa «Roma Open» con 4 squadre e il sorteggio.");
+  });
+
+  it("con i risultati dice quanti; con la fase finale la nomina", () => {
+    expect(perditaTappa(tappaGironiConclusi())).toBe("Verranno eliminati la tappa «Roma Open» con 4 squadre, il sorteggio e 2 risultati.");
+    expect(perditaTappa(tappaConBracket()))
+      .toBe("Verranno eliminati la tappa «Roma Open» con 4 squadre, il sorteggio, la fase finale e 2 risultati.");
+  });
+
+  it("i numeri sono quelli veri: un risultato è «1 risultato»; i turni superati d'ufficio non contano", () => {
+    const unRisultato = nuova(registraRisultato(tappaSorteggiata(), "m1", { sa: 21, sb: 15 }));
+    expect(perditaTappa(unRisultato)).toBe("Verranno eliminati la tappa «Roma Open» con 4 squadre, il sorteggio e 1 risultato.");
+    const conBye = tappaConBracket();
+    conBye.bracket = [{ id: "bye", label: "Turno 1 · Gara 3", squadraA: "c", squadraB: null, pA: 0, pB: 0, done: true, bye: true }];
+    expect(perditaTappa(conBye)).toBe("Verranno eliminati la tappa «Roma Open» con 4 squadre, il sorteggio, la fase finale e 2 risultati.");
+  });
+
+  it("una tappa senza nome (dati vecchi dell'ospite) si nomina senza le virgolette vuote", () => {
+    expect(perditaTappa({ ...tappaNuova(), nome: "  " })).toBe("Verrà eliminata la tappa con 4 squadre.");
+  });
+});
+
+describe("perditaTabellone: che cosa cancella «Elimina bracket e ricomincia» (si chiede sempre)", () => {
+  /** Il tabellone con `n` match registrati: la prima semifinale, poi la seconda */
+  const conRisultati = (n: number): Tappa => {
+    const t = tappaConBracket();
+    t.bracket = t.bracket!.map((m, i) => {
+      if (i < n) return { ...m, pA: 21, pB: 15, done: true };
+      return m;
+    });
+    return t;
+  };
+
+  it("senza risultati nel tabellone cancella solo il tabellone", () => {
+    expect(perditaTabellone(conRisultati(0))).toBe("Verrà eliminato il tabellone. I risultati dei gironi restano.");
+  });
+
+  it("con dei risultati dice quanti: solo quelli della fase finale, non quelli dei gironi", () => {
+    expect(perditaTabellone(conRisultati(1))).toBe("Verranno eliminati il tabellone e 1 risultato. I risultati dei gironi restano.");
+    expect(perditaTabellone(conRisultati(2))).toBe("Verranno eliminati il tabellone e 2 risultati. I risultati dei gironi restano.");
+  });
+
+  it("i turni superati d'ufficio non sono risultati", () => {
+    const t = conRisultati(0);
+    t.bracket = [...t.bracket!, { id: "bye", label: "Turno 1 · Gara 3", squadraA: "c", squadraB: null, pA: 0, pB: 0, done: true, bye: true }];
+    expect(perditaTabellone(t)).toBe("Verrà eliminato il tabellone. I risultati dei gironi restano.");
+  });
+});
+
+describe("perditaSquadra: che cosa cancella «Rimuovi squadra» (si chiede solo se si perde qualcosa)", () => {
+  /** La tappa con tutte le squadre dal nome provvisorio e senza giocatori, come appena create */
+  const appenaCreata = (t: Tappa): Tappa => ({
+    ...t, squadre: t.squadre.map((s, i) => ({ ...s, nome: `Squadra ${i + 1}`, giocatori: [] })),
+  });
+  /** La tappa con la squadra `id` cambiata (le altre restano com'erano) */
+  const conSquadra = (t: Tappa, id: string, cambia: Partial<Tappa["squadre"][number]>): Tappa => ({
+    ...t,
+    squadre: t.squadre.map((s) => {
+      if (s.id !== id) return s;
+      return { ...s, ...cambia };
+    }),
+  });
+  const giocatori = (...nomi: string[]) => nomi.map((nome, i) => ({ id: `p${i}`, nome }));
+
+  it("una squadra appena aggiunta (nome provvisorio, nessun giocatore) si toglie senza chiedere", () => {
+    expect(perditaSquadra(appenaCreata(tappaNuova()), "d")).toBeNull();
+  });
+
+  it("anche con il sorteggio fatto, se non ci sono risultati: il sorteggio si rifà senza perdere niente", () => {
+    expect(perditaSquadra(appenaCreata(tappaSorteggiata()), "d")).toBeNull();
+  });
+
+  it("i giocatori con il nome vuoto o di soli spazi non contano: sono righe del roster ancora da compilare", () => {
+    expect(perditaSquadra(conSquadra(appenaCreata(tappaNuova()), "d", { giocatori: giocatori("", "  ") }), "d")).toBeNull();
+  });
+
+  it("un nome scritto si perde: la squadra si nomina", () => {
+    expect(perditaSquadra(conSquadra(appenaCreata(tappaNuova()), "d", { nome: "Falchi" }), "d"))
+      .toBe("Verrà eliminata la squadra «Falchi».");
+  });
+
+  it("i giocatori con il nome si perdono: si dice quanti, anche con il nome provvisorio", () => {
+    const t = appenaCreata(tappaNuova());
+    expect(perditaSquadra(conSquadra(t, "d", { giocatori: giocatori("Mario", "Luigi", "") }), "d"))
+      .toBe("Verrà eliminata la squadra «Squadra 4» con 2 giocatori.");
+    expect(perditaSquadra(conSquadra(t, "d", { nome: "Falchi", giocatori: giocatori("Mario") }), "d"))
+      .toBe("Verrà eliminata la squadra «Falchi» con 1 giocatore.");
+  });
+
+  it("senza nome (campo svuotato) ma con giocatori la squadra si nomina senza le virgolette vuote", () => {
+    expect(perditaSquadra(conSquadra(appenaCreata(tappaNuova()), "d", { nome: "", giocatori: giocatori("Mario") }), "d"))
+      .toBe("Verrà eliminata la squadra con 1 giocatore.");
+  });
+
+  it("con dei risultati si chiede sempre, anche per una squadra vuota: si perdono il sorteggio e i risultati", () => {
+    expect(perditaSquadra(appenaCreata(tappaGironiConclusi()), "d"))
+      .toBe("Verranno eliminati la squadra «Squadra 4», il sorteggio e 2 risultati.");
+  });
+
+  it("nome, giocatori, sorteggio, fase finale e risultati: dice tutto, con i numeri veri", () => {
+    const t = conSquadra(appenaCreata(tappaConBracket()), "d", { nome: "Falchi", giocatori: giocatori("Mario", "Luigi", "Anna") });
+    expect(perditaSquadra(t, "d"))
+      .toBe("Verranno eliminati la squadra «Falchi» con 3 giocatori, il sorteggio, la fase finale e 2 risultati.");
+  });
+
+  it("con il sorteggio ma senza risultati, se si chiede per il nome, dice anche il sorteggio che si perde", () => {
+    expect(perditaSquadra(conSquadra(appenaCreata(tappaSorteggiata()), "d", { nome: "Falchi" }), "d"))
+      .toBe("Verranno eliminati la squadra «Falchi» e il sorteggio.");
+  });
+
+  it("una squadra che non c'è non fa chiedere niente", () => {
+    expect(perditaSquadra(tappaGironiConclusi(), "inesistente")).toBeNull();
   });
 });
 
