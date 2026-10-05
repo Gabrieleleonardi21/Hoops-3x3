@@ -61,8 +61,6 @@ beforeEach(() => {
   window.history.replaceState(null, "", "/");
   // La cache dell'anagrafe è stato di modulo: ogni test riparte da «non ancora caricata»
   useAnagrafeStore.setState({ giocatori: null, squadre: null, errore: null, caricata: false });
-  // React registra sulla console l'errore preso da un ErrorBoundary: nei test sarebbe solo rumore
-  vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
 afterEach(() => {
@@ -106,6 +104,13 @@ describe("ErrorBoundary (FS-6)", () => {
     expect(screen.getByText("Un'altra pagina")).toBeTruthy();
   });
 
+  it("passando da una pagina buona a una che si rompe compare il messaggio, e ci si ferma lì (nessun ciclo)", () => {
+    const { rerender } = render(<ErrorBoundary resetKey="/a"><p>Pagina buona</p></ErrorBoundary>);
+    rerender(<ErrorBoundary resetKey="/b"><Rotto /></ErrorBoundary>);
+    expect(screen.getByRole("alert").textContent).toContain("Qualcosa è andato storto");
+    expect(screen.queryByText("Pagina buona")).toBeNull();
+  });
+
   it("nell'app una pagina rotta lascia visibili intestazione e navigazione, e un'altra pagina si apre", () => {
     // Stato che nessun salvataggio valido produrrebbe: la home cerca le squadre di una tappa che non le ha
     useAppStore.setState({ user: ospite, legaId: "l1", legaName: "Lega", tappe: [tappaSenzaSquadre()], ready: true });
@@ -135,7 +140,9 @@ function browserDellOspite(dati: unknown, opzioni: { aperta?: boolean } = {}) {
     { id: "l1", nome: "Estate", ts: 1, nTappe: 2 },
     { id: "l2", nome: "Inverno", ts: 1, nTappe: 0 },
   ]));
-  localStorage.setItem("hoop3x3_lega_l1", typeof dati === "string" ? dati : JSON.stringify(dati));
+  let testo = dati;
+  if (typeof dati !== "string") testo = JSON.stringify(dati);
+  localStorage.setItem("hoop3x3_lega_l1", testo as string);
   localStorage.setItem("hoop3x3_lega_l2", JSON.stringify({ nome: "Inverno", tappe: [] }));
   if (opzioni.aperta !== false) localStorage.setItem("hoop3x3_active_lega_id", "l1");
 }

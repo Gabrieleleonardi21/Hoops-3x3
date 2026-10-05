@@ -242,7 +242,8 @@ export function leggiLegaSalvata(dati: unknown): LegaSalvata | null {
     }
     scartate.push(`${etichettaTappa(dato, i)} (${descrivi(letta.error.issues[0])})`);
   });
-  const nomeLega = typeof nome === "string" ? nome : "";
+  let nomeLega = "";
+  if (typeof nome === "string") nomeLega = nome;
   return { lega: { nome: nomeLega, tappe: valide }, avviso: avvisoScartate(nomeLega, scartate) };
 }
 
