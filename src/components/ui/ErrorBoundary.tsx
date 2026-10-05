@@ -12,15 +12,21 @@ interface Props {
   resetKey?: string;
 }
 
-export class ErrorBoundary extends Component<Props, { errore: boolean }> {
+interface Stato {
+  errore: boolean;
+}
+
+export class ErrorBoundary extends Component<Props, Stato> {
   state = { errore: false };
 
   static getDerivedStateFromError() {
     return { errore: true };
   }
 
-  componentDidUpdate(prima: Props) {
-    if (this.state.errore && prima.resetKey !== this.props.resetKey) this.setState({ errore: false });
+  componentDidUpdate(prima: Props, statoPrima: Stato) {
+    // Si azzera solo se l'errore c'era già prima di questo aggiornamento: passando da una pagina buona a una rotta la chiave
+    // cambia nello stesso commit in cui compare l'errore, e azzerare farebbe disegnare e rompere la pagina una seconda volta
+    if (statoPrima.errore && this.state.errore && prima.resetKey !== this.props.resetKey) this.setState({ errore: false });
   }
 
   render() {

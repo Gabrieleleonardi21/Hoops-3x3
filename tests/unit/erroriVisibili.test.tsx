@@ -112,6 +112,17 @@ describe("ErrorBoundary (FS-6)", () => {
     expect(screen.queryByText("Pagina buona")).toBeNull();
   });
 
+  it("passando da una pagina buona a una rotta, la pagina si rompe una volta sola: il boundary non ritenta da capo", () => {
+    // React registra sulla console un errore per ogni volta che il boundary ne prende uno: una chiamata = una rottura. Contare i
+    // disegni della pagina non va bene, perché React ne fa uno in più la prima volta (replay per il messaggio d'errore)
+    const registrati = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { rerender } = render(<ErrorBoundary resetKey="/a"><p>Pagina buona</p></ErrorBoundary>);
+    // La chiave cambia nello stesso aggiornamento in cui la pagina nuova si rompe
+    rerender(<ErrorBoundary resetKey="/b"><Rotto /></ErrorBoundary>);
+    expect(screen.getByRole("alert").textContent).toContain("Qualcosa è andato storto");
+    expect(registrati).toHaveBeenCalledTimes(1);
+  });
+
   it("nell'app una pagina rotta lascia visibili intestazione e navigazione, e un'altra pagina si apre", () => {
     // Stato che nessun salvataggio valido produrrebbe: la home cerca le squadre di una tappa che non le ha
     useAppStore.setState({ user: ospite, legaId: "l1", legaName: "Lega", tappe: [tappaSenzaSquadre()], ready: true });
