@@ -384,11 +384,21 @@ function qualificateRichieste(args: Record<string, unknown>): number {
   return n;
 }
 
-/** Trova una tappa per nome (parziale, case-insensitive); se omesso restituisce l'ultima. */
+/** Trova una tappa per nome, maiuscole a parte; se il nome manca restituisce l'ultima. Vince il nome esatto, altrimenti
+ *  basta una parte del nome purché si trovi in una tappa sola: con «Roma Open» e «Roma Open 2» aperte insieme, «Roma» è
+ *  un errore e non la prima delle due (registra_risultato non chiede conferma e il risultato finirebbe sulla tappa
+ *  sbagliata senza che nessuno se ne accorga) */
 function findTappa(tappe: Tappa[], nomeTappa?: string): Tappa | null {
   if (!nomeTappa) return tappe.length > 0 ? tappe[tappe.length - 1] : null;
   const nl = nomeTappa.toLowerCase();
-  return tappe.find((t) => t.nome.toLowerCase().includes(nl)) ?? null;
+  const esatta = tappe.find((t) => t.nome.toLowerCase() === nl);
+  if (esatta) return esatta;
+  const simili = tappe.filter((t) => t.nome.toLowerCase().includes(nl));
+  if (simili.length > 1) {
+    const nomi = simili.map((t) => `"${pulisci(t.nome)}"`).join(", ");
+    throw new Error(`Più tappe corrispondono a "${nomeTappa}": ${nomi}. Indica il nome completo.`);
+  }
+  return simili[0] ?? null;
 }
 
 /** La tappa indicata da `tappa_nome` (o l'ultima, se manca) com'è adesso nello store. Un tappa_nome passato ma non
