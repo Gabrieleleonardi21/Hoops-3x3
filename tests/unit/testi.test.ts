@@ -18,9 +18,16 @@ describe("testi di ciò che si perde eliminando una lega o una voce dell'anagraf
     expect(perditaLega(lega(0))).toBe("Verrà eliminata la lega «Estate», che non ha tappe.");
   });
 
-  it("giocatore: sparisce dall'anagrafe condivisa e dai roster", () => {
+  it("giocatore: sparisce dall'anagrafe condivisa e dai roster in cui c'è, contati; se non è in nessun roster non ne parla", () => {
     const g = { id: "g1", nome: "Mario", cognome: "Rossi" } as RegGiocatore;
-    expect(perditaGiocatore(g)).toBe("Verrà eliminato il giocatore «Mario Rossi» dall'anagrafe condivisa e dai roster delle squadre.");
+    const squadra = (id: string, roster: string[]) => ({ id, roster }) as RegSquadra;
+    const solo = "Verrà eliminato il giocatore «Mario Rossi» dall'anagrafe condivisa.";
+    expect(perditaGiocatore(g)).toBe(solo); // senza l'elenco delle squadre
+    expect(perditaGiocatore(g, [squadra("s1", ["g2"]), squadra("s2", [])])).toBe(solo);
+    expect(perditaGiocatore(g, [squadra("s1", ["g1", "g2"]), squadra("s2", ["g3"])]))
+      .toBe("Verrà eliminato il giocatore «Mario Rossi» dall'anagrafe condivisa e da 1 roster.");
+    expect(perditaGiocatore(g, [squadra("s1", ["g1"]), squadra("s2", ["g9", "g1"]), squadra("s3", [])]))
+      .toBe("Verrà eliminato il giocatore «Mario Rossi» dall'anagrafe condivisa e da 2 roster.");
   });
 
   it("squadra: i giocatori del roster restano registrati (solo se c'è un roster)", () => {

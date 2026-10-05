@@ -127,12 +127,20 @@ describe("Anagrafe: le eliminazioni dalle card chiedono conferma", () => {
     return screen.findByRole("button", { name: "Elimina Ballers" });
   };
 
-  it("giocatore: la finestra dice che sparisce dall'anagrafe condivisa e dai roster", async () => {
+  it("giocatore: la finestra dice che sparisce dall'anagrafe condivisa e dai roster in cui c'è (Mario è nel roster dei Ballers)", async () => {
     apriAnagrafe();
     fireEvent.click(await xGiocatore());
     expect(screen.getByRole("dialog", { name: "Eliminare il giocatore?" }).textContent)
-      .toContain("Verrà eliminato il giocatore «Mario Rossi» dall'anagrafe condivisa e dai roster delle squadre.");
+      .toContain("Verrà eliminato il giocatore «Mario Rossi» dall'anagrafe condivisa e da 1 roster.");
     expect(anagrafe.removeGiocatore).not.toHaveBeenCalled();
+  });
+
+  it("giocatore che non è in nessun roster: la finestra non parla di roster", async () => {
+    anagrafe.listSquadre.mockResolvedValue([squadra("s1", "Ballers")]);
+    apriAnagrafe();
+    fireEvent.click(await xGiocatore());
+    expect(screen.getByRole("dialog", { name: "Eliminare il giocatore?" }).textContent)
+      .toContain("Verrà eliminato il giocatore «Mario Rossi» dall'anagrafe condivisa.");
   });
 
   it("giocatore: «Annulla» non elimina niente; «Conferma» manda una DELETE e la card sparisce", async () => {
@@ -209,6 +217,17 @@ describe("Anagrafe: le eliminazioni dalle schede (modali) chiedono conferma", ()
     expect(screen.queryByRole("dialog", { name: titolo })).toBeNull();
     expect(g.onRemove).not.toHaveBeenCalled();
     expect(g.onClose).not.toHaveBeenCalled();
+  });
+
+  it("giocatore: la scheda conta i roster dalle squadre che riceve", () => {
+    render(
+      <MemoryRouter>
+        <GiocatoreModal g={giocatore("g1", "Mario")} user={registrato} squadre={[squadra("s1", "Ballers", ["g1"]), squadra("s2", "Falchi", ["g1"])]} {...gestori()} />
+      </MemoryRouter>,
+    );
+    elimina();
+    expect(screen.getByRole("dialog", { name: "Eliminare il giocatore?" }).textContent)
+      .toContain("Verrà eliminato il giocatore «Mario Rossi» dall'anagrafe condivisa e da 2 roster.");
   });
 
   it.each([

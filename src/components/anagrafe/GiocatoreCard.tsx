@@ -14,7 +14,7 @@ import type { RegGiocatore, RegSquadra, User } from "../../types";
 export function GiocatoreCard({ g, user, squadre, onRemove, onOpen, disabled = false }: {
   g: RegGiocatore; user: User; squadre?: RegSquadra[]; onRemove: () => void; onOpen: () => void; disabled?: boolean;
 }) {
-  const { chiedi, finestra } = useConfermaPerdita(() => perditaGiocatore(g));
+  const { chiedi, finestra } = useConfermaPerdita(() => perditaGiocatore(g, squadre));
   // Cerca il logo della squadra abbinando il nome del giocatore con la lista squadre
   const squadraLogo = squadre?.find((s) => s.nome === g.squadra)?.logo ?? null;
   const age = eta(g.nascita);

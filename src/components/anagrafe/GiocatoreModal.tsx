@@ -39,7 +39,7 @@ export function GiocatoreModal({
 }) {
   const [editing, setEditing] = useState(false);
   const { invio, errore, setErrore, esegui } = useInvio();
-  const { chiedi, finestra } = useConfermaPerdita(() => perditaGiocatore(g));
+  const { chiedi, finestra } = useConfermaPerdita(() => perditaGiocatore(g, squadre));
   const [draft, setDraft] = useState<EditDraft>({
     nome: g.nome, cognome: g.cognome, soprannome: g.soprannome,
     nascita: g.nascita, citta: g.citta, nazionalita: g.nazionalita,

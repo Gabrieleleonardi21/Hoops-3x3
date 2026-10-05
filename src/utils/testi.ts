@@ -15,9 +15,14 @@ export function perditaLega(m: LegaMeta): string {
   return `Verrà eliminata la lega «${m.nome}» con ${conteggio(m.nTappe, "tappa", "tappe")}, squadre e risultati compresi.`;
 }
 
-/** L'anagrafe è condivisa: il giocatore sparisce per tutti, e il server lo toglie anche dai roster */
-export function perditaGiocatore(g: RegGiocatore): string {
-  return `Verrà eliminato il giocatore «${g.nome} ${g.cognome}» dall'anagrafe condivisa e dai roster delle squadre.`;
+/** L'anagrafe è condivisa: il giocatore sparisce per tutti, e il server lo toglie anche dai roster in cui c'è. `squadre` è
+ *  l'anagrafe delle squadre: si dice da quanti roster sparisce, e se non è in nessuno (o le squadre non si conoscono) non se
+ *  ne parla. «Roster» non cambia al plurale. */
+export function perditaGiocatore(g: RegGiocatore, squadre: RegSquadra[] = []): string {
+  const testo = `Verrà eliminato il giocatore «${g.nome} ${g.cognome}» dall'anagrafe condivisa`;
+  const roster = squadre.filter((s) => s.roster?.includes(g.id)).length;
+  if (roster === 0) return `${testo}.`;
+  return `${testo} e da ${roster} roster.`;
 }
 
 /** I giocatori del roster sono voci a sé: eliminando la squadra restano registrati */
