@@ -294,9 +294,13 @@ utenti registrati.
 - Errori visibili: una pagina che non si riesce a disegnare mostra un
   messaggio con «Ricarica» e il resto dell'app resta usabile; anagrafe e
   archivio che non si caricano dicono perché e offrono «Riprova» (mai un
-  elenco vuoto al posto dell'errore); creare, aprire ed eliminare una lega e
-  i form e le modali dell'anagrafe mostrano il motivo del rifiuto, tengono
-  ciò che l'utente ha scritto e disattivano i pulsanti durante l'invio.
+  elenco vuoto al posto dell'errore); la pagina pubblica di una tappa dice
+  «non trovata» solo per un 404, per gli altri errori mostra il motivo con
+  «Riprova»; creare, aprire ed eliminare una lega e i form e le modali
+  dell'anagrafe mostrano il motivo del rifiuto, tengono ciò che l'utente ha
+  scritto e disattivano i pulsanti durante l'invio; se una squadra di tappa
+  non si riesce a collegare all'anagrafe il motivo compare sotto il suo nome,
+  con «Riprova».
 - Operazioni di tappa (sorteggio, risultati, fasi dirette, conclusione) come
   funzioni pure in src/domain/tappaOps.ts: le stesse per l'interfaccia e per
   il Coach AI, coperte da test unitari.
