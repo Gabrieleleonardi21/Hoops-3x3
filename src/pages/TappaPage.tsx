@@ -5,6 +5,8 @@ import { useState, useEffect } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { useTappa } from "../hooks/useTappa";
 import { useAnagrafe } from "../hooks/useAnagrafe";
+import { useConfermaPerdita } from "../hooks/useConfermaPerdita";
+import { eSegnaposto } from "../domain/tappaOps";
 import { testoErrore } from "../services/api";
 import { TappaEditPanel } from "../components/tappa/TappaEditPanel";
 import { TappaRules } from "../components/tappa/TappaRules";
@@ -38,6 +40,9 @@ export function TappaPage() {
 
   // useAnagrafe deve stare prima degli early return (regole degli hook)
   const { squadre: squadreAnagrafe, errore: erroreCaricamento, saveSquadra, trovaSquadra } = useAnagrafe();
+  // «Elimina» e «Riapri» chiedono conferma: ognuno ha la sua finestra, mostrata nella vista in cui il pulsante compare
+  const elimina = useConfermaPerdita(h.perditaTappa);
+  const riapri = useConfermaPerdita(h.perditaRiapertura);
 
   // Quando l'anagrafe carica, sincronizza le squadre della tappa (per nome o regId)
   useEffect(() => {
@@ -60,7 +65,7 @@ export function TappaPage() {
     // collegata): resterebbe un «Riprova» che non può fare niente, su un nome che non c'è più
     segnaErroreAnagrafe(teamId, null);
     const trimmed = nome.trim();
-    if (!h.user || h.user.guest || !trimmed || /^Squadra \d+$/.test(trimmed)) return;
+    if (!h.user || h.user.guest || !trimmed || eSegnaposto(trimmed)) return;
     // Si aspetta solo mentre l'anagrafe si sta caricando. Se il caricamento è fallito (liste ancora null, `erroreCaricamento` pieno)
     // si prova lo stesso: trovaSquadra funziona anche con la cache vuota, guarda sul server, e un rifiuto compare nella card
     if (!squadreAnagrafe && !erroreCaricamento) return;
@@ -107,7 +112,7 @@ export function TappaPage() {
           <span className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={() => navigate("/lega")}><Icon name="arrowLeft" size={14} /> Tutte le tappe</Button>
             <Button variant="outline" size="sm" onClick={() => setShareOpen((o) => !o)}><Icon name="share" size={14} /> Condividi</Button>
-            <Button variant="ghost" size="sm" onClick={() => h.riapri()}>Riapri</Button>
+            <Button variant="ghost" size="sm" onClick={() => riapri.chiedi("Riaprire la tappa?", () => h.riapri())}>Riapri</Button>
           </span>
         </div>
 
@@ -124,6 +129,7 @@ export function TappaPage() {
 
         <Card className="mb-4"><VideoForm compact onAdd={h.addVideo} /></Card>
         <ArchivioTappaView t={t} lega={h.legaName} autore={h.user.name} />
+        {riapri.finestra}
       </div>
     );
   }
@@ -146,7 +152,9 @@ export function TappaPage() {
         <span className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={() => setEditOpen(!editOpen)}><Icon name="edit" size={14} /> {editOpen ? "Chiudi modifica" : "Modifica"}</Button>
           <Button variant="outline" size="sm" onClick={() => setTimerOpen(true)}><Icon name="timer" size={14} /> Timer</Button>
-          <Button variant="ghost" size="sm" onClick={() => { h.removeTappa(t.id); navigate("/lega"); }}><Icon name="trash" size={14} /> Elimina</Button>
+          <Button variant="ghost" size="sm" onClick={() => elimina.chiedi("Eliminare la tappa?", () => { h.removeTappa(t.id); navigate("/lega"); })}>
+            <Icon name="trash" size={14} /> Elimina
+          </Button>
         </span>
       </div>
 
@@ -183,6 +191,7 @@ export function TappaPage() {
       <TappaConclusion onConcludi={h.concludi} />
 
       {timerOpen && <MatchTimer onClose={() => setTimerOpen(false)} />}
+      {elimina.finestra}
     </div>
   );
 }

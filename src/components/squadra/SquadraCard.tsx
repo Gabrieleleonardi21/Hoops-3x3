@@ -20,9 +20,10 @@ export function SquadraCard({ s, index, h, erroreAnagrafe, onNameCommit }: {
   const ok = h.teamComplete(s.id);
   const linked = !!s.regId; // collegata all'anagrafe
   const small = "h-8 py-0 text-[13px]";
-  // Togliere una squadra azzera il sorteggio: con risultati registrati si chiede prima conferma.
+  // Togliere una squadra cancella ciò che vi è stato scritto (nome, giocatori) e azzera il sorteggio: si chiede prima conferma,
+  // tranne per una squadra appena aggiunta e vuota, che si toglie subito.
   // Il rifiuto di removeTeam non serve mostrarlo: il pulsante c'è solo con più di 2 squadre.
-  const { chiedi, finestra } = useConfermaPerdita(h.perditaRisultati);
+  const { chiedi, finestra } = useConfermaPerdita(() => h.perditaSquadra(s.id));
 
   return (
     <div className={`rounded border bg-asphalt-900 p-3 ${ok ? "border-asphalt-700" : "border-loss/60"}`}>

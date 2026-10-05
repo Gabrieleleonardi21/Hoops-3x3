@@ -91,11 +91,22 @@ export function useTappa(id: string | undefined) {
   const rinomina = (nome: string) => applica((t) => ops.rinominaTappa(t, nome));
   const setRule = (k: keyof Tappa["regole"], v: string) =>
     aggiorna((t) => ({ ...t, regole: { ...t.regole, [k]: Math.max(1, Number(v) || 1) } }));
-  /** Che cosa cancellerebbero adesso un nuovo sorteggio o un cambio di struttura: il testo per la conferma, null se niente */
-  const perditaRisultati = () => {
+  /** Il testo di una conferma (le funzioni `perdita…` di tappaOps) per la tappa com'è adesso nello store; null se niente */
+  const perdita = (testo: (t: Tappa) => string | null) => {
     const corrente = tappaCorrente(id);
     if (!corrente) return null;
-    return ops.perditaRisultati(corrente);
+    return testo(corrente);
+  };
+  /** Che cosa cancellerebbero adesso un nuovo sorteggio o un cambio di struttura */
+  const perditaRisultati = () => perdita(ops.perditaRisultati);
+  /** Che cosa cancellerebbe «Elimina» */
+  const perditaTappa = () => perdita(ops.perditaTappa);
+  /** Che cosa cancellerebbe «Rimuovi squadra»; null per una squadra appena aggiunta, che si toglie senza chiedere */
+  const perditaSquadra = (teamId: string) => perdita((t) => ops.perditaSquadra(t, teamId));
+  /** Che cosa cancellerebbe «Riapri»: la pubblicazione nell'archivio, che solo chi ha un account può avere */
+  const perditaRiapertura = () => {
+    if (!user || user.guest) return null;
+    return ops.PERDITA_RIAPERTURA;
   };
   // Cambi di struttura (regole e limiti in tappaOps): azzerano sorteggio, calendario e tabellone
   const setNGironi = (n: number) => applica((t) => ops.impostaNumeroGironi(t, n));
@@ -125,7 +136,7 @@ export function useTappa(id: string | undefined) {
       if (t.conclusa) return t;
       let changed = false;
       const updated = t.squadre.map((s) => {
-        if (/^Squadra \d+$/.test(s.nome.trim())) return s; // placeholder, skip
+        if (ops.eSegnaposto(s.nome)) return s; // placeholder, skip
         // Prima per regId (una squadra senza regId non ne trova nessuna), poi per nome
         const reg = regs.find((r) => r.id === s.regId)
           ?? regs.find((r) => r.nome.toLowerCase() === s.nome.trim().toLowerCase());
@@ -266,7 +277,7 @@ export function useTappa(id: string | undefined) {
   return {
     user, legaName, tappa,
     nameOf, playersOf, playerNameById, teamComplete,
-    setInfo, rinomina, perditaRisultati, setNGironi, setRule, addTeam, removeTeam,
+    setInfo, rinomina, perditaRisultati, perditaTappa, perditaSquadra, perditaRiapertura, setNGironi, setRule, addTeam, removeTeam,
     renameTeam, setTeamRank, setTeamWebsite, setTeamLogo, applyReg, syncFromAnagrafe,
     addPlayer, renamePlayer, removePlayer,
     sorteggia, saveScore, reopenScore,

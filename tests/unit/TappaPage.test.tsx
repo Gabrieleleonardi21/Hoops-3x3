@@ -7,6 +7,7 @@ import { useAppStore } from "../../src/stores/useAppStore";
 import { useAnagrafeStore } from "../../src/stores/useAnagrafeStore";
 import { legheApi } from "../../src/services/legheApi";
 import { anagrafeApi } from "../../src/services/anagrafeApi";
+import { archivioApi } from "../../src/services/archivioApi";
 import { ApiError } from "../../src/services/api";
 import { DEFAULT_RULES } from "../../src/constants/rules";
 import type { RegGiocatore, RegSquadra, Tappa, User } from "../../src/types";
@@ -27,6 +28,11 @@ vi.mock("../../src/services/anagrafeApi", async (importOriginal) => ({
     listGiocatori: vi.fn(), createGiocatore: vi.fn(), updateGiocatore: vi.fn(), removeGiocatore: vi.fn(),
     listSquadre: vi.fn(), createSquadra: vi.fn(), updateSquadra: vi.fn(), removeSquadra: vi.fn(),
   },
+}));
+
+// Anche l'archivio: «Riapri» toglie la tappa pubblicata
+vi.mock("../../src/services/archivioApi", () => ({
+  archivioApi: { list: vi.fn(), get: vi.fn(), pubblica: vi.fn(), rimuovi: vi.fn() },
 }));
 
 const anagrafe = vi.mocked(anagrafeApi);
@@ -93,7 +99,10 @@ function apriPagina(anagrafe: Partial<ReturnType<typeof useAnagrafeStore.getStat
   useAnagrafeStore.setState({ giocatori: [], squadre: [], caricata: true, ...anagrafe });
   render(
     <MemoryRouter initialEntries={["/lega/tappa/t1"]}>
-      <Routes><Route path="/lega/tappa/:id" element={<TappaPage />} /></Routes>
+      <Routes>
+        <Route path="/lega/tappa/:id" element={<TappaPage />} />
+        <Route path="/lega" element={<p>Elenco delle tappe</p>} />
+      </Routes>
     </MemoryRouter>,
   );
 }
@@ -265,11 +274,162 @@ describe("TappaPage: conferma prima di cancellare i risultati (R2)", () => {
     apriPagina({});
     fireEvent.click(screen.getAllByRole("button", { name: "Rimuovi squadra" })[2]);
     expect(screen.getByRole("dialog", { name: "Rimuovere la squadra?" }).textContent)
-      .toContain("Verranno eliminati il sorteggio e 1 risultato.");
+      .toContain("Verranno eliminati la squadra «Gamma», il sorteggio e 1 risultato.");
     expect(store().tappe[0].squadre).toHaveLength(3);
     fireEvent.click(screen.getByRole("button", { name: "Conferma" }));
     expect(store().tappe[0].squadre.map((s) => s.nome)).toEqual(["Alfa", "Beta"]);
     expect(store().tappe[0].gironi).toBeNull();
+  });
+});
+
+describe("TappaPage: «Elimina» chiede conferma (FD-2)", () => {
+  const elimina = () => screen.getByRole("button", { name: "Elimina" });
+
+  beforeEach(() => {
+    useAppStore.setState({ user: ospite, tappe: [conUnRisultato()] });
+  });
+
+  it("apre la finestra e dice che cosa si perde, con i numeri veri; finché non si risponde non cambia niente", () => {
+    apriPagina({});
+    const prima = store().tappe[0];
+    fireEvent.click(elimina());
+    expect(screen.getByRole("dialog", { name: "Eliminare la tappa?" }).textContent)
+      .toContain("Verranno eliminati la tappa «Roma Open» con 3 squadre, il sorteggio e 1 risultato.");
+    expect(store().tappe[0]).toBe(prima);
+  });
+
+  it("si chiede anche per una tappa appena creata, e il testo dice solo ciò che c'è", () => {
+    useAppStore.setState({ tappe: [tappa()] });
+    apriPagina({});
+    fireEvent.click(elimina());
+    expect(screen.getByRole("dialog", { name: "Eliminare la tappa?" }).textContent)
+      .toContain("Verrà eliminata la tappa «Roma Open» con 2 squadre.");
+  });
+
+  it("«Annulla» non cambia niente: la tappa resta nello store e si resta sulla sua pagina", () => {
+    apriPagina({});
+    const prima = store().tappe[0];
+    fireEvent.click(elimina());
+    fireEvent.click(screen.getByRole("button", { name: "Annulla" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(store().tappe).toEqual([prima]);
+    expect(screen.getByRole("heading", { name: "Roma Open" })).toBeTruthy();
+    expect(screen.queryByText("Elenco delle tappe")).toBeNull();
+  });
+
+  it("«Conferma» elimina la tappa e porta all'elenco delle tappe", () => {
+    apriPagina({});
+    fireEvent.click(elimina());
+    fireEvent.click(screen.getByRole("button", { name: "Conferma" }));
+    expect(store().tappe).toEqual([]);
+    expect(screen.getByText("Elenco delle tappe")).toBeTruthy();
+  });
+
+  it("registrato: il server riceve la DELETE solo dopo «Conferma», non prima e non con «Annulla»", () => {
+    vi.mocked(legheApi.removeTappa).mockResolvedValue(undefined);
+    useAppStore.setState({ user: registrato });
+    apriPagina({});
+    fireEvent.click(elimina());
+    fireEvent.click(screen.getByRole("button", { name: "Annulla" }));
+    expect(legheApi.removeTappa).not.toHaveBeenCalled();
+    fireEvent.click(elimina());
+    expect(legheApi.removeTappa).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Conferma" }));
+    expect(legheApi.removeTappa).toHaveBeenCalledExactlyOnceWith("t1");
+  });
+});
+
+describe("TappaPage: «Rimuovi squadra» chiede conferma quando si perde qualcosa", () => {
+  /** Tre squadre non sorteggiate: Alfa con tre giocatori, Beta con solo il nome, «Squadra 3» appena aggiunta */
+  const conSquadreDiverse = (): Tappa => ({
+    ...tappa(),
+    squadre: [
+      { id: "s1", nome: "Alfa", giocatori: [{ id: "p1", nome: "Mario" }, { id: "p2", nome: "Luigi" }, { id: "p3", nome: "Anna" }], rank: "" },
+      { id: "s2", nome: "Beta", giocatori: [], rank: "" },
+      { id: "s3", nome: "Squadra 3", giocatori: [], rank: "" },
+    ],
+  });
+  const rimuovi = (squadra: number) => fireEvent.click(screen.getAllByRole("button", { name: "Rimuovi squadra" })[squadra]);
+  const nomiNelloStore = () => store().tappe[0].squadre.map((s) => s.nome);
+
+  beforeEach(() => {
+    useAppStore.setState({ user: ospite, tappe: [conSquadreDiverse()] });
+  });
+
+  it("una squadra appena aggiunta (nome provvisorio, nessun giocatore) si toglie subito, senza finestra", () => {
+    apriPagina({});
+    rimuovi(2);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(nomiNelloStore()).toEqual(["Alfa", "Beta"]);
+  });
+
+  it("un nome scritto si perde: la finestra lo dice; «Annulla» lascia la squadra, «Conferma» la toglie", () => {
+    apriPagina({});
+    rimuovi(1);
+    expect(screen.getByRole("dialog", { name: "Rimuovere la squadra?" }).textContent).toContain("Verrà eliminata la squadra «Beta».");
+    fireEvent.click(screen.getByRole("button", { name: "Annulla" }));
+    expect(nomiNelloStore()).toEqual(["Alfa", "Beta", "Squadra 3"]);
+    rimuovi(1);
+    fireEvent.click(screen.getByRole("button", { name: "Conferma" }));
+    expect(nomiNelloStore()).toEqual(["Alfa", "Squadra 3"]);
+  });
+
+  it("i giocatori con il nome si perdono: la finestra dice quanti", () => {
+    apriPagina({});
+    rimuovi(0);
+    expect(screen.getByRole("dialog", { name: "Rimuovere la squadra?" }).textContent)
+      .toContain("Verrà eliminata la squadra «Alfa» con 3 giocatori.");
+  });
+
+  it("una squadra vuota ma con dei risultati nella tappa si chiede: si perdono sorteggio e risultati", () => {
+    const sorteggiata = conUnRisultato();
+    useAppStore.setState({
+      tappe: [{ ...sorteggiata, squadre: sorteggiata.squadre.map((s, i) => ({ ...s, nome: `Squadra ${i + 1}` })) }],
+    });
+    apriPagina({});
+    rimuovi(2);
+    expect(screen.getByRole("dialog", { name: "Rimuovere la squadra?" }).textContent)
+      .toContain("Verranno eliminati la squadra «Squadra 3», il sorteggio e 1 risultato.");
+  });
+});
+
+describe("TappaPage: «Riapri» chiede conferma quando toglie la tappa dall'archivio", () => {
+  const conclusa = (): Tappa => ({ ...conUnRisultato(), conclusa: true });
+  const riapri = () => screen.getByRole("button", { name: "Riapri" });
+
+  beforeEach(() => {
+    vi.mocked(archivioApi.rimuovi).mockResolvedValue(undefined);
+    useAppStore.setState({ tappe: [conclusa()] });
+  });
+
+  it("registrato: la finestra dice che la tappa esce dall'Archivio; «Annulla» non cambia niente e non tocca il server", () => {
+    apriPagina({});
+    fireEvent.click(riapri());
+    expect(screen.getByRole("dialog", { name: "Riaprire la tappa?" }).textContent)
+      .toContain("La tappa uscirà dall'Archivio circuito e il suo link pubblico smetterà di funzionare");
+    fireEvent.click(screen.getByRole("button", { name: "Annulla" }));
+    expect(store().tappe[0].conclusa).toBe(true);
+    expect(archivioApi.rimuovi).not.toHaveBeenCalled();
+  });
+
+  it("registrato: «Conferma» riapre la tappa e la toglie dall'archivio", async () => {
+    apriPagina({});
+    fireEvent.click(riapri());
+    fireEvent.click(screen.getByRole("button", { name: "Conferma" }));
+    expect(store().tappe[0].conclusa).toBe(false);
+    expect(archivioApi.rimuovi).toHaveBeenCalledExactlyOnceWith("t1");
+    // La pagina torna a quella di organizzazione, con i suoi comandi
+    expect(screen.getByRole("button", { name: "Elimina" })).toBeTruthy();
+    await act(async () => {}); // lascia finire la richiesta all'archivio
+  });
+
+  it("ospite: non ha niente di pubblicato, quindi la tappa si riapre subito, senza finestra", async () => {
+    useAppStore.setState({ user: ospite });
+    apriPagina({});
+    fireEvent.click(riapri());
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(store().tappe[0].conclusa).toBe(false);
+    await act(async () => {});
   });
 });
 
