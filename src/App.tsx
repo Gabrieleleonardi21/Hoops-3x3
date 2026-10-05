@@ -1,6 +1,6 @@
 /** Radice dell'applicazione: configura il router e inserisce Coach AI (FAB + pannello)
  *  fuori dal flusso di pagine così resta visibile su tutte le rotte. */
-import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useAppStore } from "./stores/useAppStore";
 import { useAuth, saveSession } from "./hooks/useAuth";
@@ -10,6 +10,7 @@ import { Header } from "./components/layout/Header";
 import { SyncBanner } from "./components/layout/SyncBanner";
 import { Loading } from "./components/ui/Loading";
 import { Button } from "./components/ui/Button";
+import { ErrorBoundary } from "./components/ui/ErrorBoundary";
 import { CoachFAB } from "./components/coach/CoachFAB";
 import { CoachPanel } from "./components/coach/CoachPanel";
 import { HomePage } from "./pages/HomePage";
@@ -109,25 +110,30 @@ function AvvisoServer({ onRiprova }: { onRiprova: () => void }) {
   );
 }
 
-/** Contenuto della pagina. Sta dentro il router perché la fine della sessione riporta al form con navigate */
+/** Contenuto della pagina. Sta dentro il router perché la fine della sessione riporta al form con navigate.
+ *  Le pagine stanno dentro un ErrorBoundary: se una non si riesce a disegnare compare un messaggio con «Ricarica» e il resto
+ *  dell'app (intestazione, navigazione) resta; cambiando pagina dal menu il messaggio sparisce. */
 function Pagine() {
   const ready = useAppStore((s) => s.ready);
   const { nonVerificata, riprova } = useSessione();
+  const { pathname } = useLocation();
   if (nonVerificata) return <AvvisoServer onRiprova={riprova} />;
   if (!ready) return <Loading>Caricamento delle tue leghe…</Loading>;
   return (
-    <Routes>
-      <Route path="/" element={<HomePage />} />
-      <Route path="/leghe" element={<LegheListPage />} />
-      <Route path="/lega" element={<LegaPage />} />
-      <Route path="/lega/tappa/:id" element={<TappaPage />} />
-      <Route path="/tappa/:id" element={<TappaViewPage />} /> {/* pubblica */}
-      <Route path="/anagrafe" element={<AnagrafePage />} />
-      <Route path="/giocatore/:id" element={<GiocatorePage />} />
-      <Route path="/archivio" element={<ArchivioPage />} />
-      <Route path="/campetti" element={<CampettiPage />} />
-      <Route path="*" element={<NotFoundPage />} />
-    </Routes>
+    <ErrorBoundary resetKey={pathname}>
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/leghe" element={<LegheListPage />} />
+        <Route path="/lega" element={<LegaPage />} />
+        <Route path="/lega/tappa/:id" element={<TappaPage />} />
+        <Route path="/tappa/:id" element={<TappaViewPage />} /> {/* pubblica */}
+        <Route path="/anagrafe" element={<AnagrafePage />} />
+        <Route path="/giocatore/:id" element={<GiocatorePage />} />
+        <Route path="/archivio" element={<ArchivioPage />} />
+        <Route path="/campetti" element={<CampettiPage />} />
+        <Route path="*" element={<NotFoundPage />} />
+      </Routes>
+    </ErrorBoundary>
   );
 }
 
