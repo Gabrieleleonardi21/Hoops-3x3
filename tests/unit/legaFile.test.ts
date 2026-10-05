@@ -251,7 +251,6 @@ describe("leggiFileLega: un ripristino non applica i limiti di creazione", () =>
     ["una sola squadra", { squadre: [{ id: "s1", nome: "Uno" }] }],
     ["nessuna squadra", { squadre: [] }],
     ["più di 64 squadre", { squadre: Array.from({ length: 70 }, (_, i) => ({ id: `s${i}`, nome: `Squadra ${i}` })) }],
-    ["un numero di gironi non intero (FD-9: «2,5» arrivava come 2.5)", { nGironi: 2.5 }],
   ])("%s non blocca l'import: sono limiti di creazione, non del server", (_caso, cambia) => {
     const letta = lega(leggi({ nome: "L", tappe: [{ ...tappaMinima(), ...cambia }] }));
     expect(letta.tappe).toHaveLength(1);
@@ -262,6 +261,24 @@ describe("leggiFileLega: un ripristino non applica i limiti di creazione", () =>
     // Stessa tappa vecchia di sopra, con il nome troppo lungo
     const vecchia = { ...tappaCompleta(uid(), "N".repeat(121)), nGironi: 3 };
     expect(errore(leggi({ nome: "L", tappe: [vecchia] }))).toBe("tappe[0]: Il nome della tappa può avere al massimo 120 caratteri.");
+  });
+});
+
+describe("leggiFileLega: il numero di gironi è un intero da 1 a 32, come in TappaDTO", () => {
+  it.each([[2.5], [0], [33]])("%s è rifiutato e il messaggio dice quale tappa e che cosa non va", (nGironi) => {
+    // Il numero sbagliato sta nella seconda tappa: il messaggio la nomina
+    const tappe = [tappaMinima(), { ...tappaMinima("Seconda"), nGironi }];
+    expect(errore(leggi({ nome: "L", tappe }))).toBe("tappe[1].nGironi: deve essere un numero intero da 1 a 32");
+  });
+
+  it("da 1 a 32 gironi sono accettati qualunque sia il numero di squadre: contano solo i limiti del server", () => {
+    // 3 gironi con 4 squadre (più di metà delle squadre) e 32 con 2 squadre: la creazione li rifiuterebbe, il server no
+    const tappe = [
+      { ...tappaCompleta(uid(), "Tre gironi"), nGironi: 3 },
+      { ...tappaMinima("Un girone"), nGironi: 1 },
+      { ...tappaMinima("Trentadue gironi"), nGironi: 32 },
+    ];
+    expect(lega(leggi({ nome: "L", tappe })).tappe.map((t) => t.nGironi)).toEqual([3, 1, 32]);
   });
 });
 

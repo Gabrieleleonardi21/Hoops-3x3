@@ -48,6 +48,8 @@ const NOME_VUOTO = "Il nome della tappa non può essere vuoto.";
 /** Squadre ammesse in una tappa */
 const MAX_SQUADRE = 64;
 const LIMITE_SQUADRE = `Una tappa ha da 2 a ${MAX_SQUADRE} squadre.`;
+/** Gironi al massimo in una tappa: il limite di TappaDTO.nGironi (@Min(1) @Max(32)). Lo usa anche l'import di una lega */
+export const MAX_GIRONI = 32;
 
 /** Limiti del server per nome e luogo (colonne di `tappe`), contati senza gli spazi ai lati, come li salva creaTappa.
  *  I campi dei form li usano come maxLength: il numero sta qui e basta. */
@@ -74,8 +76,8 @@ export function erroreTestiTappa(testi: TestiTappa): string | null {
   return null;
 }
 
-/** Gironi possibili con `nSquadre` squadre: almeno 2 squadre per girone e non più di 32 gironi */
-const massimoGironi = (nSquadre: number) => Math.max(1, Math.min(32, Math.floor(nSquadre / 2)));
+/** Gironi possibili con `nSquadre` squadre: almeno 2 squadre per girone e non più di MAX_GIRONI gironi */
+const massimoGironi = (nSquadre: number) => Math.max(1, Math.min(MAX_GIRONI, Math.floor(nSquadre / 2)));
 
 /** Il numero di gironi è un intero tra 1 e metà delle squadre, al massimo 32. null se va bene */
 function erroreGironi(nSquadre: number, nGironi: number): string | null {

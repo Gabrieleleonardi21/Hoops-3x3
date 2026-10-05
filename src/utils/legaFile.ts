@@ -6,7 +6,7 @@
  *  il loro valore predefinito e gli id delle tappe sono sempre nuovi. */
 import { z } from "zod";
 import { DEFAULT_RULES } from "../constants/rules";
-import { erroreTestiTappa } from "../domain/tappaOps";
+import { MAX_GIRONI, erroreTestiTappa } from "../domain/tappaOps";
 import { uid } from "./uid";
 import type { Lega, Tappa } from "../types";
 
@@ -95,6 +95,14 @@ const regoleSchema = z.object({
   shot: regola(DEFAULT_RULES.shot),
 }).default(DEFAULT_RULES);
 
+/** Numero di gironi: intero da 1 a MAX_GIRONI, come `int nGironi` di TappaDTO (@Min(1) @Max(32)); se manca vale 1. Non conta le
+ *  squadre: una tappa fatta con le regole delle versioni precedenti può avere più gironi di metà delle squadre e il server la
+ *  accetta. Un numero non intero, come il 2.5 che le versioni vecchie lasciavano scrivere (FD-9), non è un intero valido per
+ *  il server e tornerebbe a rompere il sorteggio dell'ospite. */
+const nGironiSchema = numero
+  .refine((n) => Number.isInteger(n) && n >= 1 && n <= MAX_GIRONI, `deve essere un numero intero da 1 a ${MAX_GIRONI}`)
+  .default(1);
+
 /** L'id non c'è: ogni tappa importata ne riceve uno nuovo in leggiFileLega. Il tipo dichiarato fa fallire la compilazione
  *  se in src/types un campo obbligatorio cambia e lo schema no; un campo facoltativo nuovo invece va aggiunto qui a mano,
  *  altrimenti l'import lo scarterebbe (il test dell'export completo in legaFile.test.ts lo segnala). */
@@ -103,7 +111,7 @@ const tappaSchema: z.ZodType<Omit<Tappa, "id">, z.ZodTypeDef, unknown> = z
     nome: stringa.trim().min(1, "non può essere vuoto"),
     luogo: stringa.trim().default(""),
     data: stringa.trim().default(""),
-    nGironi: numero.default(1),
+    nGironi: nGironiSchema,
     regole: regoleSchema,
     squadre: z.array(squadraSchema),
     gironi: z.array(z.array(stringa)).nullable().default(null),
