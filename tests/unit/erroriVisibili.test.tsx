@@ -49,6 +49,9 @@ const leghe = vi.mocked(legheApi);
 const anagrafe = vi.mocked(anagrafeApi);
 const archivio = vi.mocked(archivioApi);
 
+/** Le eliminazioni chiedono conferma: i test di questo file guardano che cosa succede quando il server risponde, quindi confermano */
+const conferma = () => fireEvent.click(screen.getByRole("button", { name: "Conferma" }));
+
 /** Il server non risponde: l'errore che api.ts dà per rete assente o tempo massimo scaduto */
 const rete = () => new ApiError(0, "Server non raggiungibile: controlla la connessione o avvia il backend.");
 
@@ -551,10 +554,6 @@ describe("Elenco delle leghe: errori di creazione, apertura ed eliminazione", ()
   const campoNome = () => screen.getByLabelText(/Nome della nuova lega/) as HTMLInputElement;
   const creaLega = () => screen.getByRole("button", { name: /Crea lega/ }) as HTMLButtonElement;
 
-  beforeEach(() => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
-  });
-
   it("creazione che fallisce: il messaggio dice perché, il nome resta nel campo e non si cambia pagina", async () => {
     leghe.create.mockRejectedValue(rete());
     apriLeghe(registrato);
@@ -609,6 +608,7 @@ describe("Elenco delle leghe: errori di creazione, apertura ed eliminazione", ()
     leghe.remove.mockRejectedValue(new ApiError(403, "Non puoi modificare questa lega"));
     apriLeghe(registrato);
     fireEvent.click(screen.getByRole("button", { name: "Elimina lega Estate" }));
+    conferma();
     expect((await screen.findByRole("alert")).textContent).toBe("Eliminazione non riuscita: Non puoi modificare questa lega");
     expect(screen.getByText("Estate")).toBeTruthy();
     expect(store().leghe).toEqual([estate]);
@@ -622,6 +622,7 @@ describe("Elenco delle leghe: errori di creazione, apertura ed eliminazione", ()
       .toBe("Apertura non riuscita: I dati della lega «Estate» non ci sono più nel browser o sono danneggiati: puoi eliminarla dall'elenco delle leghe.");
     expect(screen.queryByText("Pagina della lega")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Elimina lega Estate" }));
+    conferma();
     await waitFor(() => expect(screen.getByText(/Nessuna lega ancora/)).toBeTruthy());
     expect(screen.queryByRole("alert")).toBeNull();
   });
@@ -761,10 +762,12 @@ describe("Modali dell'anagrafe: la modifica si chiude solo se il server ha accet
     g.onRemove.mockRejectedValueOnce(nonRisponde());
     mostraGiocatore(g);
     fireEvent.click(pulsante("Elimina"));
+    conferma();
     expect((await screen.findByRole("alert")).textContent)
       .toBe("Eliminazione non riuscita: Il server non risponde: controlla la connessione e riprova.");
     expect(g.onClose).not.toHaveBeenCalled();
     fireEvent.click(pulsante("Elimina"));
+    conferma();
     await waitFor(() => expect(g.onClose).toHaveBeenCalledTimes(1));
     expect(g.onRemove).toHaveBeenCalledTimes(2);
   });
@@ -808,6 +811,7 @@ describe("Modali dell'anagrafe: la modifica si chiude solo se il server ha accet
     g.onRemove.mockRejectedValue(nonRisponde());
     mostraGiocatore(g);
     fireEvent.click(pulsante("Elimina"));
+    conferma();
     await screen.findByRole("alert");
     fireEvent.click(pulsante("Modifica"));
     expect(screen.queryByRole("alert")).toBeNull();
@@ -818,6 +822,7 @@ describe("Modali dell'anagrafe: la modifica si chiude solo se il server ha accet
     g.onRemove.mockRejectedValue(nonRisponde());
     mostraSquadra(g);
     fireEvent.click(pulsante("Elimina"));
+    conferma();
     await screen.findByRole("alert");
     fireEvent.click(pulsante("Modifica"));
     expect(screen.queryByRole("alert")).toBeNull();
@@ -828,6 +833,7 @@ describe("Modali dell'anagrafe: la modifica si chiude solo se il server ha accet
     g.onRemove.mockRejectedValue(nonRisponde());
     mostraSquadra(g);
     fireEvent.click(pulsante("Elimina"));
+    conferma();
     expect((await screen.findByRole("alert")).textContent).toContain("Eliminazione non riuscita");
     expect(g.onClose).not.toHaveBeenCalled();
   });
@@ -876,6 +882,7 @@ describe("Anagrafe: il server rifiuta, la pagina non mostra il dato come salvato
     fireEvent.click(await screen.findByRole("button", { name: "Mario Rossi" }));
     const scheda = within(screen.getByRole("dialog"));
     fireEvent.click(scheda.getByRole("button", { name: "Elimina" }));
+    conferma();
     expect((await scheda.findByRole("alert")).textContent).toContain("Eliminazione non riuscita");
     expect(screen.getByRole("dialog")).toBeTruthy();
     expect(useAnagrafeStore.getState().giocatori).toHaveLength(1);
@@ -885,17 +892,20 @@ describe("Anagrafe: il server rifiuta, la pagina non mostra il dato come salvato
     anagrafe.removeGiocatore.mockRejectedValue(new ApiError(403, "Non puoi modificare questa scheda giocatore"));
     apri("/anagrafe");
     fireEvent.click(await screen.findByRole("button", { name: "Elimina Mario Rossi" }));
+    conferma();
     expect((await screen.findByRole("alert")).textContent).toBe("Eliminazione non riuscita: Non puoi modificare questa scheda giocatore");
     expect(screen.getByRole("button", { name: "Mario Rossi" })).toBeTruthy();
   });
 
-  it("un doppio clic sulla X della card elimina una volta sola: niente seconda DELETE né messaggio di «non trovato»", async () => {
+  it("una seconda eliminazione mentre la prima è in corso non manda un'altra DELETE né il messaggio di «non trovato»", async () => {
     const risposta = differita<void>();
     anagrafe.removeGiocatore.mockReturnValue(risposta.p);
     apri("/anagrafe");
     const elimina = await screen.findByRole("button", { name: "Elimina Mario Rossi" });
     fireEvent.click(elimina);
-    fireEvent.click(elimina);
+    conferma();
+    fireEvent.click(elimina); // la card c'è ancora, in attesa del server: la X risponde e chiede di nuovo conferma
+    conferma();
     expect(anagrafe.removeGiocatore).toHaveBeenCalledTimes(1);
     await act(async () => { risposta.ok(); });
     await waitFor(() => expect(screen.queryByRole("button", { name: "Elimina Mario Rossi" })).toBeNull());

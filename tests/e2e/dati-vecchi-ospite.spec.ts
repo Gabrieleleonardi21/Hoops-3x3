@@ -60,8 +60,8 @@ test("una lega illeggibile nel browser dell'ospite non si apre: il messaggio dic
   await page.getByRole("button", { name: "Apri", exact: true }).click();
   // L'avviso di avvio sta nella barra sotto l'intestazione; quello dell'apertura nella pagina
   await expect(page.getByRole("main").getByRole("alert")).toContainText("Apertura non riuscita");
-  // La via d'uscita: eliminare la lega rovinata (la conferma del browser si accetta)
-  page.once("dialog", (finestra) => { void finestra.accept(); });
+  // La via d'uscita: eliminare la lega rovinata (si conferma nella finestra dell'app)
   await page.getByRole("button", { name: "Elimina lega Estate" }).click();
+  await page.getByRole("button", { name: "Conferma" }).click();
   await expect(page.getByText(/Nessuna lega ancora/)).toBeVisible();
 });

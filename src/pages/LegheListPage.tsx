@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useAppStore } from "../stores/useAppStore";
 import { useInvio } from "../hooks/useInvio";
+import { useConfermaPerdita } from "../hooks/useConfermaPerdita";
+import { perditaLega } from "../utils/testi";
 import { GuestBanner } from "../components/auth/GuestBanner";
 import { Input } from "../components/ui/Input";
 import { Button } from "../components/ui/Button";
@@ -13,13 +15,15 @@ import type { LegaMeta } from "../types";
 
 /** `disabled`: un'altra azione sulle leghe è in corso, quindi i pulsanti aspettano */
 function LegaCard({ m, disabled, onOpen, onDelete }: { m: LegaMeta; disabled: boolean; onOpen: () => void; onDelete: () => void }) {
+  // Eliminare una lega cancella tutte le sue tappe e non si recupera: si chiede sempre conferma, dicendo quante sono
+  const { chiedi, finestra } = useConfermaPerdita(() => perditaLega(m));
   const date = m.ts ? new Date(m.ts).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" }) : null;
 
   return (
     <div className="flex flex-col gap-2 rounded border border-asphalt-700 bg-asphalt-900 p-4 transition-colors hover:border-asphalt-500">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1 font-display text-2xl text-chalk">{m.nome}</div>
-        <button onClick={onDelete} disabled={disabled} className="shrink-0 text-chalk-dim hover:text-loss" title="Elimina lega" aria-label={`Elimina lega ${m.nome}`}>
+        <button onClick={() => chiedi("Eliminare la lega?", onDelete)} disabled={disabled} className="shrink-0 text-chalk-dim hover:text-loss" title="Elimina lega" aria-label={`Elimina lega ${m.nome}`}>
           <Icon name="trash" size={16} />
         </button>
       </div>
@@ -27,6 +31,7 @@ function LegaCard({ m, disabled, onOpen, onDelete }: { m: LegaMeta; disabled: bo
         {m.nTappe} {m.nTappe === 1 ? "tappa" : "tappe"}{date ? ` · ${date}` : ""}
       </div>
       <Button size="sm" className="mt-1 self-start" onClick={onOpen} disabled={disabled}>Apri <Icon name="chevron" size={14} /></Button>
+      {finestra}
     </div>
   );
 }
@@ -54,9 +59,8 @@ export function LegheListPage() {
     if (await esegui(() => selectLega(id), "Apertura non riuscita")) navigate("/lega");
   };
 
+  // La conferma l'ha già chiesta la card (LegaCard): qui si elimina
   const handleDelete = async (m: LegaMeta) => {
-    // Conferma prima di eliminare: i dati non sono recuperabili
-    if (!window.confirm(`Eliminare la lega "${m.nome}" con tutte le sue tappe? L'operazione non è reversibile.`)) return;
     await esegui(() => deleteLega(m.id), "Eliminazione non riuscita");
   };
 

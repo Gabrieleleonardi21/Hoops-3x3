@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useInvio } from "../../hooks/useInvio";
+import { useConfermaPerdita } from "../../hooks/useConfermaPerdita";
 import { Modal } from "../ui/Modal";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
@@ -9,6 +10,7 @@ import { REG_ROLES } from "../../constants/roles";
 import { eta } from "../../utils/eta";
 import { puoModificare } from "../../utils/permessi";
 import { safeUrl } from "../../utils/safeUrl";
+import { perditaGiocatore } from "../../utils/testi";
 import type { GiocatoreInput } from "../../services/anagrafeApi";
 import type { RegGiocatore, RegSquadra, User } from "../../types";
 
@@ -16,9 +18,10 @@ import type { RegGiocatore, RegSquadra, User } from "../../types";
 type EditDraft = GiocatoreInput;
 
 /** Modale con tutte le informazioni di un giocatore dell'anagrafe.
- *  L'autore (o un ADMIN) può modificare tutti i campi o eliminare il giocatore. `onUpdate` e `onRemove` rifiutano la promessa
- *  se il server non accetta: la modifica si chiude e la modale si chiude solo se hanno riuscito, altrimenti restano aperte con
- *  il motivo sotto i pulsanti. Finché un invio è in corso i pulsanti sono fermi e la modale non si chiude. */
+ *  L'autore (o un ADMIN) può modificare tutti i campi o eliminare il giocatore, dopo una conferma. `onUpdate` e `onRemove`
+ *  rifiutano la promessa se il server non accetta: la modifica si chiude e la modale si chiude solo se hanno riuscito,
+ *  altrimenti restano aperte con il motivo sotto i pulsanti. Finché un invio è in corso i pulsanti sono fermi e la modale
+ *  non si chiude. */
 export function GiocatoreModal({
   g,
   user,
@@ -36,6 +39,7 @@ export function GiocatoreModal({
 }) {
   const [editing, setEditing] = useState(false);
   const { invio, errore, setErrore, esegui } = useInvio();
+  const { chiedi, finestra } = useConfermaPerdita(() => perditaGiocatore(g));
   const [draft, setDraft] = useState<EditDraft>({
     nome: g.nome, cognome: g.cognome, soprannome: g.soprannome,
     nascita: g.nascita, citta: g.citta, nazionalita: g.nazionalita,
@@ -46,8 +50,9 @@ export function GiocatoreModal({
   const set = (k: keyof EditDraft) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setDraft((d) => ({ ...d, [k]: e.target.value }));
 
-  // Esc, sfondo e X non chiudono durante un invio: l'esito, soprattutto se è un errore, deve restare sotto gli occhi
-  const chiudi = () => { if (!invio) onClose(); };
+  // Esc, sfondo e X non chiudono durante un invio: l'esito, soprattutto se è un errore, deve restare sotto gli occhi.
+  // Neanche con la conferma aperta: Esc annulla quella, e la scheda resta
+  const chiudi = () => { if (!invio && !finestra) onClose(); };
   const saveEdit = async () => {
     // Si esce dalla modifica solo se il server ha accettato: se rifiuta, i campi restano come scritti
     if (await esegui(() => onUpdate({ ...g, ...draft }), "Modifica non riuscita")) setEditing(false);
@@ -134,10 +139,11 @@ export function GiocatoreModal({
         {canEdit && !editing && (
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={iniziaModifica} disabled={invio}><Icon name="edit" size={14} /> Modifica</Button>
-            <Button variant="ghost" size="sm" className="text-loss" onClick={handleRemove} disabled={invio}><Icon name="trash" size={14} /> Elimina</Button>
+            <Button variant="ghost" size="sm" className="text-loss" onClick={() => chiedi("Eliminare il giocatore?", handleRemove)} disabled={invio}><Icon name="trash" size={14} /> Elimina</Button>
           </div>
         )}
       </div>
+      {finestra}
     </Modal>
   );
 }

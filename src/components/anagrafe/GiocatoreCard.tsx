@@ -1,16 +1,19 @@
 /** Card di un giocatore registrato nell'anagrafe. Il nome è un pulsante che apre la modale
  *  di dettaglio (niente controlli annidati: card = <article>), "Profilo" porta alla pagina con
- *  le statistiche; solo l'autore o un ADMIN può eliminarlo. */
+ *  le statistiche; solo l'autore o un ADMIN può eliminarlo, dopo una conferma. */
 import { Link } from "react-router-dom";
+import { useConfermaPerdita } from "../../hooks/useConfermaPerdita";
 import { eta } from "../../utils/eta";
 import { puoModificare } from "../../utils/permessi";
 import { safeUrl } from "../../utils/safeUrl";
+import { perditaGiocatore } from "../../utils/testi";
 import { Icon } from "../ui/Icon";
 import type { RegGiocatore, RegSquadra, User } from "../../types";
 
 export function GiocatoreCard({ g, user, squadre, onRemove, onOpen }: {
   g: RegGiocatore; user: User; squadre?: RegSquadra[]; onRemove: () => void; onOpen: () => void;
 }) {
+  const { chiedi, finestra } = useConfermaPerdita(() => perditaGiocatore(g));
   // Cerca il logo della squadra abbinando il nome del giocatore con la lista squadre
   const squadraLogo = squadre?.find((s) => s.nome === g.squadra)?.logo ?? null;
   const age = eta(g.nascita);
@@ -34,7 +37,7 @@ export function GiocatoreCard({ g, user, squadre, onRemove, onOpen }: {
           </span>
         </button>
         {puoModificare(user, g.autoreId) && (
-          <button onClick={onRemove} className="shrink-0 text-chalk-dim hover:text-loss" aria-label={`Elimina ${g.nome} ${g.cognome}`}>
+          <button onClick={() => chiedi("Eliminare il giocatore?", onRemove)} className="shrink-0 text-chalk-dim hover:text-loss" aria-label={`Elimina ${g.nome} ${g.cognome}`}>
             <Icon name="close" size={14} />
           </button>
         )}
@@ -51,6 +54,7 @@ export function GiocatoreCard({ g, user, squadre, onRemove, onOpen }: {
           Profilo <Icon name="chevron" size={12} />
         </Link>
       </div>
+      {finestra}
     </article>
   );
 }

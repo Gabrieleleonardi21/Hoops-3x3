@@ -1,13 +1,16 @@
 /** Card di una squadra dell'anagrafe: il nome è un pulsante che apre la modale di dettaglio
- *  (niente controlli annidati), il × elimina (solo autore o ADMIN). */
+ *  (niente controlli annidati), il × elimina, dopo una conferma (solo autore o ADMIN). */
+import { useConfermaPerdita } from "../../hooks/useConfermaPerdita";
 import { puoModificare } from "../../utils/permessi";
 import { safeUrl } from "../../utils/safeUrl";
+import { perditaSquadraAnagrafe } from "../../utils/testi";
 import { Icon } from "../ui/Icon";
 import type { RegGiocatore, RegSquadra, User } from "../../types";
 
 export function SquadraAnagrafeCard({ s, giocatori, user, onRemove, onOpen }: {
   s: RegSquadra; giocatori: RegGiocatore[]; user: User; onRemove: () => void; onOpen: () => void;
 }) {
+  const { chiedi, finestra } = useConfermaPerdita(() => perditaSquadraAnagrafe(s));
   const gName = (id: string) => {
     const g = giocatori.find((x) => x.id === id);
     return g ? `${g.nome} ${g.cognome}` : "?";
@@ -23,7 +26,7 @@ export function SquadraAnagrafeCard({ s, giocatori, user, onRemove, onOpen }: {
           <span className="min-w-0 truncate font-display text-lg text-chalk transition-colors hover:text-court">{s.nome}</span>
         </button>
         {puoModificare(user, s.autoreId) && (
-          <button onClick={onRemove} className="shrink-0 text-chalk-dim hover:text-loss" aria-label={`Elimina ${s.nome}`}>
+          <button onClick={() => chiedi("Eliminare la squadra?", onRemove)} className="shrink-0 text-chalk-dim hover:text-loss" aria-label={`Elimina ${s.nome}`}>
             <Icon name="close" size={14} />
           </button>
         )}
@@ -40,6 +43,7 @@ export function SquadraAnagrafeCard({ s, giocatori, user, onRemove, onOpen }: {
         <span className="text-[10.5px] text-chalk-dim">Registrata da {s.autore}</span>
         <button onClick={onOpen} className="inline-flex items-center gap-1 text-xs font-semibold text-court hover:underline">Scheda <Icon name="chevron" size={12} /></button>
       </div>
+      {finestra}
     </article>
   );
 }
