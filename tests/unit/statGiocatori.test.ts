@@ -58,7 +58,7 @@ describe("normalizza", () => {
 });
 
 describe("statGiocatori: la normalizzazione di nome e squadra", () => {
-  it("maiuscole, spazi e accenti non contano: «Nicolò  Rossi» e «nicolo rossi» sono lo stesso giocatore", () => {
+  it("maiuscole, spazi in più e accenti non contano: «Nicolò  Rossi» e «nicolo rossi» sono lo stesso giocatore", () => {
     const grafie = ["Nicolò  Rossi", "nicolo rossi", "  NICOLÒ ROSSI ", "Nicolo\u0300 Rossi"];
     const righe = statGiocatori(grafie.map((nome, i) => unaGara(`t${i}`, "Alfa", nome, { pt: 10 })));
     expect(righe).toHaveLength(1);
@@ -72,6 +72,18 @@ describe("statGiocatori: la normalizzazione di nome e squadra", () => {
     ]);
     expect(righe).toHaveLength(1);
     expect(righe[0]).toMatchObject({ g: 2, pt: 22 });
+  });
+
+  it("gli spazi in più si riducono a uno ma non si tolgono: «De Rossi» e «DeRossi» sono due giocatori", () => {
+    const righe = statGiocatori([
+      unaGara("t1", "Alfa", "De  Rossi", { pt: 12 }),
+      unaGara("t2", "Alfa", "de rossi", { pt: 10 }),
+      unaGara("t3", "Alfa", "DeRossi", { pt: 8 }),
+    ]);
+    expect(righe.map(colonne)).toEqual([
+      { nome: "de rossi", squadra: "Alfa", g: 2, pt: 22 },
+      { nome: "DeRossi", squadra: "Alfa", g: 1, pt: 8 },
+    ]);
   });
 
   it("un nome che differisce per una lettera è un altro giocatore", () => {

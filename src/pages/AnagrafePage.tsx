@@ -135,8 +135,8 @@ export function AnagrafePage() {
         <>
           <p className="mb-1 text-xs text-chalk-muted">
             Totali e medie per partita su tutte le tappe della lega corrente. Ordinate per media punti. Lo stesso giocatore è
-            una sola riga se nome e squadra coincidono (maiuscole, spazi e accenti non contano): chi cambia squadra compare su
-            due righe.
+            una sola riga se nome e squadra coincidono (maiuscole, spazi in più e accenti non contano): chi cambia squadra
+            compare su due righe.
           </p>
           <StatsCircuito tappe={tappe} />
         </>

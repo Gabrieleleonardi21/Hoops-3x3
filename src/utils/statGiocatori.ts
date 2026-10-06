@@ -5,8 +5,8 @@
 import type { StatLine, Tappa } from "../types";
 import { STAT_KEYS } from "../constants/rules";
 
-/** Nome o squadra confrontabili: spazi ai lati tolti, spazi interni ridotti a uno, maiuscole e accenti ignorati
- *  («Nicolò  Rossi» e «nicolo rossi» sono lo stesso giocatore) */
+/** Nome o squadra confrontabili: spazi ai lati tolti, spazi interni ridotti a uno (ma non tolti: «De Rossi» e «DeRossi»
+ *  restano diversi), maiuscole e accenti ignorati («Nicolò  Rossi» e «nicolo rossi» sono lo stesso giocatore) */
 export function normalizza(testo: string): string {
   return testo
     .toLowerCase()

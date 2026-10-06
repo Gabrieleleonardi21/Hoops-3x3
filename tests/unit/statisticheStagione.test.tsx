@@ -148,7 +148,7 @@ describe("Profilo del giocatore: le statistiche di stagione", () => {
     expect(screen.getByText(/sommate per nome sulle squadre di tappa: ALFA\./)).toBeTruthy();
   });
 
-  it("il nome si riconosce come nella tabella: maiuscole, spazi e accenti non contano", () => {
+  it("il nome si riconosce come nella tabella: maiuscole, spazi in più e accenti non contano", () => {
     apriProfilo(registrazione("g1", "Nicolò", "Rossi"), [unaGara("t1", "Alfa", "  nicolo   ROSSI ", { pt: 14 })]);
     expect(riquadro("Punti")).toBe("14");
     expect(screen.queryByText(/Nessuna statistica nella lega attiva/)).toBeNull();
@@ -195,7 +195,7 @@ describe("Statistiche stagione: la nota sopra la tabella", () => {
     render(<MemoryRouter><AnagrafePage /></MemoryRouter>);
     fireEvent.click(screen.getByRole("tab", { name: "Statistiche stagione" }));
     const nota = screen.getByText(/Totali e medie per partita/).textContent;
-    expect(nota).toContain("nome e squadra coincidono (maiuscole, spazi e accenti non contano)");
+    expect(nota).toContain("nome e squadra coincidono (maiuscole, spazi in più e accenti non contano)");
     expect(nota).toContain("chi cambia squadra compare su due righe");
   });
 });
