@@ -15,6 +15,16 @@ export function SquadraModal({ squadra, onClose, onSelectPlayer, hasStats }: {
     <img src={safeUrl(squadra.logo)} alt={`Logo ${squadra.nome}`} className="h-28 w-28 object-contain"
       onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
   ) : null;
+  // Il logo è un collegamento al sito, se la squadra ne ha uno
+  let logoMostrato = logo;
+  if (logo && squadra.website) {
+    logoMostrato = <a href={safeUrl(squadra.website)} target="_blank" rel="noopener noreferrer" title={`Vai al sito di ${squadra.nome}`}>{logo}</a>;
+  }
+  // Che cosa fa il pulsante di un giocatore: apre la sua analisi, se la tappa ha statistiche
+  const titoloGiocatore = (nome: string) => {
+    if (hasStats) return `Analisi di ${nome}`;
+    return "Nessuna statistica per questa tappa";
+  };
   // Il blocco dei dati prende il focus solo se ha qualcosa da leggere (come nelle schede dell'anagrafe): senza giocatori, logo e
   // collegamenti sarebbe un blocco vuoto, e il focus va alla finestra stessa
   const haDati = giocatori.length > 0 || Boolean(squadra.logo || squadra.website || squadra.instagram);
@@ -27,11 +37,7 @@ export function SquadraModal({ squadra, onClose, onSelectPlayer, hasStats }: {
           entrare nell'ordine di Tab; l'anello del focus resta, con la tastiera è l'unico indicatore */}
       <div {...(haDati && { tabIndex: -1, "data-focus-iniziale": true })}>
         {/* Logo centrato — cliccabile se la squadra ha un sito web */}
-        {logo && (
-          <div className="mb-4 flex justify-center">
-            {squadra.website ? <a href={safeUrl(squadra.website)} target="_blank" rel="noopener noreferrer" title={`Vai al sito di ${squadra.nome}`}>{logo}</a> : logo}
-          </div>
-        )}
+        {logoMostrato && <div className="mb-4 flex justify-center">{logoMostrato}</div>}
         {(squadra.website || squadra.instagram) && (
           <div className="mb-4 flex justify-center gap-4 text-[13px] font-semibold">
             {squadra.website && <a href={safeUrl(squadra.website)} target="_blank" rel="noopener noreferrer" className="text-court hover:underline">Sito web ↗</a>}
@@ -48,7 +54,7 @@ export function SquadraModal({ squadra, onClose, onSelectPlayer, hasStats }: {
             <div className="flex flex-col gap-1.5">
               {giocatori.map((p) => (
                 <button key={p.id} onClick={() => { onClose(); onSelectPlayer(p.id); }} disabled={!hasStats}
-                  title={hasStats ? `Analisi di ${p.nome}` : "Nessuna statistica per questa tappa"}
+                  title={titoloGiocatore(p.nome)}
                   className="flex items-center justify-between rounded border border-asphalt-700 px-3.5 py-2 text-left text-sm font-semibold text-chalk transition-colors enabled:hover:border-court disabled:opacity-60">
                   {p.nome}
                   {hasStats && <span className="flex items-center gap-1 text-xs text-court">Analisi <Icon name="chevron" size={12} /></span>}
