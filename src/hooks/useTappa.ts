@@ -1,6 +1,7 @@
 import { useAppStore, tappaCorrente } from "../stores/useAppStore";
 import { archivioApi } from "../services/archivioApi";
 import { anagrafeApi } from "../services/anagrafeApi";
+import { useAnagrafeStore } from "../stores/useAnagrafeStore";
 import { uid } from "../utils/uid";
 import { PERDITA_RIAPERTURA } from "../utils/testi";
 import * as ops from "../domain/tappaOps";
@@ -178,23 +179,35 @@ export function useTappa(id: string | undefined) {
    *  Cerca prima per regId, poi per nome case-insensitive. Non tocca le squadre con nome placeholder ("Squadra N") né le tappe
    *  concluse. Una squadra collegata a una voce che la cache non ha non si scollega subito: la cache non vede le voci create da
    *  altri dopo il suo caricamento. Si chiede al server la lista fresca (una richiesta, solo in questo caso) e si scollega solo
-   *  ciò che manca anche lì; se il server non risponde non si scollega niente. */
+   *  ciò che manca sia lì sia nella cache di adesso (nell'attesa una voce può esservi entrata, e la lista, partita prima, non
+   *  contenerla); se il server non risponde non si scollega niente. Le voci trovate sul server entrano in cache: così la
+   *  verifica non si ripete a ogni apertura della pagina. */
   const syncFromAnagrafe = async (regs: RegSquadra[]) => {
     if (!tappa) return;
     // Se alla tappa vista non manca niente non si salva: altrimenti ne partirebbe uno a ogni apertura della pagina
     if (allineaConAnagrafe(tappa, regs) !== tappa) aggiorna((t) => allineaConAnagrafe(t, regs));
     const prima = tappaCorrente(id);
-    if (!prima || collegateSenzaVoce(prima, regs).length === 0) return;
+    if (!prima) return;
+    const senzaVoce = collegateSenzaVoce(prima, regs);
+    if (senzaVoce.length === 0) return;
     let fresche: RegSquadra[];
     try {
       fresche = await anagrafeApi.listSquadre();
     } catch {
       return;
     }
-    // Dopo l'attesa si riparte dalla tappa di adesso: nel frattempo può essere cambiata, o conclusa
+    // Le voci a cui le squadre sono collegate e che il server ha entrano in cache (senza invalidarla)
+    const registrate = fresche.filter((voce) => senzaVoce.some((s) => s.regId === voce.id));
+    const anagrafe = useAnagrafeStore.getState();
+    anagrafe.registraInCache(registrate);
+    // Dopo l'attesa si riparte dalla tappa di adesso (nel frattempo può essere cambiata, o conclusa) e dalla cache di adesso: la
+    // lista del server, partita prima, può non avere una voce che nell'attesa è entrata (ricerca, creazione, Coach). Per i dati
+    // vale la lista fresca; una voce solo in cache conta come presente.
     const dopo = tappaCorrente(id);
     if (!dopo) return;
-    const sincronizzata = (t: Tappa) => scollegaSenzaVoce(allineaConAnagrafe(t, fresche), fresche);
+    const soloInCache = (useAnagrafeStore.getState().squadre ?? []).filter((c) => !fresche.some((f) => f.id === c.id));
+    const conosciute = [...fresche, ...soloInCache];
+    const sincronizzata = (t: Tappa) => scollegaSenzaVoce(allineaConAnagrafe(t, conosciute), conosciute);
     if (sincronizzata(dopo) === dopo) return;
     updateTappa(dopo.id, sincronizzata);
   };

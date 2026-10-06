@@ -182,6 +182,21 @@ describe("TappaPage: una squadra collegata a una voce eliminata dall'anagrafe to
     expect(campiNome()[0].readOnly).toBe(true);
   });
 
+  it("una voce trovata dalla verifica sul server entra in cache: riaprendo la pagina il server non si interroga più", async () => {
+    // La squadra è collegata a una voce che il server ha ma la cache no (creata da un altro, o dal Coach)
+    useAppStore.setState({ tappe: [{ ...collegata(), squadre: [{ id: "s1", nome: "Alfa", regId: "r1", giocatori: [], rank: "40" }, collegata().squadre[1]] }] });
+    anagrafe.listSquadre.mockResolvedValue([regAlfa]);
+    apriPagina({ squadre: [] });
+    await waitFor(() => expect(useAnagrafeStore.getState().squadre?.map((s) => s.id)).toEqual(["r1"]));
+    expect(anagrafe.listSquadre).toHaveBeenCalledTimes(1);
+    cleanup();
+    montaPagina();
+    await act(async () => {});
+    expect(anagrafe.listSquadre).toHaveBeenCalledTimes(1); // la voce è in cache: niente verifica
+    expect(store().tappe[0].squadre[0].regId).toBe("r1");
+    expect(screen.getByText("Anagrafe")).toBeTruthy();
+  });
+
   it("una squadra collegata con la ricerca a una voce che la cache non ha resta collegata quando la pagina si riapre", async () => {
     anagrafe.listSquadre.mockResolvedValue([regAlfa]); // sul server c'è (creata da un altro), la cache vuota non la conosce
     apriPagina({ squadre: [] });                        // la ricerca è quella vera dello store

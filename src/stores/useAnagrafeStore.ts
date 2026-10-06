@@ -25,6 +25,11 @@ interface AnagrafeState {
   load: () => Promise<void>;
   /** Cerca una squadra per nome (case-insensitive): prima in cache, poi sul server */
   trovaSquadra: (nome: string) => Promise<RegSquadra | undefined>;
+  /** Mette in cache voci lette dal server fuori dal caricamento (la ricerca per nome, la verifica di una tappa): in testa quelle nuove,
+   *  aggiornate quelle già presenti con lo stesso id. Non conta come scrittura e non invalida la cache (`scritture` e `caricata`
+   *  restano com'erano): non cambia ciò che il server ha, solo ciò che la cache sapeva. Con la cache non caricata non fa niente:
+   *  non crea una cache parziale. */
+  registraInCache: (squadre: RegSquadra[]) => void;
   saveGiocatore: (data: GiocatoreInput) => Promise<void>;
   saveSquadra: (data: SquadraInput) => Promise<RegSquadra>;
   removeGiocatore: (id: string) => Promise<void>;
@@ -82,15 +87,23 @@ export const useAnagrafeStore = create<AnagrafeState>((set, get) => {
       const trovata = fresche.find(stessoNome);
       // La voce entra in cache: chi la vedrà collegata a una squadra (la pagina della tappa, che scollega le squadre senza voce)
       // la ritrova, e non la crede eliminata
-      if (trovata) {
-        aggiorna((_giocatori, squadre) => {
-          // Già in cache con un altro nome (rinominata dopo il caricamento): si aggiorna, non si raddoppia
-          if (squadre.some((s) => s.id === trovata.id)) return { squadre: replaceById(squadre, trovata) };
-          return { squadre: [trovata, ...squadre] };
-        });
-      }
+      if (trovata) get().registraInCache([trovata]);
       return trovata;
     },
+
+    registraInCache: (nuove) => set((s) => {
+      if (!s.squadre) return {};
+      let squadre = s.squadre;
+      for (const voce of nuove) {
+        // Già in cache con un altro nome (rinominata dopo il caricamento): si aggiorna, non si raddoppia
+        if (squadre.some((x) => x.id === voce.id)) {
+          squadre = replaceById(squadre, voce);
+        } else {
+          squadre = [voce, ...squadre];
+        }
+      }
+      return { squadre };
+    }),
 
     saveGiocatore: async (data) => {
       const rec = await anagrafeApi.createGiocatore(data);

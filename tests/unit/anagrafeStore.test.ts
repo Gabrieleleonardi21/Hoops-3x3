@@ -239,6 +239,23 @@ describe("useAnagrafeStore (cache dell'anagrafe)", () => {
     expect(api.listSquadre).toHaveBeenCalledTimes(1);
   });
 
+  it("registraInCache mette le voci in testa, aggiorna quelle con lo stesso id e non tocca scritture né caricamento", async () => {
+    const { api, store } = await nuovoStore();
+    await store.getState().load(); // in cache: s1 «Ballers»
+    store.getState().registraInCache([squadra("s2", "Wildcats"), squadra("s1", "Ballers Roma", ["g1"])]);
+    expect(store.getState().squadre!.map((s) => [s.id, s.nome])).toEqual([["s2", "Wildcats"], ["s1", "Ballers Roma"]]);
+    // La cache resta valida: un nuovo load non richiama il server
+    await store.getState().load();
+    expect(api.listSquadre).toHaveBeenCalledTimes(1);
+    expect(store.getState().caricata).toBe(true);
+  });
+
+  it("registraInCache con la cache non caricata non crea una cache parziale", async () => {
+    const { store } = await nuovoStore();
+    store.getState().registraInCache([squadra("s2", "Wildcats")]);
+    expect(store.getState().squadre).toBeNull();
+  });
+
   it("trovaSquadra con una voce già in cache con un altro nome (rinominata dopo il caricamento) la aggiorna, non la raddoppia", async () => {
     const { api, store } = await nuovoStore();
     await store.getState().load(); // in cache: s1 «Ballers»

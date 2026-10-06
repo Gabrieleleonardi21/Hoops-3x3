@@ -7,6 +7,7 @@ import type { MatchDraft } from "../../src/hooks/useTappa";
 import { legheApi } from "../../src/services/legheApi";
 import { archivioApi } from "../../src/services/archivioApi";
 import { anagrafeApi } from "../../src/services/anagrafeApi";
+import { useAnagrafeStore } from "../../src/stores/useAnagrafeStore";
 import { ApiError } from "../../src/services/api";
 import { DEFAULT_RULES } from "../../src/constants/rules";
 import type { Partita, RegSquadra, SquadraTappa, Tappa, User } from "../../src/types";
@@ -98,6 +99,8 @@ async function nienteSalvato(prima: Tappa) {
 beforeEach(() => {
   vi.useFakeTimers();
   vi.resetAllMocks();
+  // La cache dell'anagrafe è stato di modulo: ogni test riparte da non caricata
+  useAnagrafeStore.setState({ giocatori: null, squadre: null, caricata: false });
   api.putTappa.mockImplementation(async (t) => t);
   archivio.pubblica.mockImplementation(async (t, lega) => ({ tappa: t, lega, autore: "Anna", autoreId: "u1", ts: 1 }));
   useAppStore.setState({
@@ -321,6 +324,25 @@ describe("useTappa: le modifiche partono dalla tappa com'è adesso, non da quell
         expect(squadre()[1]).toEqual(squadra("s2", "Squadra 2")); // le altre squadre non cambiano
       });
 
+      it("se mentre si aspetta il server la squadra si collega alla voce (la cache la riceve) e la lista arriva senza, resta collegata", async () => {
+        conSquadraCollegata();
+        const prima = store().tappe[0];
+        const risposta = differita<RegSquadra[]>();
+        anagrafe.listSquadre.mockReturnValue(risposta.p);
+        useAnagrafeStore.setState({ giocatori: [], squadre: [], caricata: true });
+        const { result } = renderHook(() => useTappa("t1"));
+        let sincronizzazione = Promise.resolve();
+        act(() => { sincronizzazione = result.current.syncFromAnagrafe([]); });
+        // La richiesta è partita prima che qualcuno registrasse la voce (ricerca, creazione o Coach): la cache la riceve nell'attesa
+        act(() => { useAnagrafeStore.setState({ squadre: [voceNuova] }); });
+        await act(async () => {
+          risposta.ok([{ ...regAlfa, id: "r2", nome: "Beta" }]); // la lista del server, più vecchia, non la contiene
+          await sincronizzazione;
+        });
+        await nienteSalvato(prima);
+        expect(squadre()[0].regId).toBe("r-nuova");
+      });
+
       it("se la verifica sul server non riesce non si scollega niente", async () => {
         conSquadraCollegata();
         const prima = store().tappe[0];
@@ -335,6 +357,16 @@ describe("useTappa: le modifiche partono dalla tappa com'è adesso, non da quell
         anagrafe.listSquadre.mockResolvedValue([regAlfa]); // id r1: stesso nome, un'altra voce
         await sincronizza([]);
         expect(squadre()[0]).toMatchObject({ nome: "Alfa", regId: "r1" });
+      });
+
+      it("le voci trovate sul server entrano nella cache, senza toccare scritture e caricamento", async () => {
+        conSquadraCollegata();
+        anagrafe.listSquadre.mockResolvedValue([voceNuova, { ...regAlfa, id: "r9", nome: "Altra" }]);
+        useAnagrafeStore.setState({ giocatori: [], squadre: [], caricata: true });
+        await sincronizza([]);
+        // Solo la voce a cui la squadra è collegata, non tutta la lista; la cache resta valida
+        expect(useAnagrafeStore.getState().squadre?.map((s) => s.id)).toEqual(["r-nuova"]);
+        expect(useAnagrafeStore.getState().caricata).toBe(true);
       });
 
       it("se la cache ha già la voce, o la squadra non ha un collegamento, il server non si interroga", async () => {
