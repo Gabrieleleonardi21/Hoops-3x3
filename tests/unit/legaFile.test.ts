@@ -22,7 +22,7 @@ const tappaCompleta = (id: string, nome = "Tappa di Roma"): Tappa => ({
   gironi: [["a", "b"], ["c", "d"]],
   partite: [
     {
-      id: "m1", g: 0, a: "a", b: "b", sa: 21, sb: 15, done: true,
+      id: "m1", g: 0, a: "a", b: "b", sa: 21, sb: 15, done: true, ts: 1781000000000,
       // la scheda di "a-p2" è nel formato vecchio: solo i punti, come numero
       pa: { "a-p1": { pt: 12, rb: 3, as: 2, ru: 1, st: 0, pe: 2, fa: 1 }, "a-p2": 9 },
       pb: { "b-p1": { pt: 15 } },

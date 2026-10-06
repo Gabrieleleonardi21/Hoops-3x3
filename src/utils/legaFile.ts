@@ -68,6 +68,7 @@ const partitaSchema = z.object({
   sa: numero,
   sb: numero,
   done: z.boolean(),
+  ts: numero.optional(),
   pa: schedaSchema.optional(),
   pb: schedaSchema.optional(),
   eventi: z.array(eventoSchema).optional(),

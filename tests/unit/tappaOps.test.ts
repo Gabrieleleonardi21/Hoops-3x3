@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   sorteggia, registraRisultato, registraRisultatoBracket, generaFasiDirette, concludi,
   aggiungiSquadra, rimuoviSquadra, impostaNumeroGironi, perditaRisultati, annullaRisultato, rinominaTappa,
@@ -127,10 +127,26 @@ describe("sorteggia", () => {
 });
 
 describe("registraRisultato (gironi)", () => {
+  afterEach(() => vi.useRealTimers());
+
   it("segna punteggio e partita conclusa, senza toccare le altre partite", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1_781_000_000_000);
     const t = nuova(registraRisultato(tappaSorteggiata(), "m1", { sa: 21, sb: 15 }));
-    expect(t.partite[0]).toEqual({ id: "m1", g: 0, a: "a", b: "d", sa: 21, sb: 15, done: true });
+    expect(t.partite[0]).toEqual({ id: "m1", g: 0, a: "a", b: "d", sa: 21, sb: 15, done: true, ts: 1_781_000_000_000 });
     expect(t.partite[1]).toEqual({ id: "m2", g: 1, a: "b", b: "c", sa: 0, sb: 0, done: false });
+  });
+
+  it("FD-10: il momento della registrazione (ts) dà l'ordine d'inserimento; correggere il risultato lo aggiorna", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1000);
+    let t = nuova(registraRisultato(tappaSorteggiata(), "m2", { sa: 21, sb: 10 }));
+    vi.setSystemTime(2000);
+    t = nuova(registraRisultato(t, "m1", { sa: 21, sb: 15 }));
+    expect(t.partite.map((m) => m.ts)).toEqual([2000, 1000]); // m1 è prima nel calendario, ma m2 è stata registrata prima
+    vi.setSystemTime(3000);
+    t = nuova(registraRisultato(nuova(annullaRisultato(t, "m2")), "m2", { sa: 21, sb: 12 })); // «Correggi» e nuovo salvataggio
+    expect(t.partite.map((m) => m.ts)).toEqual([2000, 3000]);
   });
 
   it("salva le schede statistiche quando sono fornite", () => {

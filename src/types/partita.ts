@@ -32,6 +32,9 @@ export interface Partita {
   sa: number;
   sb: number;
   done: boolean;
+  /** Quando è stato registrato o corretto il risultato, in millisecondi (Date.now): dà l'ordine di inserimento, che il calendario
+   *  non ha («Ultimo risultato» della home). Manca nelle partite registrate prima che esistesse: contano come più vecchie. */
+  ts?: number;
   pa?: StatSheet;
   pb?: StatSheet;
   eventi?: EventoGara[];

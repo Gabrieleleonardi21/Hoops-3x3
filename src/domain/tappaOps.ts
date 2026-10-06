@@ -277,8 +277,9 @@ export function registraRisultato(tappa: Tappa, partitaId: string, punteggio: Pu
   if (Math.max(sa, sb) > tappa.regole.target + 4)
     return ko(`Punteggio insolito: nel 3x3 la gara finisce a ${tappa.regole.target} punti (o allo scadere dei ${tappa.regole.durata}').`);
 
-  // Le schede statistiche si sovrascrivono solo se fornite: il Coach AI registra il solo totale
-  const aggiornata: Partita = { ...partita, sa, sb, done: true };
+  // Le schede statistiche si sovrascrivono solo se fornite: il Coach AI registra il solo totale. `ts` è il momento della
+  // registrazione, anche di una correzione: dà l'ordine d'inserimento per «Ultimo risultato» (utils/ultimoRisultato)
+  const aggiornata: Partita = { ...partita, sa, sb, done: true, ts: Date.now() };
   if (pa) aggiornata.pa = pa;
   if (pb) aggiornata.pb = pb;
   return ok({ ...tappa, partite: replaceById(tappa.partite, aggiornata) });
