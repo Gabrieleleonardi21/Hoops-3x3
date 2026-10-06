@@ -147,7 +147,10 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
 - Punteggio live per entrambe le squadre con tasti +1, +2 e correzione −.
   Da tastiera il focus entra su START; per i lettori di schermo i tasti dei
   punti dicono la squadra («+1 a Squadra A») e a partita decisa l'esito
-  («Squadra A — Partita conclusa») prende il focus e viene annunciato.
+  («Squadra A — Partita conclusa») prende il focus (con l'anello) e viene
+  annunciato. Se in quel momento il focus è nella conferma «Chiudere il
+  timer?», aperta sopra il timer, resta lì; chiusa la conferma, passa
+  all'esito solo se è finito nel vuoto.
 - Rilevamento automatico della fine della partita (i cronometri si fermano):
     • Una squadra raggiunge il punteggio di vittoria → vince subito.
     • Tempo scaduto → vince chi è avanti.
@@ -366,9 +369,12 @@ utenti registrati.
   ciò che l'aveva aperta; Tab e Maiusc+Tab restano dentro la finestra in
   primo piano; Esc chiude solo quella (la conferma sopra una scheda, poi la
   scheda), e tenuto premuto ne chiude una sola. Il Coach AI si chiude con Esc
-  solo se nessuna finestra gli sta sopra. Dentro una finestra il focus non si
-  perde: la scheda del giocatore si apre con il focus sul blocco dei dati, e
-  premuto «Modifica» (giocatore e squadra) va al primo campo del form.
+  solo se nessuna finestra gli sta sopra. Le schede dell'anagrafe (giocatore
+  e squadra) si aprono con il focus sul blocco dei dati, con l'anello visibile
+  da tastiera, e non sul primo collegamento (il profilo, il logo, il sito);
+  premuto «Modifica» il focus va al primo campo del form, e uscendone con
+  «Annulla» o con un salvataggio riuscito torna a «Modifica». Nel timer il
+  focus passa all'esito a partita decisa (vedi la sezione 7).
 - Pulsanti: le classi passate a un pulsante vincono sempre su quelle della
   sua variante (tailwind-merge). Per chi usa il dito (schermi sotto i 640 px e
   puntatori grossolani: telefoni anche in orizzontale, tablet) tutti i
