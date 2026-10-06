@@ -17,8 +17,10 @@ afterEach(() => {
   useAnagrafeStore.setState({ giocatori: null, squadre: null, errore: null, caricata: false });
 });
 
-/** Le righe del corpo della tabella di stagione, come testo delle celle (la prima riga è l'intestazione) */
-const righe = () => screen.getAllByRole("row").slice(1).map((riga) => within(riga).getAllByRole("cell").map((c) => c.textContent));
+/** Le righe del corpo dell'unica tabella della pagina, come testo delle celle (la prima riga è l'intestazione). Nella
+ *  tabella di stagione sono #, giocatore, squadra, G, PT, Pt/G, RB, Rb/G, AS, RU, ST; nello storico tappe del profilo
+ *  tappa, piazzamento, G, PT, REB, AST */
+const righeTabella = () => screen.getAllByRole("row").slice(1).map((riga) => within(riga).getAllByRole("cell").map((c) => c.textContent));
 
 describe("Statistiche stagione: la tabella", () => {
   it("lo stesso giocatore in tre tappe è una riga con i totali e le medie, non tre", () => {
@@ -30,7 +32,7 @@ describe("Statistiche stagione: la tabella", () => {
     const t3 = unaGara("t3", "Alfa", "Mario Rossi", { pt: 8, rb: 3 });
     render(<StatsCircuito tappe={[t1, t2, t3]} />);
     // #, giocatore, squadra, G, PT, Pt/G, RB, Rb/G, AS, RU, ST: in cima Luca, 15 punti a partita contro 10
-    expect(righe()).toEqual([
+    expect(righeTabella()).toEqual([
       ["1", "Luca Bianchi", "Beta", "1", "15", "15.0", "0", "0.0", "0", "0", "0"],
       ["2", "Mario Rossi", "Alfa", "3", "30", "10.0", "7", "2.3", "2", "1", "0"],
     ]);
@@ -41,7 +43,7 @@ describe("Statistiche stagione: la tabella", () => {
       { a: "Alfa", b: "Beta", pa: { "Mario Rossi": { pt: 8 } }, pb: { "Mario Rossi": { pt: 14 } } },
     ]);
     render(<StatsCircuito tappe={[t]} />);
-    expect(righe().map((r) => r.slice(0, 5))).toEqual([
+    expect(righeTabella().map((r) => r.slice(0, 5))).toEqual([
       ["1", "Mario Rossi", "Beta", "1", "14"],
       ["2", "Mario Rossi", "Alfa", "1", "8"],
     ]);
@@ -52,7 +54,7 @@ describe("Statistiche stagione: la tabella", () => {
       unaGara("t1", "alfa  team", "nicolo rossi", { pt: 10 }),
       unaGara("t2", "Alfa Team", "Nicolò Rossi", { pt: 12 }),
     ]} />);
-    expect(righe().map((r) => r.slice(0, 5))).toEqual([["1", "Nicolò Rossi", "Alfa Team", "2", "22"]]);
+    expect(righeTabella().map((r) => r.slice(0, 5))).toEqual([["1", "Nicolò Rossi", "Alfa Team", "2", "22"]]);
   });
 
   it("una partita non giocata non entra nella tabella, nemmeno con un tabellino provvisorio", () => {
@@ -90,9 +92,6 @@ const riquadro = (etichetta: string) => screen.getByText(etichetta).nextElementS
 /** La riga piccola sotto il numero di un riquadro («Gare» → «2V · 0P») */
 const sottoRiquadro = (etichetta: string) => screen.getByText(etichetta).nextElementSibling?.lastElementChild?.textContent;
 
-/** Le righe dello storico tappe del profilo, come testo delle celle: tappa, piazzamento, G, PT, REB, AST */
-const storico = () => screen.getAllByRole("row").slice(1).map((riga) => within(riga).getAllByRole("cell").map((c) => c.textContent));
-
 describe("Profilo del giocatore: le statistiche di stagione", () => {
   const mario = registrazione("g1", "Mario", "Rossi");
   // Mario gioca con Alfa nella prima tappa e con Beta nella seconda, dove il roster lo scrive «Rossi Mario». Il roster di
@@ -115,7 +114,7 @@ describe("Profilo del giocatore: le statistiche di stagione", () => {
     expect(riquadro("Stoppate")).toBe("1");
     expect(riquadro("Gare")).toBe("2");
     // Lo storico resta una riga per tappa
-    expect(storico()).toEqual([
+    expect(righeTabella()).toEqual([
       ["Tappa t1", "—", "1", "12", "3", "0"],
       ["Tappa t2", "—", "1", "10", "0", "2"],
     ]);
@@ -134,7 +133,7 @@ describe("Profilo del giocatore: le statistiche di stagione", () => {
     // Le due gare sono vinte: nessuna sconfitta
     expect(sottoRiquadro("Gare")).toBe("2V · 0P");
     expect(screen.getByText("2 partite · max 12")).toBeTruthy();
-    expect(storico()).toEqual([["Tappa t1", "—", "2", "19", "3", "0"]]);
+    expect(righeTabella()).toEqual([["Tappa t1", "—", "2", "19", "3", "0"]]);
     expect(screen.getByText(/sommate per nome sulle squadre di tappa: Alfa, Beta\./)).toBeTruthy();
   });
 
@@ -153,7 +152,7 @@ describe("Profilo del giocatore: le statistiche di stagione", () => {
     apriProfilo(registrazione("g1", "Nicolò", "Rossi"), [unaGara("t1", "Alfa", "  nicolo   ROSSI ", { pt: 14 })]);
     expect(riquadro("Punti")).toBe("14");
     expect(screen.queryByText(/Nessuna statistica nella lega attiva/)).toBeNull();
-    expect(storico()).toEqual([["Tappa t1", "—", "1", "14", "0", "0"]]);
+    expect(righeTabella()).toEqual([["Tappa t1", "—", "1", "14", "0", "0"]]);
     // Anche le partite singole riconoscono il nome: la gara è vinta (21-15)
     expect(sottoRiquadro("Gare")).toBe("1V · 0P");
   });
@@ -178,7 +177,7 @@ describe("Profilo del giocatore: le statistiche di stagione", () => {
     });
     const [t1, t2] = dueSquadre();
     apriProfilo(mario, [conFinale(t1, "Alfa", "Avversari", 21, 15), conFinale(t2, "Beta", "Avversari", 12, 21)]);
-    expect(storico().map((riga) => riga[1])).toEqual(["1°", "2°"]);
+    expect(righeTabella().map((riga) => riga[1])).toEqual(["1°", "2°"]);
   });
 
   it("senza statistiche nella lega non c'è nessun elenco di squadre, solo la spiegazione di prima", () => {
