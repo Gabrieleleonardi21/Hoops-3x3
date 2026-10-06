@@ -3,8 +3,8 @@
 # Passi completi e controlli dopo il primo deploy: sezione «Deploy su Render» del README.
 #
 # Gli URL pubblici dipendono dai nomi dei servizi (https://<nome>.onrender.com). Se Render aggiunge un suffisso
-# perché il nome è già preso, vanno aggiornati i due punti segnati con «URL»: la rewrite di /api/* qui sotto e
-# CORS_ORIGINS del backend.
+# perché il nome è già preso, vanno aggiornati i punti segnati con «URL»: le rewrite di /api/* e /actuator/health qui sotto
+# e CORS_ORIGINS del backend.
 
 services:
   # ── Frontend: build di Vite servita dalla CDN di Render ──────────────────────

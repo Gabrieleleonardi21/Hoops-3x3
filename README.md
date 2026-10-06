@@ -73,14 +73,15 @@ Il sito statico inoltra `/api/*` al backend con una regola di rewrite: per il br
 2. Dashboard → **New → Blueprint** → scegli questo repository: Render legge `render.yaml` e mostra i tre servizi.
 3. Compila i valori richiesti: `ADMIN_EMAIL` e `ADMIN_PASSWORD` (almeno 8 caratteri, diversa da `admin123`, altrimenti l'admin non viene creato) e, facoltativa, `GROQ_API_KEY` per il Coach AI. `JWT_SECRET` lo genera Render, i dati del database arrivano da soli.
 4. Al primo avvio il backend crea le tabelle da `db/schema.sql` (`DB_INIT_MODE=always`) e l'admin.
+5. Render considera il backend pronto quando `/actuator/health` risponde 200, cioè con server e database funzionanti: un deploy rotto non sostituisce quello attivo.
 
 **Dopo il deploy**
 
-- Controlla gli URL assegnati. Se il frontend non è `https://hoop3x3.onrender.com` o il backend non è `https://hoop3x3-api.onrender.com` (succede quando il nome è già preso), aggiorna i due punti segnati con «URL» in `render.yaml` (la rewrite di `/api/*` e `CORS_ORIGINS`) oppure gli stessi valori nella dashboard. Con un dominio personalizzato vale lo stesso per `CORS_ORIGINS`.
+- Controlla gli URL assegnati. Se il frontend non è `https://hoop3x3.onrender.com` o il backend non è `https://hoop3x3-api.onrender.com` (succede quando il nome è già preso), aggiorna i punti segnati con «URL» in `render.yaml` (le rewrite di `/api/*` e `/actuator/health` e `CORS_ORIGINS`) oppure gli stessi valori nella dashboard. Con un dominio personalizzato vale lo stesso per `CORS_ORIGINS`.
 - Prova login, ricarica della pagina e un salvataggio: un 403 «Invalid CORS request» sulle POST vuol dire che `CORS_ORIGINS` non coincide con l'origine del frontend.
 - Per i dati di prova imposta `SEED_DEMO=true` sul backend e riavvialo.
 
-**Piani free** — il backend si spegne dopo 15 minuti senza richieste e la prima richiesta dopo la pausa aspetta il riavvio della JVM (anche più di un minuto, oltre i 15 secondi di attesa del client: la prima chiamata può fallire con «Il server non risponde»). Il database free scade dopo 30 giorni. Per una demo dal vivo conviene il piano starter del backend, oppure aprire l'app qualche minuto prima.
+**Piani free** — il backend si spegne dopo 15 minuti senza richieste e la prima richiesta dopo la pausa aspetta il riavvio della JVM (anche più di un minuto, oltre i 15 secondi di attesa del client: la prima chiamata può fallire con «Il server non risponde»). Il database free scade dopo 30 giorni. Per ridurre l'attesa l'app chiama `/actuator/health` appena si apre (`svegliaServer` in `src/services/api.ts`): il backend riparte mentre l'utente guarda la home, e di solito al login è già pronto. Per una demo dal vivo conviene comunque il piano starter del backend, oppure aprire l'app qualche minuto prima.
 
 Ogni push su `main` di uno dei due repository ripubblica il servizio corrispondente.
 
