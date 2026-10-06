@@ -124,6 +124,20 @@ describe("Anagrafe: il focus nelle schede (modali)", () => {
     expect(document.activeElement).not.toBe(screen.getByRole("link", { name: /Profilo e statistiche/ }));
   });
 
+  it("la scheda della squadra atterra sul blocco dei dati e non sul collegamento del logo o del sito: un Invio di riflesso non apre il sito", () => {
+    const conLogoESito = { ...squadra, citta: "Roma", logo: "/logos/ballers.svg", website: "https://ballers.it" };
+    render(<SquadraAnagrafeModal s={conLogoESito} giocatori={[]} user={autore} onClose={nulla} onRemove={riuscita} onUpdate={riuscita} />);
+    const blocco = document.querySelector("[data-focus-iniziale]");
+    expect(blocco).not.toBeNull();
+    expect(document.activeElement).toBe(blocco);
+    expect(blocco!.getAttribute("tabindex")).toBe("-1"); // si prende il focus per programma, ma non entra nell'ordine di Tab
+    expect(blocco!.textContent).toContain("Roma"); // i dati della squadra: è ciò che il lettore di schermo legge all'apertura
+    // Il collegamento del logo, il primo elemento raggiungibile, e quello del sito ci sono: nessuno dei due ha il focus
+    const collegamenti = screen.getAllByRole("link");
+    expect(collegamenti.length).toBeGreaterThanOrEqual(2);
+    expect(collegamenti).not.toContain(document.activeElement);
+  });
+
   it("dopo «Modifica» il focus va al primo campo del form: il pulsante premuto sparisce e il focus non resta nel vuoto (giocatore)", () => {
     mostraGiocatoreModal(autore);
     fireEvent.click(screen.getByRole("button", { name: "Modifica" }));

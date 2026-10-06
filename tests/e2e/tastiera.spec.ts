@@ -180,10 +180,12 @@ async function provaLaModifica(page: Page, scheda: Locator, primoCampo: Locator)
 }
 
 test("scheda: «Modifica» porta il focus sul primo campo del form, «Annulla» e «Salva modifiche» lo riportano a «Modifica» (giocatore e squadra)", async ({ page }) => {
-  await utenteRegistrato(page, { giocatori: [giocatoreDiAnna("g1", "Mario", "Rossi")], squadre: [squadraDiAnna("s1", "Ballers")] });
+  // La squadra ha un logo e un sito, come molte: i loro collegamenti sono i primi elementi raggiungibili della sua scheda
+  const ballers = { ...squadraDiAnna("s1", "Ballers"), citta: "Roma", logo: "/logos/ballers.svg", website: "https://ballers.example" };
+  await utenteRegistrato(page, { giocatori: [giocatoreDiAnna("g1", "Mario", "Rossi")], squadre: [ballers] });
   // Le modifiche: il server finto risponde con la voce com'è
   await page.route("**/api/anagrafe/giocatori/g1", (route) => route.fulfill(json(giocatoreDiAnna("g1", "Mario", "Rossi"))));
-  await page.route("**/api/anagrafe/squadre/s1", (route) => route.fulfill(json(squadraDiAnna("s1", "Ballers"))));
+  await page.route("**/api/anagrafe/squadre/s1", (route) => route.fulfill(json(ballers)));
   await page.goto("/anagrafe");
 
   // Giocatore: il primo campo è «Nome»
@@ -200,6 +202,10 @@ test("scheda: «Modifica» porta il focus sul primo campo del form, «Annulla» 
   await tabFinoA(page, page.getByRole("button", { name: "Ballers", exact: true }));
   await page.keyboard.press("Enter");
   const schedaSquadra = page.getByRole("dialog", { name: "Scheda squadra Ballers" });
+  // Aperta con Invio, la scheda ha il focus sul blocco dei dati (con l'anello) e non sul collegamento del logo o del sito, che si aprirebbe
+  // in un'altra scheda del browser
+  await expect(schedaSquadra.locator("[data-focus-iniziale]")).toBeFocused();
+  await expect(schedaSquadra.locator("[data-focus-iniziale]")).toHaveCSS("outline-style", "solid");
   await provaLaModifica(page, schedaSquadra, schedaSquadra.getByLabel("Nome squadra", { exact: true }));
 });
 

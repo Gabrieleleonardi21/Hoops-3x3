@@ -99,8 +99,11 @@ export function SquadraAnagrafeModal({
       </div>
 
       {/* ── Modalità visualizzazione ── */}
+      {/* Il focus iniziale è sul blocco dei dati, non sul primo collegamento (il logo, il sito: si aprono in un'altra scheda del browser, e
+          un Invio dato di riflesso li aprirebbe), e il lettore di schermo legge i dati. tabIndex -1: si prende il focus per programma, senza
+          entrare nell'ordine di Tab; l'anello del focus resta, con la tastiera è l'unico indicatore */}
       {!editing && (
-        <>
+        <div tabIndex={-1} data-focus-iniziale>
           <div className="mb-4 flex flex-col gap-1.5">
             {s.citta && row("Città", <>{s.citta}{s.anno ? ` · fondata nel ${s.anno}` : ""}</>)}
             {!s.citta && s.anno && row("Fondata", s.anno)}
@@ -122,7 +125,7 @@ export function SquadraAnagrafeModal({
           )}
 
           {s.note && <p className="mb-4 text-[13.5px] text-chalk-muted">{s.note}</p>}
-        </>
+        </div>
       )}
 
       {/* ── Modalità modifica ── */}
