@@ -374,9 +374,10 @@ utenti registrati.
   dell'anagrafe (giocatore e squadra) e quella di una squadra dell'archivio si
   aprono con il focus sul blocco dei dati, con l'anello visibile da tastiera, e
   non sul primo collegamento (il profilo, il logo, il sito). Una squadra senza
-  dati (nell'anagrafe solo il nome, nell'archivio né giocatori né logo né
-  collegamenti) non ha il blocco: il focus va al primo elemento raggiungibile
-  o, se non c'è, alla finestra stessa, anche lì con l'anello da tastiera.
+  dati (nell'anagrafe né città, anno, referente, sito, Instagram, note né
+  roster; nell'archivio né giocatori, logo o collegamenti) non ha il blocco: il
+  focus va al primo elemento raggiungibile o, se non c'è, alla finestra stessa,
+  anche lì con l'anello da tastiera.
   Premuto «Modifica» il focus va al primo campo del form, e uscendone con
   «Annulla» o con un salvataggio riuscito torna a «Modifica». Nel timer il
   focus passa all'esito a partita decisa (vedi la sezione 7).
