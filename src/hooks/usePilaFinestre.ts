@@ -48,7 +48,9 @@ function trattieniFocus(e: KeyboardEvent, finestra: HTMLElement) {
 function suTasto(e: KeyboardEvent) {
   const inPrimoPiano = pila.at(-1);
   if (!inPrimoPiano) return;
-  if (e.key === "Escape") inPrimoPiano.chiudi.current();
+  // Con Esc tenuto premuto il browser ripete l'evento: conta solo la prima pressione, che chiude la finestra in primo piano. Le
+  // ripetizioni arriverebbero a quella sotto, e una sola pressione lunga chiuderebbe la conferma e poi anche la scheda
+  if (e.key === "Escape" && !e.repeat) inPrimoPiano.chiudi.current();
   const contenitore = inPrimoPiano.contenitore?.current;
   if (e.key === "Tab" && contenitore) trattieniFocus(e, contenitore);
 }

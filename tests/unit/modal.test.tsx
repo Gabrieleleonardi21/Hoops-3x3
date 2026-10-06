@@ -82,6 +82,13 @@ describe("Modal: Tab resta dentro la finestra", () => {
     expect(document.activeElement).toBe(salva);
   });
 
+  it("con Tab tenuto premuto il focus continua a girare: le ripetizioni del tasto non si fermano", () => {
+    apri(<button>Salva</button>);
+    screen.getByRole("button", { name: "Salva" }).focus();
+    expect(fireEvent.keyDown(document.activeElement!, { key: "Tab", repeat: true })).toBe(false); // sull'ultimo, anche in ripetizione
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Chiudi" }));
+  });
+
   it("un elemento disattivato non si raggiunge con Tab: non conta come ultimo", () => {
     apri(<><button>Salva</button><button disabled>Elimina</button></>);
     screen.getByRole("button", { name: "Salva" }).focus();
@@ -302,6 +309,18 @@ describe("Modal: la conferma sopra una scheda", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(onChiudiScheda).toHaveBeenCalledTimes(1);
     expect(document.activeElement).toBe(mario);
+  });
+
+  it("con Esc tenuto premuto chiude solo la conferma: le ripetizioni automatiche del tasto non chiudono anche la scheda", () => {
+    const onChiudiScheda = vi.fn();
+    apriSchedaEConferma(onChiudiScheda);
+    esc(); // la pressione: chiude la conferma
+    expect(screen.queryByRole("dialog", { name: "Eliminare il giocatore?" })).toBeNull();
+    for (let i = 0; i < 5; i++) fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape", repeat: true }); // il tasto tenuto
+    expect(onChiudiScheda).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "Scheda giocatore" })).toBeTruthy();
+    esc(); // un'altra pressione: adesso tocca alla scheda
+    expect(onChiudiScheda).toHaveBeenCalledTimes(1);
   });
 
   it("se scheda e conferma si smontano insieme (tasto «Indietro») la pila si svuota: un Esc dopo non chiama niente delle finestre di prima", () => {
