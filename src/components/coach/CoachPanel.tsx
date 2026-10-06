@@ -1,10 +1,13 @@
 /** Pannello chat del Coach AI: input utente, lista messaggi, bottone "Cancella chat".
- *  La chat sta nello store di useCoachAI, non qui: chiudendo il pannello durante l'attesa la risposta non si perde. */
+ *  La chat sta nello store di useCoachAI, non qui: chiudendo il pannello durante l'attesa la risposta non si perde.
+ *  Non è una finestra modale (niente sfondo, la pagina sotto resta usabile): il focus non si trattiene. Si chiude con Esc solo
+ *  se nessuna finestra gli sta sopra, grazie alla pila delle finestre (usePilaFinestre). */
 import { useEffect, useRef, useState } from "react";
 import { RED, ORANGE } from "../../constants/colors";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
 import { useCoachAI } from "../../hooks/useCoachAI";
+import { usePilaFinestre } from "../../hooks/usePilaFinestre";
 
 /** Etichette leggibili (al passato) per i tool eseguiti dal Coach AI. */
 const TOOL_LABELS: Record<string, string> = {
@@ -44,6 +47,8 @@ export function CoachPanel({ onClose }: { onClose: () => void }) {
   const { msgs, loading, conferma, send, clearChat } = useCoachAI();
   const [input, setInput] = useState("");
   const richiestaRef = useRef<HTMLDivElement>(null);
+  // Senza contenitore: la finestra è nella pila solo per l'Esc, Tab non è trattenuto
+  usePilaFinestre(onClose);
 
   // D4: la lista non scorre da sola e, con una chat lunga, la richiesta di conferma resterebbe sotto il bordo visibile
   // mentre «Invia» è disattivato: la si porta in vista

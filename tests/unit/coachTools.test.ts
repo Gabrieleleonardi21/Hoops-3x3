@@ -6,6 +6,7 @@ import { MemoryRouter } from "react-router-dom";
 import { useCoachAI } from "../../src/hooks/useCoachAI";
 import { useAuth } from "../../src/hooks/useAuth";
 import { CoachPanel } from "../../src/components/coach/CoachPanel";
+import { Modal } from "../../src/components/ui/Modal";
 import { useAppStore, SESSION_KEY } from "../../src/stores/useAppStore";
 import { legheApi } from "../../src/services/legheApi";
 import { anagrafeApi } from "../../src/services/anagrafeApi";
@@ -806,7 +807,7 @@ describe("Coach AI: la chat appartiene a chi l'ha scritta", () => {
 
 describe("CoachPanel", () => {
   /** Il pannello del Coach dentro un router, come in App */
-  const apriPannello = () => render(createElement(MemoryRouter, null, createElement(CoachPanel, { onClose: vi.fn() })));
+  const apriPannello = (onClose = vi.fn()) => render(createElement(MemoryRouter, null, createElement(CoachPanel, { onClose })));
   const campo = () => screen.getByRole<HTMLInputElement>("textbox", { name: "Messaggio per il coach" });
   /** Scrive nel campo e preme Invio */
   function scriviEInvia(messaggio: string) {
@@ -864,6 +865,41 @@ describe("CoachPanel", () => {
     await act(async () => { risposta.ok(testo("Prima risposta")); });
     await screen.findByText("Prima risposta");
     expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  describe("Esc (FU-1)", () => {
+    const esc = () => fireEvent.keyDown(window, { key: "Escape" });
+
+    it("chiude il pannello", () => {
+      const onClose = vi.fn();
+      apriPannello(onClose);
+      esc();
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it("con una finestra aperta sopra il pannello Esc chiude la finestra e non il pannello; il secondo Esc chiude il pannello", () => {
+      const chiudiPannello = vi.fn();
+      const chiudiFinestra = vi.fn();
+      const pagina = (conFinestra: boolean) => createElement(MemoryRouter, null,
+        createElement(CoachPanel, { onClose: chiudiPannello }),
+        conFinestra && createElement(Modal, { label: "Scheda sopra il pannello", onClose: chiudiFinestra, children: "contenuto" }));
+      const { rerender } = render(pagina(false));
+      rerender(pagina(true)); // la finestra si apre dopo il pannello
+      esc();
+      expect(chiudiFinestra).toHaveBeenCalledTimes(1);
+      expect(chiudiPannello).not.toHaveBeenCalled();
+      rerender(pagina(false)); // la finestra si è chiusa
+      esc();
+      expect(chiudiPannello).toHaveBeenCalledTimes(1);
+      expect(chiudiFinestra).toHaveBeenCalledTimes(1);
+    });
+
+    it("non è una finestra modale: Tab non viene trattenuto, la pagina sotto resta raggiungibile", () => {
+      apriPannello();
+      campo().focus();
+      expect(fireEvent.keyDown(campo(), { key: "Tab" })).toBe(true); // l'evento non è fermato: il focus va dove lo porta il browser
+      expect(fireEvent.keyDown(campo(), { key: "Tab", shiftKey: true })).toBe(true);
+    });
   });
 });
 
