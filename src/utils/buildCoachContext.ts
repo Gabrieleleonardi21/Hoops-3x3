@@ -54,8 +54,9 @@ export function buildCoachContext(legaName: string, tappe: Tappa[]): string {
     .join("; ");
   lines.push(`Tappe (${tappe.length}): ${tappeResume}`);
 
-  // Classifica cumulativa del circuito (solo se ci sono partite concluse)
-  const tappeConPartite = tappe.filter((t) => t.partite.some((m) => m.done));
+  // Classifica cumulativa del circuito (solo se ci sono partite giocate con un vincitore, come in circuitStandings:
+  // una tappa con sole partite in parità non porterebbe che squadre a zeri)
+  const tappeConPartite = tappe.filter((t) => giocateConVincitore(t.partite).length > 0);
   if (tappeConPartite.length > 0) {
     lines.push(`Classifica circuito: ${circuitStandings(tappeConPartite)}`);
   }

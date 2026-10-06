@@ -80,6 +80,11 @@ describe("buildCoachContext: la classifica del circuito", () => {
     expect(rigaCircuito([gara("Alfa", "Beta", 21, 10), gara("Beta", "Gamma", 15, 15)])).toBe(ATTESA);
   });
 
+  it("una tappa con sole partite in parità non dà nessuna riga: non ha partite giocate con un vincitore", () => {
+    // prima compariva con tutte le squadre a 0V/0P
+    expect(rigaCircuito([gara("Alfa", "Beta", 15, 15)])).toBe("");
+  });
+
   it("una partita non ancora giocata non conta, nemmeno con un punteggio provvisorio", () => {
     // Alfa-Gamma è da giocare ma ha una bozza 0-21: se contasse, Gamma avrebbe una vittoria
     expect(rigaCircuito([gara("Alfa", "Beta", 21, 10), gara("Alfa", "Gamma", 0, 21, false)])).toBe(ATTESA);
