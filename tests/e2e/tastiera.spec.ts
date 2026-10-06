@@ -162,29 +162,45 @@ test("archivio: la squadra è un pulsante vero; Invio e Spazio aprono la scheda,
   }
 });
 
-test("scheda: «Modifica» porta il focus sul primo campo del form, per il giocatore e per la squadra", async ({ page }) => {
+/** Da «Modifica» (raggiunta con Tab) al form e ritorno, due volte: uscendo con «Annulla» e con «Salva modifiche». Il focus entra nel primo
+ *  campo del form e, uscendone, torna a «Modifica»: il pulsante premuto sparisce con la sua vista e il focus non cade su body */
+async function provaLaModifica(page: Page, scheda: Locator, primoCampo: Locator) {
+  const modifica = scheda.getByRole("button", { name: "Modifica" });
+  await tabFinoA(page, modifica);
+  await page.keyboard.press("Enter");
+  await expect(primoCampo).toBeFocused();
+  await tabFinoA(page, scheda.getByRole("button", { name: "Annulla" }));
+  await page.keyboard.press("Enter");
+  await expect(modifica).toBeFocused();
+  await page.keyboard.press("Enter"); // «Modifica» ha il focus: Invio rientra nel form
+  await expect(primoCampo).toBeFocused();
+  await tabFinoA(page, scheda.getByRole("button", { name: "Salva modifiche" }));
+  await page.keyboard.press("Enter"); // il server finto accetta
+  await expect(modifica).toBeFocused();
+}
+
+test("scheda: «Modifica» porta il focus sul primo campo del form, «Annulla» e «Salva modifiche» lo riportano a «Modifica» (giocatore e squadra)", async ({ page }) => {
   await utenteRegistrato(page, { giocatori: [giocatoreDiAnna("g1", "Mario", "Rossi")], squadre: [squadraDiAnna("s1", "Ballers")] });
+  // Le modifiche: il server finto risponde con la voce com'è
+  await page.route("**/api/anagrafe/giocatori/g1", (route) => route.fulfill(json(giocatoreDiAnna("g1", "Mario", "Rossi"))));
+  await page.route("**/api/anagrafe/squadre/s1", (route) => route.fulfill(json(squadraDiAnna("s1", "Ballers"))));
   await page.goto("/anagrafe");
 
-  // Giocatore: il pulsante «Modifica» sparisce con la vista dei dati, e il focus non cade su body ma sul campo «Nome»
+  // Giocatore: il primo campo è «Nome»
   await tabFinoA(page, page.getByRole("button", { name: "Mario Rossi", exact: true }));
   await page.keyboard.press("Enter");
   const schedaGiocatore = page.getByRole("dialog", { name: "Scheda giocatore Mario Rossi" });
-  await tabFinoA(page, schedaGiocatore.getByRole("button", { name: "Modifica" }));
-  await page.keyboard.press("Enter");
-  await expect(schedaGiocatore.getByLabel("Nome", { exact: true })).toBeFocused();
+  await provaLaModifica(page, schedaGiocatore, schedaGiocatore.getByLabel("Nome", { exact: true }));
   await page.keyboard.press("Escape");
   await expect(schedaGiocatore).toHaveCount(0);
 
-  // Squadra: la scheda «Squadre» con Tab e Invio, poi lo stesso percorso, e il focus va a «Nome squadra»
+  // Squadra: la scheda «Squadre» con Tab e Invio, poi lo stesso percorso; il primo campo è «Nome squadra»
   await tabFinoA(page, page.getByRole("tab", { name: /Squadre/ }));
   await page.keyboard.press("Enter");
   await tabFinoA(page, page.getByRole("button", { name: "Ballers", exact: true }));
   await page.keyboard.press("Enter");
   const schedaSquadra = page.getByRole("dialog", { name: "Scheda squadra Ballers" });
-  await tabFinoA(page, schedaSquadra.getByRole("button", { name: "Modifica" }));
-  await page.keyboard.press("Enter");
-  await expect(schedaSquadra.getByLabel("Nome squadra", { exact: true })).toBeFocused();
+  await provaLaModifica(page, schedaSquadra, schedaSquadra.getByLabel("Nome squadra", { exact: true }));
 });
 
 test("timer: a partita decisa il focus passa all'esito, che il lettore di schermo annuncia", async ({ page }) => {

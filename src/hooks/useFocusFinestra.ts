@@ -22,13 +22,18 @@ export function useFocusFinestra(dove: () => HTMLElement | null) {
   }, []);
 }
 
-/** Quando `attivo` diventa true porta il focus sul primo elemento raggiungibile con Tab dentro l'elemento a cui si attacca la ref
- *  restituita. Serve alla scheda che passa in modifica: il pulsante «Modifica», che aveva il focus, sparisce con la vista di prima e
- *  il focus resterebbe nel vuoto. */
-export function useFocusAlPrimoCampo(attivo: boolean) {
-  const contenitore = useRef<HTMLDivElement>(null);
+/** La scheda che passa dalla vista dei dati al form di modifica e ritorno: il pulsante premuto sparisce con la sua vista, e il focus
+ *  cadrebbe su body. Entrando in modifica va al primo campo del form (`form` è la ref del suo contenitore); uscendone («Annulla» o un
+ *  salvataggio riuscito) torna al primo pulsante delle azioni (`azioni` è la ref del loro contenitore), cioè «Modifica». */
+export function useFocusModifica(editing: boolean) {
+  const form = useRef<HTMLDivElement>(null);
+  const azioni = useRef<HTMLDivElement>(null);
+  // Se al ridisegno prima la scheda era in modifica: al primo disegno non c'è niente da cui uscire, e il focus resta dov'è
+  const eraInModifica = useRef(false);
   useEffect(() => {
-    if (attivo && contenitore.current) raggiungibili(contenitore.current)[0]?.focus();
-  }, [attivo]);
-  return contenitore;
+    if (editing && form.current) raggiungibili(form.current)[0]?.focus();
+    if (!editing && eraInModifica.current && azioni.current) raggiungibili(azioni.current)[0]?.focus();
+    eraInModifica.current = editing;
+  }, [editing]);
+  return { form, azioni };
 }

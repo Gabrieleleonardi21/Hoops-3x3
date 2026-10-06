@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { GiocatoreCard } from "../../src/components/anagrafe/GiocatoreCard";
 import { GiocatoreForm } from "../../src/components/anagrafe/GiocatoreForm";
@@ -134,5 +134,40 @@ describe("Anagrafe: il focus nelle schede (modali)", () => {
     mostraSquadraModal(autore);
     fireEvent.click(screen.getByRole("button", { name: "Modifica" }));
     expect(document.activeElement).toBe(screen.getByLabelText("Nome squadra"));
+  });
+
+  // Il form e la vista dei dati si danno il cambio: il pulsante premuto sparisce con la sua vista, e il focus non deve cadere su body
+  it.each([
+    ["giocatore", mostraGiocatoreModal],
+    ["squadra", mostraSquadraModal],
+  ])("%s: uscendo dalla modifica con «Annulla» il focus torna a «Modifica»", (_tipo, mostra) => {
+    mostra(autore);
+    fireEvent.click(screen.getByRole("button", { name: "Modifica" }));
+    expect(screen.queryByRole("button", { name: "Modifica" })).toBeNull(); // la vista dei dati non c'è più
+    fireEvent.click(screen.getByRole("button", { name: "Annulla" }));
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Modifica" }));
+  });
+
+  it.each([
+    ["giocatore", mostraGiocatoreModal],
+    ["squadra", mostraSquadraModal],
+  ])("%s: anche dopo un «Salva modifiche» riuscito il focus torna a «Modifica»", async (_tipo, mostra) => {
+    mostra(autore);
+    fireEvent.click(screen.getByRole("button", { name: "Modifica" }));
+    fireEvent.click(screen.getByRole("button", { name: "Salva modifiche" }));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Salva modifiche" })).toBeNull()); // il server ha accettato: si esce dal form
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Modifica" }));
+  });
+
+  it("se il server rifiuta il salvataggio il form resta e con lui il focus non si sposta da «Salva modifiche»", async () => {
+    const onUpdate = () => Promise.reject(new Error("no"));
+    render(<MemoryRouter><GiocatoreModal g={giocatore} user={autore} onClose={nulla} onRemove={riuscita} onUpdate={onUpdate} /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("button", { name: "Modifica" }));
+    const salva = screen.getByRole("button", { name: "Salva modifiche" });
+    salva.focus();
+    fireEvent.click(salva);
+    expect((await screen.findByRole("alert")).textContent).toContain("Modifica non riuscita");
+    expect(screen.getByRole("button", { name: "Salva modifiche" })).toBe(salva); // il form c'è ancora
+    expect(document.activeElement).toBe(salva);
   });
 });

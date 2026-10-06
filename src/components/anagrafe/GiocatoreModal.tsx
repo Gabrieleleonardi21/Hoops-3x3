@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useInvio } from "../../hooks/useInvio";
 import { useConfermaPerdita } from "../../hooks/useConfermaPerdita";
-import { useFocusAlPrimoCampo } from "../../hooks/useFocusFinestra";
+import { useFocusModifica } from "../../hooks/useFocusFinestra";
 import { Modal } from "../ui/Modal";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
@@ -39,8 +39,8 @@ export function GiocatoreModal({
   onUpdate: (updated: RegGiocatore) => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
-  // Premuto «Modifica» il pulsante sparisce: il focus va al primo campo del form
-  const form = useFocusAlPrimoCampo(editing);
+  // Premuto «Modifica» il focus va al primo campo del form; uscendone, a «Modifica» (i pulsanti premuti spariscono con la loro vista)
+  const { form, azioni } = useFocusModifica(editing);
   const { invio, errore, setErrore, esegui } = useInvio();
   const { chiedi, finestra } = useConfermaPerdita(() => perditaGiocatore(g, squadre));
   const [draft, setDraft] = useState<EditDraft>({
@@ -143,7 +143,7 @@ export function GiocatoreModal({
       <div className="mt-1 flex flex-wrap items-center justify-between gap-2 border-t border-asphalt-700 pt-3">
         <span className="text-[10.5px] text-chalk-dim">Registrato da {g.autore}</span>
         {canEdit && !editing && (
-          <div className="flex gap-2">
+          <div ref={azioni} className="flex gap-2">
             <Button variant="outline" size="sm" onClick={iniziaModifica} disabled={invio}><Icon name="edit" size={14} /> Modifica</Button>
             <Button variant="ghost" size="sm" className="text-loss" onClick={() => chiedi("Eliminare il giocatore?", handleRemove)} disabled={invio}><Icon name="trash" size={14} /> Elimina</Button>
           </div>
