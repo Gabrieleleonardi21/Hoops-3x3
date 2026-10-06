@@ -867,6 +867,18 @@ describe("CoachPanel", () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
+  it("i messaggi stanno in una regione role=log: domanda e risposta si annunciano da sole ai lettori di schermo", async () => {
+    modello(testo("10 minuti, oppure fino a 21 punti."));
+    apriPannello();
+    expect(within(screen.getByRole("log")).queryByText(/Chiedimi delle regole 3x3/)).toBeTruthy(); // anche il testo iniziale
+    scriviEInvia("Quanto dura una gara?");
+    const messaggi = screen.getByRole("log", { name: "Conversazione con il Coach" });
+    expect(await within(messaggi).findByText("10 minuti, oppure fino a 21 punti.")).toBeTruthy();
+    expect(within(messaggi).getByText("Quanto dura una gara?")).toBeTruthy();
+    // Il campo per scrivere e i pulsanti non fanno parte del log: non si annuncia ciò che l'utente digita
+    expect(within(messaggi).queryByRole("textbox")).toBeNull();
+  });
+
   describe("Esc (FU-1)", () => {
     const esc = () => fireEvent.keyDown(window, { key: "Escape" });
 

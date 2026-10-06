@@ -74,7 +74,8 @@ export function CoachPanel({ onClose }: { onClose: () => void }) {
           <button onClick={onClose} className="text-chalk-muted hover:text-chalk" aria-label="Chiudi"><Icon name="close" size={18} /></button>
         </div>
       </div>
-      <div className="flex flex-1 flex-col gap-2 overflow-y-auto p-3">
+      {/* role="log": i messaggi nuovi si annunciano da soli ai lettori di schermo, senza dover spostare il focus */}
+      <div role="log" aria-label="Conversazione con il Coach" className="flex flex-1 flex-col gap-2 overflow-y-auto p-3">
         {msgs.length === 0 && (
           <p className="m-0 text-sm text-chalk-muted">
             Chiedimi delle regole 3x3, come organizzare la tua tappa o come funziona il circuito FIBA 3x3.

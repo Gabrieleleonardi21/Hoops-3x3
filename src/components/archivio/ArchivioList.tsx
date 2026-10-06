@@ -20,8 +20,9 @@ export function ArchivioList({ pubs, errore, onRiprova, onOpen }: {
           <p className="text-[15px] text-chalk-muted">L'archivio è vuoto: nessuna tappa è ancora stata conclusa e pubblicata.</p>
         ) : (
           <div className="rounded border border-asphalt-700 bg-asphalt-900 px-3">
-            {pubs.map((pub, i) => (
-              <button key={i} className="tapparow group" onClick={() => onOpen(pub)}>
+            {pubs.map((pub) => (
+              // La chiave è l'id della tappa: se in testa all'elenco ne arriva una nuova, ogni riga resta la sua
+              <button key={pub.tappa.id} className="tapparow group" onClick={() => onOpen(pub)}>
                 <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
                   <strong className="font-display text-lg text-chalk transition-colors group-hover:text-court">{pub.tappa?.nome}</strong>
                   <span className="text-xs text-chalk-muted">{[pub.lega, pub.tappa?.luogo, pub.tappa?.data].filter(Boolean).join(" · ")}</span>
