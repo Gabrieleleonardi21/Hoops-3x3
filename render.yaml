@@ -3,7 +3,8 @@
 # Passi completi e controlli dopo il primo deploy: sezione «Deploy su Render» del README.
 #
 # Gli URL pubblici dipendono dai nomi dei servizi (https://<nome>.onrender.com). Se Render aggiunge un suffisso
-# perché il nome è già preso, vanno aggiornati i punti segnati con «URL»: le rewrite di /api/* e /actuator/health qui sotto
+# perché il nome è già preso (è successo al backend: hoop3x3-api.onrender.com è di un altro account, il nostro è
+# hoop3x3-api-06m1.onrender.com), vanno aggiornati i punti segnati con «URL»: le rewrite di /api/* e /actuator/health qui sotto
 # e CORS_ORIGINS del backend.
 
 services:
@@ -23,7 +24,12 @@ services:
       # hanno la stessa origine, quindi il cookie di refresh (SameSite=Lax) funziona senza modifiche
       - type: rewrite
         source: /api/*
-        destination: https://hoop3x3-api.onrender.com/api/*
+        destination: https://hoop3x3-api-06m1.onrender.com/api/*
+      # URL del backend. Il controllo di salute passa dalla stessa strada: l'app lo chiama all'avvio per svegliare il
+      # backend se il piano free lo ha messo in pausa (svegliaServer in src/services/api.ts)
+      - type: rewrite
+        source: /actuator/health
+        destination: https://hoop3x3-api-06m1.onrender.com/actuator/health
       # Single page app: ogni altro percorso (/tappa/..., /anagrafe, ...) lo gestisce React Router.
       # Render applica le regole solo se nel build non c'è un file con quel percorso (logo, asset, ...)
       - type: rewrite
@@ -55,6 +61,9 @@ services:
     # riavvio della JVM (anche più di un minuto): per una demo dal vivo conviene il piano starter
     plan: free
     region: frankfurt
+    # Render considera pronto il nuovo deploy solo quando qui risponde 200 (server e database funzionanti): un deploy
+    # rotto non sostituisce quello attivo, e un servizio che smette di rispondere viene riavviato
+    healthCheckPath: /actuator/health
     envVars:
       # Connessione al database qui sotto (rete interna di Render, stessa regione)
       - key: DB_HOST
