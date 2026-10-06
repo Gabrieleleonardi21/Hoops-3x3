@@ -32,6 +32,26 @@ function browserPieno() {
   });
 }
 
+/** Il browser che ha posto per `n` scritture e poi rifiuta tutto: lo spazio finisce a metà di un'azione */
+function browserPienoDopo(n: number) {
+  const scrivi = Storage.prototype.setItem;
+  let fatte = 0;
+  return vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (this: Storage, chiave: string, valore: string) {
+    if (fatte >= n) throw new DOMException("The quota has been exceeded.", "QuotaExceededError");
+    fatte++;
+    scrivi.call(this, chiave, valore);
+  });
+}
+
+/** Il browser che rifiuta solo i dati delle leghe (grandi) e accetta il resto, indice compreso (piccolo) */
+function browserPienoPerLeLeghe() {
+  const scrivi = Storage.prototype.setItem;
+  return vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (this: Storage, chiave: string, valore: string) {
+    if (chiave.startsWith("hoop3x3_lega_")) throw new DOMException("The quota has been exceeded.", "QuotaExceededError");
+    scrivi.call(this, chiave, valore);
+  });
+}
+
 beforeEach(() => {
   localStorage.clear();
   useAppStore.setState({
@@ -85,6 +105,57 @@ describe("ospite: le scritture su localStorage sono protette (FS-9)", () => {
   });
 });
 
+describe("ospite: creare o importare una lega è tutto o niente (FS-9)", () => {
+  /** Le chiavi dei dati delle leghe nel browser (l'indice e la lega aperta hanno un altro nome) */
+  const chiaviLega = () => Object.keys(localStorage).filter((k) => k.startsWith("hoop3x3_lega_"));
+
+  it.each([
+    ["creare", () => store().createLega("Nuova")],
+    ["importare", () => store().importLega("Importata", [tappa()])],
+  ])("%s con posto per i dati della lega ma non per l'indice: niente lega orfana nel browser, e l'errore dice «spazio esaurito»", async (_caso, azione) => {
+    browserPienoDopo(1); // la prima scrittura (i dati) riesce, la seconda (l'indice) no
+    await expect(azione()).rejects.toMatchObject({ status: 507, message: expect.stringMatching(/spazio esaurito/i) });
+    expect(chiaviLega()).toEqual([]);
+    expect(localStorage.getItem(CHIAVE_OSPITE)).toBeNull();
+    expect(localStorage.getItem("hoop3x3_leghe_index")).toBeNull();
+    expect(store().legaId).toBe("l1"); // niente è cambiato in memoria
+    expect(store().leghe).toHaveLength(1);
+  });
+
+  it("con lo spazio a disposizione la lega, l'indice e la lega aperta sono scritti tutti", async () => {
+    const id = await store().createLega("Nuova");
+    expect(chiaviLega()).toEqual([`hoop3x3_lega_${id}`]);
+    expect(JSON.parse(localStorage.getItem("hoop3x3_leghe_index")!).map((m: { id: string }) => m.id)).toContain(id);
+    expect(localStorage.getItem(CHIAVE_OSPITE)).toBe(id);
+  });
+});
+
+describe("ospite: l'avviso «spazio esaurito» sparisce quando le scritture tornano a riuscire (FS-9)", () => {
+  it("dopo aver liberato spazio, il salvataggio successivo toglie l'avviso", () => {
+    const pieno = browserPieno();
+    store().updateTappa("t1", { nome: "Finale" });
+    expect(store().syncError).toMatch(/spazio esaurito/i);
+    pieno.mockRestore(); // si è liberato spazio
+    store().updateTappa("t1", { nome: "Finale 2" });
+    expect(store().syncError).toBeNull();
+    expect(JSON.parse(localStorage.getItem("hoop3x3_lega_l1")!).tappe[0].nome).toBe("Finale 2");
+  });
+
+  it("finché una scrittura dell'azione fallisce l'avviso resta, anche se un'altra (l'indice, più piccola) riesce", () => {
+    browserPienoPerLeLeghe();
+    store().updateTappa("t1", { nome: "Finale" });
+    expect(store().syncError).toMatch(/spazio esaurito/i);
+    store().updateTappa("t1", { nome: "Finale 2" });
+    expect(store().syncError).toMatch(/spazio esaurito/i);
+  });
+
+  it("un altro avviso non si toglie: sparisce solo quello dello spazio", () => {
+    useAppStore.setState({ syncError: "La lega «Estate» ha una tappa non valida." });
+    store().updateTappa("t1", { nome: "Finale" });
+    expect(store().syncError).toBe("La lega «Estate» ha una tappa non valida.");
+  });
+});
+
 describe("registrato: ricordare la lega aperta non può far fallire l'azione", () => {
   beforeEach(() => {
     useAppStore.setState({ user: registrato });
@@ -127,6 +198,17 @@ describe("la lega aperta per ultima: una chiave per l'ospite e una per il regist
     useAppStore.setState({ user: ospite });
     await store().rehydrate();
     expect(localStorage.getItem(CHIAVE_REGISTRATO)).toBe("server-1");
+  });
+
+  it("un registrato con la sola chiave storica (scritta prima delle due chiavi) ritrova la sua lega, e la ricorda nella sua", async () => {
+    localStorage.setItem(CHIAVE_OSPITE, "l1"); // la chiave storica, quando era una sola per tutti
+    vi.mocked(legheApi.list).mockResolvedValue([{ id: "l1", nome: "Estate", ts: 1, nTappe: 0 }]);
+    vi.mocked(legheApi.get).mockResolvedValue({ id: "l1", nome: "Estate", tappe: [] });
+    useAppStore.setState({ user: registrato, legaId: null, legaName: "", leghe: [], tappe: [] });
+    await store().rehydrate();
+    expect(store().legaId).toBe("l1");
+    await store().selectLega("l1");
+    expect(localStorage.getItem(CHIAVE_REGISTRATO)).toBe("l1");
   });
 
   it("il registrato ritrova la sua lega, anche se l'ospite ne ha un'altra aperta", async () => {
