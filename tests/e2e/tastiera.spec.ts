@@ -201,3 +201,26 @@ test("timer: a partita decisa il focus passa all'esito, che il lettore di scherm
   await expect(esito).toHaveText("Squadra A — Partita conclusa");
   await expect(esito).toBeFocused();
 });
+
+test("anagrafe: Esc tenuto premuto chiude solo la conferma; rilasciato e premuto di nuovo chiude la scheda", async ({ page }) => {
+  await utenteRegistrato(page, { giocatori: [giocatoreDiAnna("g1", "Mario", "Rossi")] });
+  await page.goto("/anagrafe");
+  await tabFinoA(page, page.getByRole("button", { name: "Mario Rossi", exact: true }));
+  await page.keyboard.press("Enter");
+  const scheda = page.getByRole("dialog", { name: "Scheda giocatore Mario Rossi" });
+  await tabFinoA(page, scheda.getByRole("button", { name: "Elimina" }));
+  await page.keyboard.press("Enter");
+  const conferma = page.getByRole("dialog", { name: "Eliminare il giocatore?" });
+  await expect(conferma).toBeVisible();
+
+  // Il tasto tenuto premuto: il browser ripete l'evento (repeat). Chiude la conferma, non anche la scheda
+  await page.keyboard.down("Escape");
+  for (let i = 0; i < 6; i++) await page.keyboard.down("Escape");
+  await page.keyboard.up("Escape");
+  await expect(conferma).toHaveCount(0);
+  await expect(scheda).toBeVisible();
+
+  // Una nuova pressione chiude la scheda
+  await page.keyboard.press("Escape");
+  await expect(scheda).toHaveCount(0);
+});
