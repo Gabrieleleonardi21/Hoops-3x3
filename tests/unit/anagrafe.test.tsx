@@ -112,3 +112,17 @@ describe("Anagrafe: i campi di testo non accettano più caratteri del server (TR
     expect(limite("Note")).toBe(2000);
   });
 });
+
+describe("Anagrafe: il focus nelle schede (modali)", () => {
+  it("dopo «Modifica» il focus va al primo campo del form: il pulsante premuto sparisce e il focus non resta nel vuoto (giocatore)", () => {
+    mostraGiocatoreModal(autore);
+    fireEvent.click(screen.getByRole("button", { name: "Modifica" }));
+    expect(document.activeElement).toBe(screen.getByLabelText("Nome"));
+  });
+
+  it("dopo «Modifica» il focus va al primo campo del form (squadra)", () => {
+    mostraSquadraModal(autore);
+    fireEvent.click(screen.getByRole("button", { name: "Modifica" }));
+    expect(document.activeElement).toBe(screen.getByLabelText("Nome squadra"));
+  });
+});

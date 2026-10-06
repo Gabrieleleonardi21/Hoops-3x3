@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useInvio } from "../../hooks/useInvio";
 import { useConfermaPerdita } from "../../hooks/useConfermaPerdita";
+import { useFocusAlPrimoCampo } from "../../hooks/useFocusFinestra";
 import { Modal } from "../ui/Modal";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
@@ -38,6 +39,8 @@ export function GiocatoreModal({
   onUpdate: (updated: RegGiocatore) => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
+  // Premuto «Modifica» il pulsante sparisce: il focus va al primo campo del form
+  const form = useFocusAlPrimoCampo(editing);
   const { invio, errore, setErrore, esegui } = useInvio();
   const { chiedi, finestra } = useConfermaPerdita(() => perditaGiocatore(g, squadre));
   const [draft, setDraft] = useState<EditDraft>({
@@ -102,7 +105,7 @@ export function GiocatoreModal({
 
       {/* ── Modalità modifica ── */}
       {editing && (
-        <div className="mb-4 flex flex-col gap-2.5">
+        <div ref={form} className="mb-4 flex flex-col gap-2.5">
           {/* maxLength come GiocatoreRequestDTO (nome e cognome 80, note 2000): oltre, il server risponde 400 */}
           <div className="grid-auto" style={{ "--min": "140px" }}>
             <Input label="Nome" value={draft.nome} onChange={set("nome")} maxLength={80} />

@@ -1,5 +1,5 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
-import { giocatoreDiAnna, json, ospiteConLega, tabFinoA, utenteRegistrato } from "./helpers";
+import { giocatoreDiAnna, json, ospiteConLega, squadraDiAnna, tabFinoA, utenteRegistrato } from "./helpers";
 
 // Percorsi fatti con la sola tastiera (Tab, Maiusc+Tab, Invio, Spazio, Esc): il mouse non si usa mai dopo l'apertura della pagina.
 // Nessuna chiamata al backend vero: le risposte le decide il test.
@@ -157,4 +157,47 @@ test("archivio: la squadra è un pulsante vero; Invio e Spazio aprono la scheda,
     await expect(scheda).toHaveCount(0);
     await expect(alfa).toBeFocused();
   }
+});
+
+test("scheda: «Modifica» porta il focus sul primo campo del form, per il giocatore e per la squadra", async ({ page }) => {
+  await utenteRegistrato(page, { giocatori: [giocatoreDiAnna("g1", "Mario", "Rossi")], squadre: [squadraDiAnna("s1", "Ballers")] });
+  await page.goto("/anagrafe");
+
+  // Giocatore: il pulsante «Modifica» sparisce con la vista dei dati, e il focus non cade su body ma sul campo «Nome»
+  await tabFinoA(page, page.getByRole("button", { name: "Mario Rossi", exact: true }));
+  await page.keyboard.press("Enter");
+  const schedaGiocatore = page.getByRole("dialog", { name: "Scheda giocatore Mario Rossi" });
+  await tabFinoA(page, schedaGiocatore.getByRole("button", { name: "Modifica" }));
+  await page.keyboard.press("Enter");
+  await expect(schedaGiocatore.getByLabel("Nome", { exact: true })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(schedaGiocatore).toHaveCount(0);
+
+  // Squadra: la scheda «Squadre» con Tab e Invio, poi lo stesso percorso, e il focus va a «Nome squadra»
+  await tabFinoA(page, page.getByRole("tab", { name: /Squadre/ }));
+  await page.keyboard.press("Enter");
+  await tabFinoA(page, page.getByRole("button", { name: "Ballers", exact: true }));
+  await page.keyboard.press("Enter");
+  const schedaSquadra = page.getByRole("dialog", { name: "Scheda squadra Ballers" });
+  await tabFinoA(page, schedaSquadra.getByRole("button", { name: "Modifica" }));
+  await page.keyboard.press("Enter");
+  await expect(schedaSquadra.getByLabel("Nome squadra", { exact: true })).toBeFocused();
+});
+
+test("timer: a partita decisa il focus passa all'esito, che il lettore di schermo annuncia", async ({ page }) => {
+  await page.route("**/api/anagrafe/**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: "[]" }));
+  await ospiteConLega(page);
+  await page.getByRole("button", { name: /Crea la tappa/i }).click();
+  await page.getByLabel("Punteggio vittoria").fill("3"); // bastano due canestri da 2
+  await page.getByRole("button", { name: "Timer", exact: true }).focus();
+  await page.keyboard.press("Enter");
+  const timer = page.getByRole("dialog", { name: "Timer di gara" });
+
+  // Con Tab fino a «+2 a Squadra A» e due Invio: 4 punti, la squadra A ha vinto
+  await tabFinoA(page, timer.getByRole("button", { name: "+2 a Squadra A" }));
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Enter");
+  const esito = timer.getByRole("status");
+  await expect(esito).toHaveText("Squadra A — Partita conclusa");
+  await expect(esito).toBeFocused();
 });

@@ -525,6 +525,16 @@ describe("MatchTimer: accessibilità dei punti e dell'esito", () => {
     expect(screen.getAllByRole("button", { name: /^\+1 a / }).map((b) => b.getAttribute("aria-label"))).toEqual(["+1 a Squadra A", "+1 a Squadra B"]);
   });
 
+  it("a partita decisa il focus passa all'esito: il pulsante START sparisce e il focus non resta nel vuoto, il lettore di schermo lo annuncia", () => {
+    apri({ ...DEFAULT_RULES, target: 3 });
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "START" })); // il focus iniziale
+    segna(A, "+2");
+    segna(A, "+1");
+    const esito = screen.getByRole("status");
+    expect(esito.getAttribute("tabindex")).toBe("-1"); // si prende il focus per programma, ma non entra nell'ordine di Tab
+    expect(document.activeElement).toBe(esito);
+  });
+
   it("la riga dell'esito è una regione role=status: compare solo a partita decisa e dice chi ha vinto", () => {
     apri({ ...DEFAULT_RULES, target: 3 });
     expect(screen.queryByRole("status")).toBeNull();

@@ -3,7 +3,7 @@
  *  A tempo scaduto in parità il supplementare non parte da solo: nel 3x3 c'è una pausa, in cui si può ancora registrare un canestro
  *  del tempo regolamentare, e il supplementare parte quando l'operatore preme «Avvia supplementare».
  *  Il timer non salva niente nella tappa: chiuderlo con la partita cominciata chiede conferma, perché si perdono punteggio e tempo. */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useConfermaPerdita } from "../../hooks/useConfermaPerdita";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
@@ -103,6 +103,14 @@ export function MatchTimer({ regole, teamA, teamB, onClose }: {
   const stato = statoGara({ punti, rimasto: restoGara / 1000, inizioSupplementare }, regole);
   const inSupplementare = stato.fase === "supplementare" || stato.fase === "vintaAlSupplementare";
 
+  // A partita decisa START/STOP lascia il posto all'esito, e se aveva il focus il focus resterebbe nel vuoto: lo prende l'esito, che
+  // il lettore di schermo annuncia (tabIndex -1: lo si raggiunge per programma, senza entrare nell'ordine di Tab)
+  const esito = useRef<HTMLSpanElement>(null);
+  const decisa = "vincitore" in stato;
+  useEffect(() => {
+    if (decisa) esito.current?.focus();
+  }, [decisa]);
+
   // Mentre un cronometro corre, uno scatto ogni 100 ms ridisegna lo schermo. Lo scatto non conta il tempo: legge l'orologio
   useEffect(() => {
     if (!inMarcia) return;
@@ -198,7 +206,7 @@ export function MatchTimer({ regole, teamA, teamB, onClose }: {
   }
   if ("vincitore" in stato) {
     // role="status": a partita decisa il lettore di schermo annuncia l'esito
-    comando = <span role="status" className="font-display text-xl text-court">{nomi[stato.vincitore]} — Partita conclusa</span>;
+    comando = <span ref={esito} tabIndex={-1} role="status" className="font-display text-xl text-court outline-none">{nomi[stato.vincitore]} — Partita conclusa</span>;
   }
 
   const scoreBtn = "h-11 min-w-11 px-4 font-display text-xl";

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useInvio } from "../../hooks/useInvio";
 import { useConfermaPerdita } from "../../hooks/useConfermaPerdita";
+import { useFocusAlPrimoCampo } from "../../hooks/useFocusFinestra";
 import { Modal } from "../ui/Modal";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
@@ -34,6 +35,8 @@ export function SquadraAnagrafeModal({
   onUpdate: (updated: RegSquadra) => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
+  // Premuto «Modifica» il pulsante sparisce: il focus va al primo campo del form
+  const form = useFocusAlPrimoCampo(editing);
   const { invio, errore, setErrore, esegui } = useInvio();
   const { chiedi, finestra } = useConfermaPerdita(() => perditaSquadraAnagrafe(s));
   const [draft, setDraft] = useState<EditDraft>({
@@ -124,7 +127,7 @@ export function SquadraAnagrafeModal({
 
       {/* ── Modalità modifica ── */}
       {editing && (
-        <div className="mb-4 flex flex-col gap-2.5">
+        <div ref={form} className="mb-4 flex flex-col gap-2.5">
           <div className="grid-auto">
             <Input label="Nome squadra" value={draft.nome} onChange={set("nome")} />
             <Input label="Città" value={draft.citta} onChange={set("citta")} />
