@@ -6,16 +6,17 @@ import type { LegaMeta, RegGiocatore, RegSquadra } from "../types";
 /** Avvisi quando il browser rifiuta di scrivere i dati dell'ospite (spazio esaurito o archivio disattivato). Per le modifiche
  *  (barra degli avvisi) ciò che si fa da quel momento resta solo in questa pagina; per una lega nuova, creata o importata, non si
  *  crea niente. La via d'uscita è quella che l'app offre: esportare la lega ed eliminare quelle che non si usano. */
+const SPAZIO_ESAURITO_INIZIO = "Spazio esaurito nel browser: ";
 export const SPAZIO_ESAURITO =
-  "Spazio esaurito nel browser: le ultime modifiche non sono salvate e andranno perse se chiudi o ricarichi la pagina. "
+  SPAZIO_ESAURITO_INIZIO + "le ultime modifiche non sono salvate e andranno perse se chiudi o ricarichi la pagina. "
   + "Esporta la lega («Esporta JSON») ed elimina le leghe che non usi per liberare spazio.";
 export const SPAZIO_ESAURITO_LEGA =
-  "Spazio esaurito nel browser: la lega non si può salvare. Elimina le leghe che non usi per liberare spazio.";
+  SPAZIO_ESAURITO_INIZIO + "la lega non si può salvare. Elimina le leghe che non usi per liberare spazio.";
 
 /** Il JWT non si può scrivere nel browser (spazio esaurito) dopo una registrazione o un accesso riusciti sul server: l'account c'è, ma
  *  senza il JWT la sessione non può esistere, e il modulo d'accesso deve dire perché. */
 export const SPAZIO_ESAURITO_ACCESSO =
-  "Spazio esaurito nel browser: non si può salvare l'accesso. Libera spazio (per esempio elimina le leghe dell'ospite che non usi) "
+  SPAZIO_ESAURITO_INIZIO + "non si può salvare l'accesso. Libera spazio (per esempio elimina le leghe dell'ospite che non usi) "
   + "e accedi di nuovo.";
 
 /** La copia del link pubblico negli appunti non è riuscita: gli appunti esistono solo in un contesto sicuro (https o localhost, non

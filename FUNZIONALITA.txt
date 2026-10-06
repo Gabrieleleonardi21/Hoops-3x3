@@ -366,16 +366,21 @@ utenti registrati.
   dall'elenco delle leghe. Se il browser rifiuta una scrittura (spazio
   esaurito) la modifica resta in memoria e una barra avvisa che non è salvata
   (esportare la lega o eliminarne altre libera spazio); l'avviso sparisce
-  quando le scritture tornano a riuscire. Creare o importare una lega senza
+  quando torna a riuscire una scrittura che contiene la lega aperta (non
+  basta l'indice, scritto eliminando un'altra lega: le modifiche della lega
+  aperta potrebbero essere ancora solo in memoria). Creare o importare una lega senza
   spazio non crea niente (dati e indice entrano insieme, o nessuno dei due) e
-  il messaggio dice «spazio esaurito». Lo stesso messaggio compare nel modulo
+  il messaggio dice «spazio esaurito». Un messaggio analogo compare nel modulo
   d'accesso se il JWT non si può scrivere dopo una registrazione o un accesso.
   La lega aperta per ultima ha una chiave nel browser per l'ospite e una per
   il registrato: passando da una modalità all'altra non si cancellano a
   vicenda.
 - Anagrafe in cache nello store (useAnagrafeStore): scaricata una volta e
   aggiornata a ogni scrittura, non a ogni apertura di pagina; le modifiche
-  di altri utenti si vedono ricaricando la pagina.
+  di altri utenti si vedono ricaricando la pagina; fanno eccezione le voci
+  che l'app trova sul server per conto suo (la ricerca per nome di una
+  squadra, la verifica di una tappa con squadre collegate), che entrano in
+  cache.
 - Errori visibili: una pagina che non si riesce a disegnare mostra un
   messaggio con «Ricarica» e il resto dell'app resta usabile; anagrafe e
   archivio che non si caricano dicono perché e offrono «Riprova» (mai un

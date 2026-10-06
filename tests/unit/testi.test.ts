@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { PERDITA_RIAPERTURA, conteggio, perditaGiocatore, perditaLega, perditaSquadraAnagrafe } from "../../src/utils/testi";
+import {
+  COPIA_LINK_NON_RIUSCITA, PERDITA_RIAPERTURA, SPAZIO_ESAURITO, SPAZIO_ESAURITO_ACCESSO, SPAZIO_ESAURITO_LEGA,
+  conteggio, perditaGiocatore, perditaLega, perditaSquadraAnagrafe,
+} from "../../src/utils/testi";
 import type { LegaMeta, RegGiocatore, RegSquadra } from "../../src/types";
 
 describe("conteggio: il numero con il nome al singolare o al plurale", () => {
@@ -41,5 +44,17 @@ describe("testi di ciò che si perde eliminando una lega o una voce dell'anagraf
     expect(perditaSquadraAnagrafe(s(["g1", "g2"])))
       .toBe("Verrà eliminata la squadra «Ballers» dall'anagrafe condivisa. I giocatori del roster restano registrati.");
     expect(perditaSquadraAnagrafe(s([]))).toBe("Verrà eliminata la squadra «Ballers» dall'anagrafe condivisa.");
+  });
+});
+
+describe("avvisi per lo spazio del browser esaurito", () => {
+  it("i tre testi cominciano allo stesso modo e dicono ciascuno che cosa non si può salvare", () => {
+    for (const testo of [SPAZIO_ESAURITO, SPAZIO_ESAURITO_LEGA, SPAZIO_ESAURITO_ACCESSO]) {
+      expect(testo.startsWith("Spazio esaurito nel browser: ")).toBe(true);
+    }
+    expect(SPAZIO_ESAURITO).toContain("le ultime modifiche non sono salvate");
+    expect(SPAZIO_ESAURITO_LEGA).toContain("la lega non si può salvare");
+    expect(SPAZIO_ESAURITO_ACCESSO).toContain("non si può salvare l'accesso");
+    expect(COPIA_LINK_NON_RIUSCITA).not.toMatch(/^Spazio esaurito/);
   });
 });
