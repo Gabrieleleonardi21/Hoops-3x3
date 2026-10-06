@@ -6,6 +6,8 @@ import { useTappa } from "../../src/hooks/useTappa";
 import type { MatchDraft } from "../../src/hooks/useTappa";
 import { legheApi } from "../../src/services/legheApi";
 import { archivioApi } from "../../src/services/archivioApi";
+import { anagrafeApi } from "../../src/services/anagrafeApi";
+import { ApiError } from "../../src/services/api";
 import { DEFAULT_RULES } from "../../src/constants/rules";
 import type { Partita, RegSquadra, SquadraTappa, Tappa, User } from "../../src/types";
 
@@ -22,7 +24,14 @@ vi.mock("../../src/services/archivioApi", () => ({
   archivioApi: { list: vi.fn(), get: vi.fn(), pubblica: vi.fn(), rimuovi: vi.fn() },
 }));
 
+// Anche l'anagrafe: lo scollegamento di una squadra si verifica con la lista fresca del server
+vi.mock("../../src/services/anagrafeApi", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../src/services/anagrafeApi")>()),
+  anagrafeApi: { listSquadre: vi.fn() },
+}));
+
 const api = vi.mocked(legheApi);
+const anagrafe = vi.mocked(anagrafeApi);
 const archivio = vi.mocked(archivioApi);
 const store = () => useAppStore.getState();
 const registrato: User = { id: "u1", name: "Anna", email: "anna@example.it", guest: false };
@@ -278,22 +287,80 @@ describe("useTappa: le modifiche partono dalla tappa com'è adesso, non da quell
       expect(api.putTappa).not.toHaveBeenCalled();
     });
 
-    it("FS-9: una squadra collegata a una voce eliminata dall'anagrafe si scollega e tiene i suoi dati: il nome torna modificabile", () => {
-      const collegata = { ...squadra("s1", "Alfa"), regId: "r-eliminata", rank: "40", logo: "/logos/alfa.svg", website: "https://alfa.it" };
-      useAppStore.setState({ tappe: [{ ...tappa(), squadre: [collegata, squadra("s2", "Squadra 2")] }] });
-      const { result } = renderHook(() => useTappa("t1"));
-      fai(() => result.current.syncFromAnagrafe([{ ...regAlfa, id: "r2", nome: "Beta" }])); // l'anagrafe c'è, ma quella voce no
-      expect(squadre()[0]).toMatchObject({ id: "s1", nome: "Alfa", rank: "40", logo: "/logos/alfa.svg", website: "https://alfa.it" });
-      expect(squadre()[0].regId).toBeUndefined();
-      expect(squadre()[1]).toEqual(squadra("s2", "Squadra 2")); // le altre squadre non cambiano
+    describe("una squadra collegata a una voce che la cache non ha (FS-9)", () => {
+      // La cache dell'anagrafe non vede le voci create da altri dopo il suo caricamento: prima di scollegare una squadra si chiede
+      // la lista fresca al server, e si scollega solo se la voce manca anche lì
+      const voceNuova: RegSquadra = { ...regAlfa, id: "r-nuova" };
+      const collegata = (): SquadraTappa => ({
+        ...squadra("s1", "Alfa"), regId: "r-nuova", rank: "40", logo: "/logos/alfa.svg", website: "https://alfa.it",
+      });
+      const conSquadraCollegata = (extra: Partial<Tappa> = {}) =>
+        useAppStore.setState({ tappe: [{ ...tappa(), squadre: [collegata(), squadra("s2", "Squadra 2")], ...extra }] });
+      /** Sincronizza con questa cache e aspetta anche la verifica sul server */
+      async function sincronizza(cache: RegSquadra[]) {
+        const { result } = renderHook(() => useTappa("t1"));
+        await act(async () => { await result.current.syncFromAnagrafe(cache); });
+      }
+
+      it("la voce c'è sul server (creata da un altro dopo il caricamento della cache): la squadra resta collegata e non si salva niente", async () => {
+        conSquadraCollegata();
+        const prima = store().tappe[0];
+        anagrafe.listSquadre.mockResolvedValue([voceNuova]);
+        await sincronizza([{ ...regAlfa, id: "r2", nome: "Beta" }]);
+        expect(anagrafe.listSquadre).toHaveBeenCalledTimes(1);
+        await nienteSalvato(prima);
+        expect(squadre()[0].regId).toBe("r-nuova");
+      });
+
+      it("la voce non c'è nemmeno sul server (eliminata): la squadra si scollega e tiene i suoi dati, il nome torna modificabile", async () => {
+        conSquadraCollegata();
+        anagrafe.listSquadre.mockResolvedValue([{ ...regAlfa, id: "r2", nome: "Beta" }]);
+        await sincronizza([{ ...regAlfa, id: "r2", nome: "Beta" }]);
+        expect(squadre()[0]).toMatchObject({ id: "s1", nome: "Alfa", rank: "40", logo: "/logos/alfa.svg", website: "https://alfa.it" });
+        expect(squadre()[0].regId).toBeUndefined();
+        expect(squadre()[1]).toEqual(squadra("s2", "Squadra 2")); // le altre squadre non cambiano
+      });
+
+      it("se la verifica sul server non riesce non si scollega niente", async () => {
+        conSquadraCollegata();
+        const prima = store().tappe[0];
+        anagrafe.listSquadre.mockRejectedValue(new ApiError(0, "Server non raggiungibile"));
+        await sincronizza([]);
+        expect(anagrafe.listSquadre).toHaveBeenCalledTimes(1);
+        await nienteSalvato(prima);
+      });
+
+      it("eliminata ma sostituita da una voce con lo stesso nome sul server: la squadra si collega a quella", async () => {
+        conSquadraCollegata();
+        anagrafe.listSquadre.mockResolvedValue([regAlfa]); // id r1: stesso nome, un'altra voce
+        await sincronizza([]);
+        expect(squadre()[0]).toMatchObject({ nome: "Alfa", regId: "r1" });
+      });
+
+      it("se la cache ha già la voce, o la squadra non ha un collegamento, il server non si interroga", async () => {
+        conSquadraCollegata();
+        await sincronizza([voceNuova]);
+        useAppStore.setState({ tappe: [{ ...tappa(), squadre: [squadra("s1", "Gamma"), squadra("s2", "Squadra 2")] }] });
+        await sincronizza([regAlfa]);
+        expect(anagrafe.listSquadre).not.toHaveBeenCalled();
+      });
+
+      it("una tappa conclusa non si scollega e il server non si interroga: è pubblicata così com'era", async () => {
+        conSquadraCollegata({ conclusa: true });
+        const prima = store().tappe[0];
+        await sincronizza([]);
+        expect(anagrafe.listSquadre).not.toHaveBeenCalled();
+        await nienteSalvato(prima);
+      });
     });
 
-    it("una voce eliminata ma un'altra con lo stesso nome: la squadra si collega a quella", () => {
+    it("una voce eliminata ma un'altra con lo stesso nome nella cache: la squadra si collega a quella, senza chiedere al server", () => {
       const collegata = { ...squadra("s1", "Alfa"), regId: "r-eliminata" };
       useAppStore.setState({ tappe: [{ ...tappa(), squadre: [collegata, squadra("s2", "Squadra 2")] }] });
       const { result } = renderHook(() => useTappa("t1"));
       fai(() => result.current.syncFromAnagrafe([regAlfa]));
       expect(squadre()[0]).toMatchObject({ nome: "Alfa", regId: "r1" });
+      expect(anagrafe.listSquadre).not.toHaveBeenCalled();
     });
 
     it("una squadra mai collegata e senza una voce con il suo nome resta com'è: non parte nessun salvataggio", async () => {
@@ -301,15 +368,6 @@ describe("useTappa: le modifiche partono dalla tappa com'è adesso, non da quell
       const prima = store().tappe[0];
       const { result } = renderHook(() => useTappa("t1"));
       fai(() => result.current.syncFromAnagrafe([regAlfa]));
-      await nienteSalvato(prima);
-    });
-
-    it("una tappa conclusa non si scollega: è pubblicata così com'era", async () => {
-      const collegata = { ...squadra("s1", "Alfa"), regId: "r-eliminata" };
-      useAppStore.setState({ tappe: [{ ...tappa(), squadre: [collegata, squadra("s2", "Squadra 2")], conclusa: true }] });
-      const prima = store().tappe[0];
-      const { result } = renderHook(() => useTappa("t1"));
-      fai(() => result.current.syncFromAnagrafe([]));
       await nienteSalvato(prima);
     });
 

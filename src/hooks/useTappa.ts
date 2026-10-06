@@ -1,5 +1,6 @@
 import { useAppStore, tappaCorrente } from "../stores/useAppStore";
 import { archivioApi } from "../services/archivioApi";
+import { anagrafeApi } from "../services/anagrafeApi";
 import { uid } from "../utils/uid";
 import { PERDITA_RIAPERTURA } from "../utils/testi";
 import * as ops from "../domain/tappaOps";
@@ -33,6 +34,53 @@ const nomeSquadra = (t: Tappa | null, teamId: string) => t?.squadre.find((s) => 
 const giocatoriConNome = (t: Tappa | null, teamId: string) =>
   (t?.squadre.find((s) => s.id === teamId)?.giocatori || []).filter((p) => p.nome.trim());
 const rosterCompleto = (t: Tappa | null, teamId: string) => giocatoriConNome(t, teamId).length >= 3;
+
+/* Sincronizzazione con l'anagrafe: funzioni pure, che si applicano alla tappa com'è adesso nello store */
+
+/** La voce dell'anagrafe di una squadra: prima per regId (una squadra senza regId non ne trova nessuna), poi per nome */
+const voceAnagrafe = (s: SquadraTappa, regs: RegSquadra[]) =>
+  regs.find((r) => r.id === s.regId) ?? regs.find((r) => r.nome.toLowerCase() === s.nome.trim().toLowerCase());
+
+/** La tappa con le squadre allineate all'anagrafe `regs`; la stessa tappa se non c'è niente da cambiare. Non tocca le squadre con
+ *  nome segnaposto ("Squadra N") né le tappe concluse: una tappa conclusa è pubblicata così com'era, e un'anagrafe cambiata dopo non
+ *  la riscrive */
+function allineaConAnagrafe(t: Tappa, regs: RegSquadra[]): Tappa {
+  if (t.conclusa) return t;
+  let changed = false;
+  const updated = t.squadre.map((s) => {
+    if (ops.eSegnaposto(s.nome)) return s;
+    const reg = voceAnagrafe(s, regs);
+    if (!reg) return s;
+    // Aggiorna solo se qualcosa è cambiato
+    if (s.regId === reg.id && s.logo === reg.logo && s.nome === reg.nome
+      && String(s.rank) === String(reg.rank) && s.website === reg.website) return s;
+    changed = true;
+    return { ...s, regId: reg.id, nome: reg.nome, logo: reg.logo, rank: reg.rank, website: reg.website };
+  });
+  if (!changed) return t;
+  return { ...t, squadre: updated };
+}
+
+/** Le squadre collegate (regId) a una voce che `regs` non ha: o è stata eliminata, o `regs` non la conosce ancora (una cache
+ *  scaricata prima che un altro utente la creasse). Vuoto per una tappa conclusa e per le squadre con nome segnaposto. */
+function collegateSenzaVoce(t: Tappa, regs: RegSquadra[]): SquadraTappa[] {
+  if (t.conclusa) return [];
+  return t.squadre.filter((s) => s.regId && !ops.eSegnaposto(s.nome) && !voceAnagrafe(s, regs));
+}
+
+/** La tappa con scollegate le squadre di collegateSenzaVoce: tengono nome, logo e ranking che hanno, ma tornano modificabili e
+ *  possono collegarsi a una voce nuova. La stessa tappa se non ce n'è. */
+function scollegaSenzaVoce(t: Tappa, regs: RegSquadra[]): Tappa {
+  const senzaVoce = collegateSenzaVoce(t, regs);
+  if (senzaVoce.length === 0) return t;
+  return {
+    ...t,
+    squadre: t.squadre.map((s) => {
+      if (!senzaVoce.includes(s)) return s;
+      return { ...s, regId: undefined };
+    }),
+  };
+}
 
 export function useTappa(id: string | undefined) {
   const { user, legaName, tappe, updateTappa, replaceTappa, removeTappa } = useAppStore();
@@ -126,40 +174,29 @@ export function useTappa(id: string | undefined) {
       ...s, regId: reg.id, nome: reg.nome, logo: reg.logo, rank: reg.rank, website: reg.website,
     }));
 
-  /** Sincronizza tutte le squadre della tappa con l'anagrafe (usato all'apertura della pagina).
-   *  Cerca prima per regId, poi per nome case-insensitive; una squadra collegata a una voce eliminata si scollega.
-   *  Non tocca le squadre con nome placeholder ("Squadra N") né le tappe concluse. */
-  const syncFromAnagrafe = (regs: RegSquadra[]) => {
+  /** Sincronizza tutte le squadre della tappa con l'anagrafe `regs`, la cache (usato all'apertura della pagina).
+   *  Cerca prima per regId, poi per nome case-insensitive. Non tocca le squadre con nome placeholder ("Squadra N") né le tappe
+   *  concluse. Una squadra collegata a una voce che la cache non ha non si scollega subito: la cache non vede le voci create da
+   *  altri dopo il suo caricamento. Si chiede al server la lista fresca (una richiesta, solo in questo caso) e si scollega solo
+   *  ciò che manca anche lì; se il server non risponde non si scollega niente. */
+  const syncFromAnagrafe = async (regs: RegSquadra[]) => {
     if (!tappa) return;
-    /** La tappa con le squadre allineate all'anagrafe; la stessa tappa se non c'è niente da cambiare */
-    const allinea = (t: Tappa): Tappa => {
-      // Una tappa conclusa è pubblicata così com'era: un'anagrafe cambiata dopo non la riscrive
-      if (t.conclusa) return t;
-      let changed = false;
-      const updated = t.squadre.map((s) => {
-        if (ops.eSegnaposto(s.nome)) return s; // placeholder, skip
-        // Prima per regId (una squadra senza regId non ne trova nessuna), poi per nome
-        const reg = regs.find((r) => r.id === s.regId)
-          ?? regs.find((r) => r.nome.toLowerCase() === s.nome.trim().toLowerCase());
-        if (!reg) {
-          // Collegata a una voce che non c'è più (eliminata dall'anagrafe) e senza un'altra con lo stesso nome: la squadra tiene
-          // nome, logo e ranking che ha, ma si scollega, così il nome torna modificabile e un nuovo collegamento è possibile
-          if (!s.regId) return s;
-          changed = true;
-          return { ...s, regId: undefined };
-        }
-        // Aggiorna solo se qualcosa è cambiato
-        if (s.regId === reg.id && s.logo === reg.logo && s.nome === reg.nome
-          && String(s.rank) === String(reg.rank) && s.website === reg.website) return s;
-        changed = true;
-        return { ...s, regId: reg.id, nome: reg.nome, logo: reg.logo, rank: reg.rank, website: reg.website };
-      });
-      if (!changed) return t;
-      return { ...t, squadre: updated };
-    };
     // Se alla tappa vista non manca niente non si salva: altrimenti ne partirebbe uno a ogni apertura della pagina
-    if (allinea(tappa) === tappa) return;
-    aggiorna(allinea);
+    if (allineaConAnagrafe(tappa, regs) !== tappa) aggiorna((t) => allineaConAnagrafe(t, regs));
+    const prima = tappaCorrente(id);
+    if (!prima || collegateSenzaVoce(prima, regs).length === 0) return;
+    let fresche: RegSquadra[];
+    try {
+      fresche = await anagrafeApi.listSquadre();
+    } catch {
+      return;
+    }
+    // Dopo l'attesa si riparte dalla tappa di adesso: nel frattempo può essere cambiata, o conclusa
+    const dopo = tappaCorrente(id);
+    if (!dopo) return;
+    const sincronizzata = (t: Tappa) => scollegaSenzaVoce(allineaConAnagrafe(t, fresche), fresche);
+    if (sincronizzata(dopo) === dopo) return;
+    updateTappa(dopo.id, sincronizzata);
   };
 
   /* ── roster ── */

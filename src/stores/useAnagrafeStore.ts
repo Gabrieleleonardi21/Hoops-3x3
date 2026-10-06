@@ -79,7 +79,17 @@ export const useAnagrafeStore = create<AnagrafeState>((set, get) => {
       // Non in cache: un altro utente può averla registrata dopo il caricamento, quindi prima di
       // farne un doppione si ricontrolla sul server (a server spento vale la risposta della cache)
       const fresche = await anagrafeApi.listSquadre().catch(() => []);
-      return fresche.find(stessoNome);
+      const trovata = fresche.find(stessoNome);
+      // La voce entra in cache: chi la vedrà collegata a una squadra (la pagina della tappa, che scollega le squadre senza voce)
+      // la ritrova, e non la crede eliminata
+      if (trovata) {
+        aggiorna((_giocatori, squadre) => {
+          // Già in cache con un altro nome (rinominata dopo il caricamento): si aggiorna, non si raddoppia
+          if (squadre.some((s) => s.id === trovata.id)) return { squadre: replaceById(squadre, trovata) };
+          return { squadre: [trovata, ...squadre] };
+        });
+      }
+      return trovata;
     },
 
     saveGiocatore: async (data) => {

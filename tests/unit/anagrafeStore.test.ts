@@ -215,6 +215,38 @@ describe("useAnagrafeStore (cache dell'anagrafe)", () => {
     expect(api.listSquadre).toHaveBeenCalledTimes(2);
   });
 
+  it("trovaSquadra mette nella cache la voce trovata sul server: la pagina che si riapre la ritrova e non la crede eliminata", async () => {
+    const { api, store } = await nuovoStore();
+    await store.getState().load();
+    api.listSquadre.mockResolvedValue([squadra("s2", "Wildcats"), squadra("s1", "Ballers", ["g1"])]);
+    await store.getState().trovaSquadra("Wildcats");
+    expect(store.getState().squadre!.map((s) => s.id)).toEqual(["s2", "s1"]);
+    // Un nuovo load non richiama il server: la cache resta valida
+    await store.getState().load();
+    expect(api.listSquadre).toHaveBeenCalledTimes(2);
+  });
+
+  it("trovaSquadra non mette niente in cache se la voce c'era già, e non crea una cache parziale se non è caricata", async () => {
+    const { api, store } = await nuovoStore();
+    await store.getState().load();
+    await store.getState().trovaSquadra("Ballers"); // già in cache
+    expect(store.getState().squadre!.map((s) => s.id)).toEqual(["s1"]);
+
+    const altro = await nuovoStore(); // cache non caricata
+    altro.api.listSquadre.mockResolvedValue([squadra("s2", "Wildcats")]);
+    expect(await altro.store.getState().trovaSquadra("Wildcats")).toEqual(squadra("s2", "Wildcats"));
+    expect(altro.store.getState().squadre).toBeNull();
+    expect(api.listSquadre).toHaveBeenCalledTimes(1);
+  });
+
+  it("trovaSquadra con una voce già in cache con un altro nome (rinominata dopo il caricamento) la aggiorna, non la raddoppia", async () => {
+    const { api, store } = await nuovoStore();
+    await store.getState().load(); // in cache: s1 «Ballers»
+    api.listSquadre.mockResolvedValue([squadra("s1", "Ballers Roma", ["g1"])]);
+    await store.getState().trovaSquadra("Ballers Roma");
+    expect(store.getState().squadre!.map((s) => [s.id, s.nome])).toEqual([["s1", "Ballers Roma"]]);
+  });
+
   it("trovaSquadra restituisce undefined se la squadra non esiste nemmeno sul server", async () => {
     const { api, store } = await nuovoStore();
     await store.getState().load();

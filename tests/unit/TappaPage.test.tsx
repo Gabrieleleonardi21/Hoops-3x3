@@ -97,6 +97,11 @@ function differita<T>() {
  *  alla ricerca e alla creazione di una squadra le comanda il test. */
 function apriPagina(anagrafe: Partial<ReturnType<typeof useAnagrafeStore.getState>>) {
   useAnagrafeStore.setState({ giocatori: [], squadre: [], caricata: true, ...anagrafe });
+  montaPagina();
+}
+
+/** Monta la pagina della tappa con l'anagrafe com'è adesso (per riaprirla dopo averla chiusa) */
+function montaPagina() {
   render(
     <MemoryRouter initialEntries={["/lega/tappa/t1"]}>
       <Routes>
@@ -153,23 +158,42 @@ describe("TappaPage: una squadra collegata a una voce eliminata dall'anagrafe to
     expect(screen.getByText("Anagrafe")).toBeTruthy();
   });
 
-  it("senza più la voce, all'apertura della pagina il nome si può scrivere e il badge sparisce", () => {
+  it("senza più la voce, né in cache né sul server, all'apertura della pagina il nome si può scrivere e il badge sparisce", async () => {
+    anagrafe.listSquadre.mockResolvedValue([]);
     useAppStore.setState({ tappe: [collegata()] });
     apriPagina({ squadre: [] });
-    expect(campiNome()[0].readOnly).toBe(false);
+    await waitFor(() => expect(campiNome()[0].readOnly).toBe(false));
     expect(campiNome()[0].value).toBe("Alfa");
     expect(screen.queryByText("Anagrafe")).toBeNull();
     expect(store().tappe[0].squadre[0].regId).toBeUndefined();
   });
 
   it("riscritto il nome, la squadra si collega alla voce nuova", async () => {
+    anagrafe.listSquadre.mockResolvedValue([]);
+    const trovaSquadra = vi.fn(async () => regAlfa);
     useAppStore.setState({ tappe: [collegata()] });
-    apriPagina({ squadre: [], trovaSquadra: vi.fn(async () => regAlfa) });
+    apriPagina({ squadre: [], trovaSquadra });
+    await waitFor(() => expect(campiNome()[0].readOnly).toBe(false));
     scrivi(0, "Alfa Roma");
     fireEvent.blur(campiNome()[0]); // la ricerca trova la voce nuova «Alfa» e la squadra prende i suoi dati
     await act(async () => {});
+    expect(trovaSquadra).toHaveBeenCalledWith("Alfa Roma");
     expect(store().tappe[0].squadre[0]).toMatchObject({ nome: "Alfa", regId: "r1" });
     expect(campiNome()[0].readOnly).toBe(true);
+  });
+
+  it("una squadra collegata con la ricerca a una voce che la cache non ha resta collegata quando la pagina si riapre", async () => {
+    anagrafe.listSquadre.mockResolvedValue([regAlfa]); // sul server c'è (creata da un altro), la cache vuota non la conosce
+    apriPagina({ squadre: [] });                        // la ricerca è quella vera dello store
+    scrivi(0, "Alfa");
+    fireEvent.blur(campiNome()[0]);
+    await waitFor(() => expect(store().tappe[0].squadre[0].regId).toBe("r1"));
+    cleanup();                                          // si esce dalla pagina e si rientra, con la stessa cache
+    montaPagina();
+    await act(async () => {});
+    expect(store().tappe[0].squadre[0]).toMatchObject({ nome: "Alfa", regId: "r1" });
+    expect(campiNome()[0].readOnly).toBe(true);
+    expect(screen.getByText("Anagrafe")).toBeTruthy();
   });
 });
 

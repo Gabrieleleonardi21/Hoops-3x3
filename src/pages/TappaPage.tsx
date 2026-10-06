@@ -51,7 +51,7 @@ export function TappaPage() {
   // Quando l'anagrafe carica, sincronizza le squadre della tappa (per nome o regId)
   useEffect(() => {
     if (!squadreAnagrafe) return;
-    h.syncFromAnagrafe(squadreAnagrafe);
+    void h.syncFromAnagrafe(squadreAnagrafe);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [squadreAnagrafe]);
 
