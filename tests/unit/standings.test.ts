@@ -42,7 +42,8 @@ describe("standings (classifica girone)", () => {
   }
 
   it("tre squadre in cerchio: lo scontro diretto non separa nessuno, decidono i punti fatti e non la differenza", () => {
-    // a batte b, b batte c, c batte a: 1 vittoria a testa. Punti fatti c 41, b 33, a 31; per differenza punti sarebbe c, a, b
+    // a batte b, b batte c, c batte a: 1 vittoria a testa. Punti fatti c 41, b 33, a 31;
+    // per differenza punti sarebbe c, a, b
     const cerchio = [match("a", "b", 21, 12), match("b", "c", 21, 20), match("c", "a", 21, 10)];
     const rows = standings(["a", "b", "c"], cerchio, nameOf);
     expect(rows.map((r) => r.v)).toEqual([1, 1, 1]);
@@ -58,7 +59,8 @@ describe("standings (classifica girone)", () => {
   });
 
   it("girone completo da 4: due coppie a pari vittorie, ognuna decisa dalla propria partita diretta", () => {
-    // a e b hanno 2 vittorie, c e d 1. a ha battuto b e c ha battuto d, ma b e d hanno segnato di più (62 contro 52, 44 contro 42)
+    // a e b hanno 2 vittorie, c e d 1. a ha battuto b e c ha battuto d, ma b e d hanno segnato di più
+    // (62 contro 52, 44 contro 42)
     const partite = [
       match("a", "b", 21, 20), match("a", "c", 21, 19), match("d", "a", 21, 10),
       match("b", "c", 21, 2), match("b", "d", 21, 5), match("c", "d", 21, 18),
@@ -69,8 +71,8 @@ describe("standings (classifica girone)", () => {
   });
 
   it("una partita segnata come giocata ma in parità è ignorata: né vittorie, né punti, né gara giocata", () => {
-    // b-c è 15-15: tappaOps rifiuta i pareggi, ma un file importato o un salvataggio vecchio può averla (legaFile non la
-    // controlla). Prima dava la vittoria a c, che passava davanti a b. G resta uguale a V + P
+    // b-c è 15-15: tappaOps rifiuta i pareggi, ma un file di lega importato può averla (legaFile non la controlla).
+    // Prima dava la vittoria a c, che passava davanti a b. G resta uguale a V + P
     const rows = standings(["a", "b", "c"], [match("a", "b", 21, 10), match("b", "c", 15, 15)], nameOf);
     expect(rows.map((r) => r.id)).toEqual(["a", "b", "c"]);
     expect(rows[1]).toMatchObject({ id: "b", g: 1, v: 0, p: 1, pf: 10, ps: 21 });

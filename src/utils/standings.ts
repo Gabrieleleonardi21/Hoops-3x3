@@ -41,8 +41,8 @@ function risolviParita(gruppo: StandingRow[], giocate: Partita[]): StandingRow[]
 }
 
 /** Classifica di un girone: vittorie; a pari vittorie gli scontri diretti; poi punti fatti e differenza punti
- *  (criteri FIBA 3x3 semplificati). Tutte le classifiche dell'app (tabella, tabellone, Coach AI, archivio)
- *  passano da qui: il criterio sta in questo solo punto */
+ *  (criteri FIBA 3x3 semplificati). Tutte le classifiche di girone dell'app (tabella, home, archivio, tabellone,
+ *  Coach AI) passano da qui: il criterio sta in questo solo punto */
 export function standings(
   girone: string[],
   partite: Partita[],
@@ -50,9 +50,9 @@ export function standings(
 ): StandingRow[] {
   const rows: StandingRow[] = girone.map((id) => ({ id, nome: nameOf(id), g: 0, v: 0, p: 0, pf: 0, ps: 0 }));
   const find = (id: string) => rows.find((r) => r.id === id);
-  // Contano solo le partite giocate e con un vincitore. Una segnata come giocata ma in parità (dato vecchio o
-  // importato: tappaOps rifiuta i pareggi) è ignorata del tutto, nemmeno come gara giocata: così G resta V + P
-  // e le medie del tabellone (punti e vittorie per gara, buildBracket) non si falsano
+  // Contano solo le partite giocate e con un vincitore. Una segnata come giocata ma in parità (tappaOps rifiuta i
+  // pareggi, ma un file di lega importato può averla: legaFile non la controlla) è ignorata del tutto, nemmeno come
+  // gara giocata: così G resta V + P e le medie del tabellone (punti e vittorie per gara, buildBracket) non si falsano
   const giocate = partite.filter((m) => m.done && Number(m.sa) !== Number(m.sb));
   giocate.forEach((m) => {
     const A = find(m.a), B = find(m.b);
