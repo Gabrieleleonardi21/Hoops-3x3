@@ -62,7 +62,10 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
   il sorteggio, i risultati).
 - Collegamento automatico all'anagrafe: quando si digita il nome di una squadra,
   l'app cerca in anagrafe e, se trovata, importa logo, sito, rank e roster.
-  Se non trovata, crea automaticamente la scheda in anagrafe.
+  Se non trovata, crea automaticamente la scheda in anagrafe. Una squadra
+  collegata a una voce poi eliminata dall'anagrafe si scollega all'apertura
+  della tappa (tiene nome, logo e ranking che ha) e il suo nome torna
+  modificabile; le tappe concluse non vengono toccate.
 - Regole di gara personalizzabili per tappa:
     • Punteggio target (default 21)
     • Durata massima in minuti (default 10)
@@ -96,7 +99,12 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
 
 - Visualizzazione di tutti i gironi con le rispettive partite.
 - Inserimento del punteggio per ogni partita (i pareggi non sono consentiti
-  in accordo alle regole FIBA 3x3).
+  in accordo alle regole FIBA 3x3). Ogni risultato registrato o corretto
+  porta il momento in cui è stato salvato: «Ultimo risultato» della home è
+  l'ultimo registrato, non l'ultimo del calendario (per i risultati salvati
+  prima che il momento esistesse vale l'ordine del calendario). Con il
+  tabellone già generato un risultato di girone non si corregge: il messaggio
+  rimanda a «Elimina bracket e ricomincia».
 - Classifica girone aggiornata in tempo reale dopo ogni risultato:
     • Vittorie, sconfitte, punti fatti/subiti, differenza canestri.
     • Ordine: prima le vittorie. Tra le squadre a pari vittorie contano le
@@ -222,7 +230,10 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
 - La vista dell'Archivio è accessibile anche senza login.
 - Condivisione via link pubblico:
     • URL univoco per ogni tappa (es. /tappa/<id>) navigabile da chiunque.
-    • Bottone "Copia link" con conferma visiva "Copiato!".
+    • Bottone "Copia link" con conferma visiva "Copiato!". Se gli appunti non
+      sono disponibili (pagina su http in rete locale) o il browser nega il
+      permesso, compare un messaggio che invita a copiare a mano il link, che
+      resta sullo schermo.
 - Stampa / Export PDF:
     • Bottone "Stampa / PDF" che apre la finestra di stampa del browser.
     • CSS dedicato: nasconde header, navigazione, Coach AI e tutti i bottoni;
@@ -238,8 +249,9 @@ L'anagrafe è uno spazio condiviso tra tutti gli utenti del circuito.
 I dati inseriti sono visibili a chiunque abbia accesso all'app.
 
 Scheda GIOCATORE
-  - Dati anagrafici: nome, cognome, soprannome, data di nascita, città,
-    nazionalità, altezza, peso, numero di maglia.
+  - Dati anagrafici: nome, cognome, soprannome, data di nascita (l'età si
+    mostra solo per una data passata), città, nazionalità, altezza, peso,
+    numero di maglia.
   - Dati sportivi: ruolo (Playmaker / Ala / Centro / ecc.), anni di
     esperienza nel 3x3, squadra di appartenenza, note libere.
   - Ricerca per nome, cognome, soprannome, città, squadra, ruolo.
@@ -311,8 +323,12 @@ Contesto fornito al Coach AI:
     partite giocate/mancanti, classifica di ogni girone.
   - Classifica circuito aggregata (vittorie/partite totali per squadra).
 
-La cronologia della chat è in sessionStorage: sopravvive al reload della
-pagina e si azzera alla chiusura della scheda. Il Coach passa dal backend
+La chat vive nello store, non nel pannello: chiudendo il pannello durante
+l'attesa la risposta arriva lo stesso e si trova alla riapertura; si tengono
+gli ultimi 30 messaggi, e premere Invio durante l'attesa lascia il testo nel
+campo. La cronologia è in sessionStorage: sopravvive al reload della pagina,
+si azzera alla chiusura della scheda e a ogni cambio di utente (uscita
+compresa). Il Coach passa dal backend
 (POST /api/coach/chat) che inoltra a Groq con la chiave GROQ_API_KEY di
 env.properties del backend: la chiave non arriva mai al browser. Riservato agli
 utenti registrati.
@@ -325,7 +341,9 @@ utenti registrati.
 - Nessun uso di innerHTML: tutti i contenuti dinamici usano createElement /
   textContent / React JSX per prevenire attacchi XSS.
 - URL dinamici validati con safeUrl() che blocca schemi javascript: e data:.
-- ID generati con crypto.randomUUID() (CSPRNG, non indovinabili).
+- ID generati con crypto.randomUUID() (CSPRNG, non indovinabili); dove non
+  esiste (http fuori da localhost, come da un telefono in rete locale) con
+  crypto.getRandomValues, che dà lo stesso UUID v4.
 - Il testo proveniente dall'utente e dall'AI nel prompt del Coach è
   racchiuso in tag <dati_lega> con istruzione esplicita a ignorare qualsiasi
   comando al loro interno (prompt injection mitigation).
@@ -342,7 +360,13 @@ utenti registrati.
   correggono dall'app): le tappe con la forma sbagliata non si caricano e un
   avviso dice quali e perché (spariscono dal browser al primo salvataggio
   della lega); una lega illeggibile non si apre e si può eliminare
-  dall'elenco delle leghe.
+  dall'elenco delle leghe. Se il browser rifiuta una scrittura (spazio
+  esaurito) la modifica resta in memoria e una barra avvisa che non è salvata
+  (esportare la lega o eliminarne altre libera spazio); creare o importare
+  una lega senza spazio non crea niente e il messaggio dice «spazio
+  esaurito». La lega aperta per ultima ha una chiave nel browser per l'ospite
+  e una per il registrato: passando da una modalità all'altra non si
+  cancellano a vicenda.
 - Anagrafe in cache nello store (useAnagrafeStore): scaricata una volta e
   aggiornata a ogni scrittura, non a ogni apertura di pagina; le modifiche
   di altri utenti si vedono ricaricando la pagina.
