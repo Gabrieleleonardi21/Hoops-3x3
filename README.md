@@ -33,7 +33,7 @@ App web per la gestione di un circuito italiano di basket 3x3: tornei, gironi, s
 - [Zustand](https://zustand-demo.pmnd.rs/) — state management
 - [React Router 7](https://reactrouter.com/) — routing
 - [React Hook Form](https://react-hook-form.com/) + [Zod](https://zod.dev/) — form e validazione
-- [Tailwind CSS 4](https://tailwindcss.com/) — styling; i token del design system "Asphalt" sono in `src/index.css` (`@theme`), documentati in `docs/design-system.md`
+- [Tailwind CSS 4](https://tailwindcss.com/) — styling; i token del design system "Asphalt" sono in `src/index.css` (`@theme`), documentati in `docs/design-system.md`; [tailwind-merge](https://github.com/dcastil/tailwind-merge) unisce le classi dei pulsanti, così quelle passate dall'esterno vincono su quelle della variante
 - Backend [Spring Boot 4](https://spring.io/projects/spring-boot) (Java 25) con Spring Security + JWT, JPA/Hibernate e PostgreSQL — repo separato [hoop3x3-backend](https://github.com/Gabrieleleonardi21/hoop3x3-backend)
 - `localStorage` — lega dell'Ospite, JWT di accesso e utente di sessione (dati che restano nel browser)
 
