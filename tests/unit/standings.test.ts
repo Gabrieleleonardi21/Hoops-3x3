@@ -57,6 +57,15 @@ describe("standings (classifica girone)", () => {
     expect(standings(["a", "b", "c", "d"], partite, nameOf).map((r) => r.id)).toEqual(["a", "b", "c", "d"]);
   });
 
+  it("una partita segnata come giocata ma in parità è ignorata: né vittorie, né punti, né gara giocata", () => {
+    // b-c è 15-15: tappaOps rifiuta i pareggi, ma un file importato o un salvataggio vecchio può averla (legaFile non la
+    // controlla). Prima dava la vittoria a c, che passava davanti a b. G resta uguale a V + P
+    const rows = standings(["a", "b", "c"], [match("a", "b", 21, 10), match("b", "c", 15, 15)], nameOf);
+    expect(rows.map((r) => r.id)).toEqual(["a", "b", "c"]);
+    expect(rows[1]).toMatchObject({ id: "b", g: 1, v: 0, p: 1, pf: 10, ps: 21 });
+    expect(rows[2]).toMatchObject({ id: "c", g: 0, v: 0, p: 0, pf: 0, ps: 0 });
+  });
+
   it("una partita non ancora giocata non conta, nemmeno come scontro diretto", () => {
     // a e b hanno 1 vittoria. a-b è da giocare ma ha un punteggio provvisorio (una partita annullata lo tiene come bozza):
     // se contasse, b sarebbe davanti. Non conta: decidono i punti fatti (21 contro 20)

@@ -4,7 +4,7 @@ export interface StandingRow {
   id: string; nome: string; g: number; v: number; p: number; pf: number; ps: number;
 }
 
-/** Id della squadra che ha vinto una partita giocata (in parità, come nel conteggio delle vittorie, la seconda) */
+/** Id della squadra che ha vinto una partita giocata (le parità sono già escluse da standings) */
 function vincitore(m: Partita): string {
   if (Number(m.sa) > Number(m.sb)) return m.a;
   return m.b;
@@ -50,7 +50,10 @@ export function standings(
 ): StandingRow[] {
   const rows: StandingRow[] = girone.map((id) => ({ id, nome: nameOf(id), g: 0, v: 0, p: 0, pf: 0, ps: 0 }));
   const find = (id: string) => rows.find((r) => r.id === id);
-  const giocate = partite.filter((m) => m.done);
+  // Contano solo le partite giocate e con un vincitore. Una segnata come giocata ma in parità (dato vecchio o
+  // importato: tappaOps rifiuta i pareggi) è ignorata del tutto, nemmeno come gara giocata: così G resta V + P
+  // e le medie del tabellone (punti e vittorie per gara, buildBracket) non si falsano
+  const giocate = partite.filter((m) => m.done && Number(m.sa) !== Number(m.sb));
   giocate.forEach((m) => {
     const A = find(m.a), B = find(m.b);
     if (!A || !B) return;
