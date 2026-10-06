@@ -1,12 +1,14 @@
 /** Pannello chat del Coach AI: input utente, lista messaggi, bottone "Cancella chat".
  *  La chat sta nello store di useCoachAI, non qui: chiudendo il pannello durante l'attesa la risposta non si perde.
- *  Non è una finestra modale (niente sfondo, la pagina sotto resta usabile): il focus non si trattiene. Si chiude con Esc solo
- *  se nessuna finestra gli sta sopra, grazie alla pila delle finestre (usePilaFinestre). */
+ *  Non è una finestra modale (niente sfondo, la pagina sotto resta usabile): il focus non si trattiene. All'apertura va nel campo di
+ *  scrittura e alla chiusura torna al pulsante che l'ha aperta (useFocusFinestra). Si chiude con Esc solo se nessuna finestra gli sta
+ *  sopra, grazie alla pila delle finestre (usePilaFinestre). */
 import { useEffect, useRef, useState } from "react";
 import { RED, ORANGE } from "../../constants/colors";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
 import { useCoachAI } from "../../hooks/useCoachAI";
+import { useFocusFinestra } from "../../hooks/useFocusFinestra";
 import { usePilaFinestre } from "../../hooks/usePilaFinestre";
 
 /** Etichette leggibili (al passato) per i tool eseguiti dal Coach AI. */
@@ -47,8 +49,10 @@ export function CoachPanel({ onClose }: { onClose: () => void }) {
   const { msgs, scartati, loading, conferma, send, clearChat } = useCoachAI();
   const [input, setInput] = useState("");
   const richiestaRef = useRef<HTMLDivElement>(null);
+  const campoRef = useRef<HTMLInputElement>(null);
   // Senza contenitore: la finestra è nella pila solo per l'Esc, Tab non è trattenuto
   usePilaFinestre(onClose);
+  useFocusFinestra(() => campoRef.current);
 
   // D4: la lista non scorre da sola e, con una chat lunga, la richiesta di conferma resterebbe sotto il bordo visibile
   // mentre «Invia» è disattivato: la si porta in vista
@@ -113,7 +117,7 @@ export function CoachPanel({ onClose }: { onClose: () => void }) {
         {loading && !conferma && <div className="bubble-a pulse">Il coach sta pensando…</div>}
       </div>
       <div className="flex gap-2 border-t border-asphalt-700 p-2.5">
-        <input className="statin flex-1" value={input}
+        <input ref={campoRef} className="statin flex-1" value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && submit()}
           placeholder="Scrivi al coach…" aria-label="Messaggio per il coach" />

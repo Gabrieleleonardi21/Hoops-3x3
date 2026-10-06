@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, cleanup, fireEvent, render, renderHook, screen, waitFor, within } from "@testing-library/react";
-import { createElement, type ReactNode } from "react";
+import { createElement, useState, type ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { useCoachAI } from "../../src/hooks/useCoachAI";
 import { useAuth } from "../../src/hooks/useAuth";
@@ -915,6 +915,49 @@ describe("CoachPanel", () => {
     await screen.findByText("Risposta 16");
     expect(screen.queryByText("Risposta 1")).toBeNull();
     expect(screen.getByText("Domanda 2")).toBe(terzo);
+  });
+
+  describe("il focus del pannello", () => {
+    /** La pagina con il pulsante del Coach, il pannello e un campo della pagina sotto (il pannello non la blocca), come in App */
+    function Pagina() {
+      const [aperto, setAperto] = useState(false);
+      return createElement(MemoryRouter, null,
+        createElement("input", { "aria-label": "Cerca nella pagina" }),
+        aperto && createElement(CoachPanel, { onClose: () => setAperto(false) }),
+        createElement("button", { onClick: () => setAperto((o) => !o) }, "Apri Coach AI"));
+    }
+    const pulsante = () => screen.getByRole("button", { name: "Apri Coach AI" });
+
+    it("all'apertura va nel campo di scrittura; alla chiusura torna al pulsante che ha aperto il pannello", () => {
+      render(createElement(Pagina));
+      pulsante().focus();
+      fireEvent.click(pulsante());
+      expect(document.activeElement).toBe(campo());
+      fireEvent.keyDown(campo(), { key: "Escape" });
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(document.activeElement).toBe(pulsante());
+    });
+
+    it("anche chiudendo con la X del pannello il focus torna al pulsante", () => {
+      render(createElement(Pagina));
+      pulsante().focus();
+      fireEvent.click(pulsante());
+      const chiudi = screen.getByRole("button", { name: "Chiudi" });
+      chiudi.focus();
+      fireEvent.click(chiudi);
+      expect(document.activeElement).toBe(pulsante());
+    });
+
+    it("se nel frattempo il focus è passato a un campo della pagina sotto, chiudendo il pannello non glielo si toglie", () => {
+      render(createElement(Pagina));
+      pulsante().focus();
+      fireEvent.click(pulsante());
+      const cerca = screen.getByLabelText("Cerca nella pagina");
+      cerca.focus(); // il pannello non è modale: si può usare la pagina con il pannello aperto
+      fireEvent.keyDown(cerca, { key: "Escape" });
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(document.activeElement).toBe(cerca);
+    });
   });
 
   describe("Esc (FU-1)", () => {

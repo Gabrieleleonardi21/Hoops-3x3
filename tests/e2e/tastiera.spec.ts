@@ -105,12 +105,15 @@ test("Coach: Esc chiude il pannello solo se nessuna finestra gli sta sopra", asy
   await page.goto("/anagrafe");
   const pannello = page.getByRole("dialog", { name: "Coach AI" });
 
-  // Il pannello si apre con il pulsante del Coach e si chiude con Esc
-  await page.getByRole("button", { name: "Apri Coach AI" }).focus();
+  // Il pannello si apre con il pulsante del Coach, il focus va nel campo per scrivere; Esc lo chiude e il focus torna al pulsante
+  const pulsante = page.getByRole("button", { name: "Apri Coach AI" });
+  await pulsante.focus();
   await page.keyboard.press("Enter");
   await expect(pannello).toBeVisible();
+  await expect(pannello.getByRole("textbox", { name: "Messaggio per il coach" })).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(pannello).toHaveCount(0);
+  await expect(pulsante).toBeFocused();
 
   // Riaperto, con la scheda di Mario aperta sopra: Esc chiude la scheda e il pannello resta; il secondo Esc chiude il pannello
   await page.getByRole("button", { name: "Apri Coach AI" }).focus();

@@ -1,7 +1,8 @@
 /** Modale base: overlay + card con intestazione (titolo, sottotitolo, chiudi). Chiude al clic sull'overlay e con Esc (solo la modale
  *  in primo piano, vedi usePilaFinestre); blocca lo scroll della pagina tramite useScrollLock. Gestisce anche il focus: all'apertura
- *  entra nella finestra, Tab e Shift+Tab non ne escono e alla chiusura torna a chi l'aveva aperta. */
-import { useEffect, useRef } from "react";
+ *  entra nella finestra (useFocusFinestra), Tab e Shift+Tab non ne escono e alla chiusura torna a chi l'aveva aperta. */
+import { useRef } from "react";
+import { useFocusFinestra } from "../../hooks/useFocusFinestra";
 import { raggiungibili, usePilaFinestre } from "../../hooks/usePilaFinestre";
 import { useScrollLock } from "../../hooks/useScrollLock";
 import { Icon } from "./Icon";
@@ -22,15 +23,10 @@ export function Modal({ title, subtitle, label, width = 480, onClose, children }
   useScrollLock();
   usePilaFinestre(onClose, finestra);
 
-  // All'apertura il focus entra nella finestra; alla chiusura torna dov'era, di solito sul pulsante che l'aveva aperta
-  useEffect(() => {
-    const aperta = document.activeElement;
-    if (finestra.current && contenuto.current) doveAtterra(finestra.current, contenuto.current).focus();
-    return () => {
-      // Se quell'elemento non c'è più (per esempio la voce eliminata dalla finestra) il focus resta dov'è
-      if (aperta instanceof HTMLElement && aperta.isConnected) aperta.focus();
-    };
-  }, []);
+  useFocusFinestra(() => {
+    if (!finestra.current || !contenuto.current) return null;
+    return doveAtterra(finestra.current, contenuto.current);
+  });
 
   return (
     // Lo sfondo chiude la modale al clic: è una scorciatoia solo per il mouse,
