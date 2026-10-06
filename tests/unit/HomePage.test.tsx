@@ -20,10 +20,19 @@ const tappa = (partite: Partita[]): Tappa => ({
   gironi: [["s1", "s2", "s3"]], partite, video: [],
 });
 
+/** La scheda «Ultimo risultato»: il più piccolo antenato dell'intestazione che contiene anche il nome di una squadra. Si trova dal
+ *  testo, non dalle classi di stile né dal numero di livelli del markup, che possono cambiare senza cambiare ciò che l'utente vede */
+function schedaUltimoRisultato(): HTMLElement {
+  let nodo = screen.getByText("Ultimo risultato").parentElement;
+  while (nodo && !/Alfa|Beta|Gamma/.test(nodo.textContent ?? "")) nodo = nodo.parentElement;
+  if (!nodo) throw new Error("la scheda «Ultimo risultato» non mostra nessuna squadra");
+  return nodo;
+}
+
 const apriHome = (partite: Partita[]) => {
   useAppStore.setState({ user: registrato, legaId: "l1", legaName: "Lega", tappe: [tappa(partite)], ready: true });
   render(<MemoryRouter><HomePage /></MemoryRouter>);
-  return screen.getByText("Ultimo risultato").closest("div.rounded") as HTMLElement;
+  return schedaUltimoRisultato();
 };
 
 beforeEach(() => { localStorage.clear(); });
