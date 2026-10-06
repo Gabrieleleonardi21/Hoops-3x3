@@ -1,5 +1,5 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
-import { giocatoreDiAnna, ospiteConLega, tabFinoA, utenteRegistrato } from "./helpers";
+import { giocatoreDiAnna, json, ospiteConLega, tabFinoA, utenteRegistrato } from "./helpers";
 
 // Percorsi fatti con la sola tastiera (Tab, Maiusc+Tab, Invio, Spazio, Esc): il mouse non si usa mai dopo l'apertura della pagina.
 // Nessuna chiamata al backend vero: le risposte le decide il test.
@@ -125,4 +125,33 @@ test("Coach: Esc chiude il pannello solo se nessuna finestra gli sta sopra", asy
   await expect(pannello).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(pannello).toHaveCount(0);
+});
+
+test("archivio: la squadra è un pulsante vero; Invio e Spazio aprono la scheda, Esc la chiude e il focus torna alla card", async ({ page }) => {
+  // Pagina pubblica di una tappa conclusa: si vede anche senza accedere
+  const id = "123e4567-e89b-42d3-a456-426614174000";
+  const squadra = (sid: string, nome: string) => ({ id: sid, nome, giocatori: [{ id: `${sid}-1`, nome: "Mario" }], rank: "" });
+  await page.route(`**/api/archivio/${id}`, (route) => route.fulfill(json({
+    tappa: {
+      id, nome: "Tappa pubblica", luogo: "Roma", data: "2026-10-01", nGironi: 1, regole: { target: 21, durata: 10, ot: 2, shot: 12 },
+      squadre: [squadra("s1", "Alfa"), squadra("s2", "Beta")], gironi: [["s1", "s2"]],
+      partite: [{ id: "m1", g: 0, a: "s1", b: "s2", sa: 21, sb: 15, done: true }], video: [], conclusa: true,
+    },
+    lega: "Estate", autore: "Anna", autoreId: "u1", ts: 1,
+  })));
+  await page.goto(`/tappa/${id}`);
+
+  // Il nome del pulsante è il suo contenuto: «3×3» (il segnaposto del logo), «Alfa» e «1 giocatori»
+  const alfa = page.getByRole("button", { name: /Alfa/ });
+  expect(await alfa.evaluate((el) => el.tagName)).toBe("BUTTON"); // non un div con role=button
+  await tabFinoA(page, alfa);
+  const scheda = page.getByRole("dialog", { name: "Scheda squadra Alfa" });
+  for (const tasto of ["Enter", "Space"]) {
+    await page.keyboard.press(tasto);
+    await expect(scheda).toBeVisible();
+    expect(await focusDentro(scheda)).toBe(true);
+    await page.keyboard.press("Escape");
+    await expect(scheda).toHaveCount(0);
+    await expect(alfa).toBeFocused();
+  }
 });
