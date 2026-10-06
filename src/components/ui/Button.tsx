@@ -1,6 +1,10 @@
 /** Pulsante riutilizzabile. Varianti: primary (arancio), outline, ghost, link.
- *  `size="sm"` per le azioni secondarie dentro card e tabelle. */
+ *  `size="sm"` per le azioni secondarie dentro card e tabelle.
+ *  Le classi passate con `className` vincono su quelle della variante e della misura: si uniscono con tailwind-merge, che toglie la
+ *  classe della variante quando l'esterno ne mette una dello stesso tipo (`text-chalk-muted` al posto di `text-court`). Con le classi
+ *  solo in fila decideva l'ordine delle regole nel CSS generato, e in produzione perdevano. */
 import type { ButtonHTMLAttributes } from "react";
+import { twMerge } from "tailwind-merge";
 
 type Variant = "primary" | "outline" | "ghost" | "link";
 
@@ -20,5 +24,5 @@ const variants: Record<Variant, string> = {
 
 export function Button({ variant = "primary", size = "md", className = "", type = "button", ...rest }: Props) {
   const sizeCls = variant === "link" ? "" : sizes[size];
-  return <button type={type} className={`${base} ${sizeCls} ${variants[variant]} ${className}`} {...rest} />;
+  return <button type={type} className={twMerge(base, sizeCls, variants[variant], className)} {...rest} />;
 }
