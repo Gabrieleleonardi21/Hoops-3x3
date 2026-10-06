@@ -51,23 +51,26 @@ describe("standings (classifica girone)", () => {
   });
 
   it("i punti fatti sono quelli di tutto il girone, non dei soli scontri diretti", () => {
-    // a, b e c hanno 2 vittorie e si battono a cerchio: nelle sole partite tra loro hanno 41 punti fatti a testa, e
-    // decidendo solo quelli sarebbe parità completa, cioè l'ordine del girone (c, b, a). Contando anche le partite
-    // contro d i punti fatti di tutto il girone sono 62, 56 e 51
+    // a, b e c hanno 2 vittorie e si battono a cerchio: nelle sole partite tra loro hanno 41 punti fatti a testa.
+    // Se contassero solo quelli sarebbe parità, e deciderebbe la differenza di tutto il girone (b +15, a +11, c +10:
+    // b, a, c) o, se anche quella fosse dei soli scontri diretti, l'ordine del girone (c, b, a). Contando le partite
+    // contro d i punti fatti di tutto il girone sono 62, 56 e 51. a-d finisce 21-10 e non 21-0 perché la differenza
+    // non deve dare lo stesso ordine dei punti fatti: così il test isola i punti fatti dalla differenza
     const partite = [
       match("a", "b", 21, 20), match("b", "c", 21, 20), match("c", "a", 21, 20),
-      match("a", "d", 21, 0), match("b", "d", 15, 0), match("c", "d", 10, 0),
+      match("a", "d", 21, 10), match("b", "d", 15, 0), match("c", "d", 10, 0),
     ];
     const rows = standings(["c", "b", "a", "d"], partite, nameOf);
     expect(rows.map((r) => r.v)).toEqual([2, 2, 2, 0]);
-    expect(rows.map((r) => r.pf)).toEqual([62, 56, 51, 0]);
+    expect(rows.map((r) => r.pf)).toEqual([62, 56, 51, 10]);
     expect(rows.map((r) => r.id)).toEqual(["a", "b", "c", "d"]);
   });
 
   it("anche la differenza punti è quella di tutto il girone, non dei soli scontri diretti", () => {
     // a, b e c si battono a cerchio con lo stesso punteggio: nelle partite tra loro hanno 40 punti fatti e differenza 0
-    // a testa. Contro d fanno 61 punti fatti a testa ma ne subiscono 0, 10 e 5: la differenza di tutto il girone è
-    // +21, +11 e +16, quindi l'ordine è a, c, b (con i soli scontri diretti sarebbe quello del girone: b, c, a)
+    // a testa. In tutto il girone fanno 61 punti fatti a testa (21 contro d), ma contro d subiscono 0, 10 e 5: la
+    // differenza di tutto il girone è +21, +11 e +16, quindi l'ordine è a, c, b (con i soli scontri diretti sarebbe
+    // quello del girone: b, c, a)
     const partite = [
       match("a", "b", 21, 19), match("b", "c", 21, 19), match("c", "a", 21, 19),
       match("a", "d", 21, 0), match("b", "d", 21, 10), match("c", "d", 21, 5),
