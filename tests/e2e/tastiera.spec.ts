@@ -26,6 +26,9 @@ test("anagrafe: scheda, poi conferma; Tab non esce dalla conferma e Esc chiude u
   const scheda = page.getByRole("dialog", { name: "Scheda giocatore Mario Rossi" });
   // Il focus è entrato nella scheda, sul blocco dei dati e non sul collegamento «Profilo»: un Invio di riflesso non cambia pagina
   await expect(scheda.locator("[data-focus-iniziale]")).toBeFocused();
+  // Con la tastiera il focus si vede: l'anello del design system (2 px) c'è anche sul blocco, che prende il focus da codice
+  await expect(scheda.locator("[data-focus-iniziale]")).toHaveCSS("outline-style", "solid");
+  await expect(scheda.locator("[data-focus-iniziale]")).toHaveCSS("outline-width", "2px");
 
   // Con Tab fino a «Elimina», poi Invio: si apre la conferma sopra la scheda, con il focus sul pulsante più sicuro
   await tabFinoA(page, scheda.getByRole("button", { name: "Elimina" }));
@@ -200,6 +203,9 @@ test("timer: a partita decisa il focus passa all'esito, che il lettore di scherm
   const esito = timer.getByRole("status");
   await expect(esito).toHaveText("Squadra A — Partita conclusa");
   await expect(esito).toBeFocused();
+  // Il focus passa da un pulsante a un testo: l'anello è l'unico indicatore, e c'è (non è outline: none)
+  await expect(esito).toHaveCSS("outline-style", "solid");
+  await expect(esito).toHaveCSS("outline-width", "2px");
 });
 
 test("timer: se il tempo scade con la conferma di chiusura aperta il focus resta su «Annulla»; chiusa lei, va all'esito", async ({ page }) => {

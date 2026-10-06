@@ -217,7 +217,7 @@ export function MatchTimer({ regole, teamA, teamB, onClose }: {
   }
   if ("vincitore" in stato) {
     // role="status": a partita decisa il lettore di schermo annuncia l'esito
-    comando = <span ref={esito} tabIndex={-1} role="status" className="font-display text-xl text-court outline-none">{nomi[stato.vincitore]} — Partita conclusa</span>;
+    comando = <span ref={esito} tabIndex={-1} role="status" className="font-display text-xl text-court">{nomi[stato.vincitore]} — Partita conclusa</span>;
   }
 
   const scoreBtn = "h-11 min-w-11 px-4 font-display text-xl";
