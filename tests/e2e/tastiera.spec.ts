@@ -24,8 +24,8 @@ test("anagrafe: scheda, poi conferma; Tab non esce dalla conferma e Esc chiude u
   await tabFinoA(page, nomeMario);
   await page.keyboard.press("Enter");
   const scheda = page.getByRole("dialog", { name: "Scheda giocatore Mario Rossi" });
-  // Il focus è entrato nella scheda, sul primo elemento del contenuto
-  await expect(scheda.getByRole("link", { name: /Profilo e statistiche/ })).toBeFocused();
+  // Il focus è entrato nella scheda, sul blocco dei dati e non sul collegamento «Profilo»: un Invio di riflesso non cambia pagina
+  await expect(scheda.locator("[data-focus-iniziale]")).toBeFocused();
 
   // Con Tab fino a «Elimina», poi Invio: si apre la conferma sopra la scheda, con il focus sul pulsante più sicuro
   await tabFinoA(page, scheda.getByRole("button", { name: "Elimina" }));

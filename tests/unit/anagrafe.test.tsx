@@ -114,6 +114,16 @@ describe("Anagrafe: i campi di testo non accettano più caratteri del server (TR
 });
 
 describe("Anagrafe: il focus nelle schede (modali)", () => {
+  it("la scheda del giocatore atterra sul blocco informativo e non sul collegamento «Profilo»: un Invio dato di riflesso non cambia pagina", () => {
+    mostraGiocatoreModal(autore);
+    const blocco = document.querySelector("[data-focus-iniziale]");
+    expect(blocco).not.toBeNull();
+    expect(document.activeElement).toBe(blocco);
+    expect(blocco!.getAttribute("tabindex")).toBe("-1"); // si prende il focus per programma, ma non entra nell'ordine di Tab
+    expect(blocco!.textContent).toContain("Guardia"); // i dati del giocatore: è ciò che il lettore di schermo legge all'apertura
+    expect(document.activeElement).not.toBe(screen.getByRole("link", { name: /Profilo e statistiche/ }));
+  });
+
   it("dopo «Modifica» il focus va al primo campo del form: il pulsante premuto sparisce e il focus non resta nel vuoto (giocatore)", () => {
     mostraGiocatoreModal(autore);
     fireEvent.click(screen.getByRole("button", { name: "Modifica" }));

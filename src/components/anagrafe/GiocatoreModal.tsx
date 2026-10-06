@@ -88,8 +88,10 @@ export function GiocatoreModal({
       )}
 
       {/* ── Modalità visualizzazione ── */}
+      {/* Il focus iniziale è sul blocco dei dati, non sul primo collegamento («Profilo»): un Invio dato di riflesso non cambia pagina, e
+          il lettore di schermo legge i dati. tabIndex -1: si prende il focus per programma, senza entrare nell'ordine di Tab */}
       {!editing && (
-        <div className="mb-4 flex flex-col gap-1.5">
+        <div tabIndex={-1} data-focus-iniziale className="mb-4 flex flex-col gap-1.5 outline-none">
           {row("Ruolo", <>{g.ruolo}{g.squadra ? ` · ${g.squadra}` : ""}</>)}
           {g.nascita && row("Nato il", <>{g.nascita}{age !== null ? ` (${age} anni)` : ""}{g.citta ? ` a ${g.citta}` : ""}</>)}
           {!g.nascita && g.citta && row("Città", g.citta)}
