@@ -5,6 +5,7 @@ import { legheApi } from "../services/legheApi";
 import { ApiError, testoErrore } from "../services/api";
 import { createSaveQueue } from "./saveQueue";
 import { leggiLegaSalvata, type LegaSalvata } from "../utils/legaFile";
+import { SPAZIO_ESAURITO, SPAZIO_ESAURITO_LEGA } from "../utils/testi";
 
 /**
  * Store globale: utente, indice leghe e lega attiva con le sue tappe.
@@ -14,8 +15,8 @@ import { leggiLegaSalvata, type LegaSalvata } from "../utils/legaFile";
  *    dei salvataggi (saveQueue.ts): una raffica di input diventa un solo invio, mai due richieste
  *    insieme per la stessa tappa, nuovi tentativi se la rete o il server hanno un problema temporaneo.
  * Gli errori finiscono in `syncError`, le tappe non ancora salvate in `inSospeso` ed `erroreSalvataggio`
- * (tutti mostrati da SyncBanner in App). `syncError` porta anche gli avvisi sui dati dell'ospite letti dal browser
- * (tappe non valide scartate, lega illeggibile).
+ * (tutti mostrati da SyncBanner in App). `syncError` porta anche gli avvisi sui dati dell'ospite nel browser: letti
+ * (tappe non valide scartate, lega illeggibile) e scritti (spazio esaurito: la modifica resta in memoria ma non è salvata).
  */
 interface AppState {
   user: User | null;
@@ -63,7 +64,11 @@ interface AppState {
 export const SESSION_KEY = "hoop3x3_session";
 const NS = "hoop3x3_";
 const INDEX_KEY  = NS + "leghe_index";   // indice leghe dell'ospite
-const ACTIVE_KEY = NS + "active_lega_id"; // ID della lega aperta per ultima (ospite e registrati)
+// ID della lega aperta per ultima: una chiave per l'ospite e una per il registrato. Con una sola, chi passava da una modalità
+// all'altra su questo browser trovava l'id dell'altra (un id locale non esiste sul server e viceversa) e lo cancellava.
+// Quella dell'ospite è la storica, già nei browser di chi usa l'app senza account.
+const ACTIVE_KEY_OSPITE = NS + "active_lega_id";
+const ACTIVE_KEY_REGISTRATO = NS + "active_lega_id_registrato";
 
 const legaStorageKey = (id: string) => NS + `lega_${id}`;
 
@@ -78,8 +83,15 @@ function readIndex(): LegaMeta[] {
   return [];
 }
 
-function writeIndex(leghe: LegaMeta[]) {
-  localStorage.setItem(INDEX_KEY, JSON.stringify(leghe));
+/** Scrive nel localStorage. false se il browser rifiuta (spazio esaurito, archivio disattivato): chi scrive non deve andare in
+ *  errore, perché lo stato in memoria resta giusto e le azioni dell'utente vanno comunque a buon fine */
+function scrivi(chiave: string, valore: string): boolean {
+  try {
+    localStorage.setItem(chiave, valore);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Lega dell'ospite dal browser, controllata con lo schema del file di lega (utils/legaFile): solo le tappe valide, e un avviso
@@ -103,13 +115,13 @@ type StatoOspite = Pick<AppState, "leghe" | "legaId" | "legaName" | "tappe" | "s
 function statoOspite(): StatoOspite {
   const leghe = readIndex();
   const vuoto: StatoOspite = { leghe, legaId: null, legaName: "", tappe: [], syncError: null };
-  const activeId = localStorage.getItem(ACTIVE_KEY);
+  const activeId = localStorage.getItem(ACTIVE_KEY_OSPITE);
   if (!activeId) return vuoto;
   const letta = readLegaData(activeId);
   if (letta) return { leghe, legaId: activeId, legaName: letta.lega.nome, tappe: letta.lega.tappe, syncError: letta.avviso };
   // Non si riapre a ogni ricarica; dell'id si dice qualcosa solo se la lega è nell'elenco: se non c'è più (eliminata da un'altra
   // scheda) è un id rimasto, non un problema
-  localStorage.removeItem(ACTIVE_KEY);
+  localStorage.removeItem(ACTIVE_KEY_OSPITE);
   if (!leghe.some((m) => m.id === activeId)) return vuoto;
   return { ...vuoto, syncError: legaIllegibile(leghe, activeId) };
 }
@@ -158,11 +170,38 @@ export const useAppStore = create<AppState>((set, get) => {
     set({ syncError: `${cosa}: ${testoErrore(e)}` });
   };
 
+  /** Scrive i dati dell'ospite nel browser. Se il browser rifiuta la scrittura (spazio esaurito) l'azione riesce lo stesso, in
+   *  memoria, e la barra degli avvisi dice che non è salvata: l'app non va in errore */
+  const scriviOspite = (chiave: string, valore: string) => {
+    if (!scrivi(chiave, valore)) set({ syncError: SPAZIO_ESAURITO });
+  };
+  const writeIndex = (leghe: LegaMeta[]) => scriviOspite(INDEX_KEY, JSON.stringify(leghe));
+  /** Scrive i dati di una lega nuova dell'ospite (creata o importata). Senza spazio non si crea niente e l'errore dice perché, come
+   *  per ogni altro rifiuto: l'ospite non ha un server, e 507 è lo stato che userebbe (come il 404 di una lega che non si legge) */
+  const scriviLegaNuova = (id: string, contenuto: { nome: string; tappe: Tappa[] }) => {
+    if (!scrivi(legaStorageKey(id), JSON.stringify(contenuto))) throw new ApiError(507, SPAZIO_ESAURITO_LEGA);
+  };
+
+  /** Chiave della lega aperta per ultima, di chi usa l'app adesso */
+  const chiaveAttiva = () => {
+    if (isRemote()) return ACTIVE_KEY_REGISTRATO;
+    return ACTIVE_KEY_OSPITE;
+  };
+  /** Ricorda la lega aperta, per riaprirla alla prossima visita. Per il registrato è solo una comodità (i dati stanno sul server):
+   *  se il browser rifiuta la scrittura non si dice niente */
+  const ricordaLega = (id: string) => {
+    if (isRemote()) {
+      scrivi(ACTIVE_KEY_REGISTRATO, id);
+      return;
+    }
+    scriviOspite(ACTIVE_KEY_OSPITE, id);
+  };
+
   /** Ospite: salva la lega attiva su localStorage e aggiorna nTappe/ts nell'indice */
   const persistLocal = () => {
     const s = get();
     if (!s.legaId) return;
-    localStorage.setItem(legaStorageKey(s.legaId), JSON.stringify({ nome: s.legaName, tappe: s.tappe }));
+    scriviOspite(legaStorageKey(s.legaId), JSON.stringify({ nome: s.legaName, tappe: s.tappe }));
     const leghe = s.leghe.map((m) =>
       m.id === s.legaId ? { ...m, nTappe: s.tappe.length, ts: Date.now() } : m
     );
@@ -296,15 +335,15 @@ export const useAppStore = create<AppState>((set, get) => {
       const trimmed = nome.trim() || "Nuova lega";
       if (isRemote()) {
         const meta = await legheApi.create(trimmed);
-        localStorage.setItem(ACTIVE_KEY, meta.id);
+        ricordaLega(meta.id);
         set({ legaId: meta.id, leghe: [meta, ...get().leghe], legaName: meta.nome, tappe: [] });
         return meta.id;
       }
       const id = uid();
       const meta: LegaMeta = { id, nome: trimmed, ts: Date.now(), nTappe: 0 };
       const leghe = [...get().leghe, meta];
-      localStorage.setItem(legaStorageKey(id), JSON.stringify({ nome: trimmed, tappe: [] }));
-      localStorage.setItem(ACTIVE_KEY, id);
+      scriviLegaNuova(id, { nome: trimmed, tappe: [] });
+      ricordaLega(id);
       writeIndex(leghe);
       set({ legaId: id, leghe, legaName: trimmed, tappe: [] });
       return id;
@@ -317,7 +356,7 @@ export const useAppStore = create<AppState>((set, get) => {
         const inCoda = coda.inAttesa();
         const nuove = inCoda.filter((t) => daCreare.get(t.id) === id);
         const lega = await legheApi.get(id);
-        localStorage.setItem(ACTIVE_KEY, id);
+        ricordaLega(id);
         set({ legaId: id, legaName: lega.nome, tappe: conVersioniLocali(lega.tappe, inCoda, nuove) });
         return;
       }
@@ -325,7 +364,7 @@ export const useAppStore = create<AppState>((set, get) => {
       // L'ospite non ha un server: una lega che nel browser non c'è o è rovinata si segnala come la segnalerebbe il server
       // (404), e la pagina mostra il motivo come per ogni altro errore
       if (!letta) throw new ApiError(404, legaIllegibile(get().leghe, id));
-      localStorage.setItem(ACTIVE_KEY, id);
+      ricordaLega(id);
       set({ legaId: id, legaName: letta.lega.nome, tappe: letta.lega.tappe, syncError: letta.avviso });
     },
 
@@ -344,7 +383,7 @@ export const useAppStore = create<AppState>((set, get) => {
           coda.annulla(t.id);
           daCreare.delete(t.id);
         }
-        localStorage.removeItem(ACTIVE_KEY);
+        localStorage.removeItem(chiaveAttiva());
         set({ leghe, legaId: null, legaName: "", tappe: [] });
       } else {
         set({ leghe });
@@ -371,7 +410,7 @@ export const useAppStore = create<AppState>((set, get) => {
         renameTimer = window.setTimeout(() => { void rinomina(); }, SAVE_DELAY);
         return;
       }
-      localStorage.setItem(legaStorageKey(s.legaId), JSON.stringify({ nome: legaName, tappe: s.tappe }));
+      scriviOspite(legaStorageKey(s.legaId), JSON.stringify({ nome: legaName, tappe: s.tappe }));
       writeIndex(leghe);
     },
 
@@ -415,15 +454,15 @@ export const useAppStore = create<AppState>((set, get) => {
       const trimmed = nome.trim() || "Lega importata";
       if (isRemote()) {
         const meta = await legheApi.create(trimmed, tappe);
-        localStorage.setItem(ACTIVE_KEY, meta.id);
+        ricordaLega(meta.id);
         set({ legaId: meta.id, leghe: [meta, ...get().leghe], legaName: meta.nome, tappe });
         return;
       }
       const id = uid();
       const meta: LegaMeta = { id, nome: trimmed, ts: Date.now(), nTappe: tappe.length };
       const leghe = [...get().leghe, meta];
-      localStorage.setItem(legaStorageKey(id), JSON.stringify({ nome: trimmed, tappe }));
-      localStorage.setItem(ACTIVE_KEY, id);
+      scriviLegaNuova(id, { nome: trimmed, tappe });
+      ricordaLega(id);
       writeIndex(leghe);
       set({ legaId: id, leghe, legaName: trimmed, tappe });
     },
@@ -454,7 +493,8 @@ export const useAppStore = create<AppState>((set, get) => {
       coda.azzera();
       daCreare.clear();
       eliminatePrimaDellaCreazione.clear();
-      localStorage.removeItem(ACTIVE_KEY);
+      // Chi esce dimentica la sua lega aperta; quella dell'altra modalità (ospite o registrato) resta
+      localStorage.removeItem(chiaveAttiva());
       set({ user: null, legaId: null, leghe: [], legaName: "", tappe: [], ready: true, syncError: null });
     },
 
@@ -463,11 +503,11 @@ export const useAppStore = create<AppState>((set, get) => {
         set({ ready: false });
         try {
           const leghe = await legheApi.list();
-          const activeId = localStorage.getItem(ACTIVE_KEY);
+          const activeId = localStorage.getItem(ACTIVE_KEY_REGISTRATO);
           // La lega attiva potrebbe essere di un altro account usato su questo browser
           const attiva = activeId && leghe.some((m) => m.id === activeId) ? await legheApi.get(activeId) : null;
           if (!attiva) {
-            localStorage.removeItem(ACTIVE_KEY);
+            localStorage.removeItem(ACTIVE_KEY_REGISTRATO);
             set({ leghe, legaId: null, legaName: "", tappe: [], ready: true });
             return;
           }

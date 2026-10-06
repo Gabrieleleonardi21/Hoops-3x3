@@ -3,6 +3,15 @@
  *  mai come HTML. */
 import type { LegaMeta, RegGiocatore, RegSquadra } from "../types";
 
+/** Avvisi quando il browser rifiuta di scrivere i dati dell'ospite (spazio esaurito o archivio disattivato). Per le modifiche
+ *  (barra degli avvisi) ciò che si fa da quel momento resta solo in questa pagina; per una lega nuova, creata o importata, non si
+ *  crea niente. La via d'uscita è quella che l'app offre: esportare la lega ed eliminare quelle che non si usano. */
+export const SPAZIO_ESAURITO =
+  "Spazio esaurito nel browser: le ultime modifiche non sono salvate e andranno perse se chiudi o ricarichi la pagina. "
+  + "Esporta la lega («Esporta JSON») ed elimina le leghe che non usi per liberare spazio.";
+export const SPAZIO_ESAURITO_LEGA =
+  "Spazio esaurito nel browser: la lega non si può salvare. Elimina le leghe che non usi per liberare spazio.";
+
 /** Il numero con il nome al singolare o al plurale: «1 risultato», «12 risultati» */
 export function conteggio(n: number, singolare: string, plurale: string): string {
   if (n === 1) return `1 ${singolare}`;

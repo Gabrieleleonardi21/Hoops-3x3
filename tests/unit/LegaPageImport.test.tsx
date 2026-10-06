@@ -171,7 +171,9 @@ describe("LegaPage: «Importa JSON» da ospite", () => {
       throw new DOMException("quota esaurita", "QuotaExceededError");
     });
     scegli(fileValido());
-    expect(await messaggio()).toBe("Import non riuscito: errore imprevisto");
+    expect(await messaggio()).toBe(
+      "Import non riuscito: Spazio esaurito nel browser: la lega non si può salvare. Elimina le leghe che non usi per liberare spazio.",
+    );
     expect(store().legaId).toBe("l1");
     expect(alertFinto).not.toHaveBeenCalled();
   });
