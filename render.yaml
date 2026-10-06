@@ -24,11 +24,6 @@ services:
       - type: rewrite
         source: /api/*
         destination: https://hoop3x3-api.onrender.com/api/*
-      # URL del backend. Il controllo di salute passa dalla stessa strada: l'app lo chiama all'avvio per svegliare il
-      # backend se il piano free lo ha messo in pausa (svegliaServer in src/services/api.ts)
-      - type: rewrite
-        source: /actuator/health
-        destination: https://hoop3x3-api.onrender.com/actuator/health
       # Single page app: ogni altro percorso (/tappa/..., /anagrafe, ...) lo gestisce React Router.
       # Render applica le regole solo se nel build non c'è un file con quel percorso (logo, asset, ...)
       - type: rewrite
@@ -60,9 +55,6 @@ services:
     # riavvio della JVM (anche più di un minuto): per una demo dal vivo conviene il piano starter
     plan: free
     region: frankfurt
-    # Render considera pronto il nuovo deploy solo quando qui risponde 200 (server e database funzionanti): un deploy
-    # rotto non sostituisce quello attivo, e un servizio che smette di rispondere viene riavviato
-    healthCheckPath: /actuator/health
     envVars:
       # Connessione al database qui sotto (rete interna di Render, stessa regione)
       - key: DB_HOST
