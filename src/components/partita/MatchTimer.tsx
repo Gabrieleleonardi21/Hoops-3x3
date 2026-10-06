@@ -181,9 +181,8 @@ export function MatchTimer({ regole, teamA, teamB, onClose }: {
     if (!cominciata) return null;
     return `Chiudendo il timer si perdono il punteggio (${punti.a} a ${punti.b}) e il tempo di gara (${orologio}): il timer non li salva nella tappa.`;
   });
-  // Con la conferma aperta, Esc annulla solo quella e il timer resta: la stessa guardia delle schede dell'anagrafe, finché Modal non
-  // saprà quale finestra è in primo piano
-  const chiudi = () => { if (!finestra) chiedi("Chiudere il timer?", onClose); };
+  // Con la conferma aperta Esc è della conferma e il timer resta: Modal manda l'Esc solo alla finestra in primo piano
+  const chiudi = () => chiedi("Chiudere il timer?", onClose);
 
   // START/STOP; a tempo scaduto in parità «Avvia supplementare»; a partita decisa il vincitore (togliendo un punto per errore si riapre)
   let etichetta = "START";
@@ -192,7 +191,8 @@ export function MatchTimer({ regole, teamA, teamB, onClose }: {
     etichetta = "STOP";
     stileComando = "bg-loss text-chalk hover:bg-loss";
   }
-  let comando = <Button onClick={avviaOFerma} className={`h-12 px-8 text-xl ${stileComando}`}>{etichetta}</Button>;
+  // data-focus-iniziale: all'apertura il focus va su START (vedi Modal), non sul primo pulsante «+1»: un Invio darebbe un punto a una squadra
+  let comando = <Button onClick={avviaOFerma} data-focus-iniziale className={`h-12 px-8 text-xl ${stileComando}`}>{etichetta}</Button>;
   if (stato.fase === "supplementareDaAvviare") {
     comando = <Button onClick={avviaSupplementare} className="h-12 px-8 text-xl">Avvia supplementare</Button>;
   }

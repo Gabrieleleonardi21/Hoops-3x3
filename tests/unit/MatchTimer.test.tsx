@@ -127,12 +127,16 @@ describe("MatchTimer: le azioni subito dopo una scadenza che lo scatto non ha an
   // bloccato). In quel momento i cronometri sono ancora in marcia: un'azione dell'operatore deve prima registrare la scadenza,
   // nell'istante in cui è avvenuta, e poi fare il suo lavoro, senza toccare cronometri in corsa oltre la fine
 
-  /** Un minuto di gara in pareggio, in marcia da poco */
+  /** Un minuto di gara in pareggio, in marcia da poco. Restituisce quanti timer finti c'erano appena aperta la finestra: non sono del
+   *  timer di gara ma di jsdom, che per ogni focus() (Modal lo sposta all'apertura) accoda un setTimeout per l'evento «selectionchange».
+   *  Il conteggio dei test «nessuno scatto in giro» si confronta con questo e non con 0 */
   function pareggioInMarcia(regole: Regole = BREVE) {
     apri(regole);
+    const allApertura = vi.getTimerCount();
     segna(A, "+1");
     segna(B, "+1");
     premi("START");
+    return allApertura;
   }
 
   it("«Reset 12s» pochi millisecondi dopo la scadenza e prima di uno scatto: il possesso è 12 e fermo, mai 13", () => {
@@ -150,12 +154,12 @@ describe("MatchTimer: le azioni subito dopo una scadenza che lo scatto non ha an
   });
 
   it("«Reset 12s» e «Avvia supplementare» dopo una lunga assenza, prima di qualsiasi scatto: nessun cronometro resta in marcia", () => {
-    pareggioInMarcia();
+    const allApertura = pareggioInMarcia();
     passaSenzaScatti(300_000); // telefono bloccato per 5 minuti: la gara è scaduta da 4 minuti
     premi("Reset 12s");
-    expect(vi.getTimerCount()).toBe(0); // la scadenza è registrata subito: nessun cronometro in marcia, nessuno scatto da aspettare
+    expect(vi.getTimerCount()).toBe(allApertura); // la scadenza è registrata subito: nessun cronometro in marcia, nessuno scatto da aspettare
     premi("Avvia supplementare");
-    expect(vi.getTimerCount()).toBe(0); // nemmeno dopo il pulsante
+    expect(vi.getTimerCount()).toBe(allApertura); // nemmeno dopo il pulsante
     passa(1000); // arriva il primo scatto, se c'è
     expect(mostra("12")).toBeTruthy();
     expect(mostra("OT")).toBeTruthy();
@@ -520,6 +524,11 @@ describe("MatchTimer: è una finestra come le altre (Modal)", () => {
     premi("START");
     premi("STOP");
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("all'apertura il focus è su START: un Invio avvia il cronometro, non dà un punto a una squadra", () => {
+    apri();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "START" }));
   });
 
   it("blocca lo scorrimento della pagina finché è aperto, e lo rimette alla chiusura", () => {

@@ -1,29 +1,47 @@
-/** Modale base: overlay + card con intestazione (titolo, sottotitolo, chiudi). Chiude al clic
- *  sull'overlay e con Esc; blocca lo scroll della pagina tramite useScrollLock. */
-import { useEffect } from "react";
+/** Modale base: overlay + card con intestazione (titolo, sottotitolo, chiudi). Chiude al clic sull'overlay e con Esc (solo la modale
+ *  in primo piano, vedi usePilaFinestre); blocca lo scroll della pagina tramite useScrollLock. Gestisce anche il focus: all'apertura
+ *  entra nella finestra, Tab e Shift+Tab non ne escono e alla chiusura torna a chi l'aveva aperta. */
+import { useEffect, useRef } from "react";
+import { raggiungibili, usePilaFinestre } from "../../hooks/usePilaFinestre";
 import { useScrollLock } from "../../hooks/useScrollLock";
 import { Icon } from "./Icon";
+
+/** Dove atterra il focus all'apertura: l'elemento che il contenuto indica con `data-focus-iniziale` (il timer sceglie START),
+ *  altrimenti il primo che Tab raggiunge nel contenuto (non la X dell'intestazione: con un Invio dato di riflesso chiuderebbe la
+ *  finestra), altrimenti la finestra stessa */
+function doveAtterra(finestra: HTMLElement, contenuto: HTMLElement): HTMLElement {
+  return contenuto.querySelector<HTMLElement>("[data-focus-iniziale]") ?? raggiungibili(contenuto)[0] ?? finestra;
+}
 
 export function Modal({ title, subtitle, label, width = 480, onClose, children }: {
   title?: React.ReactNode; subtitle?: React.ReactNode; label: string; width?: number;
   onClose: () => void; children: React.ReactNode;
 }) {
+  const finestra = useRef<HTMLDivElement>(null);
+  const contenuto = useRef<HTMLDivElement>(null);
   useScrollLock();
+  usePilaFinestre(onClose, finestra);
+
+  // All'apertura il focus entra nella finestra; alla chiusura torna dov'era, di solito sul pulsante che l'aveva aperta
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+    const aperta = document.activeElement;
+    if (finestra.current && contenuto.current) doveAtterra(finestra.current, contenuto.current).focus();
+    return () => {
+      // Se quell'elemento non c'è più (per esempio la voce eliminata dalla finestra) il focus resta dov'è
+      if (aperta instanceof HTMLElement && aperta.isConnected) aperta.focus();
+    };
+  }, []);
 
   return (
     // Lo sfondo chiude la modale al clic: è una scorciatoia solo per il mouse,
     // da tastiera ci sono Esc (sopra) e il pulsante «Chiudi» nell'intestazione
     // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- scorciatoia per il mouse, vedi sopra
     <div onClick={onClose} className="modal-overlay">
-      {/* Il clic dentro la card non deve arrivare allo sfondo, altrimenti la chiuderebbe */}
+      {/* Il clic dentro la card non deve arrivare allo sfondo, altrimenti la chiuderebbe. tabIndex -1: la finestra può prendere il
+          focus (senza entrare nell'ordine di Tab) quando dentro non c'è niente da raggiungere */}
       {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- ferma solo la propagazione del clic */}
-      <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={label}
-        className="modal-card flex max-h-[88vh] w-full flex-col" style={{ maxWidth: width }}>
+      <div ref={finestra} tabIndex={-1} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={label}
+        className="modal-card flex max-h-[88vh] w-full flex-col outline-none" style={{ maxWidth: width }}>
         <div className="flex items-start justify-between gap-3 border-b border-asphalt-700 px-5 py-3">
           <div className="min-w-0">
             {title && <div className="font-display text-2xl text-chalk">{title}</div>}
@@ -31,7 +49,7 @@ export function Modal({ title, subtitle, label, width = 480, onClose, children }
           </div>
           <button onClick={onClose} className="shrink-0 text-chalk-muted hover:text-chalk" aria-label="Chiudi"><Icon name="close" size={20} /></button>
         </div>
-        <div className="overflow-y-auto p-5">{children}</div>
+        <div ref={contenuto} className="overflow-y-auto p-5">{children}</div>
       </div>
     </div>
   );

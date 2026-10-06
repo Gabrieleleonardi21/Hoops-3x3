@@ -46,8 +46,8 @@ export function SquadraAnagrafeModal({
     setDraft((d) => ({ ...d, [k]: e.target.value }));
 
   // Esc, sfondo e X non chiudono durante un invio: l'esito, soprattutto se è un errore, deve restare sotto gli occhi.
-  // Neanche con la conferma aperta: Esc annulla quella, e la scheda resta
-  const chiudi = () => { if (!invio && !finestra) onClose(); };
+  // Con la conferma aperta Esc è della conferma: Modal manda l'Esc solo alla finestra in primo piano
+  const chiudi = () => { if (!invio) onClose(); };
   const saveEdit = async () => {
     // Si esce dalla modifica solo se il server ha accettato: se rifiuta, i campi restano come scritti
     if (await esegui(() => onUpdate({ ...s, ...draft }), "Modifica non riuscita")) setEditing(false);
