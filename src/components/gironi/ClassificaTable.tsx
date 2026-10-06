@@ -10,7 +10,8 @@ export function ClassificaTable({ rows, logos, caption }: {
     <div className="mt-3">
       <StandingsTable rows={rows} logos={logos} caption={caption} compact />
       <p className="mt-1.5 text-[11px] text-chalk-dim">
-        Ordinamento: vittorie, poi punti fatti, poi differenza punti (criteri FIBA 3x3 semplificati).
+        Ordinamento: vittorie; a pari vittorie, gli scontri diretti (le partite giocate tra le squadre in parità);
+        poi punti fatti, poi differenza punti (criteri FIBA 3x3 semplificati).
       </p>
     </div>
   );
