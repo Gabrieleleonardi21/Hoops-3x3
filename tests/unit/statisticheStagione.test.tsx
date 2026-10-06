@@ -86,6 +86,9 @@ function apriProfilo(giocatore: RegGiocatore, tappe: Tappa[]) {
 /** Il numero grande di un riquadro del profilo («Punti» → «22») */
 const riquadro = (etichetta: string) => screen.getByText(etichetta).nextElementSibling?.firstElementChild?.textContent;
 
+/** La riga piccola sotto il numero di un riquadro («Gare» → «2V · 0P») */
+const sottoRiquadro = (etichetta: string) => screen.getByText(etichetta).nextElementSibling?.lastElementChild?.textContent;
+
 /** Le righe dello storico tappe del profilo, come testo delle celle: tappa, piazzamento, G, PT, REB, AST */
 const storico = () => screen.getAllByRole("row").slice(1).map((riga) => within(riga).getAllByRole("cell").map((c) => c.textContent));
 
@@ -117,15 +120,19 @@ describe("Profilo del giocatore: le statistiche di stagione", () => {
     ]);
   });
 
-  it("somma anche due squadre della stessa tappa con lo stesso nome, nei totali e nello storico", () => {
-    // Due «Mario Rossi» nello stesso torneo, uno per squadra: il profilo non può sapere quale sia il suo, quindi li somma
-    // e dice le due squadre
-    const t = tappaDiProva("t1", { Alfa: ["Mario Rossi"], Beta: ["Mario Rossi"] }, [
-      { a: "Alfa", b: "Beta", pa: { "Mario Rossi": { pt: 12, rb: 3 } }, pb: { "Mario Rossi": { pt: 7 } } },
+  it("somma anche due squadre della stessa tappa con lo stesso nome: totali, storico, vittorie e partite", () => {
+    // Due «Mario Rossi» nello stesso torneo, uno per squadra, e tutte e due vincono: il profilo non può sapere quale sia il
+    // suo, quindi li somma e dice le due squadre
+    const t = tappaDiProva("t1", { Alfa: ["Mario Rossi"], Beta: ["Mario Rossi"], Gamma: ["Piero Neri"], Delta: ["Luca Bianchi"] }, [
+      { a: "Alfa", b: "Gamma", pa: { "Mario Rossi": { pt: 12, rb: 3 } } },
+      { a: "Beta", b: "Delta", pa: { "Mario Rossi": { pt: 7 } } },
     ]);
     apriProfilo(mario, [t]);
     expect(riquadro("Punti")).toBe("19");
     expect(riquadro("Gare")).toBe("2");
+    // Le due gare sono vinte: nessuna sconfitta
+    expect(sottoRiquadro("Gare")).toBe("2V · 0P");
+    expect(screen.getByText("2 partite · max 12")).toBeTruthy();
     expect(storico()).toEqual([["Tappa t1", "—", "2", "19", "3", "0"]]);
     expect(screen.getByText(/sommate per nome sulle squadre di tappa: Alfa, Beta\./)).toBeTruthy();
   });
@@ -146,6 +153,8 @@ describe("Profilo del giocatore: le statistiche di stagione", () => {
     expect(riquadro("Punti")).toBe("14");
     expect(screen.queryByText(/Nessuna statistica nella lega attiva/)).toBeNull();
     expect(storico()).toEqual([["Tappa t1", "—", "1", "14", "0", "0"]]);
+    // Anche le partite singole riconoscono il nome: la gara è vinta (21-15)
+    expect(sottoRiquadro("Gare")).toBe("1V · 0P");
   });
 
   it("una partita non giocata non entra nel profilo, nemmeno con un tabellino provvisorio", () => {
@@ -156,6 +165,8 @@ describe("Profilo del giocatore: le statistiche di stagione", () => {
     apriProfilo(mario, [t]);
     expect(riquadro("Punti")).toBe("12");
     expect(riquadro("Gare")).toBe("1");
+    // Neanche l'elenco delle partite la conta
+    expect(screen.getByText(/^1 partit\w+ · max 12$/)).toBeTruthy();
   });
 
   it("lo storico dice il piazzamento dalla finale del tabellone: 1° per chi l'ha vinta, 2° per chi l'ha persa", () => {

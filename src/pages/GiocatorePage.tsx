@@ -80,27 +80,28 @@ export function GiocatorePage() {
     return out;
   }, [g, tappe]);
 
-  // Partite singole (per sparkline e "ultime partite"), in ordine cronologico di inserimento
+  // Partite singole (per sparkline e "ultime partite"), in ordine cronologico di inserimento. Come i totali, comprendono
+  // tutte le squadre della tappa che hanno un giocatore con questo nome (di solito una sola)
   const games = useMemo<GameRow[]>(() => {
     if (!g) return [];
     const out: GameRow[] = [];
     for (const t of tappe) {
-      const team = t.squadre.find((s) => (s.giocatori || []).some((p) => sameName(p.nome, g)));
-      const pid = team?.giocatori.find((p) => sameName(p.nome, g))?.id;
-      if (!team || !pid) continue;
+      const miei = t.squadre.flatMap((team) => (team.giocatori || []).filter((p) => sameName(p.nome, g)).map((p) => ({ team, pid: p.id })));
       const nameOf = (tid: string) => t.squadre.find((s) => s.id === tid)?.nome ?? tid;
-      for (const m of t.partite) {
-        if (!m.done) continue;
-        const mine = m.a === team.id ? m.pa : m.b === team.id ? m.pb : undefined;
-        if (!mine || mine[pid] === undefined) continue;
-        const raw = mine[pid];
-        const st: StatLine = typeof raw === "object" && raw !== null ? raw : { pt: raw as number };
-        const isA = m.a === team.id;
-        out.push({
-          tappa: t.nome, avversario: nameOf(isA ? m.b : m.a),
-          mio: isA ? m.sa : m.sb, suo: isA ? m.sb : m.sa,
-          pt: st.pt ?? 0, rb: st.rb ?? 0, as: st.as ?? 0,
-        });
+      for (const { team, pid } of miei) {
+        for (const m of t.partite) {
+          if (!m.done) continue;
+          const mine = m.a === team.id ? m.pa : m.b === team.id ? m.pb : undefined;
+          if (!mine || mine[pid] === undefined) continue;
+          const raw = mine[pid];
+          const st: StatLine = typeof raw === "object" && raw !== null ? raw : { pt: raw as number };
+          const isA = m.a === team.id;
+          out.push({
+            tappa: t.nome, avversario: nameOf(isA ? m.b : m.a),
+            mio: isA ? m.sa : m.sb, suo: isA ? m.sb : m.sa,
+            pt: st.pt ?? 0, rb: st.rb ?? 0, as: st.as ?? 0,
+          });
+        }
       }
     }
     return out;
