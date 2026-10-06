@@ -66,7 +66,8 @@ export function standings(
     if (!A || !B) return;
     const sa = Number(m.sa), sb = Number(m.sb);
     A.g++; B.g++; A.pf += sa; A.ps += sb; B.pf += sb; B.ps += sa;
-    if (sa > sb) { A.v++; B.p++; } else { B.v++; A.p++; }
+    // chi vince lo decide solo vincitore(), come negli scontri diretti: i punteggi qui servono solo ai punti
+    if (vincitore(m) === m.a) { A.v++; B.p++; } else { B.v++; A.p++; }
   });
   // Prima le vittorie; ogni gruppo a pari vittorie si ordina con gli scontri diretti
   return fasce(rows, (r) => r.v).flatMap((gruppo) => risolviParita(gruppo, giocate));
