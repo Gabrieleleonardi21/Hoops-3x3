@@ -73,6 +73,7 @@ Il sito statico inoltra `/api/*` al backend con una regola di rewrite: per il br
 2. Dashboard → **New → Blueprint** → scegli questo repository: Render legge `render.yaml` e mostra i tre servizi.
 3. Compila i valori richiesti: `ADMIN_EMAIL` e `ADMIN_PASSWORD` (almeno 8 caratteri, diversa da `admin123`, altrimenti l'admin non viene creato) e, facoltativa, `GROQ_API_KEY` per il Coach AI. `JWT_SECRET` lo genera Render, i dati del database arrivano da soli.
 4. Al primo avvio il backend crea le tabelle da `db/schema.sql` (`DB_INIT_MODE=always`) e l'admin.
+5. Render considera il backend pronto quando `/actuator/health` risponde 200, cioè con server e database funzionanti: un deploy rotto non sostituisce quello attivo.
 
 **Dopo il deploy**
 
