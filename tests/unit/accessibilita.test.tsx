@@ -6,8 +6,9 @@ import { cleanup, fireEvent, render, screen, within } from "@testing-library/rea
 import { Loading } from "../../src/components/ui/Loading";
 import { ArchivioList } from "../../src/components/archivio/ArchivioList";
 import { ArchivioTappaView } from "../../src/components/archivio/ArchivioTappaView";
+import { SquadraModal } from "../../src/components/archivio/SquadraModal";
 import { tappaDiProva } from "./tappeDiProva";
-import type { PubTappa } from "../../src/types";
+import type { PubTappa, SquadraTappa } from "../../src/types";
 
 afterEach(cleanup); // senza le globali di Vitest, Testing Library non smonta da sola
 
@@ -76,5 +77,35 @@ describe("ArchivioList: chiavi stabili", () => {
     render(<ArchivioList pubs={pubs} errore={null} onRiprova={() => {}} onOpen={onOpen} />);
     fireEvent.click(within(riga("Tappa B")).getByText("Tappa B"));
     expect(onOpen).toHaveBeenCalledExactlyOnceWith(pubs[1]);
+  });
+});
+
+describe("SquadraModal (archivio): il focus iniziale", () => {
+  const apri = (squadra: SquadraTappa) => render(<SquadraModal squadra={squadra} hasStats={false} onClose={() => {}} onSelectPlayer={() => {}} />);
+  const alfa: SquadraTappa = { id: "s1", nome: "Alfa", rank: "", giocatori: [{ id: "p1", nome: "Mario" }] };
+
+  it("con logo e sito atterra sul blocco dei dati e non sul collegamento: un Invio di riflesso non apre il sito in un'altra scheda", () => {
+    apri({ ...alfa, logo: "/logos/alfa.svg", website: "https://alfa.example", instagram: "https://instagram.com/alfa" });
+    const blocco = document.querySelector("[data-focus-iniziale]");
+    expect(blocco).not.toBeNull();
+    expect(document.activeElement).toBe(blocco);
+    expect(blocco!.getAttribute("tabindex")).toBe("-1"); // si prende il focus per programma, ma non entra nell'ordine di Tab
+    expect(blocco!.textContent).toContain("Mario"); // i dati: è ciò che il lettore di schermo legge all'apertura
+    const collegamenti = screen.getAllByRole("link"); // logo, sito e Instagram, raggiungibili con Tab
+    expect(collegamenti.length).toBeGreaterThanOrEqual(3);
+    expect(collegamenti).not.toContain(document.activeElement);
+  });
+
+  it("anche con i soli giocatori (nessun collegamento) il blocco c'è: il roster è un dato", () => {
+    apri(alfa);
+    const blocco = document.querySelector("[data-focus-iniziale]");
+    expect(blocco).not.toBeNull();
+    expect(document.activeElement).toBe(blocco);
+  });
+
+  it("senza giocatori né logo né collegamenti non c'è un blocco vuoto: il focus va alla finestra stessa", () => {
+    apri({ ...alfa, giocatori: [] });
+    expect(document.querySelector("[data-focus-iniziale]")).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole("dialog", { name: "Scheda squadra Alfa" }));
   });
 });
