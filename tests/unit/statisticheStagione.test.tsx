@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { StatsCircuito } from "../../src/components/anagrafe/StatsCircuito";
+import { AnagrafePage } from "../../src/pages/AnagrafePage";
 import { GiocatorePage } from "../../src/pages/GiocatorePage";
 import { useAppStore } from "../../src/stores/useAppStore";
 import { useAnagrafeStore } from "../../src/stores/useAnagrafeStore";
@@ -185,5 +186,17 @@ describe("Profilo del giocatore: le statistiche di stagione", () => {
     expect(riquadro("Punti")).toBe("0");
     expect(screen.queryByText(/squadre di tappa/)).toBeNull();
     expect(screen.getByText(/Nessuna statistica nella lega attiva/)).toBeTruthy();
+  });
+});
+
+describe("Statistiche stagione: la nota sopra la tabella", () => {
+  it("dice come si riconosce un giocatore e il limite: chi cambia squadra compare su due righe", () => {
+    useAppStore.setState({ user: registrato, tappe: [] });
+    useAnagrafeStore.setState({ giocatori: [], squadre: [], errore: null, caricata: true });
+    render(<MemoryRouter><AnagrafePage /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("tab", { name: "Statistiche stagione" }));
+    const nota = screen.getByText(/Totali e medie per partita/).textContent;
+    expect(nota).toContain("nome e squadra coincidono (maiuscole, spazi e accenti non contano)");
+    expect(nota).toContain("chi cambia squadra compare su due righe");
   });
 });
