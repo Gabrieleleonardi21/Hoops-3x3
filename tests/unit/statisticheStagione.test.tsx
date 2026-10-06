@@ -148,6 +148,13 @@ describe("Profilo del giocatore: le statistiche di stagione", () => {
     expect(screen.getByText(/sommate per nome sulle squadre di tappa: ALFA\./)).toBeTruthy();
   });
 
+  it("una squadra compare una volta sola nell'elenco anche se il nome è scritto nei due ordini: «Mario Rossi» e «Rossi Mario»", () => {
+    // Per la tabella sono due nomi, quindi due righe di stagione, ma la squadra è la stessa anche se scritta «Alfa» e «ALFA»
+    apriProfilo(mario, [unaGara("t1", "Alfa", "Mario Rossi", { pt: 12 }), unaGara("t2", "ALFA", "Rossi Mario", { pt: 10 })]);
+    expect(riquadro("Punti")).toBe("22");
+    expect(screen.getByText(/sommate per nome sulle squadre di tappa: ALFA\./)).toBeTruthy();
+  });
+
   it("il nome si riconosce come nella tabella: maiuscole, spazi in più e accenti non contano", () => {
     apriProfilo(registrazione("g1", "Nicolò", "Rossi"), [unaGara("t1", "Alfa", "  nicolo   ROSSI ", { pt: 14 })]);
     expect(riquadro("Punti")).toBe("14");

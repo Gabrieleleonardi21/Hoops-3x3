@@ -119,7 +119,9 @@ export function GiocatorePage() {
   }
 
   const tot = somma(stagione);
-  const squadreStat = stagione.map((row) => row.squadra);
+  // Le squadre da cui vengono i totali, ognuna una volta: lo stesso nome scritto nei due ordini nella stessa squadra sono due
+  // righe di stagione, ma una squadra sola. Vale la grafia dell'ultima riga
+  const squadreStat = [...new Map(stagione.map((row): [string, string] => [normalizza(row.squadra), row.squadra])).values()];
   const avg = (v: number) => (tot.g ? `(${f1(v / tot.g)}/g)` : undefined);
   const age = eta(g.nascita);
   const bio = [g.ruolo, g.squadra, g.citta, age !== null ? `${age} anni` : "", g.altezza ? `${g.altezza} cm` : "", g.peso ? `${g.peso} kg` : ""].filter(Boolean);
