@@ -65,7 +65,10 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
   Se non trovata, crea automaticamente la scheda in anagrafe. Una squadra
   collegata a una voce poi eliminata dall'anagrafe si scollega all'apertura
   della tappa (tiene nome, logo e ranking che ha) e il suo nome torna
-  modificabile; le tappe concluse non vengono toccate.
+  modificabile. Lo scollegamento si decide sulla lista fresca del server,
+  non sulla cache (che non vede le voci create da altri dopo il suo
+  caricamento): se il server non risponde non si scollega niente. Le tappe
+  concluse non vengono toccate.
 - Regole di gara personalizzabili per tappa:
     • Punteggio target (default 21)
     • Durata massima in minuti (default 10)
@@ -362,11 +365,14 @@ utenti registrati.
   della lega); una lega illeggibile non si apre e si può eliminare
   dall'elenco delle leghe. Se il browser rifiuta una scrittura (spazio
   esaurito) la modifica resta in memoria e una barra avvisa che non è salvata
-  (esportare la lega o eliminarne altre libera spazio); creare o importare
-  una lega senza spazio non crea niente e il messaggio dice «spazio
-  esaurito». La lega aperta per ultima ha una chiave nel browser per l'ospite
-  e una per il registrato: passando da una modalità all'altra non si
-  cancellano a vicenda.
+  (esportare la lega o eliminarne altre libera spazio); l'avviso sparisce
+  quando le scritture tornano a riuscire. Creare o importare una lega senza
+  spazio non crea niente (dati e indice entrano insieme, o nessuno dei due) e
+  il messaggio dice «spazio esaurito». Lo stesso messaggio compare nel modulo
+  d'accesso se il JWT non si può scrivere dopo una registrazione o un accesso.
+  La lega aperta per ultima ha una chiave nel browser per l'ospite e una per
+  il registrato: passando da una modalità all'altra non si cancellano a
+  vicenda.
 - Anagrafe in cache nello store (useAnagrafeStore): scaricata una volta e
   aggiornata a ogni scrittura, non a ogni apertura di pagina; le modifiche
   di altri utenti si vedono ricaricando la pagina.
