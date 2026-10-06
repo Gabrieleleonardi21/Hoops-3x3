@@ -535,6 +535,60 @@ describe("MatchTimer: accessibilità dei punti e dell'esito", () => {
     expect(document.activeElement).toBe(esito);
   });
 
+  it("l'esito prende il focus anche se era su un pulsante che resta: «+2 a Squadra A» c'è ancora, ma la partita è decisa", () => {
+    apri({ ...DEFAULT_RULES, target: 3 });
+    screen.getByRole("button", { name: "+2 a Squadra A" }).focus();
+    segna(A, "+2");
+    segna(A, "+2"); // 4 punti: vince A
+    expect(document.activeElement).toBe(screen.getByRole("status"));
+  });
+
+  it("anche il tempo che scade con il focus su STOP: il pulsante sparisce e il focus va all'esito", () => {
+    apri(BREVE);
+    segna(A, "+2");
+    premi("START"); // il pulsante è lo stesso, con il focus iniziale: ora si chiama STOP
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "STOP" }));
+    scadere();
+    expect(mostra("Squadra A — Partita conclusa")).toBeTruthy();
+    expect(document.activeElement).toBe(screen.getByRole("status"));
+  });
+
+  it("se il tempo scade con la conferma «Chiudere il timer?» aperta il focus resta su «Annulla»: l'esito non lo prende da una finestra in primo piano", () => {
+    apri(BREVE);
+    segna(A, "+2");
+    premi("START");
+    passa(30_000); // la partita è in corso
+    fireEvent.keyDown(window, { key: "Escape" }); // Esc chiede conferma, e il focus va su «Annulla»
+    const annulla = screen.getByRole("button", { name: "Annulla" });
+    expect(document.activeElement).toBe(annulla);
+    scadere(); // il tempo finisce con la conferma ancora aperta: vince A
+    expect(mostra("Squadra A — Partita conclusa")).toBeTruthy();
+    expect(document.activeElement).toBe(annulla); // un Invio qui fa ancora «Annulla»
+  });
+
+  it("chiusa la conferma con «Annulla» dopo che la partita si è decisa, il focus va all'esito e non resta nel vuoto", () => {
+    apri(BREVE);
+    segna(A, "+2");
+    premi("START");
+    passa(30_000);
+    fireEvent.keyDown(window, { key: "Escape" });
+    scadere(); // vince A mentre la conferma è aperta
+    fireEvent.click(screen.getByRole("button", { name: "Annulla" }));
+    expect(screen.queryByRole("dialog", { name: "Chiudere il timer?" })).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole("status")); // STOP, da cui il focus partiva, non c'è più
+  });
+
+  it("chiusa la conferma a partita decisa, il focus resta dov'era se era finito su un pulsante che c'è ancora", () => {
+    apri({ ...DEFAULT_RULES, target: 3 });
+    segna(A, "+2");
+    segna(A, "+2"); // vince A: l'esito prende il focus
+    const resetTutto = screen.getByRole("button", { name: "Reset tutto" });
+    resetTutto.focus();
+    fireEvent.keyDown(window, { key: "Escape" }); // la partita è cominciata (4 a 0): chiede conferma
+    fireEvent.click(screen.getByRole("button", { name: "Annulla" }));
+    expect(document.activeElement).toBe(resetTutto); // il ritorno del focus non si toglie
+  });
+
   it("la riga dell'esito è una regione role=status: compare solo a partita decisa e dice chi ha vinto", () => {
     apri({ ...DEFAULT_RULES, target: 3 });
     expect(screen.queryByRole("status")).toBeNull();

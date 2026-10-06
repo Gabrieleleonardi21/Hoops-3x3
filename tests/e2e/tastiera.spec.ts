@@ -202,6 +202,40 @@ test("timer: a partita decisa il focus passa all'esito, che il lettore di scherm
   await expect(esito).toBeFocused();
 });
 
+test("timer: se il tempo scade con la conferma di chiusura aperta il focus resta su «Annulla»; chiusa lei, va all'esito", async ({ page }) => {
+  // Orologio finto del browser, come in timer.spec: il tempo si sposta a mano
+  await page.clock.install({ time: new Date("2026-10-05T12:00:00Z") });
+  await page.route("**/api/anagrafe/**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: "[]" }));
+  await ospiteConLega(page);
+  await page.getByRole("button", { name: /Crea la tappa/i }).click();
+  await page.getByLabel("Durata (minuti)").fill("1");
+  await page.getByRole("button", { name: "Timer", exact: true }).focus();
+  await page.keyboard.press("Enter");
+  const timer = page.getByRole("dialog", { name: "Timer di gara" });
+
+  // La squadra A segna (così a tempo scaduto vince), poi START e Esc: la conferma si apre con il focus su «Annulla»
+  await tabFinoA(page, timer.getByRole("button", { name: "+2 a Squadra A" }));
+  await page.keyboard.press("Enter");
+  await page.clock.pauseAt(new Date("2026-10-05T12:10:00Z"));
+  await tabFinoA(page, timer.getByRole("button", { name: "START" }));
+  await page.keyboard.press("Space");
+  await page.keyboard.press("Escape");
+  const conferma = page.getByRole("dialog", { name: "Chiudere il timer?" });
+  const annulla = conferma.getByRole("button", { name: "Annulla" });
+  await expect(annulla).toBeFocused();
+
+  // Il tempo scade con la conferma aperta: l'esito compare dietro, ma il focus resta su «Annulla» (un Invio fa ancora «Annulla»)
+  await page.clock.fastForward(61_000);
+  const esito = timer.getByRole("status");
+  await expect(esito).toHaveText("Squadra A — Partita conclusa");
+  await expect(annulla).toBeFocused();
+
+  // «Annulla» con Invio: la conferma si chiude e il focus, che partiva da STOP (sparito), passa all'esito
+  await page.keyboard.press("Enter");
+  await expect(conferma).toHaveCount(0);
+  await expect(esito).toBeFocused();
+});
+
 test("anagrafe: Esc tenuto premuto chiude solo la conferma; rilasciato e premuto di nuovo chiude la scheda", async ({ page }) => {
   await utenteRegistrato(page, { giocatori: [giocatoreDiAnna("g1", "Mario", "Rossi")] });
   await page.goto("/anagrafe");

@@ -104,11 +104,16 @@ export function MatchTimer({ regole, teamA, teamB, onClose }: {
   const inSupplementare = stato.fase === "supplementare" || stato.fase === "vintaAlSupplementare";
 
   // A partita decisa START/STOP lascia il posto all'esito, e se aveva il focus il focus resterebbe nel vuoto: lo prende l'esito, che
-  // il lettore di schermo annuncia (tabIndex -1: lo si raggiunge per programma, senza entrare nell'ordine di Tab)
+  // il lettore di schermo annuncia (tabIndex -1: lo si raggiunge per programma, senza entrare nell'ordine di Tab). Non se il focus sta
+  // in un'altra finestra: il tempo può scadere con la conferma «Chiudere il timer?» aperta sopra il timer, e il focus non si toglie
+  // da «Annulla» per portarlo dietro di lei. Il focus su body (il pulsante sparito) o su un pulsante del timer vale come libero
   const esito = useRef<HTMLSpanElement>(null);
   const decisa = "vincitore" in stato;
   useEffect(() => {
-    if (decisa) esito.current?.focus();
+    if (!decisa || !esito.current) return;
+    const finestraDelFocus = document.activeElement?.closest('[role="dialog"]');
+    if (finestraDelFocus && finestraDelFocus !== esito.current.closest('[role="dialog"]')) return;
+    esito.current.focus();
   }, [decisa]);
 
   // Mentre un cronometro corre, uno scatto ogni 100 ms ridisegna lo schermo. Lo scatto non conta il tempo: legge l'orologio
@@ -191,6 +196,12 @@ export function MatchTimer({ regole, teamA, teamB, onClose }: {
   });
   // Con la conferma aperta Esc è della conferma e il timer resta: Modal manda l'Esc solo alla finestra in primo piano
   const chiudi = () => chiedi("Chiudere il timer?", onClose);
+  // Se la partita si è decisa con la conferma aperta, chiusa lei il focus (partito da STOP, che non c'è più) è nel vuoto: lo prende
+  // l'esito. Se invece il ritorno del focus l'ha già rimesso su un pulsante che c'è ancora, non glielo si toglie
+  const confermaAperta = finestra !== null;
+  useEffect(() => {
+    if (decisa && !confermaAperta && document.activeElement === document.body) esito.current?.focus();
+  }, [decisa, confermaAperta]);
 
   // START/STOP; a tempo scaduto in parità «Avvia supplementare»; a partita decisa il vincitore (togliendo un punto per errore si riapre)
   let etichetta = "START";
