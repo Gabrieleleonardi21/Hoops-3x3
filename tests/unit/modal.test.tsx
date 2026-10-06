@@ -109,7 +109,7 @@ describe("Modal: Tab resta dentro la finestra", () => {
     expect(tab()).toBe(false); // la X è anche l'ultima
     expect(document.activeElement).toBe(chiudi);
     dialogo.focus();
-    expect(tab(true)).toBe(false); // da fuori dal primo elemento, Shift+Tab non esce dalla finestra
+    expect(tab(true)).toBe(false); // dalla finestra stessa Shift+Tab andrebbe a ciò che la precede, fuori: va invece all'ultimo elemento
     expect(document.activeElement).toBe(chiudi);
   });
 });

@@ -7,7 +7,9 @@ interface Finestra {
 }
 
 // Le finestre aperte adesso, dalla più vecchia alla più recente: l'ultima è in primo piano. La pila sta a livello di modulo perché le
-// finestre si aprono una sopra l'altra da componenti che non si conoscono (la conferma sopra la scheda dell'anagrafe o sopra il timer)
+// finestre si aprono una sopra l'altra da componenti che non si conoscono (la conferma sopra la scheda dell'anagrafe o sopra il timer).
+// L'ordine è quello in cui i componenti si montano: due finestre che si montano nello stesso istante (i figli prima dei genitori)
+// avrebbero l'ordine rovesciato, ma non succede, perché la conferma si apre sempre dopo la finestra su cui sta
 let pila: Finestra[] = [];
 
 /** Gli elementi che Tab raggiunge in `contenitore`, nell'ordine del DOM. Non si controlla se sono visibili: dentro le finestre
