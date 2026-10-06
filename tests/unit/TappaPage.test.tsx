@@ -527,6 +527,7 @@ describe("TappaPage: risultati dei gironi con la fase finale già generata (R6)"
     const prima = store().tappe[0];
     fireEvent.click(screen.getAllByRole("button", { name: "Correggi" })[0]);
     expect(screen.getByRole("alert").textContent).toMatch(/elimina prima la fase finale/);
+    expect(screen.getByRole("alert").textContent).toContain("«Elimina bracket e ricomincia»");
     expect(store().tappe[0]).toBe(prima);
   });
 });

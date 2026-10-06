@@ -258,10 +258,12 @@ export function impostaNumeroGironi(tappa: Tappa, nGironi: number): Esito {
   return ok(senzaSorteggio({ ...tappa, nGironi }));
 }
 
-/** Con la fase finale generata i risultati dei gironi non cambiano più: il tabellone è nato da quelle classifiche */
+/** Con la fase finale generata i risultati dei gironi non cambiano più: il tabellone è nato da quelle classifiche. Il messaggio
+ *  dice con quale pulsante si elimina (nella sezione «Fase finale» della tappa), perché è la via d'uscita per chi corregge. */
 function erroreFaseFinale(tappa: Tappa): string | null {
   if (!tappa.bracket?.length) return null;
-  return "Per correggere o annullare un risultato dei gironi elimina prima la fase finale, generata da questi risultati.";
+  return "Per correggere o annullare un risultato dei gironi elimina prima la fase finale con «Elimina bracket e ricomincia»: "
+    + "è stata generata da questi risultati.";
 }
 
 /** Registra il risultato di una partita dei gironi */

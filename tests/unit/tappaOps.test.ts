@@ -218,6 +218,18 @@ describe("risultati dei gironi con la fase finale già generata (R6)", () => {
   it("anche correggerlo registrandolo di nuovo è rifiutato", () => {
     expect(errore(registraRisultato(tappaConBracket(), "m1", { sa: 21, sb: 10 }))).toMatch(/elimina prima la fase finale/);
   });
+
+  it("FD-10: il messaggio dice con quale pulsante si elimina il tabellone: «Elimina bracket e ricomincia»", () => {
+    expect(errore(annullaRisultato(tappaConBracket(), "m1"))).toContain("«Elimina bracket e ricomincia»");
+    expect(errore(registraRisultato(tappaConBracket(), "m1", { sa: 21, sb: 10 }))).toContain("«Elimina bracket e ricomincia»");
+  });
+
+  it("il rifiuto non cambia la tappa: i risultati dei gironi e il tabellone restano com'erano", () => {
+    const t = tappaConBracket();
+    annullaRisultato(t, "m1");
+    registraRisultato(t, "m1", { sa: 21, sb: 10 });
+    expect(t).toEqual(tappaConBracket());
+  });
 });
 
 describe("registraRisultatoBracket (fase a eliminazione diretta)", () => {
