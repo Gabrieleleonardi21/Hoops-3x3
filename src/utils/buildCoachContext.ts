@@ -1,5 +1,5 @@
 import type { Tappa } from "../types";
-import { standings } from "./standings";
+import { giocateConVincitore, standings, vincitore } from "./standings";
 import { tappaLeaders } from "./tappaLeaders";
 
 /** Lunghezza massima di un nome nel contesto */
@@ -14,18 +14,20 @@ export function pulisci(valore: string): string {
   return String(valore).replace(/</g, "‹").replace(/>/g, "›").slice(0, MAX_NOME);
 }
 
-/** Classifica cumulativa del circuito: aggrega vittorie e partite su tutte le tappe. */
+/** Classifica cumulativa del circuito: aggrega vittorie e partite su tutte le tappe. Le partite che contano sono
+ *  le stesse della classifica del girone (giocateConVincitore): una in parità non conta per niente. */
 function circuitStandings(tappe: Tappa[]): string {
   const wins: Record<string, { nome: string; v: number; g: number }> = {};
   for (const t of tappe) {
     for (const sq of t.squadre) {
       if (!wins[sq.id]) wins[sq.id] = { nome: sq.nome, v: 0, g: 0 };
     }
-    for (const m of t.partite) {
-      if (!m.done) continue;
-      const vincitore = m.sa > m.sb ? m.a : m.b;
-      const perdente  = m.sa > m.sb ? m.b : m.a;
-      if (wins[vincitore]) { wins[vincitore].v++; wins[vincitore].g++; }
+    for (const m of giocateConVincitore(t.partite)) {
+      const vince = vincitore(m);
+      // la perdente è l'altra squadra della partita
+      let perdente = m.a;
+      if (vince === m.a) perdente = m.b;
+      if (wins[vince]) { wins[vince].v++; wins[vince].g++; }
       if (wins[perdente])  { wins[perdente].g++; }
     }
   }
