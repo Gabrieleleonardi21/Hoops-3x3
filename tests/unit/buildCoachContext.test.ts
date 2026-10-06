@@ -21,6 +21,17 @@ const tappa = (nome: string): Tappa => ({
   video: [],
 });
 
+/** Una partita tra due squadre (gli id sono i nomi); con `done = false` è da giocare e il punteggio è una bozza */
+const gara = (a: string, b: string, sa: number, sb: number, done = true): Partita => ({ id: a + b, g: 0, a, b, sa, sb, done });
+
+/** Tappa con un solo girone: le squadre `nomi` (l'id è il nome) e le partite date */
+const tappaCon = (nomi: string[], partite: Partita[]): Tappa => ({
+  ...tappa("Prova"),
+  squadre: nomi.map((nome) => ({ id: nome, nome, giocatori: [], rank: "" })),
+  gironi: [nomi],
+  partite,
+});
+
 describe("buildCoachContext: i dati della lega restano dentro il loro blocco", () => {
   it("< e > nei nomi sono sostituiti: il blocco si apre all'inizio, si chiude alla fine e in mezzo non ci sono tag", () => {
     const contesto = buildCoachContext(ATTACCO, [tappa(ATTACCO)]);
@@ -44,16 +55,10 @@ describe("buildCoachContext: la classifica dei gironi", () => {
   it("segue gli scontri diretti: a pari vittorie sta sopra chi ha vinto la partita diretta", () => {
     // Girone completo da 4: Alfa e Beta hanno 2 vittorie, Gamma e Delta 1. Alfa ha battuto Beta e Gamma ha battuto Delta,
     // ma Beta e Delta hanno segnato di più (62 contro 52, 44 contro 42): per punti fatti l'ordine sarebbe Beta, Alfa, Delta, Gamma
-    const gara = (a: string, b: string, sa: number, sb: number) => ({ id: a + b, g: 0, a, b, sa, sb, done: true });
-    const t: Tappa = {
-      ...tappa("Prova"),
-      squadre: ["Alfa", "Beta", "Gamma", "Delta"].map((nome) => ({ id: nome, nome, giocatori: [], rank: "" })),
-      gironi: [["Alfa", "Beta", "Gamma", "Delta"]],
-      partite: [
-        gara("Alfa", "Beta", 21, 20), gara("Alfa", "Gamma", 21, 19), gara("Delta", "Alfa", 21, 10),
-        gara("Beta", "Gamma", 21, 2), gara("Beta", "Delta", 21, 5), gara("Gamma", "Delta", 21, 18),
-      ],
-    };
+    const t = tappaCon(["Alfa", "Beta", "Gamma", "Delta"], [
+      gara("Alfa", "Beta", 21, 20), gara("Alfa", "Gamma", 21, 19), gara("Delta", "Alfa", 21, 10),
+      gara("Beta", "Gamma", 21, 2), gara("Beta", "Delta", 21, 5), gara("Gamma", "Delta", 21, 18),
+    ]);
     const riga = buildCoachContext("Lega", [t]).split("\n").find((r) => r.startsWith("Girone A:")) ?? "";
     // «Girone A: 1. Alfa (2V 1P, pf 52 ps 50); 2. Beta (…)…»: i nomi nell'ordine in cui compaiono
     const ordine = [...riga.matchAll(/\d\. (\w+) \(/g)].map((x) => x[1]);
@@ -64,15 +69,9 @@ describe("buildCoachContext: la classifica dei gironi", () => {
 describe("buildCoachContext: la classifica del circuito", () => {
   /** La riga «Classifica circuito» di una tappa con tre squadre e le partite date */
   function rigaCircuito(partite: Partita[]): string {
-    const t: Tappa = {
-      ...tappa("Prova"),
-      squadre: ["Alfa", "Beta", "Gamma"].map((nome) => ({ id: nome, nome, giocatori: [], rank: "" })),
-      gironi: [["Alfa", "Beta", "Gamma"]],
-      partite,
-    };
-    return buildCoachContext("Lega", [t]).split("\n").find((r) => r.startsWith("Classifica circuito:")) ?? "";
+    const contesto = buildCoachContext("Lega", [tappaCon(["Alfa", "Beta", "Gamma"], partite)]);
+    return contesto.split("\n").find((r) => r.startsWith("Classifica circuito:")) ?? "";
   }
-  const gara = (a: string, b: string, sa: number, sb: number, done = true): Partita => ({ id: a + b, g: 0, a, b, sa, sb, done });
   // «xV/yP» sono x vittorie su y partite giocate. Alfa ha battuto Beta; Gamma non ha giocato partite valide
   const ATTESA = "Classifica circuito: 1. Alfa (1V/1P totali); 2. Beta (0V/1P totali); 3. Gamma (0V/0P totali)";
 
