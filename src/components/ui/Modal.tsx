@@ -34,10 +34,11 @@ export function Modal({ title, subtitle, label, width = 480, onClose, children }
     // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- scorciatoia per il mouse, vedi sopra
     <div onClick={onClose} className="modal-overlay">
       {/* Il clic dentro la card non deve arrivare allo sfondo, altrimenti la chiuderebbe. tabIndex -1: la finestra può prendere il
-          focus (senza entrare nell'ordine di Tab) quando dentro non c'è niente da raggiungere */}
+          focus (senza entrare nell'ordine di Tab) quando dentro non c'è niente da raggiungere. Con l'anello del focus: da tastiera è
+          l'unico indicatore, col mouse (un clic nella finestra la mette a fuoco) non compare */}
       {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- ferma solo la propagazione del clic */}
       <div ref={finestra} tabIndex={-1} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={label}
-        className="modal-card flex max-h-[88vh] w-full flex-col outline-none" style={{ maxWidth: width }}>
+        className="modal-card flex max-h-[88vh] w-full flex-col" style={{ maxWidth: width }}>
         <div className="flex items-start justify-between gap-3 border-b border-asphalt-700 px-5 py-3">
           <div className="min-w-0">
             {title && <div className="font-display text-2xl text-chalk">{title}</div>}

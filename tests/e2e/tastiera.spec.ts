@@ -140,7 +140,7 @@ test("archivio: la squadra è un pulsante vero; Invio e Spazio aprono la scheda,
   await page.route(`**/api/archivio/${id}`, (route) => route.fulfill(json({
     tappa: {
       id, nome: "Tappa pubblica", luogo: "Roma", data: "2026-10-01", nGironi: 1, regole: { target: 21, durata: 10, ot: 2, shot: 12 },
-      squadre: [squadra("s1", "Alfa"), squadra("s2", "Beta")], gironi: [["s1", "s2"]],
+      squadre: [squadra("s1", "Alfa"), squadra("s2", "Beta"), { id: "s3", nome: "Gamma", giocatori: [], rank: "" }], gironi: [["s1", "s2"]],
       partite: [{ id: "m1", g: 0, a: "s1", b: "s2", sa: 21, sb: 15, done: true }], video: [], conclusa: true,
     },
     lega: "Estate", autore: "Anna", autoreId: "u1", ts: 1,
@@ -160,6 +160,18 @@ test("archivio: la squadra è un pulsante vero; Invio e Spazio aprono la scheda,
     await expect(scheda).toHaveCount(0);
     await expect(alfa).toBeFocused();
   }
+
+  // Una squadra senza giocatori né collegamenti: dentro la scheda non c'è niente da raggiungere e il focus va sulla finestra stessa. Con
+  // la tastiera l'anello c'è anche lì (è l'unico indicatore del focus), e Esc riporta alla card
+  const gamma = page.getByRole("button", { name: /Gamma/ });
+  await tabFinoA(page, gamma);
+  await page.keyboard.press("Enter");
+  const schedaGamma = page.getByRole("dialog", { name: "Scheda squadra Gamma" });
+  await expect(schedaGamma).toBeFocused();
+  await expect(schedaGamma).toHaveCSS("outline-style", "solid");
+  await expect(schedaGamma).toHaveCSS("outline-width", "2px");
+  await page.keyboard.press("Escape");
+  await expect(gamma).toBeFocused();
 });
 
 /** Da «Modifica» (raggiunta con Tab) al form e ritorno, due volte: uscendo con «Annulla» e con «Salva modifiche». Il focus entra nel primo
