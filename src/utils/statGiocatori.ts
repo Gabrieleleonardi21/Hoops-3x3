@@ -2,7 +2,7 @@
  *  si generano a ogni tappa: lo stesso giocatore in due tappe ha due id. Per riconoscerlo si usano il nome e la squadra,
  *  normalizzati. È l'unica aggregazione di stagione: la usano la tabella «Statistiche stagione» e la pagina del giocatore,
  *  così i loro numeri coincidono. */
-import type { StatLine, Tappa } from "../types";
+import type { Partita, StatLine, Tappa } from "../types";
 import { STAT_KEYS } from "../constants/rules";
 
 /** Nome o squadra confrontabili: spazi ai lati tolti, spazi interni ridotti a uno (ma non tolti: «De Rossi» e «DeRossi»
@@ -34,8 +34,10 @@ function conteggi(raw: StatLine | number): Conteggi {
   };
 }
 
-/** Il tabellino di un giocatore in una partita giocata, con nome e squadra come sono scritti nel roster della tappa */
-export interface Tabellino { pid: string; nome: string; squadra: string; stat: Conteggi }
+/** Il tabellino di un giocatore in una partita giocata, con nome e squadra come sono scritti nel roster della tappa, la
+ *  partita e il lato (squadra A o B) della scheda in cui è scritto. Il lato è quello della scheda, non quello del roster:
+ *  il tabellino conta dove sta scritto */
+export interface Tabellino { pid: string; nome: string; squadra: string; stat: Conteggi; partita: Partita; lato: "a" | "b" }
 
 /** I tabellini di tutte le partite giocate di una tappa, nell'ordine delle partite (in ognuna prima la squadra A).
  *  È la regola delle statistiche dei giocatori: conta ogni partita giocata (`done`), anche se è finita in parità, perché
@@ -50,10 +52,10 @@ export function tabellini(tappa: Tappa): Tabellino[] {
   const out: Tabellino[] = [];
   for (const m of tappa.partite) {
     if (!m.done) continue;
-    for (const scheda of [m.pa, m.pb]) {
+    for (const { scheda, lato } of [{ scheda: m.pa, lato: "a" }, { scheda: m.pb, lato: "b" }] as const) {
       for (const [pid, raw] of Object.entries(scheda || {})) {
         const info = roster.get(pid);
-        if (info) out.push({ pid, ...info, stat: conteggi(raw) });
+        if (info) out.push({ pid, ...info, stat: conteggi(raw), partita: m, lato });
       }
     }
   }

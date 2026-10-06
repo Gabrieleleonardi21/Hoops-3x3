@@ -8,7 +8,7 @@ import { useMemo } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { useAnagrafe } from "../hooks/useAnagrafe";
 import { useAppStore } from "../stores/useAppStore";
-import { normalizza, statGiocatori, type StatGiocatore } from "../utils/statGiocatori";
+import { normalizza, statGiocatori, tabellini, type StatGiocatore } from "../utils/statGiocatori";
 import { eta } from "../utils/eta";
 import { safeUrl } from "../utils/safeUrl";
 import { Loading } from "../components/ui/Loading";
@@ -20,7 +20,7 @@ import { Section } from "../components/ui/Section";
 import { StatTile } from "../components/ui/StatTile";
 import { Icon } from "../components/ui/Icon";
 import { Sparkline } from "../components/profile/Sparkline";
-import type { RegGiocatore, StatLine, Tappa } from "../types";
+import type { RegGiocatore, Tappa } from "../types";
 
 /** true se il nome nel roster corrisponde al giocatore dell'anagrafe, in un ordine o nell'altro. Si confronta con la
  *  stessa normalizzazione della tabella di stagione */
@@ -80,28 +80,19 @@ export function GiocatorePage() {
     return out;
   }, [g, tappe]);
 
-  // Partite singole (per sparkline e "ultime partite"), in ordine cronologico di inserimento. Come i totali, comprendono
-  // tutte le squadre della tappa che hanno un giocatore con questo nome (di solito una sola)
+  // Partite singole (per sparkline e "ultime partite"), nell'ordine in cui le partite sono state inserite. Sono i tabellini di
+  // tabellini(), gli stessi dei totali: comprendono tutte le squadre della tappa che hanno un giocatore con questo nome
   const games = useMemo<GameRow[]>(() => {
     if (!g) return [];
     const out: GameRow[] = [];
     for (const t of tappe) {
-      const miei = t.squadre.flatMap((team) => (team.giocatori || []).filter((p) => sameName(p.nome, g)).map((p) => ({ team, pid: p.id })));
       const nameOf = (tid: string) => t.squadre.find((s) => s.id === tid)?.nome ?? tid;
-      for (const { team, pid } of miei) {
-        for (const m of t.partite) {
-          if (!m.done) continue;
-          const mine = m.a === team.id ? m.pa : m.b === team.id ? m.pb : undefined;
-          if (!mine || mine[pid] === undefined) continue;
-          const raw = mine[pid];
-          const st: StatLine = typeof raw === "object" && raw !== null ? raw : { pt: raw as number };
-          const isA = m.a === team.id;
-          out.push({
-            tappa: t.nome, avversario: nameOf(isA ? m.b : m.a),
-            mio: isA ? m.sa : m.sb, suo: isA ? m.sb : m.sa,
-            pt: st.pt ?? 0, rb: st.rb ?? 0, as: st.as ?? 0,
-          });
-        }
+      for (const { nome, stat, partita: m, lato } of tabellini(t)) {
+        if (!sameName(nome, g)) continue;
+        // Punti fatti, punti subiti e squadra avversaria, dal lato della scheda in cui sta il tabellino
+        let mio = m.sa, suo = m.sb, avversario = m.b;
+        if (lato === "b") { mio = m.sb; suo = m.sa; avversario = m.a; }
+        out.push({ tappa: t.nome, avversario: nameOf(avversario), mio, suo, pt: stat.pt, rb: stat.rb, as: stat.as });
       }
     }
     return out;

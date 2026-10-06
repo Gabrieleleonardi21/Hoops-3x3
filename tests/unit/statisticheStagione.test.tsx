@@ -92,6 +92,10 @@ const riquadro = (etichetta: string) => screen.getByText(etichetta).nextElementS
 /** La riga piccola sotto il numero di un riquadro («Gare» → «2V · 0P») */
 const sottoRiquadro = (etichetta: string) => screen.getByText(etichetta).nextElementSibling?.lastElementChild?.textContent;
 
+/** Le voci dell'elenco «Ultime partite», dalla più recente, una per casella: esito, avversaria e tappa, punteggio, statistiche
+ *  (per esempio «W», «vs Gamma · Tappa t1», «21–15», «12 PT · 3 REB · 0 AST») */
+const vociUltimePartite = () => screen.getAllByRole("listitem").map((voce) => [...voce.children].map((c) => c.textContent));
+
 describe("Profilo del giocatore: le statistiche di stagione", () => {
   const mario = registrazione("g1", "Mario", "Rossi");
   // Mario gioca con Alfa nella prima tappa e con Beta nella seconda, dove il roster lo scrive «Rossi Mario». Il roster di
@@ -118,6 +122,8 @@ describe("Profilo del giocatore: le statistiche di stagione", () => {
       ["Tappa t1", "—", "1", "12", "3", "0"],
       ["Tappa t2", "—", "1", "10", "0", "2"],
     ]);
+    // L'elenco delle partite ha le sue due, dalla più recente, e non quelle di Anna Verdi
+    expect(vociUltimePartite().map((voce) => voce[3])).toEqual(["10 PT · 0 REB · 2 AST", "12 PT · 3 REB · 0 AST"]);
   });
 
   it("somma anche due squadre della stessa tappa con lo stesso nome: totali, storico, vittorie e partite", () => {
@@ -135,6 +141,43 @@ describe("Profilo del giocatore: le statistiche di stagione", () => {
     expect(screen.getByText("2 partite · max 12")).toBeTruthy();
     expect(righeTabella()).toEqual([["Tappa t1", "—", "2", "19", "3", "0"]]);
     expect(screen.getByText(/sommate per nome sulle squadre di tappa: Alfa, Beta\./)).toBeTruthy();
+  });
+
+  it("le partite singole seguono l'ordine in cui le partite sono state inserite, anche con due squadre dello stesso nome", () => {
+    // Due «Mario Rossi» in squadre diverse che giocano a turno: l'andamento punti va partita per partita, non squadra per squadra
+    const t = tappaDiProva("t1", { Alfa: ["Mario Rossi"], Beta: ["Mario Rossi"], Gamma: ["Piero Neri"], Delta: ["Luca Bianchi"] }, [
+      { a: "Alfa", b: "Gamma", sb: 15, pa: { "Mario Rossi": { pt: 12 } } },
+      { a: "Beta", b: "Delta", sb: 18, pa: { "Mario Rossi": { pt: 7 } } },
+      { a: "Alfa", b: "Delta", sb: 10, pa: { "Mario Rossi": { pt: 9 } } },
+    ]);
+    apriProfilo(mario, [t]);
+    expect(screen.getByRole("img", { name: /Punti per partita/ }).getAttribute("aria-label")).toBe("Punti per partita: 12, 7, 9");
+    // L'elenco parte dalla più recente, e ogni voce ha la sua avversaria e il suo punteggio
+    expect(vociUltimePartite()).toEqual([
+      ["W", "vs Delta · Tappa t1", "21–10", "9 PT · 0 REB · 0 AST"],
+      ["W", "vs Delta · Tappa t1", "21–18", "7 PT · 0 REB · 0 AST"],
+      ["W", "vs Gamma · Tappa t1", "21–15", "12 PT · 0 REB · 0 AST"],
+    ]);
+  });
+
+  it("un tabellino scritto nella scheda dell'altra squadra conta e compare nell'elenco: riquadro ed elenco dicono le stesse partite", () => {
+    const base = tappaDiProva("t1", { Alfa: ["Mario Rossi"], Gamma: ["Piero Neri"] }, [{ a: "Alfa", b: "Gamma" }]);
+    // L'id di Mario, che sta nel roster di Alfa, è nella scheda di Gamma: un dato incoerente, possibile in un file di lega importato
+    const t: Tappa = { ...base, partite: [{ ...base.partite[0], pb: { "t1:Alfa:Mario Rossi": { pt: 12 } } }] };
+    apriProfilo(mario, [t]);
+    expect(riquadro("Gare")).toBe("1");
+    expect(screen.getByText(/^1 partit\w+ · max 12$/)).toBeTruthy();
+    expect(vociUltimePartite().map((voce) => voce[3])).toEqual(["12 PT · 0 REB · 0 AST"]);
+  });
+
+  it("punteggio e avversaria sono dal lato della squadra del giocatore, anche se gioca come squadra B", () => {
+    // Gamma (A) perde 15-21 contro Alfa (B), dove gioca Mario: per lui è una vittoria 21-15 contro Gamma
+    const t = tappaDiProva("t1", { Alfa: ["Mario Rossi"], Gamma: ["Piero Neri"] }, [
+      { a: "Gamma", b: "Alfa", sa: 15, sb: 21, pb: { "Mario Rossi": { pt: 12, rb: 3, as: 1 } } },
+    ]);
+    apriProfilo(mario, [t]);
+    expect(vociUltimePartite()).toEqual([["W", "vs Gamma · Tappa t1", "21–15", "12 PT · 3 REB · 1 AST"]]);
+    expect(sottoRiquadro("Gare")).toBe("1V · 0P");
   });
 
   it("elenca le squadre da cui vengono le statistiche", () => {
