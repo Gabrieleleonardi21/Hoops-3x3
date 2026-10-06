@@ -19,7 +19,10 @@ const variants: Record<Variant, string> = {
   primary: "bg-court text-asphalt-950 hover:bg-court-hover",
   outline: "border border-asphalt-500 text-chalk hover:bg-asphalt-800 hover:border-chalk",
   ghost: "text-chalk-muted hover:text-chalk hover:bg-asphalt-800",
-  link: "font-sans text-[13px] text-court hover:underline underline-offset-4 h-auto px-0",
+  // I collegamenti si sono sempre visti in maiuscolo, con tracking e interlinea stretti: li portava la classe .font-display (oltre al
+  // font), rimasta nella base accanto a font-sans. Con tailwind-merge font-sans sostituisce font-display, quindi lo stesso aspetto si
+  // scrive qui e la pagina non cambia. Per il testo normale basta togliere uppercase, tracking e leading
+  link: "font-sans text-[13px] text-court uppercase tracking-[-0.01em] leading-none hover:underline underline-offset-4 h-auto px-0",
 };
 
 export function Button({ variant = "primary", size = "md", className = "", type = "button", ...rest }: Props) {

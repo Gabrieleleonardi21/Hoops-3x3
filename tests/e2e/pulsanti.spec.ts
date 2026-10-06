@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { ospiteConLega } from "./helpers";
+import { salvaPrimaPartitaAperta, tappaConDuePartite } from "./helpers";
 
 // Come ospite: tutto resta nel browser. La pagina della tappa scarica l'anagrafe, la cui risposta la decide il test (il backend non c'è)
 test.beforeEach(async ({ page }) => {
@@ -10,22 +10,6 @@ test.beforeEach(async ({ page }) => {
 const CHALK_MUTED = "rgb(169, 163, 152)";
 const CHALK_DIM = "rgb(140, 135, 128)";
 
-/** Una tappa con 4 squadre in 2 gironi (una partita per girone): bastano due risultati per arrivare al tabellone */
-async function tappaConDuePartite(page: import("@playwright/test").Page) {
-  await ospiteConLega(page);
-  await page.getByLabel("Numero squadre").fill("4");
-  await page.getByLabel("Numero gironi").fill("2");
-  await page.getByRole("button", { name: /Crea la tappa/i }).click();
-  await page.getByRole("button", { name: /Sorteggio casuale/i }).click();
-}
-
-/** Scrive il risultato della prima partita ancora aperta e lo salva */
-async function salvaPrimaPartitaAperta(page: import("@playwright/test").Page) {
-  await page.locator("input.scorein").nth(0).fill("21");
-  await page.locator("input.scorein").nth(1).fill("15");
-  await page.getByRole("button", { name: /Salva risultato/i }).first().click();
-}
-
 test("i collegamenti attenuati restano attenuati nel CSS vero: Correggi, Reset tutto, Elimina bracket e ricomincia, Rimuovi squadra (FU-2)", async ({ page }) => {
   await tappaConDuePartite(page);
 
@@ -34,7 +18,14 @@ test("i collegamenti attenuati restano attenuati nel CSS vero: Correggi, Reset t
 
   // «Correggi» compare a partita salvata
   await salvaPrimaPartitaAperta(page);
-  await expect(page.getByRole("button", { name: "Correggi" })).toHaveCSS("color", CHALK_MUTED);
+  const correggi = page.getByRole("button", { name: "Correggi" });
+  await expect(correggi).toHaveCSS("color", CHALK_MUTED);
+  // Tutto il resto dei collegamenti resta com'era: maiuscolo, con la sua spaziatura e interlinea (prima venivano da un residuo di
+  // .font-display; con tailwind-merge font-sans lo sostituisce, e lo stesso aspetto lo scrive la variante)
+  await expect(correggi).toHaveCSS("text-transform", "uppercase");
+  await expect(correggi).toHaveCSS("letter-spacing", "-0.13px");
+  await expect(correggi).toHaveCSS("line-height", "13px");
+  await expect(correggi).toHaveCSS("font-size", "13px");
 
   // «Reset tutto» sta nel timer
   await page.getByRole("button", { name: "Timer", exact: true }).click();
