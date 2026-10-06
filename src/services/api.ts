@@ -10,6 +10,8 @@
  *  Il cookie viaggia solo se pagina e API hanno la stessa origine (proxy di Vite o reverse proxy):
  *  per origini diverse vedi «Sessioni e refresh token» nel README del backend. */
 
+import { SPAZIO_ESAURITO_ACCESSO } from "../utils/testi";
+
 const BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? "";
 const TOKEN_KEY = "hoop3x3_token";
 /** Secondi prima della scadenza entro cui il JWT viene rinnovato in anticipo */
@@ -45,7 +47,15 @@ export const token = {
   get: (): string | null => {
     try { return localStorage.getItem(TOKEN_KEY); } catch { return null; }
   },
-  set: (t: string) => { localStorage.setItem(TOKEN_KEY, t); },
+  /** Salva il JWT. Se il browser rifiuta la scrittura (spazio esaurito) lancia un ApiError 507 con il motivo, che il modulo d'accesso
+   *  mostra com'è: il JWT non si tiene solo in memoria, perché la sessione non sopravvivrebbe al ricaricamento né alle altre schede. */
+  set: (t: string) => {
+    try {
+      localStorage.setItem(TOKEN_KEY, t);
+    } catch {
+      throw new ApiError(507, SPAZIO_ESAURITO_ACCESSO);
+    }
+  },
   clear: () => { localStorage.removeItem(TOKEN_KEY); },
 };
 
