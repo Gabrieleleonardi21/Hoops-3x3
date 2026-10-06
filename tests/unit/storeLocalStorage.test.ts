@@ -149,6 +149,23 @@ describe("ospite: l'avviso «spazio esaurito» sparisce quando le scritture torn
     expect(store().syncError).toMatch(/spazio esaurito/i);
   });
 
+  it("eliminare un'altra lega (entra solo l'indice) non toglie l'avviso: la lega aperta ha ancora modifiche solo in memoria", async () => {
+    localStorage.setItem("hoop3x3_lega_l2", JSON.stringify({ nome: "Inverno", tappe: [] }));
+    useAppStore.setState({ leghe: [...store().leghe, { id: "l2", nome: "Inverno", ts: 1, nTappe: 0 }] });
+    const pieno = browserPieno();
+    store().updateTappa("t1", { nome: "Finale" }); // non si salva
+    expect(store().syncError).toMatch(/spazio esaurito/i);
+    pieno.mockRestore(); // l'utente segue il consiglio e libera spazio eliminando l'altra lega
+    await store().deleteLega("l2");
+    expect(localStorage.getItem("hoop3x3_lega_l2")).toBeNull();
+    expect(JSON.parse(localStorage.getItem("hoop3x3_leghe_index")!).map((m: { id: string }) => m.id)).toEqual(["l1"]); // l'indice è entrato
+    expect(store().syncError).toMatch(/spazio esaurito/i); // ma la lega aperta non è stata salvata: l'avviso dice ancora il vero
+    // Il primo salvataggio che scrive la lega aperta riesce: ora le modifiche sono davvero nel browser e l'avviso sparisce
+    store().updateTappa("t1", { nome: "Finale 2" });
+    expect(store().syncError).toBeNull();
+    expect(JSON.parse(localStorage.getItem("hoop3x3_lega_l1")!).tappe[0].nome).toBe("Finale 2");
+  });
+
   it("un altro avviso non si toglie: sparisce solo quello dello spazio", () => {
     useAppStore.setState({ syncError: "La lega «Estate» ha una tappa non valida." });
     store().updateTappa("t1", { nome: "Finale" });

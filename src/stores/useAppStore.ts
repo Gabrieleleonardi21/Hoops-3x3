@@ -177,14 +177,22 @@ export const useAppStore = create<AppState>((set, get) => {
   };
   /** Scrive i dati dell'ospite nel browser, una coppia (chiave, valore) per scrittura. Se il browser ne rifiuta una (spazio esaurito)
    *  l'azione riesce lo stesso, in memoria, e la barra degli avvisi dice che non è salvata: l'app non va in errore. Si tentano tutte,
-   *  anche dopo un rifiuto (una scrittura piccola può riuscire dove una grande no), e l'avviso sparisce solo se riescono tutte. */
-  const scriviOspite = (...coppie: [string, string][]) => {
+   *  anche dopo un rifiuto (una scrittura piccola può riuscire dove una grande no). Non toglie mai l'avviso: lo fa solo
+   *  salvaLegaAperta, perché una scrittura che riesce non prova che la lega aperta sia salvata.
+   *  @returns true se sono riuscite tutte */
+  const scriviOspite = (...coppie: [string, string][]): boolean => {
     const riuscite = coppie.map(([chiave, valore]) => scrivi(chiave, valore));
     if (riuscite.includes(false)) {
       set({ syncError: SPAZIO_ESAURITO });
-      return;
+      return false;
     }
-    spazioTornato();
+    return true;
+  };
+  /** Scrive la lega aperta e l'indice. Solo se riesce tutto le modifiche sono davvero nel browser, e l'avviso dello spazio non dice
+   *  più il vero: l'indice da solo (eliminando un'altra lega) o la lega aperta ricordata non bastano, perché le modifiche della lega
+   *  aperta potrebbero essere ancora solo in memoria. */
+  const salvaLegaAperta = (...coppie: [string, string][]) => {
+    if (scriviOspite(...coppie)) spazioTornato();
   };
   const writeIndex = (leghe: LegaMeta[]) => scriviOspite([INDEX_KEY, JSON.stringify(leghe)]);
   /** Scrive i dati e l'indice di una lega nuova dell'ospite (creata o importata): tutto o niente. Senza spazio non si crea niente,
@@ -223,7 +231,7 @@ export const useAppStore = create<AppState>((set, get) => {
     const leghe = s.leghe.map((m) =>
       m.id === s.legaId ? { ...m, nTappe: s.tappe.length, ts: Date.now() } : m
     );
-    scriviOspite([legaStorageKey(s.legaId), JSON.stringify({ nome: s.legaName, tappe: s.tappe })], [INDEX_KEY, JSON.stringify(leghe)]);
+    salvaLegaAperta([legaStorageKey(s.legaId), JSON.stringify({ nome: s.legaName, tappe: s.tappe })], [INDEX_KEY, JSON.stringify(leghe)]);
     set({ leghe });
   };
 
@@ -427,7 +435,7 @@ export const useAppStore = create<AppState>((set, get) => {
         renameTimer = window.setTimeout(() => { void rinomina(); }, SAVE_DELAY);
         return;
       }
-      scriviOspite([legaStorageKey(s.legaId), JSON.stringify({ nome: legaName, tappe: s.tappe })], [INDEX_KEY, JSON.stringify(leghe)]);
+      salvaLegaAperta([legaStorageKey(s.legaId), JSON.stringify({ nome: legaName, tappe: s.tappe })], [INDEX_KEY, JSON.stringify(leghe)]);
     },
 
     // Usato per viste pubbliche/archivio: non cambia legaId né persiste
