@@ -3,8 +3,8 @@
 # Passi completi e controlli dopo il primo deploy: sezione «Deploy su Render» del README.
 #
 # Gli URL pubblici dipendono dai nomi dei servizi (https://<nome>.onrender.com). Se Render aggiunge un suffisso
-# perché il nome è già preso, vanno aggiornati i due punti segnati con «URL»: la rewrite di /api/* qui sotto e
-# CORS_ORIGINS del backend.
+# perché il nome è già preso, vanno aggiornati i punti segnati con «URL»: le rewrite di /api/* e /actuator/health qui sotto
+# e CORS_ORIGINS del backend.
 
 services:
   # ── Frontend: build di Vite servita dalla CDN di Render ──────────────────────
@@ -24,6 +24,11 @@ services:
       - type: rewrite
         source: /api/*
         destination: https://hoop3x3-api.onrender.com/api/*
+      # URL del backend. Il controllo di salute passa dalla stessa strada: l'app lo chiama all'avvio per svegliare il
+      # backend se il piano free lo ha messo in pausa (svegliaServer in src/services/api.ts)
+      - type: rewrite
+        source: /actuator/health
+        destination: https://hoop3x3-api.onrender.com/actuator/health
       # Single page app: ogni altro percorso (/tappa/..., /anagrafe, ...) lo gestisce React Router.
       # Render applica le regole solo se nel build non c'è un file con quel percorso (logo, asset, ...)
       - type: rewrite
