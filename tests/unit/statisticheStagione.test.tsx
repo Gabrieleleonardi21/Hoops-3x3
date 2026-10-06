@@ -157,6 +157,12 @@ describe("Profilo del giocatore: le statistiche di stagione", () => {
     expect(sottoRiquadro("Gare")).toBe("1V · 0P");
   });
 
+  it("l'apostrofo del telefono non cambia il nome: «Gianni D'Angelo» dell'anagrafe è «Gianni D’Angelo» nel roster", () => {
+    apriProfilo(registrazione("g1", "Gianni", "D'Angelo"), [unaGara("t1", "Alfa", "Gianni D\u2019Angelo", { pt: 12 })]);
+    expect(riquadro("Punti")).toBe("12");
+    expect(screen.queryByText(/Nessuna statistica nella lega attiva/)).toBeNull();
+  });
+
   it("una partita non giocata non entra nel profilo, nemmeno con un tabellino provvisorio", () => {
     const t = tappaDiProva("t1", { Alfa: ["Mario Rossi"], Avversari: ["Altro"] }, [
       { a: "Alfa", b: "Avversari", pa: { "Mario Rossi": { pt: 12 } } },
@@ -195,7 +201,7 @@ describe("Statistiche stagione: la nota sopra la tabella", () => {
     render(<MemoryRouter><AnagrafePage /></MemoryRouter>);
     fireEvent.click(screen.getByRole("tab", { name: "Statistiche stagione" }));
     const nota = screen.getByText(/Totali e medie per partita/).textContent;
-    expect(nota).toContain("nome e squadra coincidono (maiuscole, spazi in più e accenti non contano)");
+    expect(nota).toContain("nome e squadra coincidono (maiuscole, spazi in più, accenti e tipo di apostrofo non contano)");
     expect(nota).toContain("chi cambia squadra compare su due righe");
   });
 });

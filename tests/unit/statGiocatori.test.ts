@@ -51,6 +51,8 @@ describe("normalizza", () => {
     ["ignora maiuscole e accenti", "NICOLÒ ROSSI", "nicolo rossi"],
     ["ignora anche l'accento scritto come segno a parte, dopo la lettera", "Nicolo\u0300 Rossi", "nicolo rossi"],
     ["tratta tabulazioni e a capo come spazi", "Mario\tRossi\n", "mario rossi"],
+    ["rende l'apostrofo tipografico di chiusura (’) quello semplice", "D\u2019Angelo", "d'angelo"],
+    ["rende l'apostrofo tipografico di apertura (‘) quello semplice", "D\u2018Angelo", "d'angelo"],
     ["un testo di soli spazi diventa vuoto", "   ", ""],
   ])("%s", (_descrizione, testo, atteso) => {
     expect(normalizza(testo)).toBe(atteso);
@@ -72,6 +74,12 @@ describe("statGiocatori: la normalizzazione di nome e squadra", () => {
     ]);
     expect(righe).toHaveLength(1);
     expect(righe[0]).toMatchObject({ g: 2, pt: 22 });
+  });
+
+  it("gli apostrofi tipografici della tastiera del telefono sono quello semplice: «D’Angelo» e «D'Angelo» sono lo stesso giocatore", () => {
+    const grafie = ["D'Angelo", "D\u2019Angelo", "d\u2018ANGELO"];
+    const righe = statGiocatori(grafie.map((nome, i) => unaGara(`t${i}`, "Alfa", nome, { pt: 10 })));
+    expect(righe.map(colonne)).toEqual([{ nome: "d\u2018ANGELO", squadra: "Alfa", g: 3, pt: 30 }]);
   });
 
   it("gli spazi in più si riducono a uno ma non si tolgono: «De Rossi» e «DeRossi» sono due giocatori", () => {

@@ -251,11 +251,11 @@ Scheda SQUADRA
 Statistiche stagione (tab dedicato)
   - Tabella aggregata di tutti i giocatori su tutte le tappe della lega.
   - Lo stesso giocatore in più tappe è una sola riga con i totali: si
-    riconosce dal nome e dalla squadra (maiuscole, spazi in più e accenti
-    non contano: «De Rossi» e «DeRossi» sono diversi). Due giocatori con lo
-    stesso nome in squadre diverse sono due righe. Limite: chi cambia
-    squadra compare su due righe, perché i giocatori di tappa non sono
-    collegati all'anagrafe.
+    riconosce dal nome e dalla squadra (maiuscole, spazi in più, accenti e
+    tipo di apostrofo non contano: «De Rossi» e «DeRossi» sono diversi).
+    Due giocatori con lo stesso nome in squadre diverse sono due righe.
+    Limite: chi cambia squadra compare su due righe, perché i giocatori di
+    tappa non sono collegati all'anagrafe.
   - Colonne: posizione, giocatore, squadra, partite giocate, punti totali,
     media punti/partita, rimbalzi totali, media rimbalzi, assist, recuperi,
     stoppate.

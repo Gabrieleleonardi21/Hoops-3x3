@@ -6,12 +6,14 @@ import type { StatLine, Tappa } from "../types";
 import { STAT_KEYS } from "../constants/rules";
 
 /** Nome o squadra confrontabili: spazi ai lati tolti, spazi interni ridotti a uno (ma non tolti: «De Rossi» e «DeRossi»
- *  restano diversi), maiuscole e accenti ignorati («Nicolò  Rossi» e «nicolo rossi» sono lo stesso giocatore) */
+ *  restano diversi), maiuscole e accenti ignorati («Nicolò  Rossi» e «nicolo rossi» sono lo stesso giocatore), apostrofi
+ *  tipografici resi come quello semplice («D’Angelo» e «D'Angelo» sono lo stesso giocatore) */
 export function normalizza(testo: string): string {
   return testo
     .toLowerCase()
     .normalize("NFD") // separa la lettera dal suo accento («ò» diventa «o» più il segno)
     .replace(/[\u0300-\u036f]/g, "") // toglie i segni degli accenti
+    .replace(/[\u2018\u2019]/g, "'") // ’ e ‘, che la tastiera del telefono scrive da sola, diventano l'apostrofo semplice
     .replace(/\s+/g, " ") // spazi, tabulazioni e a capo diventano un solo spazio
     .trim();
 }

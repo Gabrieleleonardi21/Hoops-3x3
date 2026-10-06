@@ -1,7 +1,7 @@
 /** Profilo giocatore (route /giocatore/:id): anagrafica dalla RegGiocatore + statistiche
  *  aggregate sulle tappe della lega attiva. Il roster di tappa non ha un legame con l'anagrafe,
  *  quindi l'abbinamento avviene per nome ("Nome Cognome" o "Cognome Nome"; maiuscole, spazi in
- *  più e accenti non contano, come nella tabella «Statistiche stagione»). I totali sono la somma delle
+ *  più, accenti e tipo di apostrofo non contano, come nella tabella «Statistiche stagione»). I totali sono la somma delle
  *  righe di quella tabella con lo stesso nome, in una o più squadre: la funzione è la stessa
  *  (utils/statGiocatori), quindi i numeri coincidono. */
 import { useMemo } from "react";
