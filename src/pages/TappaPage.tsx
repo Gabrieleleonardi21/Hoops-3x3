@@ -6,8 +6,10 @@ import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { useTappa } from "../hooks/useTappa";
 import { useAnagrafe } from "../hooks/useAnagrafe";
 import { useConfermaPerdita } from "../hooks/useConfermaPerdita";
+import { useInvio } from "../hooks/useInvio";
 import { eSegnaposto } from "../domain/tappaOps";
 import { testoErrore } from "../services/api";
+import { COPIA_LINK_NON_RIUSCITA } from "../utils/testi";
 import { TappaEditPanel } from "../components/tappa/TappaEditPanel";
 import { TappaRules } from "../components/tappa/TappaRules";
 import { TappaConclusion } from "../components/tappa/TappaConclusion";
@@ -34,6 +36,8 @@ export function TappaPage() {
   const [timerOpen,   setTimerOpen]   = useState(false);
   const [shareOpen,   setShareOpen]   = useState(false);
   const [copied,      setCopied]      = useState(false);
+  // Perché il link non si è copiato (appunti non disponibili o permesso negato): compare sotto il link
+  const { errore: erroreCopia, setErrore: setErroreCopia } = useInvio();
   // Squadre che non si sono potute collegare all'anagrafe: id della squadra → perché (null = nessun problema). Il motivo compare
   // nella card, sotto il nome: la squadra resta com'è e si usa lo stesso nella tappa
   const [erroriAnagrafe, setErroriAnagrafe] = useState<Record<string, string | null>>({});
@@ -96,12 +100,20 @@ export function TappaPage() {
 
   /* URL pubblico della tappa (navigabile anche senza login) */
   const publicUrl = `${window.location.origin}/tappa/${t.id}`;
-  const copyLink  = () => {
-    navigator.clipboard.writeText(publicUrl).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
+  const copyLink  = async () => {
+    setErroreCopia(null);
+    try {
+      // Su http fuori da localhost navigator.clipboard non esiste: l'accesso stesso lancia, come un permesso negato
+      await navigator.clipboard.writeText(publicUrl);
+    } catch {
+      setErroreCopia(COPIA_LINK_NON_RIUSCITA);
+      return;
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
+  let etichettaCopia = "Copia link";
+  if (copied) etichettaCopia = "Copiato!";
 
   /* tappa conclusa: vista pubblica + aggiunta video + riapertura */
   if (t.conclusa) {
@@ -122,8 +134,9 @@ export function TappaPage() {
             <div className="kicker mb-1.5">Link pubblico — chiunque può consultare questa tappa</div>
             <div className="flex flex-wrap items-center gap-2">
               <code className="flex-1 min-w-[200px] break-all rounded-sm border border-asphalt-700 bg-asphalt-950 px-2.5 py-1.5 text-[13px] text-chalk">{publicUrl}</code>
-              <Button size="sm" onClick={copyLink}>{copied ? "Copiato!" : "Copia link"}</Button>
+              <Button size="sm" onClick={() => { void copyLink(); }}>{etichettaCopia}</Button>
             </div>
+            {erroreCopia && <p className="m-0 mt-1.5 text-xs font-semibold text-loss" role="alert">{erroreCopia}</p>}
           </Card>
         )}
 

@@ -12,6 +12,11 @@ export const SPAZIO_ESAURITO =
 export const SPAZIO_ESAURITO_LEGA =
   "Spazio esaurito nel browser: la lega non si può salvare. Elimina le leghe che non usi per liberare spazio.";
 
+/** La copia del link pubblico negli appunti non è riuscita: gli appunti esistono solo in un contesto sicuro (https o localhost, non
+ *  su http in rete locale) e il browser può anche negare il permesso. Il link resta sullo schermo: si copia a mano. */
+export const COPIA_LINK_NON_RIUSCITA =
+  "Non è stato possibile copiare il link: gli appunti non sono disponibili in questo browser. Selezionalo e copialo a mano.";
+
 /** Il numero con il nome al singolare o al plurale: «1 risultato», «12 risultati» */
 export function conteggio(n: number, singolare: string, plurale: string): string {
   if (n === 1) return `1 ${singolare}`;

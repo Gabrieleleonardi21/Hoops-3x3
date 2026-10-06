@@ -426,6 +426,58 @@ describe("TappaPage: «Rimuovi squadra» chiede conferma quando si perde qualcos
   });
 });
 
+describe("TappaPage: copiare il link pubblico di una tappa conclusa (FS-9)", () => {
+  const apriCondivisione = () => {
+    useAppStore.setState({ tappe: [{ ...conUnRisultato(), conclusa: true }] });
+    apriPagina({});
+    fireEvent.click(screen.getByRole("button", { name: /Condividi/ }));
+  };
+  const copia = () => fireEvent.click(screen.getByRole("button", { name: "Copia link" }));
+  /** Gli appunti del browser, finti: jsdom non li ha, e in un contesto non sicuro (http) mancano davvero */
+  const conAppunti = (writeText: (testo: string) => Promise<void>) =>
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+  afterEach(() => { Reflect.deleteProperty(navigator, "clipboard"); });
+
+  it("con gli appunti disponibili copia il link e lo dice", async () => {
+    const writeText = vi.fn(async () => {});
+    conAppunti(writeText);
+    apriCondivisione();
+    copia();
+    await screen.findByRole("button", { name: "Copiato!" });
+    expect(writeText).toHaveBeenCalledExactlyOnceWith(`${window.location.origin}/tappa/t1`);
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("senza gli appunti (pagina su http in rete locale) compare un messaggio con la via d'uscita, senza errori", async () => {
+    apriCondivisione(); // navigator.clipboard non esiste
+    copia();
+    const messaggio = await screen.findByRole("alert");
+    expect(messaggio.textContent).toMatch(/copia/i);
+    expect(messaggio.textContent).toMatch(/a mano/);
+    expect(screen.queryByRole("button", { name: "Copiato!" })).toBeNull();
+    // Il link resta visibile e selezionabile
+    expect(screen.getByText(`${window.location.origin}/tappa/t1`)).toBeTruthy();
+  });
+
+  it("se il browser rifiuta la copia (permesso negato) il messaggio compare e nessuna promessa resta senza gestore", async () => {
+    conAppunti(vi.fn(async () => { throw new DOMException("negato", "NotAllowedError"); }));
+    apriCondivisione();
+    copia();
+    expect((await screen.findByRole("alert")).textContent).toMatch(/a mano/);
+    expect(screen.queryByRole("button", { name: "Copiato!" })).toBeNull();
+  });
+
+  it("una copia riuscita dopo un rifiuto toglie il messaggio", async () => {
+    conAppunti(vi.fn().mockRejectedValueOnce(new DOMException("negato", "NotAllowedError")).mockResolvedValueOnce(undefined));
+    apriCondivisione();
+    copia();
+    await screen.findByRole("alert");
+    copia();
+    await screen.findByRole("button", { name: "Copiato!" });
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+});
+
 describe("TappaPage: «Riapri» chiede conferma quando toglie la tappa dall'archivio", () => {
   const conclusa = (): Tappa => ({ ...conUnRisultato(), conclusa: true });
   const riapri = () => screen.getByRole("button", { name: "Riapri" });
