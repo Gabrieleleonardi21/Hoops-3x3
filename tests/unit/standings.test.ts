@@ -50,6 +50,42 @@ describe("standings (classifica girone)", () => {
     expect(rows.map((r) => r.id)).toEqual(["c", "b", "a"]);
   });
 
+  it("i punti fatti sono quelli di tutto il girone, non dei soli scontri diretti", () => {
+    // a, b e c hanno 2 vittorie e si battono a cerchio: nelle sole partite tra loro hanno 41 punti fatti a testa, e
+    // decidendo solo quelli sarebbe parità completa, cioè l'ordine del girone (c, b, a). Contando anche le partite
+    // contro d i punti fatti di tutto il girone sono 62, 56 e 51
+    const partite = [
+      match("a", "b", 21, 20), match("b", "c", 21, 20), match("c", "a", 21, 20),
+      match("a", "d", 21, 0), match("b", "d", 15, 0), match("c", "d", 10, 0),
+    ];
+    const rows = standings(["c", "b", "a", "d"], partite, nameOf);
+    expect(rows.map((r) => r.v)).toEqual([2, 2, 2, 0]);
+    expect(rows.map((r) => r.pf)).toEqual([62, 56, 51, 0]);
+    expect(rows.map((r) => r.id)).toEqual(["a", "b", "c", "d"]);
+  });
+
+  it("anche la differenza punti è quella di tutto il girone, non dei soli scontri diretti", () => {
+    // a, b e c si battono a cerchio con lo stesso punteggio: nelle partite tra loro hanno 40 punti fatti e differenza 0
+    // a testa. Contro d fanno 61 punti fatti a testa ma ne subiscono 0, 10 e 5: la differenza di tutto il girone è
+    // +21, +11 e +16, quindi l'ordine è a, c, b (con i soli scontri diretti sarebbe quello del girone: b, c, a)
+    const partite = [
+      match("a", "b", 21, 19), match("b", "c", 21, 19), match("c", "a", 21, 19),
+      match("a", "d", 21, 0), match("b", "d", 21, 10), match("c", "d", 21, 5),
+    ];
+    const rows = standings(["b", "c", "a", "d"], partite, nameOf);
+    expect(rows.map((r) => r.pf)).toEqual([61, 61, 61, 15]);
+    expect(rows.map((r) => r.id)).toEqual(["a", "c", "b", "d"]);
+  });
+
+  it("dopo i punti fatti non si torna agli scontri diretti: tra due squadre ancora pari decide la differenza punti", () => {
+    // a batte b, b batte c, c batte a: 1 vittoria a testa. a e b hanno 40 punti fatti a testa; b ha differenza +9
+    // contro 0 e sta davanti anche se a ha vinto la loro partita. Poi c, con 31 punti fatti
+    const partite = [match("a", "b", 21, 19), match("b", "c", 21, 10), match("c", "a", 21, 19)];
+    const rows = standings(["a", "b", "c"], partite, nameOf);
+    expect(rows.map((r) => r.pf)).toEqual([40, 40, 31]);
+    expect(rows.map((r) => r.id)).toEqual(["b", "a", "c"]);
+  });
+
   it("se la mini-classifica separa solo in parte, si ricalcola solo tra le squadre ancora pari", () => {
     // Girone a metà (in uno completo da 4 la mini-classifica non può separare solo in parte): a>b, b>c, c>d, quindi
     // a, b e c hanno 1 vittoria. Tra loro a 1, b 1, c 0: c scende dietro; a e b restano pari e si ricalcola solo tra

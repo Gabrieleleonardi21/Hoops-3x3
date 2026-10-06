@@ -36,7 +36,8 @@ function fasce(righe: StandingRow[], chiave: (r: StandingRow) => number): Standi
 /** Ordina le squadre a pari vittorie con gli scontri diretti: una mini-classifica che conta solo le vittorie
  *  nelle partite giocate tra loro. Se separa solo in parte, la si ricalcola solo tra le squadre rimaste a pari,
  *  finché il gruppo si riduce. Se non separa nessuno (es. tre squadre in cerchio) decidono i punti fatti, poi la
- *  differenza punti e, a parità completa, l'ordine d'ingresso */
+ *  differenza punti e, a parità completa, l'ordine d'ingresso: sono i punti di tutto il girone, non dei soli
+ *  scontri diretti, e dopo i punti non si torna agli scontri diretti */
 function risolviParita(gruppo: StandingRow[], giocate: Partita[]): StandingRow[] {
   if (gruppo.length < 2) return gruppo;
   const ids = new Set(gruppo.map((r) => r.id));
