@@ -68,7 +68,7 @@ body 15/14, table 13, label 11. Line-height 1.5 corpo, 1.0 display.
 
 | Componente | File | Uso |
 |---|---|---|
-| `Button` | `ui/Button.tsx` | primary / outline / ghost / link, `size="sm"` |
+| `Button` | `ui/Button.tsx` | primary / outline / ghost / link, `size="sm"`; le classi di `className` vincono su quelle della variante (tailwind-merge) |
 | `Input` | `ui/Input.tsx` | etichetta, `hint`, `error` |
 | `Card`, `Section`, `Kicker`, `Badge`, `StatTile`, `Modal`, `Icon` | `ui/` | primitive di layout, etichette, modali, icone SVG |
 | `StandingsTable` | `leaderboard/StandingsTable.tsx` | `<table>` semantica, ordinamento per colonna con `aria-sort`, rail arancio sulla riga evidenziata, loghi |
@@ -78,7 +78,7 @@ body 15/14, table 13, label 11. Line-height 1.5 corpo, 1.0 display.
 | `Hero` | `layout/Hero.tsx` | banda hero con foto e overlay |
 
 Classi condivise in `index.css` (`@layer components`): `.statin`, `.scorein`, `.cellin`, `.standtable`,
-`.statstable`, `.kicker`, `.tapparow`, `.modal-*`, `.chat*`. Tutto il resto usa le utility Tailwind.
+`.statstable`, `.kicker`, `.tapparow`, `.modal-*`, `.chat*`; utility `area-tocco` (sotto). Tutto il resto usa le utility Tailwind.
 
 Da 21st.dev preso solo il *pattern* "Market Watchlist" (toggle di ordinamento, rail accent, sparkline SVG):
 il componente originale è un grid di `<button>` su token shadcn, non riutilizzabile così com'è.
@@ -86,5 +86,5 @@ il componente originale è un grid di `<button>` su token shadcn, non riutilizza
 ## Accessibilità
 
 Testo ≥ 4.5:1 sulla sua superficie · focus ring 2px `court` offset 2px · touch target ≥ 44px
-su mobile · `prefers-reduced-motion` rispettato (già presente) · icone SVG, mai emoji ·
+su mobile (utility `area-tocco`: `Button` e pulsanti con la sola icona, sotto i 640 px) · `prefers-reduced-motion` rispettato (già presente) · icone SVG, mai emoji ·
 tabelle con `<th scope>` e caption · pulsanti solo-icona con `aria-label`.

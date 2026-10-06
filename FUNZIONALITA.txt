@@ -145,6 +145,9 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
   non dal numero di scatti del timer: con la scheda in secondo piano o il
   telefono bloccato il cronometro non rallenta.
 - Punteggio live per entrambe le squadre con tasti +1, +2 e correzione −.
+  Da tastiera il focus entra su START; per i lettori di schermo i tasti dei
+  punti dicono la squadra («+1 a Squadra A») e a partita decisa l'esito
+  («Squadra A — Partita conclusa») viene annunciato da solo.
 - Rilevamento automatico della fine della partita (i cronometri si fermano):
     • Una squadra raggiunge il punteggio di vittoria → vince subito.
     • Tempo scaduto → vince chi è avanti.
@@ -269,7 +272,10 @@ Statistiche stagione (tab dedicato)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Il Coach AI è un assistente conversazionale (LLM Llama 3.3 70B via Groq)
-integrato in un pannello flottante accessibile da qualsiasi pagina.
+integrato in un pannello flottante accessibile da qualsiasi pagina. Il
+pannello non blocca la pagina: si chiude con Esc, ma solo se non c'è una
+finestra aperta sopra di lui (prima si chiude quella); i messaggi sono una
+regione che il lettore di schermo annuncia da sola.
 Risponde in italiano, conosce le regole FIBA 3x3 e ha visibilità in tempo
 reale sui dati della lega (tappe, squadre, risultati, classifica circuito).
 
@@ -352,6 +358,15 @@ utenti registrati.
   rimuovi squadra con un nome scritto, dei giocatori o dei risultati nella
   tappa (una squadra appena aggiunta si toglie subito); riapri una tappa
   pubblicata. «Annulla», Esc e la X non cambiano niente.
+- Finestre e tastiera: le finestre (schede, conferme, timer) stanno in una
+  pila. Il focus entra nella finestra all'apertura e torna, alla chiusura, a
+  ciò che l'aveva aperta; Tab e Maiusc+Tab restano dentro la finestra in
+  primo piano; Esc chiude solo quella (la conferma sopra una scheda, poi la
+  scheda). Il Coach AI si chiude con Esc solo se nessuna finestra gli sta sopra.
+- Pulsanti: le classi passate a un pulsante vincono sempre su quelle della
+  sua variante (tailwind-merge). Su telefono (sotto i 640 px) i pulsanti con
+  la sola icona e quelli piccoli hanno un'area di tocco di almeno 44×44 px,
+  senza cambiare la grandezza dell'icona; su desktop l'aspetto è lo stesso.
 - Operazioni di tappa (sorteggio, risultati, fasi dirette, conclusione) come
   funzioni pure in src/domain/tappaOps.ts: le stesse per l'interfaccia e per
   il Coach AI, coperte da test unitari.
