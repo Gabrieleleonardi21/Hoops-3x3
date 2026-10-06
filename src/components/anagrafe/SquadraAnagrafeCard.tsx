@@ -42,7 +42,7 @@ export function SquadraAnagrafeCard({ s, giocatori, user, onRemove, onOpen, disa
       {s.note && <p className="mt-1.5 text-[13px] text-chalk-muted">{s.note}</p>}
       <div className="mt-1.5 flex items-center justify-between">
         <span className="text-[10.5px] text-chalk-dim">Registrata da {s.autore}</span>
-        <button onClick={onOpen} className="inline-flex items-center gap-1 text-xs font-semibold text-court hover:underline">Scheda <Icon name="chevron" size={12} /></button>
+        <button onClick={onOpen} className="area-tocco inline-flex items-center gap-1 text-xs font-semibold text-court hover:underline">Scheda <Icon name="chevron" size={12} /></button>
       </div>
       {finestra}
     </article>

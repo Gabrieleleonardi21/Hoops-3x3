@@ -51,7 +51,7 @@ export function GiocatoreCard({ g, user, squadre, onRemove, onOpen, disabled = f
       {g.note && <p className="mt-1.5 text-[13px] text-chalk-muted">{g.note}</p>}
       <div className="mt-auto flex items-center justify-between pt-2">
         <span className="text-[10.5px] text-chalk-dim">Registrato da {g.autore}</span>
-        <Link to={`/giocatore/${g.id}`} className="inline-flex items-center gap-1 text-xs font-semibold text-court hover:underline">
+        <Link to={`/giocatore/${g.id}`} className="area-tocco inline-flex items-center gap-1 text-xs font-semibold text-court hover:underline">
           Profilo <Icon name="chevron" size={12} />
         </Link>
       </div>

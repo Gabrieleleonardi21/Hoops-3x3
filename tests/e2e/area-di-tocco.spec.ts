@@ -1,12 +1,15 @@
 import { test, expect, type Locator } from "@playwright/test";
-import { giocatoreDiAnna, ospiteConLega, salvaPrimaPartitaAperta, tappaConDuePartite, utenteRegistrato } from "./helpers";
+import { giocatoreDiAnna, ospiteConLega, salvaPrimaPartitaAperta, squadraDiAnna, tappaConDuePartite, utenteRegistrato } from "./helpers";
 
 // docs/design-system.md: «touch target ≥ 44px su mobile». I pulsanti con la sola icona e quelli piccoli arrivano a 44×44 px di area di
-// tocco su telefono (sotto i 640 px, dove l'app passa alla disposizione per mobile); l'icona e il testo restano della grandezza di prima.
-// Nessuna chiamata al backend vero: le risposte le decide il test.
+// tocco su telefono (sotto i 640 px, dove l'app passa alla disposizione per mobile) e con un puntatore grossolano, cioè il dito (i
+// telefoni in orizzontale, i tablet); l'icona e il testo restano della grandezza di prima. Con il mouse e sopra i 640 px non cambia
+// niente. Nessuna chiamata al backend vero: le risposte le decide il test.
 
 const TELEFONO = { width: 390, height: 844 };
 const MINIMO = 44;
+/** Un giocatore e una squadra scritti da Anna, l'utente registrato dei test: le loro card hanno la X, «Profilo ›» e «Scheda ›» */
+const ANAGRAFE = { giocatori: [giocatoreDiAnna("g1", "Mario", "Rossi")], squadre: [squadraDiAnna("s1", "Ballers")] };
 
 test.beforeEach(async ({ page }) => {
   await page.route("**/api/anagrafe/**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: "[]" }));
@@ -64,10 +67,15 @@ test.describe("a 390 px di larghezza", () => {
     await almeno44(timer.getByRole("button", { name: /^Reset \d+s$/ }), "«Reset 12s» (collegamento)");
   });
 
-  test("anagrafe e Coach: X delle card, scheda, pannello del Coach", async ({ page }) => {
-    await utenteRegistrato(page, { giocatori: [giocatoreDiAnna("g1", "Mario", "Rossi")] });
+  test("anagrafe e Coach: X delle card, «Profilo», «Scheda», «Esci», scheda, pannello del Coach", async ({ page }) => {
+    await utenteRegistrato(page, ANAGRAFE);
     await page.goto("/anagrafe");
     await almeno44(page.getByRole("button", { name: "Elimina Mario Rossi" }), "X della card (icona 14 px)");
+    await almeno44(page.getByRole("link", { name: "Profilo" }), "«Profilo ›» (collegamento, testo da 12 px)");
+    await almeno44(page.getByRole("button", { name: "Esci", exact: true }), "«Esci» della navigazione (testo da 12 px)");
+    await page.getByRole("tab", { name: /Squadre/ }).click();
+    await almeno44(page.getByRole("button", { name: "Scheda", exact: true }), "«Scheda ›» (testo da 12 px)");
+    await page.getByRole("tab", { name: /Giocatori/ }).click();
 
     await page.getByRole("button", { name: "Mario Rossi", exact: true }).click();
     const scheda = page.getByRole("dialog", { name: "Scheda giocatore Mario Rossi" });
@@ -87,11 +95,38 @@ test.describe("a 390 px di larghezza", () => {
 test.describe("su desktop (1280 px)", () => {
   test.use({ viewport: { width: 1280, height: 800 } });
 
-  test("l'aspetto non cambia: la X di una card resta piccola, come l'icona", async ({ page }) => {
-    await utenteRegistrato(page, { giocatori: [giocatoreDiAnna("g1", "Mario", "Rossi")] });
+  test("con il mouse l'aspetto non cambia: la X di una card, «Profilo» ed «Esci» restano piccoli, come prima", async ({ page }) => {
+    await utenteRegistrato(page, ANAGRAFE);
     await page.goto("/anagrafe");
-    const { larghezza, altezza } = await misure(page.getByRole("button", { name: "Elimina Mario Rossi" }));
-    expect(larghezza).toBeLessThan(MINIMO);
-    expect(altezza).toBeLessThan(MINIMO);
+    expect(await page.evaluate(() => matchMedia("(pointer: fine)").matches)).toBe(true);
+    for (const pulsante of [
+      page.getByRole("button", { name: "Elimina Mario Rossi" }),
+      page.getByRole("link", { name: "Profilo" }),
+      page.getByRole("button", { name: "Esci", exact: true }),
+    ]) {
+      const { altezza } = await misure(pulsante);
+      expect(altezza).toBeLessThan(MINIMO);
+    }
+  });
+});
+
+test.describe("telefono in orizzontale (844×390, con il dito)", () => {
+  // Più largo dei 640 px, quindi disposizione da desktop; ma il puntatore è il dito, e l'area di tocco vale lo stesso
+  test.use({ viewport: { width: 844, height: 390 }, hasTouch: true });
+
+  test("X delle card, «Profilo», «Scheda», «Esci» dell'intestazione e pulsanti piccoli arrivano a 44 px", async ({ page }) => {
+    await utenteRegistrato(page, ANAGRAFE);
+    await page.goto("/anagrafe");
+    expect(await page.evaluate(() => matchMedia("(pointer: coarse)").matches)).toBe(true);
+    await almeno44(page.getByRole("button", { name: "Elimina Mario Rossi" }), "X della card (icona 14 px)");
+    await almeno44(page.getByRole("link", { name: "Profilo" }), "«Profilo ›»");
+    // Sopra i 640 px «Esci» sta nell'intestazione; quello della navigazione resta nascosto (uno solo visibile)
+    await expect(page.getByRole("button", { name: "Esci", exact: true })).toHaveCount(1);
+    await almeno44(page.getByRole("button", { name: "Esci", exact: true }), "«Esci» dell'intestazione");
+    await page.getByRole("tab", { name: /Squadre/ }).click();
+    await almeno44(page.getByRole("button", { name: "Scheda", exact: true }), "«Scheda ›»");
+    await almeno44(page.getByRole("button", { name: "Registra squadra" }), "«Registra squadra» (pulsante)");
+    await page.getByRole("button", { name: "Ballers", exact: true }).click();
+    await almeno44(page.getByRole("dialog", { name: "Scheda squadra Ballers" }).getByRole("button", { name: "Chiudi" }), "X della scheda");
   });
 });

@@ -56,7 +56,7 @@ export function Header() {
               <span className="text-chalk font-medium">{user.name}</span>
               {user.guest && <span className="text-chalk-dim">(ospite)</span>}
               <button onClick={esci}
-                className="ml-2 inline-flex items-center gap-1 rounded border border-asphalt-700 px-2.5 h-8 text-xs font-semibold uppercase tracking-[0.08em] hover:border-asphalt-500 hover:text-chalk">
+                className="area-tocco ml-2 inline-flex items-center gap-1 rounded border border-asphalt-700 px-2.5 h-8 text-xs font-semibold uppercase tracking-[0.08em] hover:border-asphalt-500 hover:text-chalk">
                 Esci
               </button>
             </span>
@@ -76,7 +76,7 @@ export function Header() {
               </NavLink>
             ))}
             {/* su mobile il logout sta nella riga di navigazione (l'utente in alto è nascosto) */}
-            <button onClick={esci} className="ml-auto shrink-0 px-3 text-xs font-semibold uppercase tracking-[0.08em] text-chalk-muted hover:text-chalk sm:hidden">
+            <button onClick={esci} className="area-tocco ml-auto shrink-0 px-3 text-xs font-semibold uppercase tracking-[0.08em] text-chalk-muted hover:text-chalk sm:hidden">
               Esci{user.guest ? " (ospite)" : ""}
             </button>
           </nav>

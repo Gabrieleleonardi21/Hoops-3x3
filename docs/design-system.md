@@ -86,5 +86,5 @@ il componente originale è un grid di `<button>` su token shadcn, non riutilizza
 ## Accessibilità
 
 Testo ≥ 4.5:1 sulla sua superficie · focus ring 2px `court` offset 2px · touch target ≥ 44px
-su mobile (utility `area-tocco`: `Button` e pulsanti con la sola icona, sotto i 640 px) · `prefers-reduced-motion` rispettato (già presente) · icone SVG, mai emoji ·
+su mobile (utility `area-tocco`, sotto i 640 px e con puntatore grossolano: `Button`, X e cestini, «Scheda», «Profilo» ed «Esci»; restano fuori navigazione, schede dell'anagrafe e nomi delle card) · `prefers-reduced-motion` rispettato (già presente) · icone SVG, mai emoji ·
 tabelle con `<th scope>` e caption · pulsanti solo-icona con `aria-label`.

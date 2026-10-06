@@ -364,9 +364,14 @@ utenti registrati.
   primo piano; Esc chiude solo quella (la conferma sopra una scheda, poi la
   scheda). Il Coach AI si chiude con Esc solo se nessuna finestra gli sta sopra.
 - Pulsanti: le classi passate a un pulsante vincono sempre su quelle della
-  sua variante (tailwind-merge). Su telefono (sotto i 640 px) i pulsanti con
-  la sola icona e quelli piccoli hanno un'area di tocco di almeno 44×44 px,
-  senza cambiare la grandezza dell'icona; su desktop l'aspetto è lo stesso.
+  sua variante (tailwind-merge). Per chi usa il dito (schermi sotto i 640 px e
+  puntatori grossolani: telefoni anche in orizzontale, tablet) tutti i
+  pulsanti fatti con Button (collegamenti compresi), quelli con la sola icona
+  (X, cestini) e «Scheda», «Profilo» ed «Esci» hanno un'area di tocco di
+  almeno 44×44 px, senza cambiare la grandezza dell'icona o del testo. Restano
+  come erano le voci della navigazione, le schede dell'anagrafe (Giocatori,
+  Squadre, Statistiche) e i nomi delle card. Con il mouse l'aspetto è lo
+  stesso di sempre.
 - Operazioni di tappa (sorteggio, risultati, fasi dirette, conclusione) come
   funzioni pure in src/domain/tappaOps.ts: le stesse per l'interfaccia e per
   il Coach AI, coperte da test unitari.

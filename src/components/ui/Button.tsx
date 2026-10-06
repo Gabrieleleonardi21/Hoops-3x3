@@ -13,7 +13,7 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
   size?: "sm" | "md";
 }
 
-// area-tocco: su telefono ogni pulsante arriva a 44 px di altezza e di larghezza (vedi index.css)
+// area-tocco: col dito (schermi stretti, puntatore grossolano) ogni pulsante arriva a 44 px di altezza e di larghezza (vedi index.css)
 const base = "area-tocco inline-flex items-center justify-center gap-2 rounded font-display font-semibold transition-colors duration-200 select-none whitespace-nowrap";
 const sizes = { sm: "h-8 px-3 text-sm", md: "h-10 px-5 text-[15px]" };
 const variants: Record<Variant, string> = {
