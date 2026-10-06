@@ -1,0 +1,128 @@
+import { test, expect, type Locator, type Page } from "@playwright/test";
+import { giocatoreDiAnna, ospiteConLega, tabFinoA, utenteRegistrato } from "./helpers";
+
+// Percorsi fatti con la sola tastiera (Tab, Maiusc+Tab, Invio, Spazio, Esc): il mouse non si usa mai dopo l'apertura della pagina.
+// Nessuna chiamata al backend vero: le risposte le decide il test.
+
+/** true se il focus è dentro `finestra` */
+const focusDentro = (finestra: Locator) => finestra.evaluate((el) => el.contains(document.activeElement));
+
+/** Preme `tasto` `volte` volte e, dopo ognuna, controlla che il focus sia ancora dentro `finestra` e mai sulle card della pagina sotto */
+async function giraDentro(page: Page, finestra: Locator, tasto: "Tab" | "Shift+Tab", volte: number) {
+  for (let i = 0; i < volte; i++) {
+    await page.keyboard.press(tasto);
+    expect(await focusDentro(finestra), `${tasto} n. ${i + 1}: il focus è uscito dalla finestra`).toBe(true);
+  }
+}
+
+test("anagrafe: scheda, poi conferma; Tab non esce dalla conferma e Esc chiude una finestra alla volta, con il focus che torna indietro", async ({ page }) => {
+  await utenteRegistrato(page, { giocatori: [giocatoreDiAnna("g1", "Mario", "Rossi"), giocatoreDiAnna("g2", "Luigi", "Bianchi")] });
+  await page.goto("/anagrafe");
+
+  // Con Tab fino al nome di Mario, poi Invio: si apre la scheda
+  const nomeMario = page.getByRole("button", { name: "Mario Rossi", exact: true });
+  await tabFinoA(page, nomeMario);
+  await page.keyboard.press("Enter");
+  const scheda = page.getByRole("dialog", { name: "Scheda giocatore Mario Rossi" });
+  // Il focus è entrato nella scheda, sul primo elemento del contenuto
+  await expect(scheda.getByRole("link", { name: /Profilo e statistiche/ })).toBeFocused();
+
+  // Con Tab fino a «Elimina», poi Invio: si apre la conferma sopra la scheda, con il focus sul pulsante più sicuro
+  await tabFinoA(page, scheda.getByRole("button", { name: "Elimina" }));
+  await page.keyboard.press("Enter");
+  const conferma = page.getByRole("dialog", { name: "Eliminare il giocatore?" });
+  await expect(conferma.getByRole("button", { name: "Annulla" })).toBeFocused();
+
+  // Tab e Maiusc+Tab, molte più volte dei pulsanti che ci sono: il focus gira nella conferma. Non arriva mai né alla scheda sotto né
+  // alla X di un'altra card («Elimina Luigi Bianchi»), che aprirebbe una seconda conferma sopra la prima
+  await giraDentro(page, conferma, "Tab", 8);
+  await giraDentro(page, conferma, "Shift+Tab", 8);
+  await expect(page.getByRole("button", { name: "Elimina Luigi Bianchi", exact: true })).not.toBeFocused();
+  await expect(page.getByRole("dialog")).toHaveCount(2); // la scheda e la conferma, non una terza
+
+  // Esc chiude solo la conferma, e il focus torna a «Elimina» della scheda
+  await page.keyboard.press("Escape");
+  await expect(conferma).toHaveCount(0);
+  await expect(scheda).toBeVisible();
+  await expect(scheda.getByRole("button", { name: "Elimina" })).toBeFocused();
+
+  // Il secondo Esc chiude la scheda, e il focus torna al nome di Mario nella pagina
+  await page.keyboard.press("Escape");
+  await expect(scheda).toHaveCount(0);
+  await expect(nomeMario).toBeFocused();
+});
+
+test("anagrafe: la X di una card apre la conferma; Annulla la chiude e il focus torna alla X", async ({ page }) => {
+  await utenteRegistrato(page, { giocatori: [giocatoreDiAnna("g1", "Mario", "Rossi"), giocatoreDiAnna("g2", "Luigi", "Bianchi")] });
+  await page.goto("/anagrafe");
+  const xLuigi = page.getByRole("button", { name: "Elimina Luigi Bianchi", exact: true });
+  await tabFinoA(page, xLuigi);
+  await page.keyboard.press("Enter");
+  const conferma = page.getByRole("dialog", { name: "Eliminare il giocatore?" });
+  await expect(conferma.getByRole("button", { name: "Annulla" })).toBeFocused();
+  await giraDentro(page, conferma, "Tab", 6);
+  await page.keyboard.press("Escape");
+  await expect(conferma).toHaveCount(0);
+  await expect(xLuigi).toBeFocused();
+});
+
+test("timer: il focus entra su START, Esc con la partita in corso chiede conferma, e alla fine il focus torna al pulsante «Timer»", async ({ page }) => {
+  await page.route("**/api/anagrafe/**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: "[]" }));
+  await ospiteConLega(page);
+  await page.getByRole("button", { name: /Crea la tappa/i }).click();
+  const apriTimer = page.getByRole("button", { name: "Timer", exact: true });
+  await apriTimer.focus();
+  await page.keyboard.press("Enter");
+
+  // START ha il focus: Spazio avvia il cronometro, che non è un punto dato per sbaglio a una squadra
+  const timer = page.getByRole("dialog", { name: "Timer di gara" });
+  await expect(timer.getByRole("button", { name: "START" })).toBeFocused();
+  await page.keyboard.press("Space");
+  await expect(timer.getByRole("button", { name: "STOP" })).toBeFocused(); // è lo stesso pulsante
+
+  // Con la partita in corso Esc chiede conferma, con il focus su «Annulla»; Tab non esce dalla conferma
+  await page.keyboard.press("Escape");
+  const conferma = page.getByRole("dialog", { name: "Chiudere il timer?" });
+  await expect(conferma.getByRole("button", { name: "Annulla" })).toBeFocused();
+  await giraDentro(page, conferma, "Tab", 6);
+  await giraDentro(page, conferma, "Shift+Tab", 6);
+
+  // Esc annulla la conferma: il timer resta, e il focus torna al pulsante da cui si era partiti
+  await page.keyboard.press("Escape");
+  await expect(conferma).toHaveCount(0);
+  await expect(timer.getByRole("button", { name: "STOP" })).toBeFocused();
+
+  // Di nuovo Esc, poi «Conferma» con Invio: il timer si chiude e il focus torna a «Timer» nella pagina
+  await page.keyboard.press("Escape");
+  await tabFinoA(page, conferma.getByRole("button", { name: "Conferma" }));
+  await page.keyboard.press("Enter");
+  await expect(timer).toHaveCount(0);
+  await expect(apriTimer).toBeFocused();
+});
+
+test("Coach: Esc chiude il pannello solo se nessuna finestra gli sta sopra", async ({ page }) => {
+  await utenteRegistrato(page, { giocatori: [giocatoreDiAnna("g1", "Mario", "Rossi")] });
+  await page.goto("/anagrafe");
+  const pannello = page.getByRole("dialog", { name: "Coach AI" });
+
+  // Il pannello si apre con il pulsante del Coach e si chiude con Esc
+  await page.getByRole("button", { name: "Apri Coach AI" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(pannello).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(pannello).toHaveCount(0);
+
+  // Riaperto, con la scheda di Mario aperta sopra: Esc chiude la scheda e il pannello resta; il secondo Esc chiude il pannello
+  await page.getByRole("button", { name: "Apri Coach AI" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(pannello).toBeVisible();
+  await tabFinoA(page, page.getByRole("button", { name: "Mario Rossi", exact: true }));
+  await page.keyboard.press("Enter");
+  const scheda = page.getByRole("dialog", { name: "Scheda giocatore Mario Rossi" });
+  await expect(scheda).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(scheda).toHaveCount(0);
+  await expect(pannello).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(pannello).toHaveCount(0);
+});
