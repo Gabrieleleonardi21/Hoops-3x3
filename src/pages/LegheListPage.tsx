@@ -23,7 +23,7 @@ function LegaCard({ m, disabled, onOpen, onDelete }: { m: LegaMeta; disabled: bo
     <div className="flex flex-col gap-2 rounded border border-asphalt-700 bg-asphalt-900 p-4 transition-colors hover:border-asphalt-500">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1 font-display text-2xl text-chalk">{m.nome}</div>
-        <button onClick={() => chiedi("Eliminare la lega?", onDelete)} disabled={disabled} className="shrink-0 text-chalk-dim hover:text-loss" title="Elimina lega" aria-label={`Elimina lega ${m.nome}`}>
+        <button onClick={() => chiedi("Eliminare la lega?", onDelete)} disabled={disabled} className="area-tocco shrink-0 text-chalk-dim hover:text-loss" title="Elimina lega" aria-label={`Elimina lega ${m.nome}`}>
           <Icon name="trash" size={16} />
         </button>
       </div>

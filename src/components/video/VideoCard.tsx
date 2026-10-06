@@ -13,7 +13,7 @@ export function VideoCard({ v, onRemove }: { v: VideoItem; onRemove?: (id: strin
           <span className="truncate">{v.titolo || "Video"}</span>
         </span>
         {onRemove && (
-          <button onClick={() => onRemove(v.id)} className="text-chalk-dim hover:text-loss" aria-label="Rimuovi video">
+          <button onClick={() => onRemove(v.id)} className="area-tocco text-chalk-dim hover:text-loss" aria-label="Rimuovi video">
             <Icon name="close" size={14} />
           </button>
         )}

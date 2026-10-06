@@ -69,9 +69,9 @@ export function CoachPanel({ onClose }: { onClose: () => void }) {
         <span className="flex items-center gap-2 font-display text-base text-chalk"><Icon name="ball" size={16} className="text-court" /> Coach AI · 3x3</span>
         <div className="flex items-center gap-2">
           {msgs.length > 0 && (
-            <button onClick={clearChat} className="text-xs text-chalk-muted hover:text-chalk" aria-label="Cancella chat">Cancella</button>
+            <button onClick={clearChat} className="area-tocco text-xs text-chalk-muted hover:text-chalk" aria-label="Cancella chat">Cancella</button>
           )}
-          <button onClick={onClose} className="text-chalk-muted hover:text-chalk" aria-label="Chiudi"><Icon name="close" size={18} /></button>
+          <button onClick={onClose} className="area-tocco text-chalk-muted hover:text-chalk" aria-label="Chiudi"><Icon name="close" size={18} /></button>
         </div>
       </div>
       {/* role="log": i messaggi nuovi si annunciano da soli ai lettori di schermo, senza dover spostare il focus */}

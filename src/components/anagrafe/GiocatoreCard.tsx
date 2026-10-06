@@ -38,7 +38,7 @@ export function GiocatoreCard({ g, user, squadre, onRemove, onOpen, disabled = f
           </span>
         </button>
         {puoModificare(user, g.autoreId) && (
-          <button onClick={() => chiedi("Eliminare il giocatore?", onRemove)} disabled={disabled} className="shrink-0 text-chalk-dim hover:text-loss" aria-label={`Elimina ${g.nome} ${g.cognome}`}>
+          <button onClick={() => chiedi("Eliminare il giocatore?", onRemove)} disabled={disabled} className="area-tocco shrink-0 text-chalk-dim hover:text-loss" aria-label={`Elimina ${g.nome} ${g.cognome}`}>
             <Icon name="close" size={14} />
           </button>
         )}

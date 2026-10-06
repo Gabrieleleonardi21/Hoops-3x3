@@ -31,7 +31,7 @@ export function SyncBanner() {
       {error && (
         <div className="mx-auto flex max-w-5xl items-center gap-3">
           <span className="flex-1">{error}</span>
-          <button type="button" onClick={clear} aria-label="Chiudi avviso" className="text-chalk-muted hover:text-chalk">
+          <button type="button" onClick={clear} aria-label="Chiudi avviso" className="area-tocco text-chalk-muted hover:text-chalk">
             <Icon name="close" size={16} />
           </button>
         </div>

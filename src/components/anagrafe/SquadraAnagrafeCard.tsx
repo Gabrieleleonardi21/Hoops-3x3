@@ -27,7 +27,7 @@ export function SquadraAnagrafeCard({ s, giocatori, user, onRemove, onOpen, disa
           <span className="min-w-0 truncate font-display text-lg text-chalk transition-colors hover:text-court">{s.nome}</span>
         </button>
         {puoModificare(user, s.autoreId) && (
-          <button onClick={() => chiedi("Eliminare la squadra?", onRemove)} disabled={disabled} className="shrink-0 text-chalk-dim hover:text-loss" aria-label={`Elimina ${s.nome}`}>
+          <button onClick={() => chiedi("Eliminare la squadra?", onRemove)} disabled={disabled} className="area-tocco shrink-0 text-chalk-dim hover:text-loss" aria-label={`Elimina ${s.nome}`}>
             <Icon name="close" size={14} />
           </button>
         )}

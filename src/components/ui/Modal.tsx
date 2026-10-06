@@ -47,7 +47,7 @@ export function Modal({ title, subtitle, label, width = 480, onClose, children }
             {title && <div className="font-display text-2xl text-chalk">{title}</div>}
             {subtitle && <div className="text-xs font-semibold text-court">{subtitle}</div>}
           </div>
-          <button onClick={onClose} className="shrink-0 text-chalk-muted hover:text-chalk" aria-label="Chiudi"><Icon name="close" size={20} /></button>
+          <button onClick={onClose} className="area-tocco shrink-0 text-chalk-muted hover:text-chalk" aria-label="Chiudi"><Icon name="close" size={20} /></button>
         </div>
         <div ref={contenuto} className="overflow-y-auto p-5">{children}</div>
       </div>

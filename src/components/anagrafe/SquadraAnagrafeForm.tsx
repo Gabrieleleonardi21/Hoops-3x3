@@ -60,7 +60,7 @@ export function SquadraAnagrafeForm({ giocatori, onSave }: { giocatori: RegGioca
         {d.roster.map((id) => (
           <span key={id} className="inline-flex items-center gap-1.5 rounded-sm border border-asphalt-600 bg-asphalt-800 px-2 py-1 text-xs font-semibold text-chalk">
             {gName(id)}
-            <button onClick={() => setD({ ...d, roster: d.roster.filter((x) => x !== id) })} className="text-chalk-dim hover:text-loss" aria-label={`Rimuovi ${gName(id)}`}>
+            <button onClick={() => setD({ ...d, roster: d.roster.filter((x) => x !== id) })} className="area-tocco text-chalk-dim hover:text-loss" aria-label={`Rimuovi ${gName(id)}`}>
               <Icon name="close" size={12} />
             </button>
           </span>
