@@ -57,6 +57,17 @@ describe("standings (classifica girone)", () => {
     expect(standings(["a", "b", "c", "d"], partite, nameOf).map((r) => r.id)).toEqual(["a", "b", "c", "d"]);
   });
 
+  it("girone completo da 4: due coppie a pari vittorie, ognuna decisa dalla propria partita diretta", () => {
+    // a e b hanno 2 vittorie, c e d 1. a ha battuto b e c ha battuto d, ma b e d hanno segnato di più (62 contro 52, 44 contro 42)
+    const partite = [
+      match("a", "b", 21, 20), match("a", "c", 21, 19), match("d", "a", 21, 10),
+      match("b", "c", 21, 2), match("b", "d", 21, 5), match("c", "d", 21, 18),
+    ];
+    const rows = standings(["a", "b", "c", "d"], partite, nameOf);
+    expect(rows.map((r) => r.v)).toEqual([2, 2, 1, 1]);
+    expect(rows.map((r) => r.id)).toEqual(["a", "b", "c", "d"]);
+  });
+
   it("una partita segnata come giocata ma in parità è ignorata: né vittorie, né punti, né gara giocata", () => {
     // b-c è 15-15: tappaOps rifiuta i pareggi, ma un file importato o un salvataggio vecchio può averla (legaFile non la
     // controlla). Prima dava la vittoria a c, che passava davanti a b. G resta uguale a V + P

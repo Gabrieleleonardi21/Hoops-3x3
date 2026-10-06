@@ -39,3 +39,24 @@ describe("buildCoachContext: i dati della lega restano dentro il loro blocco", (
     expect(contesto).not.toContain(lungo.slice(0, 81));
   });
 });
+
+describe("buildCoachContext: la classifica dei gironi", () => {
+  it("segue gli scontri diretti: a pari vittorie sta sopra chi ha vinto la partita diretta", () => {
+    // Girone completo da 4: Alfa e Beta hanno 2 vittorie, Gamma e Delta 1. Alfa ha battuto Beta e Gamma ha battuto Delta,
+    // ma Beta e Delta hanno segnato di più (62 contro 52, 44 contro 42): per punti fatti l'ordine sarebbe Beta, Alfa, Delta, Gamma
+    const gara = (a: string, b: string, sa: number, sb: number) => ({ id: a + b, g: 0, a, b, sa, sb, done: true });
+    const t: Tappa = {
+      ...tappa("Prova"),
+      squadre: ["Alfa", "Beta", "Gamma", "Delta"].map((nome) => ({ id: nome, nome, giocatori: [], rank: "" })),
+      gironi: [["Alfa", "Beta", "Gamma", "Delta"]],
+      partite: [
+        gara("Alfa", "Beta", 21, 20), gara("Alfa", "Gamma", 21, 19), gara("Delta", "Alfa", 21, 10),
+        gara("Beta", "Gamma", 21, 2), gara("Beta", "Delta", 21, 5), gara("Gamma", "Delta", 21, 18),
+      ],
+    };
+    const riga = buildCoachContext("Lega", [t]).split("\n").find((r) => r.startsWith("Girone A:")) ?? "";
+    // «Girone A: 1. Alfa (2V 1P, pf 52 ps 50); 2. Beta (…)…»: i nomi nell'ordine in cui compaiono
+    const ordine = [...riga.matchAll(/\d\. (\w+) \(/g)].map((x) => x[1]);
+    expect(ordine).toEqual(["Alfa", "Beta", "Gamma", "Delta"]);
+  });
+});
