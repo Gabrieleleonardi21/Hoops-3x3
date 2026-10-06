@@ -140,6 +140,39 @@ describe("TappaPage: collegare una squadra all'anagrafe", () => {
   });
 });
 
+describe("TappaPage: una squadra collegata a una voce eliminata dall'anagrafe torna modificabile (FS-9)", () => {
+  const collegata = (): Tappa => ({
+    ...tappa(),
+    squadre: [{ id: "s1", nome: "Alfa", regId: "r-eliminata", rank: "40", giocatori: [] }, { id: "s2", nome: "Squadra 2", giocatori: [], rank: "" }],
+  });
+
+  it("con la voce in anagrafe il nome resta di sola lettura e c'è il badge «Anagrafe»", () => {
+    useAppStore.setState({ tappe: [collegata()] });
+    apriPagina({ squadre: [{ ...regAlfa, id: "r-eliminata" }] });
+    expect(campiNome()[0].readOnly).toBe(true);
+    expect(screen.getByText("Anagrafe")).toBeTruthy();
+  });
+
+  it("senza più la voce, all'apertura della pagina il nome si può scrivere e il badge sparisce", () => {
+    useAppStore.setState({ tappe: [collegata()] });
+    apriPagina({ squadre: [] });
+    expect(campiNome()[0].readOnly).toBe(false);
+    expect(campiNome()[0].value).toBe("Alfa");
+    expect(screen.queryByText("Anagrafe")).toBeNull();
+    expect(store().tappe[0].squadre[0].regId).toBeUndefined();
+  });
+
+  it("riscritto il nome, la squadra si collega alla voce nuova", async () => {
+    useAppStore.setState({ tappe: [collegata()] });
+    apriPagina({ squadre: [], trovaSquadra: vi.fn(async () => regAlfa) });
+    scrivi(0, "Alfa Roma");
+    fireEvent.blur(campiNome()[0]); // la ricerca trova la voce nuova «Alfa» e la squadra prende i suoi dati
+    await act(async () => {});
+    expect(store().tappe[0].squadre[0]).toMatchObject({ nome: "Alfa", regId: "r1" });
+    expect(campiNome()[0].readOnly).toBe(true);
+  });
+});
+
 describe("TappaPage: il collegamento all'anagrafe che fallisce si vede (FS-4)", () => {
   const nonRisponde = () => new ApiError(0, "Il server non risponde: controlla la connessione e riprova.");
   const MESSAGGIO = "Squadra «Alfa» non collegata all'anagrafe: Il server non risponde: controlla la connessione e riprova.";

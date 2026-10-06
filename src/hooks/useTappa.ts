@@ -127,7 +127,7 @@ export function useTappa(id: string | undefined) {
     }));
 
   /** Sincronizza tutte le squadre della tappa con l'anagrafe (usato all'apertura della pagina).
-   *  Cerca prima per regId, poi per nome case-insensitive.
+   *  Cerca prima per regId, poi per nome case-insensitive; una squadra collegata a una voce eliminata si scollega.
    *  Non tocca le squadre con nome placeholder ("Squadra N") né le tappe concluse. */
   const syncFromAnagrafe = (regs: RegSquadra[]) => {
     if (!tappa) return;
@@ -141,7 +141,13 @@ export function useTappa(id: string | undefined) {
         // Prima per regId (una squadra senza regId non ne trova nessuna), poi per nome
         const reg = regs.find((r) => r.id === s.regId)
           ?? regs.find((r) => r.nome.toLowerCase() === s.nome.trim().toLowerCase());
-        if (!reg) return s;
+        if (!reg) {
+          // Collegata a una voce che non c'è più (eliminata dall'anagrafe) e senza un'altra con lo stesso nome: la squadra tiene
+          // nome, logo e ranking che ha, ma si scollega, così il nome torna modificabile e un nuovo collegamento è possibile
+          if (!s.regId) return s;
+          changed = true;
+          return { ...s, regId: undefined };
+        }
         // Aggiorna solo se qualcosa è cambiato
         if (s.regId === reg.id && s.logo === reg.logo && s.nome === reg.nome
           && String(s.rank) === String(reg.rank) && s.website === reg.website) return s;
