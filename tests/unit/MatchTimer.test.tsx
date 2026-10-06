@@ -38,8 +38,10 @@ const cronometro = () => screen.getByText(/^\d+:\d{2}$/).textContent;
 
 const A = 0;
 const B = 1;
-/** Segna `pt` punti alla squadra A o B: i pulsanti «+1» e «+2» sono in ordine A, B */
-const segna = (squadra: typeof A | typeof B, pt: "+1" | "+2") => fireEvent.click(screen.getAllByRole("button", { name: pt })[squadra]);
+/** I nomi delle squadre quando il timer non ne riceve: i pulsanti dei punti li portano nel nome («+1 a Squadra A») */
+const NOMI = ["Squadra A", "Squadra B"];
+/** Segna `pt` punti alla squadra A o B */
+const segna = (squadra: typeof A | typeof B, pt: "+1" | "+2") => fireEvent.click(screen.getByRole("button", { name: `${pt} a ${NOMI[squadra]}` }));
 
 /** Un minuto di gara: con 60 secondi si arriva allo scadere senza far girare 600 secondi di scatti */
 const BREVE: Regole = { ...DEFAULT_RULES, durata: 1 };
@@ -499,6 +501,36 @@ describe("MatchTimer: la partita si decide", () => {
     manca(/Partita conclusa/);
     segna(A, "+1");
     expect(mostra("Squadra A — Partita conclusa")).toBeTruthy();
+  });
+});
+
+describe("MatchTimer: accessibilità dei punti e dell'esito", () => {
+  it("«+1» e «+2» dicono a quale squadra danno i punti: il testo visibile resta all'inizio del nome", () => {
+    render(<MatchTimer regole={DEFAULT_RULES} teamA="Falchi" teamB="Aquile" onClose={() => {}} />);
+    for (const squadra of ["Falchi", "Aquile"]) {
+      for (const punti of ["+1", "+2"]) {
+        const pulsante = screen.getByRole("button", { name: `${punti} a ${squadra}` });
+        expect(pulsante.textContent).toBe(punti); // etichetta nel nome: chi detta i comandi a voce dice quello che vede
+      }
+    }
+    // E ognuno dà i punti alla sua squadra
+    fireEvent.click(screen.getByRole("button", { name: "+2 a Aquile" }));
+    fireEvent.click(screen.getByRole("button", { name: "+1 a Falchi" }));
+    expect(screen.getByText("1").textContent).toBe("1");
+    expect(screen.getByText("2").textContent).toBe("2");
+  });
+
+  it("senza nomi di squadra i pulsanti dicono «Squadra A» e «Squadra B»", () => {
+    apri();
+    expect(screen.getAllByRole("button", { name: /^\+1 a / }).map((b) => b.getAttribute("aria-label"))).toEqual(["+1 a Squadra A", "+1 a Squadra B"]);
+  });
+
+  it("la riga dell'esito è una regione role=status: compare solo a partita decisa e dice chi ha vinto", () => {
+    apri({ ...DEFAULT_RULES, target: 3 });
+    expect(screen.queryByRole("status")).toBeNull();
+    segna(A, "+2");
+    segna(A, "+1");
+    expect(screen.getByRole("status").textContent).toBe("Squadra A — Partita conclusa");
   });
 });
 

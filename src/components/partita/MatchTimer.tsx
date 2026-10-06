@@ -197,7 +197,8 @@ export function MatchTimer({ regole, teamA, teamB, onClose }: {
     comando = <Button onClick={avviaSupplementare} className="h-12 px-8 text-xl">Avvia supplementare</Button>;
   }
   if ("vincitore" in stato) {
-    comando = <span className="font-display text-xl text-court">{nomi[stato.vincitore]} — Partita conclusa</span>;
+    // role="status": a partita decisa il lettore di schermo annuncia l'esito
+    comando = <span role="status" className="font-display text-xl text-court">{nomi[stato.vincitore]} — Partita conclusa</span>;
   }
 
   const scoreBtn = "h-11 min-w-11 px-4 font-display text-xl";
@@ -221,8 +222,10 @@ export function MatchTimer({ regole, teamA, teamB, onClose }: {
                 {punti[lato]}
               </div>
               <div className="mt-2 flex justify-center gap-1.5">
-                <Button className={scoreBtn} onClick={() => segna(lato, 1)}>+1</Button>
-                <Button className={scoreBtn} onClick={() => segna(lato, 2)}>+2</Button>
+                {/* Il nome dice a quale squadra vanno i punti (le due righe «+1» sarebbero uguali per un lettore di schermo); il testo
+                    visibile resta all'inizio del nome */}
+                <Button className={scoreBtn} aria-label={`+1 a ${nomi[lato]}`} onClick={() => segna(lato, 1)}>+1</Button>
+                <Button className={scoreBtn} aria-label={`+2 a ${nomi[lato]}`} onClick={() => segna(lato, 2)}>+2</Button>
                 <Button variant="ghost" className={scoreBtn} onClick={() => segna(lato, -1)} aria-label={`Togli un punto a ${nomi[lato]}`}>
                   <Icon name="minus" size={16} />
                 </Button>
