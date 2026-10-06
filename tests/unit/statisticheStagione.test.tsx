@@ -170,6 +170,23 @@ describe("Profilo del giocatore: le statistiche di stagione", () => {
     expect(vociUltimePartite().map((voce) => voce[3])).toEqual(["12 PT · 0 REB · 0 AST"]);
   });
 
+  it("una partita pari non è una sconfitta: né nel riquadro «Gare» né nell'elenco delle partite", () => {
+    // La parità c'è solo in un file di lega importato (tappaOps la rifiuta): non è una vittoria e nemmeno una sconfitta.
+    // Una vinta (21-15), una pari (15-15) e una persa (10-21): le gare sono 3 ma vinte e perse sono 1 e 1
+    const t = tappaDiProva("t1", { Alfa: ["Mario Rossi"], Gamma: ["Piero Neri"] }, [
+      { a: "Alfa", b: "Gamma", pa: { "Mario Rossi": { pt: 12 } } },
+      { a: "Alfa", b: "Gamma", sa: 15, sb: 15, pa: { "Mario Rossi": { pt: 8 } } },
+      { a: "Alfa", b: "Gamma", sa: 10, sb: 21, pa: { "Mario Rossi": { pt: 5 } } },
+    ]);
+    apriProfilo(mario, [t]);
+    expect(riquadro("Gare")).toBe("3");
+    expect(sottoRiquadro("Gare")).toBe("1V · 1P");
+    // Dalla più recente: la persa, la pari (segnata «=», non «L») e la vinta
+    expect(vociUltimePartite().map((voce) => voce[0])).toEqual(["L", "=", "W"]);
+    // E la pari non ha i colori della sconfitta (la classe del tono «loss» dice «loss»)
+    expect(screen.getAllByRole("listitem")[1].firstElementChild?.className).not.toContain("loss");
+  });
+
   it("punteggio e avversaria sono dal lato della squadra del giocatore, anche se gioca come squadra B", () => {
     // Gamma (A) perde 15-21 contro Alfa (B), dove gioca Mario: per lui è una vittoria 21-15 contro Gamma
     const t = tappaDiProva("t1", { Alfa: ["Mario Rossi"], Gamma: ["Piero Neri"] }, [
@@ -239,6 +256,8 @@ describe("Profilo del giocatore: le statistiche di stagione", () => {
   it("senza statistiche nella lega non c'è nessun elenco di squadre, solo la spiegazione di prima", () => {
     apriProfilo(mario, [unaGara("t1", "Alfa", "Luca Bianchi", { pt: 9 })]);
     expect(riquadro("Punti")).toBe("0");
+    // Senza gare non c'è nemmeno la riga delle vittorie e delle sconfitte
+    expect(screen.queryByText(/\dV · \dP/)).toBeNull();
     expect(screen.queryByText(/squadre di tappa/)).toBeNull();
     expect(screen.getByText(/Nessuna statistica nella lega attiva/)).toBeTruthy();
   });

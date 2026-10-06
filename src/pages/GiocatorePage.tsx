@@ -32,7 +32,23 @@ function sameName(rosterName: string, g: RegGiocatore): boolean {
 /** Gare e statistiche sommate di una o più righe di stagione */
 interface Totali { g: number; pt: number; rb: number; as: number; ru: number; st: number }
 interface TappaRow { tappa: Tappa; row: Totali; piazzamento: number | null }
-interface GameRow { tappa: string; avversario: string; mio: number; suo: number; pt: number; rb: number; as: number }
+/** Come finisce una partita per il giocatore. La parità c'è solo in un file di lega importato (tappaOps la rifiuta): non è né
+ *  una vittoria né una sconfitta */
+type Esito = "vinta" | "persa" | "pari";
+interface GameRow { tappa: string; avversario: string; mio: number; suo: number; esito: Esito; pt: number; rb: number; as: number }
+
+const esitoDi = (mio: number, suo: number): Esito => {
+  if (mio > suo) return "vinta";
+  if (mio < suo) return "persa";
+  return "pari";
+};
+
+/** Come l'elenco delle ultime partite mostra l'esito */
+const BADGE_ESITO: Record<Esito, { tone: "win" | "loss" | "neutral"; lettera: string }> = {
+  vinta: { tone: "win", lettera: "W" },
+  persa: { tone: "loss", lettera: "L" },
+  pari: { tone: "neutral", lettera: "=" },
+};
 
 const f1 = (n: number) => n.toFixed(1);
 
@@ -92,7 +108,7 @@ export function GiocatorePage() {
         // Punti fatti, punti subiti e squadra avversaria, dal lato della scheda in cui sta il tabellino
         let mio = m.sa, suo = m.sb, avversario = m.b;
         if (lato === "b") { mio = m.sb; suo = m.sa; avversario = m.a; }
-        out.push({ tappa: t.nome, avversario: nameOf(avversario), mio, suo, pt: stat.pt, rb: stat.rb, as: stat.as });
+        out.push({ tappa: t.nome, avversario: nameOf(avversario), mio, suo, esito: esitoDi(mio, suo), pt: stat.pt, rb: stat.rb, as: stat.as });
       }
     }
     return out;
@@ -116,7 +132,9 @@ export function GiocatorePage() {
   const avg = (v: number) => (tot.g ? `(${f1(v / tot.g)}/g)` : undefined);
   const age = eta(g.nascita);
   const bio = [g.ruolo, g.squadra, g.citta, age !== null ? `${age} anni` : "", g.altezza ? `${g.altezza} cm` : "", g.peso ? `${g.peso} kg` : ""].filter(Boolean);
-  const wins = games.filter((x) => x.mio > x.suo).length;
+  // Vinte e perse si contano sulle stesse partite dell'elenco; una parità non è nessuna delle due, quindi V e P possono non sommare G
+  const wins = games.filter((x) => x.esito === "vinta").length;
+  const losses = games.filter((x) => x.esito === "persa").length;
 
   return (
     <>
@@ -149,7 +167,7 @@ export function GiocatorePage() {
         <StatTile label="Assist" value={tot.as} sub={avg(tot.as)} />
         <StatTile label="Rubate" value={tot.ru} sub={avg(tot.ru)} />
         <StatTile label="Stoppate" value={tot.st} sub={avg(tot.st)} />
-        <StatTile label="Gare" value={tot.g} sub={tot.g ? `${wins}V · ${tot.g - wins}P` : undefined} />
+        <StatTile label="Gare" value={tot.g} sub={tot.g > 0 && `${wins}V · ${losses}P`} />
         {/* Le squadre di tappa da cui vengono i totali: il legame è solo il nome, e chi legge deve vedere che cosa è stato sommato */}
         {squadreStat.length > 0 && (
           <p className="col-span-full text-[13px] text-chalk-muted">
@@ -199,10 +217,10 @@ export function GiocatorePage() {
         <Section title="Ultime partite" kicker="Dalla più recente" className="mt-8">
           <ol className="m-0 list-none divide-y divide-asphalt-700 rounded border border-asphalt-700 bg-asphalt-900 p-0">
             {[...games].reverse().slice(0, 6).map((x, i) => {
-              const win = x.mio > x.suo;
+              const { tone, lettera } = BADGE_ESITO[x.esito];
               return (
                 <li key={i} className="flex flex-wrap items-center gap-3 px-3 py-2 text-[13px]">
-                  <Badge tone={win ? "win" : "loss"}>{win ? "W" : "L"}</Badge>
+                  <Badge tone={tone}>{lettera}</Badge>
                   <span className="min-w-0 flex-1 truncate"><span className="text-chalk-muted">vs</span> <span className="font-display text-base">{x.avversario}</span> <span className="text-chalk-dim">· {x.tappa}</span></span>
                   <span className="font-display text-lg">{x.mio}–{x.suo}</span>
                   <span className="text-chalk-muted">{x.pt} PT · {x.rb} REB · {x.as} AST</span>
