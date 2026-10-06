@@ -138,6 +138,27 @@ describe("Anagrafe: il focus nelle schede (modali)", () => {
     expect(collegamenti).not.toContain(document.activeElement);
   });
 
+  it("la scheda di una squadra con il solo nome (l'unico campo obbligatorio) non ha un blocco vuoto da mettere a fuoco: il focus va al primo elemento raggiungibile", () => {
+    mostraSquadraModal(autore); // la squadra di prova ha solo il nome
+    expect(document.querySelector("[data-focus-iniziale]")).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Modifica" }));
+  });
+
+  it.each([
+    ["la città", { citta: "Roma" }],
+    ["l'anno di fondazione", { anno: "2019" }],
+    ["il referente", { referente: "Mario Rossi" }],
+    ["il sito", { website: "https://ballers.it" }],
+    ["Instagram", { instagram: "https://instagram.com/ballers" }],
+    ["le note", { note: "campioni 2025" }],
+    ["il roster", { roster: ["g1"] }],
+  ])("basta %s perché ci sia il blocco dei dati, e il focus va lì", (_dato, campi) => {
+    render(<SquadraAnagrafeModal s={{ ...squadra, ...campi }} giocatori={[giocatore]} user={autore} onClose={nulla} onRemove={riuscita} onUpdate={riuscita} />);
+    const blocco = document.querySelector("[data-focus-iniziale]");
+    expect(blocco).not.toBeNull();
+    expect(document.activeElement).toBe(blocco);
+  });
+
   it("dopo «Modifica» il focus va al primo campo del form: il pulsante premuto sparisce e il focus non resta nel vuoto (giocatore)", () => {
     mostraGiocatoreModal(autore);
     fireEvent.click(screen.getByRole("button", { name: "Modifica" }));

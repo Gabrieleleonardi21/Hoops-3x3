@@ -65,6 +65,9 @@ export function SquadraAnagrafeModal({
   };
 
   const canEdit = puoModificare(user, s.autoreId);
+  // Il blocco dei dati prende il focus solo se ha qualcosa da leggere: con il solo nome (l'unico campo obbligatorio) sarebbe un blocco
+  // vuoto, alto 0, con l'anello arancione da tastiera; senza, il focus va al primo elemento raggiungibile, com'era
+  const haDati = Boolean(s.citta || s.anno || s.referente || s.website || s.instagram || s.note || (s.roster || []).length > 0);
 
   const handleRemove = async () => {
     if (await esegui(() => onRemove(), "Eliminazione non riuscita")) onClose();
@@ -101,9 +104,9 @@ export function SquadraAnagrafeModal({
       {/* ── Modalità visualizzazione ── */}
       {/* Il focus iniziale è sul blocco dei dati, non sul primo collegamento (il logo, il sito: si aprono in un'altra scheda del browser, e
           un Invio dato di riflesso li aprirebbe), e il lettore di schermo legge i dati. tabIndex -1: si prende il focus per programma, senza
-          entrare nell'ordine di Tab; l'anello del focus resta, con la tastiera è l'unico indicatore */}
+          entrare nell'ordine di Tab; l'anello del focus resta, con la tastiera è l'unico indicatore. Solo se c'è almeno un dato (haDati) */}
       {!editing && (
-        <div tabIndex={-1} data-focus-iniziale>
+        <div {...(haDati && { tabIndex: -1, "data-focus-iniziale": true })}>
           <div className="mb-4 flex flex-col gap-1.5">
             {s.citta && row("Città", <>{s.citta}{s.anno ? ` · fondata nel ${s.anno}` : ""}</>)}
             {!s.citta && s.anno && row("Fondata", s.anno)}

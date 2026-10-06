@@ -209,6 +209,19 @@ test("scheda: «Modifica» porta il focus sul primo campo del form, «Annulla» 
   await provaLaModifica(page, schedaSquadra, schedaSquadra.getByLabel("Nome squadra", { exact: true }));
 });
 
+test("scheda di una squadra con il solo nome: niente blocco vuoto da mettere a fuoco, il focus va a «Modifica»", async ({ page }) => {
+  // Il nome è l'unico campo obbligatorio: la scheda non ha dati da leggere, e un blocco vuoto, alto 0, sarebbe una barra arancione senza niente
+  await utenteRegistrato(page, { squadre: [squadraDiAnna("s1", "Ballers")] });
+  await page.goto("/anagrafe");
+  await tabFinoA(page, page.getByRole("tab", { name: /Squadre/ }));
+  await page.keyboard.press("Enter");
+  await tabFinoA(page, page.getByRole("button", { name: "Ballers", exact: true }));
+  await page.keyboard.press("Enter");
+  const scheda = page.getByRole("dialog", { name: "Scheda squadra Ballers" });
+  await expect(scheda.locator("[data-focus-iniziale]")).toHaveCount(0);
+  await expect(scheda.getByRole("button", { name: "Modifica" })).toBeFocused();
+});
+
 test("timer: a partita decisa il focus passa all'esito, che il lettore di schermo annuncia", async ({ page }) => {
   await page.route("**/api/anagrafe/**", (route) => route.fulfill({ status: 200, contentType: "application/json", body: "[]" }));
   await ospiteConLega(page);
