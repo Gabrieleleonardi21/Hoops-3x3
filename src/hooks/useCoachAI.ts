@@ -30,6 +30,11 @@ export interface RichiestaConferma {
 
 interface StatoChat {
   msgs: ChatMsg[];
+  /** Quanti messaggi sono usciti dalla testa della chat (se ne tengono MAX_MESSAGGI) da quando è stata cancellata l'ultima volta.
+   *  Il messaggio in posizione `i` è il numero `scartati + i` della conversazione e non cambia più: il pannello lo usa come chiave
+   *  della riga. Con la posizione, a chat piena ogni messaggio nuovo sposta tutti gli altri e React riscrive tutti i nodi, e un
+   *  lettore di schermo (role="log") rilegge la chat intera. Non si salva nella sessionStorage: dopo una ricarica la pagina riparte. */
+  scartati: number;
   loading: boolean;
   conferma: RichiestaConferma | null;
 }
@@ -58,12 +63,13 @@ function cronologiaSalvata(): ChatMsg[] {
 
 /** La chat vive qui e non nel pannello: il pannello si smonta quando si chiude, e una risposta arrivata nel frattempo
  *  andava persa */
-const useChat = create<StatoChat>(() => ({ msgs: cronologiaSalvata(), loading: false, conferma: null }));
+const useChat = create<StatoChat>(() => ({ msgs: cronologiaSalvata(), scartati: 0, loading: false, conferma: null }));
 
-/** Scrive la chat (solo gli ultimi MAX_MESSAGGI) nello store e nella sessionStorage, con chi l'ha scritta */
+/** Scrive la chat (solo gli ultimi MAX_MESSAGGI) nello store e nella sessionStorage, con chi l'ha scritta. `msgs` è la chat intera,
+ *  quella di adesso più ciò che si aggiunge: quelli che escono dalla testa si contano nello stesso aggiornamento dei messaggi */
 function salvaChat(msgs: ChatMsg[]) {
   const ultimi = msgs.slice(-MAX_MESSAGGI);
-  useChat.setState({ msgs: ultimi });
+  useChat.setState((s) => ({ msgs: ultimi, scartati: s.scartati + msgs.length - ultimi.length }));
   try {
     sessionStorage.setItem(CHAT_KEY, JSON.stringify({ autore: autore(useAppStore.getState().user), msgs: ultimi }));
   } catch { /* quota exceeded: ignora */ }
@@ -79,7 +85,7 @@ function cancellaChat() {
   richiestaInCorso?.abort();
   richiestaInCorso = null;
   useChat.getState().conferma?.rispondi(false);
-  useChat.setState({ msgs: [], loading: false, conferma: null });
+  useChat.setState({ msgs: [], scartati: 0, loading: false, conferma: null });
   try {
     sessionStorage.removeItem(CHAT_KEY);
   } catch { /* storage non disponibile */ }
@@ -466,6 +472,7 @@ async function fetchGiocatori(): Promise<RegGiocatore[]> {
 
 export function useCoachAI() {
   const msgs = useChat((s) => s.msgs);
+  const scartati = useChat((s) => s.scartati);
   const loading = useChat((s) => s.loading);
   const conferma = useChat((s) => s.conferma);
   // Lega, tappe e utente NON si leggono qui: una copia presa al render è vecchia quando lo strumento parte (dopo
@@ -813,20 +820,20 @@ export function useCoachAI() {
     const t = text.trim();
     const chat = useChat.getState();
     if (!t || chat.loading) return;
-    // Gli ultimi MAX_MESSAGGI compreso il nuovo: sono anche quelli che arrivano al modello
     const domanda: ChatMsg = { role: "user", content: t };
-    const history = [...chat.msgs, domanda].slice(-MAX_MESSAGGI);
 
     const { user, legaName, tappe } = useAppStore.getState();
     if (!user || user.guest) {
-      salvaChat([...history, {
+      salvaChat([...chat.msgs, domanda, {
         role: "assistant",
         content: "Coach AI è riservato agli utenti registrati: crea un account gratuito dalla home per usarlo.",
       }]);
       return;
     }
 
-    salvaChat(history);
+    // La domanda entra nella chat, che tiene gli ultimi MAX_MESSAGGI: sono anche quelli che arrivano al modello
+    salvaChat([...chat.msgs, domanda]);
+    const history = useChat.getState().msgs;
     useChat.setState({ loading: true });
     // Se intanto la chat viene cancellata (anche dal logout) la richiesta si interrompe: niente altre chiamate al
     // modello, niente altri strumenti, e la risposta non riempie di nuovo la chat
@@ -864,5 +871,5 @@ export function useCoachAI() {
     }
   };
 
-  return { msgs, loading, conferma, send, clearChat: cancellaChat };
+  return { msgs, scartati, loading, conferma, send, clearChat: cancellaChat };
 }

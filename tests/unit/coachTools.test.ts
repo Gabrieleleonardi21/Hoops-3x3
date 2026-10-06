@@ -655,6 +655,20 @@ describe("Coach AI: la chat", () => {
     expect(richieste.at(-1)).toHaveLength(31); // le istruzioni di sistema e 30 messaggi
   });
 
+  it("i messaggi usciti dalla testa si contano (scartati) nello stesso aggiornamento, e «Cancella» riparte da zero", async () => {
+    modello(...Array.from({ length: 16 }, (_, i) => testo(`risposta ${i + 1}`)));
+    const c = coach();
+    for (let i = 1; i <= 15; i++) await chiedi(c, `domanda ${i}`);
+    expect(c.current.msgs).toHaveLength(30);
+    expect(c.current.scartati).toBe(0); // la chat è piena, ma non è uscito ancora niente
+    await chiedi(c, "domanda 16"); // 32 messaggi: escono i primi due (domanda 1 e risposta 1)
+    expect(c.current.msgs[0]).toEqual({ role: "user", content: "domanda 2" });
+    expect(c.current.scartati).toBe(2);
+    act(() => { c.current.clearChat(); });
+    expect(c.current.msgs).toEqual([]);
+    expect(c.current.scartati).toBe(0);
+  });
+
   it("al logout si cancella: chi apre il Coach dopo non la vede, nemmeno nella sessionStorage della scheda", async () => {
     modello(testo("Ciao Anna!"));
     const c = coach();
@@ -877,6 +891,30 @@ describe("CoachPanel", () => {
     expect(within(messaggi).getByText("Quanto dura una gara?")).toBeTruthy();
     // Il campo per scrivere e i pulsanti non fanno parte del log: non si annuncia ciò che l'utente digita
     expect(within(messaggi).queryByRole("textbox")).toBeNull();
+  });
+
+  it("oltre i 30 messaggi la chat si taglia ma ogni messaggio resta lo stesso nodo: con role=log il lettore di schermo non rilegge tutto", async () => {
+    // 15 domande e 15 risposte riempiono la chat; la 16ª domanda è il 31° messaggio e ne fa uscire il primo
+    const ultima = differita<Risposta>();
+    modello(...Array.from({ length: 15 }, (_, i) => testo(`Risposta ${i + 1}`)), ultima.p);
+    apriPannello();
+    for (let i = 1; i <= 15; i++) {
+      scriviEInvia(`Domanda ${i}`);
+      await screen.findByText(`Risposta ${i}`);
+    }
+    const secondo = screen.getByText("Risposta 1");
+    const terzo = screen.getByText("Domanda 2");
+
+    scriviEInvia("Domanda 16"); // la risposta tarda: il 31° messaggio è la domanda
+    await screen.findByText("Domanda 16");
+    expect(screen.queryByText("Domanda 1")).toBeNull(); // uscita dalla testa
+    expect(screen.getByText("Risposta 1")).toBe(secondo); // con la chiave = posizione sarebbe il nodo di un altro messaggio
+    expect(screen.getByText("Domanda 2")).toBe(terzo);
+
+    await act(async () => { ultima.ok(testo("Risposta 16")); }); // il 32°: esce anche «Risposta 1»
+    await screen.findByText("Risposta 16");
+    expect(screen.queryByText("Risposta 1")).toBeNull();
+    expect(screen.getByText("Domanda 2")).toBe(terzo);
   });
 
   describe("Esc (FU-1)", () => {

@@ -44,7 +44,7 @@ function riepilogoTool(tools: string[]): Array<{ label: string; count: number; c
 }
 
 export function CoachPanel({ onClose }: { onClose: () => void }) {
-  const { msgs, loading, conferma, send, clearChat } = useCoachAI();
+  const { msgs, scartati, loading, conferma, send, clearChat } = useCoachAI();
   const [input, setInput] = useState("");
   const richiestaRef = useRef<HTMLDivElement>(null);
   // Senza contenitore: la finestra è nella pila solo per l'Esc, Tab non è trattenuto
@@ -81,8 +81,10 @@ export function CoachPanel({ onClose }: { onClose: () => void }) {
             Chiedimi delle regole 3x3, come organizzare la tua tappa o come funziona il circuito FIBA 3x3.
           </p>
         )}
+        {/* La chiave è il numero del messaggio nella conversazione, non la posizione: a chat piena (30 messaggi) quelli nuovi spingono
+            fuori i primi, e con l'indice ogni nodo cambierebbe messaggio e il lettore di schermo rileggerebbe tutto il log */}
         {msgs.map((m, i) => (
-          <div key={i} className="flex flex-col">
+          <div key={scartati + i} className="flex flex-col">
             <div className={m.role === "user" ? "bubble-u" : "bubble-a"}>{m.content}</div>
             {/* Badge delle azioni eseguite, solo sui messaggi assistant che hanno usato tool */}
             {m.role === "assistant" && m.tools && m.tools.length > 0 && (
