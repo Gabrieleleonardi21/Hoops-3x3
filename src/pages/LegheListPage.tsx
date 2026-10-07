@@ -1,7 +1,7 @@
 /** Pagina di selezione lega: mostra tutte le leghe dell'utente,
  *  permette di crearne una nuova, aprirla o eliminarla. */
 import { useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useAppStore } from "../stores/useAppStore";
 import { useInvio } from "../hooks/useInvio";
 import { useConfermaPerdita } from "../hooks/useConfermaPerdita";
@@ -37,7 +37,6 @@ function LegaCard({ m, disabled, onOpen, onDelete }: { m: LegaMeta; disabled: bo
 }
 
 export function LegheListPage() {
-  const user      = useAppStore((s) => s.user);
   const leghe     = useAppStore((s) => s.leghe);
   const createLega  = useAppStore((s) => s.createLega);
   const selectLega  = useAppStore((s) => s.selectLega);
@@ -48,7 +47,6 @@ export function LegheListPage() {
   // leghe; se fallisce il motivo compare sotto il campo del nome, e il nome scritto resta
   const { invio, errore, esegui } = useInvio();
 
-  if (!user) return <Navigate to="/" replace />;
 
   const handleCreate = async () => {
     if (!nome.trim()) return;

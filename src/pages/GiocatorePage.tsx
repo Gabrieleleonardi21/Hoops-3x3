@@ -5,7 +5,7 @@
  *  righe di quella tabella con lo stesso nome, in una o più squadre: la funzione è la stessa
  *  (utils/statGiocatori), quindi i numeri coincidono. */
 import { useMemo } from "react";
-import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAnagrafe } from "../hooks/useAnagrafe";
 import { useAppStore } from "../stores/useAppStore";
 import { normalizza, statGiocatori, tabellini, type StatGiocatore } from "../utils/statGiocatori";
@@ -60,7 +60,6 @@ const somma = (righe: StatGiocatore[]): Totali => righe.reduce((acc, r) => ({
 
 export function GiocatorePage() {
   const { id } = useParams();
-  const user = useAppStore((s) => s.user);
   const tappe = useAppStore((s) => s.tappe);
   const navigate = useNavigate();
   const { giocatori, squadre, errore, load } = useAnagrafe();
@@ -115,7 +114,6 @@ export function GiocatorePage() {
     return out;
   }, [g, tappe]);
 
-  if (!user) return <Navigate to="/" replace />;
   if (giocatori === null && errore) {
     return <ErroreCaricamento cosa="Non è stato possibile caricare l'anagrafe." motivo={errore} onRiprova={() => { void load(); }} />;
   }
