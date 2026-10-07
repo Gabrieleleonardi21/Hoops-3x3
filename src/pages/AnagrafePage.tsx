@@ -107,8 +107,9 @@ export function AnagrafePage() {
       </div>
 
       <p className="mb-4 text-xs text-chalk-muted">
-        L'anagrafe è condivisa: i dati registrati sono visibili a tutti gli utenti del circuito. Inserisci solo
-        informazioni che possono essere rese pubbliche e per cui hai il consenso degli interessati.
+        L'anagrafe è condivisa: nome, squadra, ruolo e numero dei giocatori sono visibili a tutti, mentre i dati personali (data di
+        nascita, città, nazionalità, misure, note, referente) li vede solo chi ha un account. Inserisci solo informazioni per cui hai il
+        consenso degli interessati.
       </p>
 
       {eliminazione.errore && <p className="mb-2.5 text-[13px] font-semibold text-loss" role="alert">{eliminazione.errore}</p>}

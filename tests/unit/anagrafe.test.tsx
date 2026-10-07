@@ -7,6 +7,7 @@ import { GiocatoreForm } from "../../src/components/anagrafe/GiocatoreForm";
 import { GiocatoreModal } from "../../src/components/anagrafe/GiocatoreModal";
 import { SquadraAnagrafeCard } from "../../src/components/anagrafe/SquadraAnagrafeCard";
 import { SquadraAnagrafeModal } from "../../src/components/anagrafe/SquadraAnagrafeModal";
+import { AnagrafePage } from "../../src/pages/AnagrafePage";
 import { GiocatorePage } from "../../src/pages/GiocatorePage";
 import { useAnagrafeStore } from "../../src/stores/useAnagrafeStore";
 import { useAppStore } from "../../src/stores/useAppStore";
@@ -310,3 +311,24 @@ describe("GiocatorePage: il giocatore in forma pubblica", () => {
     expect(document.body.textContent).not.toMatch(/NaN|undefined|null|\d+ anni|\d+ cm|\d+ kg/);
   });
 });
+
+describe("AnagrafePage: l'avviso sulla riservatezza dei dati", () => {
+  afterEach(() => {
+    useAppStore.getState().reset();
+    useAnagrafeStore.setState({ giocatori: null, squadre: null, errore: null, caricata: false });
+  });
+
+  it("dice che i dati personali li vede solo chi ha un account e che nome, squadra, ruolo e numero sono visibili a tutti", () => {
+    useAppStore.setState({ user: autore, tappe: [] });
+    useAnagrafeStore.setState({ giocatori: [], squadre: [], errore: null, caricata: true });
+    render(<MemoryRouter><AnagrafePage /></MemoryRouter>);
+    const avviso = screen.getByText(/L'anagrafe è condivisa/);
+    expect(avviso.textContent).toMatch(/dati personali/);
+    expect(avviso.textContent).toMatch(/solo chi ha un account/);
+    expect(avviso.textContent).toMatch(/nome, squadra, ruolo e numero/);
+    // Il testo di prima prometteva dati «visibili a tutti gli utenti» e «che possono essere rese pubbliche»: non è più vero
+    expect(avviso.textContent).not.toMatch(/visibili a tutti gli utenti/);
+    expect(avviso.textContent).not.toMatch(/rese pubbliche/);
+  });
+});
+
