@@ -266,12 +266,13 @@ Il Coach è riservato agli utenti registrati, su tre livelli:
 1. **Interfaccia.** Se non c'è un utente o l'utente è un ospite (`user.guest`), `send` in `useCoachAI.ts` non chiama nessun
    endpoint: aggiunge la domanda e risponde in chat «Coach AI è riservato agli utenti registrati: crea un account gratuito dalla
    home per usarlo.» Il pulsante «Consigli personalizzati del Coach AI» dell'analisi del giocatore (`GiocatoreAnalisi`) compare
-   solo con un account. Oggi per questo ramo non c'è un test dedicato, e nemmeno per il rifiuto dell'ospite in `concludi_tappa`
-   (punto 3): sono test ancora da scrivere.
+   solo con un account. Provato in `coachTools.test.ts` («riservato agli utenti registrati»): l'ospite riceve il messaggio fisso e
+   `fetch` non viene chiamato.
 2. **Backend.** `/api/coach/**` richiede il JWT (`anyRequest().authenticated()` in `SecurityConfig`, repository backend): senza,
    401, che l'app mostra come «Sessione scaduta: esci e accedi di nuovo per usare Coach AI.».
 3. **Strumenti.** `concludi_tappa` ricontrolla l'utente prima di concludere e rifiuta un ospite («richiede un account
-   registrato»), anche se per l'ospite i tool non arrivano mai fin lì.
+   registrato»), anche se per l'ospite i tool non arrivano mai fin lì. Provato eseguendo lo strumento direttamente, con un ospite e
+   senza utente: nessuna richiesta di conferma, la tappa non cambia e non si pubblica.
 
 La chat appartiene a chi l'ha scritta: cambiando utente (accesso, registrazione, uscita) si cancella, in memoria e nella
 `sessionStorage`.

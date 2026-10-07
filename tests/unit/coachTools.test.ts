@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, renderHook, screen, waitFor, within } 
 import { createElement, useState, type ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { useCoachAI } from "../../src/hooks/useCoachAI";
+import { eseguiStrumento, type ContestoStrumenti } from "../../src/coach/toolHandlers";
 import { useAuth } from "../../src/hooks/useAuth";
 import { CoachPanel } from "../../src/components/coach/CoachPanel";
 import { Modal } from "../../src/components/ui/Modal";
@@ -899,6 +900,39 @@ describe("Coach AI: la chat appartiene a chi l'ha scritta", () => {
     expect(c.current.msgs).toHaveLength(2);
     act(() => { store().setUser(bruno); });
     expect(c.current.msgs).toEqual([]);
+  });
+});
+
+describe("Coach AI: riservato agli utenti registrati", () => {
+  const ospite: User = { name: "Ospite", guest: true };
+
+  it("un ospite riceve il messaggio fisso e il server non viene chiamato", async () => {
+    act(() => { useAppStore.setState({ user: ospite }); });
+    modello(testo("Non deve arrivare: il modello non va interpellato."));
+    const c = coach();
+    await chiedi(c, "Crea una tappa con Alfa e Beta");
+    expect(fetch).not.toHaveBeenCalled();
+    expect(c.current.msgs).toEqual([
+      { role: "user", content: "Crea una tappa con Alfa e Beta" },
+      { role: "assistant", content: "Coach AI è riservato agli utenti registrati: crea un account gratuito dalla home per usarlo." },
+    ]);
+  });
+
+  it.each<[string, User | null]>([
+    ["un ospite", ospite],
+    ["nessun utente", null],
+  ])("concludi_tappa rifiuta %s anche se lo strumento viene raggiunto: nessuna conferma, niente concluso né pubblicato", async (_chi, utente) => {
+    // Per l'hook l'ospite non arriva mai agli strumenti: la regola dello strumento è la seconda difesa e si prova eseguendolo
+    useAppStore.setState({ user: utente, tappe: [romaOpenGiocata()] });
+    const prima = store().tappe[0];
+    const ctx: ContestoStrumenti = {
+      vai: vi.fn(), segnale: new AbortController().signal, chiediConferma: vi.fn<ContestoStrumenti["chiediConferma"]>(),
+    };
+    await expect(eseguiStrumento("concludi_tappa", { tappa_nome: "Roma Open" }, ctx))
+      .rejects.toThrow("La conclusione nell'Archivio circuito richiede un account registrato (non ospite).");
+    expect(ctx.chiediConferma).not.toHaveBeenCalled();
+    expect(store().tappe[0]).toBe(prima);
+    expect(archivioApi.pubblica).not.toHaveBeenCalled();
   });
 });
 
