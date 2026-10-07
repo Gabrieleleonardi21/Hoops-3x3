@@ -787,6 +787,23 @@ describe("riaprire la lega: altri ordini di arrivo (dopo la ri-revisione di C1)"
     expect(store().tappe.map((t) => t.id)).toEqual(["t1"]);
     senzaAvvisi();
   });
+
+  it("P8: un salvataggio durante la GET trova la tappa eliminata altrove: la risposta della GET, letta prima, non la riporta", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1"), 3);
+    server.ha(tappa("t2", "Seconda"), 0);
+    await apri();
+    const lettura = letturaLenta(server);                    // legge t1 e t2
+    const apertura = store().selectLega("l1");
+    await vi.advanceTimersByTimeAsync(0);
+    server.salvate.delete("t1");                             // un altro dispositivo la elimina
+    store().updateTappa("t1", { luogo: "Ostia" });
+    await vi.advanceTimersByTimeAsync(400);                  // PUT: 404, rilettura, la tappa esce con l'avviso
+    expect(store().avvisoConflitti).toBe(tappaEliminataAltrove("Tappa"));
+    lettura.ok();
+    await apertura;
+    expect(store().tappe.map((t) => t.id)).toEqual(["t2"]);
+  });
 });
 
 describe("404 sulla PUT: la tappa l'ha eliminata un altro dispositivo", () => {
