@@ -1,5 +1,6 @@
 import type { Tappa } from "../types";
 import { tappaLeaders, type LeaderRow } from "./tappaLeaders";
+import { SCONOSCIUTO } from "./tappaInfo";
 
 export interface AreaMiglioramento {
   area: string;
@@ -56,7 +57,7 @@ export function analyzePlayer3x3(tappa: Tappa, pid: string): PlayerAnalysis | nu
   const rows = tappaLeaders(tappa);
   const me = rows.find((r) => r.pid === pid);
   const team = tappa.squadre.find((s) => (s.giocatori || []).some((p) => p.id === pid));
-  const nome = team?.giocatori.find((p) => p.id === pid)?.nome || me?.nome || "?";
+  const nome = team?.giocatori.find((p) => p.id === pid)?.nome || me?.nome || SCONOSCIUTO;
   if (!me || me.g === 0) {
     return team
       ? { pid, nome, squadra: team.nome, partite: 0, medie: { pt: 0, rb: 0, as: 0, ru: 0, st: 0, pe: 0, fa: 0 }, forti: [], migliorare: [] }

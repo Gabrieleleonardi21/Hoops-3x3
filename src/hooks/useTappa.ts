@@ -6,6 +6,7 @@ import { anagrafeApi } from "../services/anagrafeApi";
 import { useAnagrafeStore } from "../stores/useAnagrafeStore";
 import { uid } from "../utils/uid";
 import { PERDITA_RIAPERTURA } from "../utils/testi";
+import { giocatoriDi, nomeGiocatore, nomeSquadra } from "../utils/tappaInfo";
 import * as ops from "../domain/tappaOps";
 import type { Esito, ModoSorteggio } from "../domain/tappaOps";
 import type { EventoGara, Partita, RegSquadra, SquadraTappa, StatLine, StatSheet, Tappa } from "../types";
@@ -32,11 +33,7 @@ function numify(sheet: MatchDraft["pa"]): StatSheet {
 }
 
 /* Letture su una tappa qualsiasi: l'hook le applica alla tappa del render, le operazioni a quella di adesso */
-const nomeSquadra = (t: Tappa | null, teamId: string) => t?.squadre.find((s) => s.id === teamId)?.nome || "?";
-/** Giocatori con il nome compilato: sono quelli che contano per il roster */
-const giocatoriConNome = (t: Tappa | null, teamId: string) =>
-  (t?.squadre.find((s) => s.id === teamId)?.giocatori || []).filter((p) => p.nome.trim());
-const rosterCompleto = (t: Tappa | null, teamId: string) => giocatoriConNome(t, teamId).length >= 3;
+const rosterCompleto = (t: Tappa | null, teamId: string) => giocatoriDi(t?.squadre, teamId).length >= 3;
 
 /* Sincronizzazione con l'anagrafe: funzioni pure, che si applicano alla tappa com'è adesso nello store */
 
@@ -179,15 +176,9 @@ export function useTappa(id: string | undefined) {
   };
 
   /* ── helper di lettura ── */
-  const nameOf = (teamId: string) => nomeSquadra(tappa, teamId);
-  const playersOf = (teamId: string) => giocatoriConNome(tappa, teamId);
-  const playerNameById = (pid: string) => {
-    for (const s of tappa?.squadre || []) {
-      const p = (s.giocatori || []).find((x) => x.id === pid);
-      if (p) return p.nome;
-    }
-    return null;
-  };
+  const nameOf = (teamId: string) => nomeSquadra(tappa?.squadre, teamId);
+  const playersOf = (teamId: string) => giocatoriDi(tappa?.squadre, teamId);
+  const playerNameById = (pid: string) => nomeGiocatore(tappa?.squadre, pid);
   const teamComplete = (teamId: string) => rosterCompleto(tappa, teamId);
 
   /* ── modifica tappa ── */
@@ -325,14 +316,14 @@ export function useTappa(id: string | undefined) {
     if (!user.guest) {
       const sides: ["pa" | "pb", string, number][] = [["pa", m.a, sa], ["pb", m.b, sb]];
       for (const [side, teamId, total] of sides) {
-        const pls = giocatoriConNome(corrente, teamId);
-        if (pls.length < 3) return `${nomeSquadra(corrente, teamId)} non ha un roster valido (minimo 3 giocatori).`;
+        const pls = giocatoriDi(corrente.squadre, teamId);
+        if (pls.length < 3) return `${nomeSquadra(corrente.squadre, teamId)} non ha un roster valido (minimo 3 giocatori).`;
         const vals = pls.map((p) => parseInt(String(draft[side]?.[p.id]?.pt ?? ""), 10));
         if (vals.some((v) => isNaN(v) || v < 0))
-          return `Inserisci i punti (PT) di OGNI giocatore di ${nomeSquadra(corrente, teamId)} (anche 0).`;
+          return `Inserisci i punti (PT) di OGNI giocatore di ${nomeSquadra(corrente.squadre, teamId)} (anche 0).`;
         const sum = vals.reduce((t, v) => t + v, 0);
         if (sum !== total)
-          return `I punti dei giocatori di ${nomeSquadra(corrente, teamId)} sommano ${sum}, ma il totale è ${total}.`;
+          return `I punti dei giocatori di ${nomeSquadra(corrente.squadre, teamId)} sommano ${sum}, ma il totale è ${total}.`;
       }
     }
     replaceTappa(esito.tappa);

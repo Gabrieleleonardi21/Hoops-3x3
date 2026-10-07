@@ -21,6 +21,7 @@ import { StatTile } from "../components/ui/StatTile";
 import { Icon } from "../components/ui/Icon";
 import { Sparkline } from "../components/profile/Sparkline";
 import type { RegGiocatore, Tappa } from "../types";
+import { nomeSquadra } from "../utils/tappaInfo";
 
 /** true se il nome nel roster corrisponde al giocatore dell'anagrafe, in un ordine o nell'altro. Si confronta con la
  *  stessa normalizzazione della tabella di stagione */
@@ -102,7 +103,7 @@ export function GiocatorePage() {
     if (!g) return [];
     const out: GameRow[] = [];
     for (const t of tappe) {
-      const nameOf = (tid: string) => t.squadre.find((s) => s.id === tid)?.nome ?? tid;
+      const nameOf = (tid: string) => nomeSquadra(t.squadre, tid);
       for (const { nome, stat, partita: m, lato } of tabellini(t)) {
         if (!sameName(nome, g)) continue;
         // Punti fatti, punti subiti e squadra avversaria, dal lato della scheda in cui sta il tabellino

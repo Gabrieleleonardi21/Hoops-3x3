@@ -14,6 +14,7 @@ import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
 import { Section } from "../ui/Section";
 import type { Tappa, SquadraTappa } from "../../types";
+import { giocatoriDi, logoSquadra, nomeGiocatore, nomeSquadra } from "../../utils/tappaInfo";
 
 /** Vista in sola lettura di una tappa: tappe concluse e archivio del circuito */
 export function ArchivioTappaView({ t, lega, autore }: { t: Tappa; lega?: string; autore?: string }) {
@@ -21,18 +22,11 @@ export function ArchivioTappaView({ t, lega, autore }: { t: Tappa; lega?: string
   const [selPid, setSelPid] = useState<string | null>(null);
   const [selSquadra, setSelSquadra] = useState<SquadraTappa | null>(null);
   const hasStats = t.partite.some((m) => m.done && (Object.keys(m.pa || {}).length > 0 || Object.keys(m.pb || {}).length > 0));
-  const nameOf = (id: string) => t.squadre.find((s) => s.id === id)?.nome || "?";
-  const logoOf = (id: string) => t.squadre.find((s) => s.id === id)?.logo;
+  const nameOf = (id: string) => nomeSquadra(t.squadre, id);
+  const logoOf = (id: string) => logoSquadra(t.squadre, id);
   const logos = Object.fromEntries(t.squadre.map((s) => [s.id, s.logo]));
-  const playersOf = (teamId: string) =>
-    (t.squadre.find((s) => s.id === teamId)?.giocatori || []).filter((p) => p.nome.trim());
-  const playerNameById = (pid: string) => {
-    for (const s of t.squadre) {
-      const p = (s.giocatori || []).find((x) => x.id === pid);
-      if (p) return p.nome;
-    }
-    return null;
-  };
+  const playersOf = (teamId: string) => giocatoriDi(t.squadre, teamId);
+  const playerNameById = (pid: string) => nomeGiocatore(t.squadre, pid);
 
   return (
     <div>

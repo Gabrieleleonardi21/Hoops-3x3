@@ -9,6 +9,7 @@ import { useAppStore, tappaCorrente } from "../../stores/useAppStore";
 import { useConfermaPerdita } from "../../hooks/useConfermaPerdita";
 import { generaFasiDirette, perditaTabellone, registraRisultatoBracket } from "../../domain/tappaOps";
 import { splitRounds } from "../../utils/buildBracket";
+import { logoSquadra, nomeSquadra } from "../../utils/tappaInfo";
 
 interface Props {
   tappa: Tappa;
@@ -18,8 +19,11 @@ interface Props {
 export function BracketSection({ tappa, readOnly = false }: Props) {
   const updateTappa  = useAppStore((s) => s.updateTappa);
   const replaceTappa = useAppStore((s) => s.replaceTappa);
-  const nameOf = (id: string | null) =>
-    id ? (tappa.squadre.find((s) => s.id === id)?.nome ?? id) : "TBD";
+  // Un posto ancora senza squadra (il vincitore del turno prima non c'è ancora) si chiama TBD
+  const nameOf = (id: string | null) => {
+    if (!id) return "TBD";
+    return nomeSquadra(tappa.squadre, id);
+  };
 
   // Stato locale per inserimento punteggi
   const [scores, setScores] = useState<Record<string, { a: string; b: string }>>({});
@@ -88,7 +92,7 @@ export function BracketSection({ tappa, readOnly = false }: Props) {
   }
 
   const rounds = splitRounds(tappa.bracket);
-  const logoOf = (id: string | null) => (id ? tappa.squadre.find((s) => s.id === id)?.logo : undefined);
+  const logoOf = (id: string | null) => logoSquadra(tappa.squadre, id);
 
   /** Input punteggio + salva per un match ancora da giocare (markup; la logica è registraRisultato) */
   const renderControls = (m: BracketMatch) => {

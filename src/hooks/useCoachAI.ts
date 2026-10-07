@@ -13,6 +13,7 @@ import {
   registraRisultatoBracket, sorteggia, type Esito, type ModoSorteggio,
 } from "../domain/tappaOps";
 import type { Tappa, RegSquadra, RegGiocatore, SquadraTappa, GiocatoreRoster, User } from "../types";
+import { squadraDi } from "../utils/tappaInfo";
 
 const CHAT_KEY = "coach_chat";
 /** Messaggi tenuti nella chat e mandati al modello: il server rifiuta le conversazioni oltre 60 messaggi (compresi
@@ -664,7 +665,7 @@ export function useCoachAI() {
       const tappa = tappaRichiesta(args);
       if (!tappa.gironi) throw new Error(`La tappa "${pulisci(tappa.nome)}" non è ancora sorteggiata: fai prima il sorteggio.`);
 
-      const nomeOf = (id: string | null) => tappa.squadre.find((s) => s.id === id)?.nome ?? "";
+      const nomeOf = (id: string | null) => squadraDi(tappa.squadre, id)?.nome ?? "";
 
       // Candidato nei gironi: partita non ancora registrata tra le due squadre
       let matchGirone = tappa.partite.find(
@@ -742,7 +743,7 @@ export function useCoachAI() {
       if (!tappa.gironi) throw new Error(`La tappa "${pulisci(tappa.nome)}" non è ancora sorteggiata.`);
 
       // Cerca la partita (già conclusa) tra le due squadre
-      const nomeOf = (id: string) => tappa.squadre.find((s) => s.id === id)?.nome ?? "";
+      const nomeOf = (id: string) => squadraDi(tappa.squadre, id)?.nome ?? "";
       const partita = tappa.partite.find((m) => m.done && coppiaCombacia(nomeOf(m.a), nomeOf(m.b), nomeA, nomeB));
       if (!partita) throw new Error(`Partita già conclusa tra "${nomeA}" e "${nomeB}" non trovata nella tappa "${pulisci(tappa.nome)}".`);
 

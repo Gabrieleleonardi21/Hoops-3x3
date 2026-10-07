@@ -19,6 +19,7 @@ import { standings } from "../utils/standings";
 import { tappaLeaders } from "../utils/tappaLeaders";
 import { ultimoRisultato } from "../utils/ultimoRisultato";
 import type { Tappa } from "../types";
+import { logoSquadra, nomeSquadra } from "../utils/tappaInfo";
 
 /** Tappa "in corso": la più recente non conclusa con gironi sorteggiati, altrimenti l'ultima creata */
 function tappaInCorso(tappe: Tappa[]): Tappa | null {
@@ -35,8 +36,8 @@ export function HomePage() {
   const navigate = useNavigate();
 
   const t = useMemo(() => tappaInCorso(tappe), [tappe]);
-  const nameOf = (id: string) => t?.squadre.find((s) => s.id === id)?.nome ?? id;
-  const logoOf = (id: string) => t?.squadre.find((s) => s.id === id)?.logo;
+  const nameOf = (id: string) => nomeSquadra(t?.squadre, id);
+  const logoOf = (id: string) => logoSquadra(t?.squadre, id);
   const logos = Object.fromEntries((t?.squadre ?? []).map((s) => [s.id, s.logo]));
 
   // Girone da mostrare: il primo con almeno una partita giocata, altrimenti il primo

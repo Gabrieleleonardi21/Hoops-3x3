@@ -1,6 +1,7 @@
 import type { Tappa } from "../types";
 import { giocateConVincitore, standings, vincitore } from "./standings";
 import { tappaLeaders } from "./tappaLeaders";
+import { nomeSquadra } from "./tappaInfo";
 
 /** Lunghezza massima di un nome nel contesto */
 const MAX_NOME = 80;
@@ -72,7 +73,7 @@ export function buildCoachContext(legaName: string, tappe: Tappa[]): string {
   lines.push(`\nTappa in primo piano: ${pulisci(attiva.nome)} — ${pulisci(attiva.luogo)}, ${pulisci(attiva.data)}`);
 
   // Nomi delle squadre già puliti: li usano le classifiche dei gironi
-  const nameOf = (id: string) => pulisci(attiva.squadre.find((s) => s.id === id)?.nome ?? id);
+  const nameOf = (id: string) => pulisci(nomeSquadra(attiva.squadre, id));
 
   if (attiva.squadre.length) {
     lines.push(`Squadre (${attiva.squadre.length}): ${attiva.squadre.map((s) => pulisci(s.nome)).join(", ")}`);
