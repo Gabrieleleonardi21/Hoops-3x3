@@ -77,10 +77,17 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
 - Conclusione e pubblicazione della tappa nell'Archivio circuito (richiede
   account registrato; la tappa passa in sola lettura). Servono tutti i
   risultati dei gironi e, se è stata generata la fase a eliminazione
-  diretta, anche tutti i suoi match.
+  diretta, anche tutti i suoi match. La pubblicazione parte dopo l'ultimo
+  salvataggio (il server costruisce la copia da ciò che ha salvato): se la
+  tappa non arriva al server non si pubblica. La pagina della tappa conclusa
+  dice «pubblicata» solo se lo è (aprendola lo chiede all'archivio); se la
+  pubblicazione non è riuscita lo dice col motivo e indica «Riapri» e poi
+  «Concludi».
 - Riapertura di una tappa conclusa per correzioni. Se è pubblicata chiede
   conferma: esce dall'Archivio circuito e il suo link pubblico non funziona
-  finché non la si conclude di nuovo.
+  finché non la si conclude di nuovo. La tappa esce dall'archivio prima di
+  riaprirsi: se il server non ci riesce resta conclusa e la pagina dice
+  perché. Una tappa che non è in archivio si riapre senza conferma.
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
