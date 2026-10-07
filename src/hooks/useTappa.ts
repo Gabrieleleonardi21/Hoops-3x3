@@ -332,7 +332,7 @@ export function useTappa(id: string | undefined) {
       setArchivio(registra(t.id, { pubblicata: true, errore: null }));
     } catch (e) {
       // La copia pubblica resta com'era: se la tappa era in archivio ci resta, ma senza il video, e il motivo compare nella pagina
-      setArchivio((tutti) => registra(t.id, { pubblicata: (tutti[t.id] ?? SCONOSCIUTO).pubblicata, errore: testoErrore(e) })(tutti));
+      setArchivio((tutti) => ({ ...tutti, [t.id]: { pubblicata: (tutti[t.id] ?? SCONOSCIUTO).pubblicata, errore: testoErrore(e) } }));
     }
   };
   const addVideo = (titolo: string, url: string) => {
