@@ -28,12 +28,14 @@ import {
  * dispositivo ha salvato il server risponde 409. Allora si rilegge la lega e vale la tappa del server, con un avviso, a meno
  * che il conflitto non l'abbia causato questo client (un suo salvataggio rimasto senza risposta): vedi dopoUnConflitto.
  */
-/** Una tappa il cui ultimo salvataggio il server ha rifiutato: il nome mandato, il motivo e la lega (letta al rifiuto) */
+/** Una tappa il cui ultimo salvataggio il server ha rifiutato: il nome mandato, il motivo, la lega (letta al rifiuto) e se era la POST
+ *  di creazione (`nuova`: sul server la tappa non c'è) */
 export interface Rifiuto {
   id: string;
   nome: string;
   motivo: string;
   legaId: string | null;
+  nuova: boolean;
 }
 
 interface AppState {
@@ -350,6 +352,12 @@ export const useAppStore = create<AppState>((set, get) => {
   /** Tappe del server messe da un conflitto mentre la loro lega non era aperta (applicaQuellaDelServer): non sono nello store, e una
    *  GET della lega partita prima del conflitto ne avrebbe la versione superata. Le usa la prossima apertura della lega */
   const delServerFuoriLega = new Map<string, Tappa>();
+  /** Le copie ricordate delle tappe di una lega: la lega si è aperta (ora sono nello store) o si è eliminata */
+  const dimenticaCopieDellaLega = (legaId: string) => {
+    for (const id of [...delServerFuoriLega.keys()]) {
+      if (sulServer.get(id)?.legaId === legaId) delServerFuoriLega.delete(id);
+    }
+  };
 
   /** La lega di una tappa: quella detta dal server, oppure quella in cui la tappa si sta creando, oppure la lega aperta */
   const legaDi = (id: string): string | null => sulServer.get(id)?.legaId ?? daCreare.get(id) ?? get().legaId;
@@ -651,8 +659,13 @@ export const useAppStore = create<AppState>((set, get) => {
   const mostraRifiutate = () => {
     set({ rifiuti: [...rifiutate.values()] });
   };
+  /** Il server ha rifiutato la versione `t`. Il rifiuto vale solo se è l'ultima della tappa: se in coda ce n'è già una più nuova decide
+   *  il salvataggio di quella, e la riga direbbe il falso (riaprendo la lega si troverebbe la versione in attesa, non quella del server).
+   *  Una GET della lega in corso l'ha letta prima: riaprendo vale la tappa del server, non la versione rifiutata (N2) */
   const rifiuta = (t: Tappa, e: unknown) => {
-    rifiutate.set(t.id, { id: t.id, nome: t.nome, motivo: testoErrore(e), legaId: legaDi(t.id) });
+    if (coda.inAttesa().some((x) => x.id === t.id)) return;
+    rifiutate.set(t.id, { id: t.id, nome: t.nome, motivo: testoErrore(e), legaId: legaDi(t.id), nuova: daCreare.has(t.id) });
+    uscitaDuranteLeLetture(t.id);
     mostraRifiutate();
   };
   /** Il rifiuto della tappa non vale più; la riga si rifà solo se c'era */
@@ -694,7 +707,11 @@ export const useAppStore = create<AppState>((set, get) => {
   const afterTappaChange = (tappaId: string) => {
     if (!isRemote()) { persistLocal(); return; }
     const t = get().tappe.find((x) => x.id === tappaId);
-    if (t) coda.accoda(t);
+    if (!t) return;
+    // Una versione più nuova: un rifiuto di prima non descrive più la tappa, e il salvataggio di questa decide (riesce, è rifiutata
+    // di nuovo, o resta in attesa e «Esci» la conta)
+    togliRifiutata(tappaId);
+    coda.accoda(t);
   };
 
   /** La GET di una lega per selectLega, raccogliendo in `uscite` le tappe che escono dalla coda o dallo store mentre è in corso
@@ -757,9 +774,7 @@ export const useAppStore = create<AppState>((set, get) => {
       if (creataDuranteLaGet && manca(t.id)) tappe.push(conVersione(t));
     }
     // Da qui le tappe della lega sono nello store: le copie ricordate a lega chiusa non servono più
-    for (const id of [...delServerFuoriLega.keys()]) {
-      if (sulServer.get(id)?.legaId === legaId) delServerFuoriLega.delete(id);
-    }
+    dimenticaCopieDellaLega(legaId);
     return tappe;
   };
 
@@ -912,6 +927,7 @@ export const useAppStore = create<AppState>((set, get) => {
       if (!isRemote()) writeIndex(leghe);
       // I rifiuti delle tappe della lega non valgono più, anche se non è quella aperta: non c'è più niente da salvare
       togliRifiutateDellaLega(id);
+      dimenticaCopieDellaLega(id);
       if (get().legaId === id) {
         // Le tappe se ne vanno con la lega: i loro salvataggi in attesa o in nuovo tentativo partirebbero dopo la DELETE
         // e avrebbero un 404 (la POST, su una lega che non c'è più), cioè un errore per dati eliminati apposta
@@ -1086,7 +1102,7 @@ export const useAppStore = create<AppState>((set, get) => {
 export function avvisoRifiutate(s: Pick<AppState, "rifiuti" | "legaId" | "leghe">): string | null {
   const frasi = s.rifiuti.map((r) => {
     const lega = s.leghe.find((m) => m.id === r.legaId)?.nome || "senza nome";
-    return salvataggioRifiutato(r.nome, r.motivo, lega, r.legaId === s.legaId);
+    return salvataggioRifiutato(r.nome, r.motivo, lega, r.legaId === s.legaId, r.nuova);
   });
   return frasi.join(" ") || null;
 }

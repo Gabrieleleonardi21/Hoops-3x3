@@ -29,6 +29,19 @@ describe("salvataggio rifiutato dal server: che cosa è successo e che cosa fare
     );
   });
 
+  it("tappa nuova, mai arrivata sul server: non promette una versione salvata che non c'è", () => {
+    expect(salvataggioRifiutato("Finale", "Dati della tappa non validi", "Estate", true, true)).toBe(
+      "Salvataggio della tappa nuova «Finale» non riuscito: Dati della tappa non validi. Non è ancora sul server: correggila, perché "
+      + "riaprendo la lega «Estate» sparirebbe.",
+    );
+    expect(salvataggioRifiutato("Finale", "Dati della tappa non validi", "Inverno", false, true)).toBe(
+      "Salvataggio della tappa nuova «Finale» della lega «Inverno» non riuscito: Dati della tappa non validi. Non è mai arrivata sul "
+      + "server e quella versione non è più qui: è andata persa.",
+    );
+    expect(salvataggioRifiutato("", "Il nome della tappa è obbligatorio", "Estate", true, true))
+      .toMatch(/^Salvataggio di una tappa nuova senza nome non riuscito: /);
+  });
+
   it("una tappa senza nome (il nome vuoto può essere proprio il dato rifiutato)", () => {
     expect(salvataggioRifiutato("  ", "Il nome della tappa è obbligatorio", "Estate", true))
       .toMatch(/^Salvataggio di una tappa senza nome non riuscito: Il nome della tappa è obbligatorio\. Correggi la tappa/);

@@ -377,16 +377,20 @@ utenti registrati.
   UI e salva in background (debounce 400 ms per tappa); un salvataggio
   fallito è segnalato da una barra in alto. Un salvataggio rifiutato dal
   server (dati non validi) ha una riga sua, che un errore arrivato dopo non
-  copre e che resta finché la tappa non si salva, non si elimina o non si
-  riapre la lega. La riga dice che cosa fare: correggere la tappa, oppure
-  riaprire la lega per tornare alla versione salvata sul server. Se la tappa
-  è della lega aperta «Esci» la conta tra le modifiche non salvate e chiede
-  conferma; se è di un'altra lega la riga la nomina e dice che quella
-  versione non è più in memoria, e «Esci» non la conta. Ogni tappa ha una versione decisa dal server: se un altro
-  dispositivo l'ha salvata nel frattempo (409), l'app mostra la tappa del
-  server e lo dice nella stessa barra, invece di sovrascriverne il lavoro;
-  se l'ha eliminata (la PUT riceve 404 o 409), rilegge la lega e, se la
-  tappa non c'è più, la toglie con lo stesso avviso.
+  copre e che vale finché la versione rifiutata è l'ultima della tappa:
+  sparisce quando la tappa si salva, si modifica di nuovo, si elimina o la
+  lega si riapre. La riga dice che cosa fare: correggere la tappa, oppure
+  riaprire la lega per tornare alla versione salvata sul server; per una
+  tappa nuova, che sul server non c'è, dice di correggerla, perché
+  riaprendo la lega sparirebbe. Se la tappa è della lega aperta «Esci» la
+  conta tra le modifiche non salvate e chiede conferma; se è di un'altra
+  lega la riga la nomina e dice che quella versione non è più in memoria
+  (una tappa nuova è andata persa), e «Esci» non la conta. Ogni tappa ha
+  una versione decisa dal server: se un altro dispositivo l'ha salvata nel
+  frattempo (409), l'app mostra la tappa del server e lo dice nella stessa
+  barra, invece di sovrascriverne il lavoro; se l'ha eliminata (la PUT
+  riceve 404 o 409), rilegge la lega e, se la tappa non c'è più, la toglie
+  con lo stesso avviso.
 - Persistenza (ospite): localStorage per la lega (multi-lega con indice);
   anagrafe e archivio in sola lettura dal server. All'avvio la lega aperta
   si controlla con gli stessi campi dell'import, ma senza i limiti del

@@ -806,6 +806,132 @@ describe("riaprire la lega: altri ordini di arrivo (dopo la ri-revisione di C1)"
   });
 });
 
+describe("rifiuti e riapertura: la riga dice il vero (ritocchi finali)", () => {
+  const nonRaggiungibile = () => new ApiError(0, NESSUNA_RISPOSTA);
+  const rifiutoDati = () => new ApiError(400, "Dati della tappa non validi");
+  /** L'apertura di un'altra lega, l2 «Altra», vuota */
+  async function apriAltra() {
+    useAppStore.setState({ leghe: [...store().leghe, { id: "l2", nome: "Altra", ts: 1, nTappe: 0 }] });
+    api.get.mockImplementationOnce(async (id) => ({ id, nome: "Altra", tappe: [] }));
+    await store().selectLega("l2");
+  }
+
+  it("N1: una tappa nuova con la POST rifiutata: la riga dice che non è sul server e che riaprendo sparirebbe, ed è così", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1"), 3);
+    await apri();
+    api.addTappa.mockRejectedValueOnce(rifiutoDati());
+    store().addTappa({ ...tappa("t2", "Nuova"), luogo: "Ostia" });
+    await vi.advanceTimersByTimeAsync(400);
+    expect(rifiuti()).toBe(
+      "Salvataggio della tappa nuova «Nuova» non riuscito: Dati della tappa non validi. Non è ancora sul server: correggila, perché "
+      + "riaprendo la lega «Lega» sparirebbe.",
+    );
+    expect(await store().salvaTutto()).toBe(1);
+    await apri();
+    expect(store().tappe.map((t) => t.id)).toEqual(["t1"]);
+    expect(rifiuti()).toBeNull();
+  });
+
+  it("N1: correggendo la tappa nuova la riga sparisce subito e, se il server la accetta, la tappa è creata", async () => {
+    const server = serverFinto();
+    await apri();
+    api.addTappa.mockRejectedValueOnce(rifiutoDati());
+    store().addTappa(tappa("t2", "Nuova"));
+    await vi.advanceTimersByTimeAsync(400);
+    expect(rifiuti()).toContain("Non è ancora sul server");
+    store().updateTappa("t2", { nome: "Nuova corretta" });  // la versione rifiutata non è più l'ultima
+    expect(rifiuti()).toBeNull();
+    await vi.advanceTimersByTimeAsync(400);
+    expect(server.salvate.get("t2")).toMatchObject({ nome: "Nuova corretta", versione: 0 });
+  });
+
+  it("N1: una tappa nuova rifiutata in un'altra lega: la riga dice che è andata persa, ed è così", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1"), 3);
+    await apri();
+    api.addTappa.mockRejectedValueOnce(rifiutoDati());
+    store().addTappa(tappa("t2", "Nuova"));
+    await vi.advanceTimersByTimeAsync(400);
+    await apriAltra();
+    expect(rifiuti()).toBe(
+      "Salvataggio della tappa nuova «Nuova» della lega «Lega» non riuscito: Dati della tappa non validi. Non è mai arrivata sul server "
+      + "e quella versione non è più qui: è andata persa.",
+    );
+    expect(await store().salvaTutto()).toBe(0);              // non c'è più niente da perdere uscendo
+    await apri();
+    expect(store().tappe.map((t) => t.id)).toEqual(["t1"]);
+  });
+
+  it("N2: un rifiuto arrivato durante la GET di una versione in attesa da prima: riaprendo torna la versione del server", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1"), 3);
+    await apri();
+    api.putTappa.mockRejectedValueOnce(nonRaggiungibile()).mockRejectedValueOnce(nonRaggiungibile())
+      .mockRejectedValueOnce(rifiutoDati());
+    store().updateTappa("t1", { nome: "Rifiutata" });
+    await vi.advanceTimersByTimeAsync(400);
+    const lettura = letturaLenta(server);
+    const apertura = store().selectLega("l1");
+    await vi.advanceTimersByTimeAsync(5000);                 // nuovo tentativo durante la GET: 400
+    expect(rifiuti()).toContain("«Rifiutata»");
+    lettura.ok();
+    await apertura;
+    expect(store().tappe[0]).toMatchObject({ nome: "Tappa", versione: 3 });
+    expect(rifiuti()).toBeNull();
+    expect(await store().salvaTutto()).toBe(0);
+  });
+
+  it("N10: un rifiuto in un'altra lega senza versioni più nuove: aprendo la lega si trova quella salvata sul server, come dice la riga", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1"), 3);
+    await apri();
+    api.putTappa.mockRejectedValueOnce(rifiutoDati());
+    store().updateTappa("t1", { nome: "Rifiutata" });
+    await vi.advanceTimersByTimeAsync(400);
+    await apriAltra();
+    expect(rifiuti()).toContain("aprendo la lega «Lega» trovi quella salvata sul server.");
+    await apri();
+    expect(store().tappe[0]).toMatchObject({ nome: "Tappa", versione: 3 });
+    expect(rifiuti()).toBeNull();
+  });
+
+  it("N10: un rifiuto seguito da una versione più nuova ancora in coda: niente riga che prometta la versione del server", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1"), 3);
+    await apri();
+    api.putTappa.mockRejectedValueOnce(rifiutoDati());
+    store().updateTappa("t1", { nome: "Rifiutata" });
+    await vi.advanceTimersByTimeAsync(400);
+    api.putTappa.mockRejectedValue(nonRaggiungibile());
+    store().updateTappa("t1", { nome: "Corretta" });          // la rete manca: resta in attesa
+    await vi.advanceTimersByTimeAsync(400);
+    expect(rifiuti()).toBeNull();                            // la versione rifiutata non è più l'ultima
+    await apriAltra();
+    expect(rifiuti()).toBeNull();
+    expect(await store().salvaTutto()).toBe(1);              // la versione in attesa è in memoria: uscendo si perde
+    await apri();
+    expect(store().tappe[0].nome).toBe("Corretta");          // ciò che si trova aprendo la lega
+  });
+
+  it("un rifiuto arrivato quando in coda c'è già una versione più nuova non si registra: decide il salvataggio di quella", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1"), 3);
+    await apri();
+    const put = differita();
+    api.putTappa.mockImplementationOnce(async () => { await put.p; throw rifiutoDati(); })
+      .mockRejectedValue(nonRaggiungibile());
+    store().updateTappa("t1", { nome: "Prima" });
+    await vi.advanceTimersByTimeAsync(400);                  // la PUT di «Prima» resta in volo
+    store().updateTappa("t1", { nome: "Seconda" });          // una versione più nuova entra in coda
+    put.ok();
+    await vi.advanceTimersByTimeAsync(0);                    // «Prima» rifiutata; «Seconda» parte e non arriva
+    expect(rifiuti()).toBeNull();
+    expect(store().inSospeso).toBe(1);
+    expect(await store().salvaTutto()).toBe(1);
+  });
+});
+
 describe("404 sulla PUT: la tappa l'ha eliminata un altro dispositivo", () => {
   // Il server controlla l'esistenza della tappa prima della versione: una tappa eliminata altrove dà 404 alla PUT, non 409
   it("si rilegge la lega: la tappa non c'è più, esce dallo store con l'avviso e non si ritenta", async () => {

@@ -78,15 +78,28 @@ export function pubblicazioneSenzaSalvataggio(motivo: string | null): string {
   return `${testo}: ${motivo}`;
 }
 
-/** Il server ha rifiutato il salvataggio di una tappa (dati non validi): lì resta la versione di prima. È una frase della riga dei
- *  salvataggi rifiutati nella barra degli avvisi, che dura finché il rifiuto vale, e dice che cosa fare. Il nome è quello mandato, che
- *  può essere proprio il campo rifiutato (vuoto). `aperta` = la tappa è della lega aperta: la versione rifiutata è sullo schermo, e si
- *  corregge, oppure si torna a quella del server riaprendo la lega. Se è di un'altra lega quella versione non è più in memoria (aprendo
- *  l'altra lega lo store l'ha sostituita): la frase nomina la lega e non promette di salvarla */
-export function salvataggioRifiutato(nome: string, motivo: string, lega: string, aperta: boolean): string {
-  let tappa = `della tappa «${nome.trim()}»`;
-  if (!nome.trim()) tappa = "di una tappa senza nome";
+/** Il server ha rifiutato il salvataggio di una tappa (dati non validi). È una frase della riga dei salvataggi rifiutati nella barra
+ *  degli avvisi, che dura finché il rifiuto vale (la versione rifiutata è l'ultima della tappa), e dice che cosa fare. Il nome è quello
+ *  mandato, che può essere proprio il campo rifiutato (vuoto).
+ *  - `aperta` = la tappa è della lega aperta: la versione rifiutata è sullo schermo. Se è di un'altra lega quella versione non è più in
+ *    memoria (aprendo l'altra lega lo store l'ha sostituita): la frase nomina la lega e non promette di salvarla.
+ *  - `nuova` = la POST di creazione è stata rifiutata: sul server la tappa non c'è. Riaprendo la lega non torna una versione del server,
+ *    la tappa sparisce: va corretta; in un'altra lega è già persa.
+ *  - altrimenti sul server resta la versione di prima, e riaprendo la lega torna quella. */
+export function salvataggioRifiutato(nome: string, motivo: string, lega: string, aperta: boolean, nuova = false): string {
+  let genere = "";
+  if (nuova) genere = " nuova";
+  let tappa = `della tappa${genere} «${nome.trim()}»`;
+  if (!nome.trim()) tappa = `di una tappa${genere} senza nome`;
   const perche = motivo.trim().replace(/\.+$/, "");
+  if (nuova && aperta) {
+    return `Salvataggio ${tappa} non riuscito: ${perche}. Non è ancora sul server: correggila, perché riaprendo la lega «${lega}» `
+      + "sparirebbe.";
+  }
+  if (nuova) {
+    return `Salvataggio ${tappa} della lega «${lega}» non riuscito: ${perche}. Non è mai arrivata sul server e quella versione non è `
+      + "più qui: è andata persa.";
+  }
   if (aperta) {
     return `Salvataggio ${tappa} non riuscito: ${perche}. Correggi la tappa, oppure riapri la lega «${lega}» da «Le mie leghe» `
       + "per tornare alla versione salvata sul server.";
