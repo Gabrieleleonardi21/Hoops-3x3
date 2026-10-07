@@ -8,13 +8,18 @@ afterEach(cleanup); // senza le globali di Vitest, Testing Library non smonta da
 const alfa = { name: "Alfa" };
 const beta = { name: "Beta", sub: "Roma" };
 
-/** Il colore è l'unico segno visibile di chi ha vinto: si guarda la classe esatta (text-chalk non è text-chalk-dim) */
+/** I token di colore dei punteggi, in un posto solo: se lo stile cambia si cambia qui e non nei test. Il colore è l'unico segno
+ *  di chi ha vinto, quindi si guarda la classe esatta (text-chalk non è text-chalk-dim) */
+const TOKEN_TONO = { vincitore: "text-chalk", perdente: "text-chalk-dim", neutro: "text-chalk-muted" };
+
+/** La classe del testo dell'etichetta nell'intestazione: c'è solo se l'intestazione c'è */
+const CLASSE_ETICHETTA = ".kicker";
+
+/** Il tono del punteggio che si legge con questo testo: vincitore, perdente o neutro */
 const tono = (testo: string) => {
   const classi = screen.getByText(testo).classList;
-  if (classi.contains("text-chalk")) return "vincitore";
-  if (classi.contains("text-chalk-dim")) return "perdente";
-  if (classi.contains("text-chalk-muted")) return "neutro";
-  return "altro";
+  const trovato = Object.entries(TOKEN_TONO).find(([, token]) => classi.contains(token));
+  return trovato?.[0];
 };
 
 describe("ScoreCard: chi ha vinto", () => {
@@ -79,7 +84,7 @@ describe("ScoreCard: intestazione, nomi e piede", () => {
   it("senza etichetta e senza «live» non c'è intestazione", () => {
     render(<ScoreCard a={alfa} b={beta} />);
     expect(screen.queryByText("Live")).toBeNull();
-    expect(document.querySelector(".kicker")).toBeNull();
+    expect(document.querySelector(CLASSE_ETICHETTA)).toBeNull();
   });
 
   it("l'etichetta compare nell'intestazione, e «live» aggiunge il segno Live", () => {
