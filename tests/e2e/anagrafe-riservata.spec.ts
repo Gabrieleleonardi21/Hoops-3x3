@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { json } from "./helpers";
+import { accedi, json, tokenFinto, utenteAnna } from "./helpers";
 
 // T2.15: senza account il server manda l'anagrafe con i dati personali vuoti (forma pubblica), con un account manda tutto. Il backend
 // finto sceglie la forma dall'header Authorization, come quello vero.
@@ -11,9 +11,6 @@ const pubblico = {
 };
 /** Lo stesso giocatore com'è con un account, scritto da Anna (id "u1") */
 const completo = { ...pubblico, nascita: "1998-03-15", citta: "Roma", nazionalita: "Italia", note: "Tiratore da tre", autore: "Anna", autoreId: "u1" };
-
-/** Un JWT finto che scade nel 2100, così il client non lo rinnova: del token conta solo `exp` */
-const tokenFinto = `x.${btoa(JSON.stringify({ exp: 4102444800 }))}.x`;
 
 /** Server finto: anagrafe nelle due forme, accesso di Anna e nessuna lega. Ricorda la forma di ogni risposta dell'elenco dei giocatori. */
 async function serverFinto(page: Page) {
@@ -28,9 +25,7 @@ async function serverFinto(page: Page) {
   });
   await page.route("**/api/anagrafe/squadre", (route) => route.fulfill(json([])));
   await page.route("**/api/leghe", (route) => route.fulfill(json([])));
-  await page.route("**/api/auth/login", (route) => route.fulfill(json({
-    token: tokenFinto, user: { id: "u1", name: "Anna", email: "anna@example.it", ruolo: "USER" },
-  })));
+  await page.route("**/api/auth/login", (route) => route.fulfill(json({ token: tokenFinto, user: utenteAnna })));
   return formeInviate;
 }
 
@@ -53,10 +48,7 @@ test("un ospite vede la forma pubblica; dopo l'accesso la stessa pagina mostra i
 
   // L'ospite esce e accede come Anna: la cache dell'anagrafe, in forma pubblica, non deve restare
   await page.getByRole("button", { name: "Esci", exact: true }).click();
-  await page.getByRole("button", { name: "Accedi", exact: true }).first().click(); // la scheda «Accedi» del modulo
-  await page.getByLabel("Mail").fill("anna@example.it");
-  await page.getByLabel("Password").fill("password-lunga");
-  await page.getByRole("button", { name: "Accedi", exact: true }).last().click(); // il pulsante di invio
+  await accedi(page, "anna@example.it", "password-lunga");
   await expect(page).toHaveURL(/\/leghe$/);
   await apriAnagrafe(page);
 
