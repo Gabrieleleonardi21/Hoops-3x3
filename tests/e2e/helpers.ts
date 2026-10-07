@@ -64,6 +64,9 @@ export async function bloccaApiNonPreviste(page: Page): Promise<string[]> {
   return nonPreviste;
 }
 
+/** Un JWT finto che scade nel 2100, così il client non lo rinnova: del token conta solo `exp` nel payload */
+export const tokenFinto = `x.${btoa(JSON.stringify({ exp: 4102444800 }))}.x`;
+
 /** Un giocatore dell'anagrafe, scritto da Anna (id "u1", l'utente di `utenteRegistrato`): lei può modificarlo ed eliminarlo */
 export function giocatoreDiAnna(id: string, nome: string, cognome: string) {
   return {
@@ -80,17 +83,14 @@ export function squadraDiAnna(id: string, nome: string) {
   };
 }
 
-/** Un utente registrato (Anna) senza il backend: la sessione e il token stanno già nel browser (un JWT finto che scade nel 2100, così
- *  non si rinnova) e le risposte del server le decide il test. Le leghe sono vuote; l'anagrafe è quella passata. Va chiamata prima di
- *  aprire la pagina. */
+/** Un utente registrato (Anna) senza il backend: la sessione e il token stanno già nel browser (tokenFinto, che non si rinnova) e le
+ *  risposte del server le decide il test. Le leghe sono vuote; l'anagrafe è quella passata. Va chiamata prima di aprire la pagina. */
 export async function utenteRegistrato(page: Page, anagrafe: { giocatori?: unknown[]; squadre?: unknown[] } = {}) {
   const utente = { id: "u1", name: "Anna", email: "anna@example.it", ruolo: "USER" };
-  await page.addInitScript((u) => {
-    // Del JWT finto conta solo `exp` nel payload: header e firma non si leggono
-    const payload = btoa(JSON.stringify({ exp: 4102444800 }));
-    localStorage.setItem("hoop3x3_token", `x.${payload}.x`);
+  await page.addInitScript(([u, token]) => {
+    localStorage.setItem("hoop3x3_token", token);
     localStorage.setItem("hoop3x3_session", JSON.stringify({ ...u, guest: false }));
-  }, utente);
+  }, [utente, tokenFinto] as const);
   await page.route("**/api/auth/me", (route) => route.fulfill(json(utente)));
   await page.route("**/api/leghe", (route) => route.fulfill(json([])));
   await page.route("**/api/anagrafe/giocatori", (route) => route.fulfill(json(anagrafe.giocatori ?? [])));
