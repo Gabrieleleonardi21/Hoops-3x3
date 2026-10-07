@@ -123,21 +123,34 @@ async function confermata(ctx: ContestoStrumenti, titolo: string, testo: string)
   throw new Error("L'utente ha annullato: azione non eseguita. Non riprovarla se non te lo chiede di nuovo.");
 }
 
-/** Trova una tappa per nome, maiuscole a parte; se il nome manca restituisce l'ultima. Vince il nome esatto, altrimenti
- *  basta una parte del nome purché si trovi in una tappa sola: con «Roma Open» e «Roma Open 2» aperte insieme, «Roma» è
- *  un errore e non la prima delle due (registra_risultato non chiede conferma e il risultato finirebbe sulla tappa
- *  sbagliata senza che nessuno se ne accorga) */
-function findTappa(tappe: Tappa[], nomeTappa?: string): Tappa | null {
-  if (!nomeTappa) return tappe.length > 0 ? tappe[tappe.length - 1] : null;
-  const nl = nomeTappa.toLowerCase();
-  const esatta = tappe.find((t) => t.nome.toLowerCase() === nl);
-  if (esatta) return esatta;
-  const simili = tappe.filter((t) => t.nome.toLowerCase().includes(nl));
+/** La regola con cui un nome dato dal modello sceglie una tappa o una squadra, maiuscole a parte: vince il nome esatto,
+ *  altrimenti basta una parte del nome purché corrisponda a un elemento solo. Se ne corrispondono più d'uno è un errore che
+ *  li elenca (nomi scritti dagli utenti: passano da pulisci) e chiede il nome completo: scegliere il primo della lista
+ *  metterebbe un risultato sulla tappa sbagliata, o una modifica sulla squadra sbagliata dell'anagrafe condivisa, senza che
+ *  nessuno se ne accorga. `plurale` completa la frase dell'errore («Più tappe corrispondono a…») */
+function trovaPerNome<T>(elementi: T[], nome: string, nomeDi: (e: T) => string, plurale: string): T | null {
+  const nl = nome.toLowerCase();
+  const esatto = elementi.find((e) => nomeDi(e).toLowerCase() === nl);
+  if (esatto) return esatto;
+  const simili = elementi.filter((e) => nomeDi(e).toLowerCase().includes(nl));
   if (simili.length > 1) {
-    const nomi = simili.map((t) => `"${pulisci(t.nome)}"`).join(", ");
-    throw new Error(`Più tappe corrispondono a "${nomeTappa}": ${nomi}. Indica il nome completo.`);
+    const nomi = simili.map((e) => `"${pulisci(nomeDi(e))}"`).join(", ");
+    throw new Error(`Più ${plurale} corrispondono a "${nome}": ${nomi}. Indica il nome completo.`);
   }
   return simili[0] ?? null;
+}
+
+/** Trova una tappa per nome (trovaPerNome); se il nome manca restituisce l'ultima. Con «Roma Open» e «Roma Open 2» aperte
+ *  insieme, «Roma» è un errore e non la prima delle due (registra_risultato non chiede conferma) */
+function findTappa(tappe: Tappa[], nomeTappa?: string): Tappa | null {
+  if (!nomeTappa) return tappe.length > 0 ? tappe[tappe.length - 1] : null;
+  return trovaPerNome(tappe, nomeTappa, (t) => t.nome, "tappe");
+}
+
+/** Trova una squadra dell'anagrafe condivisa per nome, con la stessa regola delle tappe: con «Roma Kings» elencata prima di
+ *  «Roma», chiedere «Roma» sceglie «Roma» (crea_tappa e aggiorna_squadra) */
+function findSquadra(squadre: RegSquadra[], nome: string): RegSquadra | null {
+  return trovaPerNome(squadre, nome, (s) => s.nome, "squadre in anagrafe");
 }
 
 /** La tappa indicata da `tappa_nome` (o l'ultima, se manca) com'è adesso nello store. Un tappa_nome passato ma non
@@ -236,14 +249,14 @@ async function eseguiCreaTappa(args: Argomenti, ctx: ContestoStrumenti): Promise
   // Chat cancellata durante la lettura: nessuna squadra registrata nell'anagrafe condivisa per una tappa che non ci sarà
   fermaSeCancellata(ctx.segnale);
 
-  // Abbina ogni nome richiesto a una squadra in anagrafe; se non trovata, la registra in automatico
+  // Prima si abbinano tutti i nomi: se uno corrisponde a più squadre lo strumento si ferma senza aver registrato niente
+  const abbinate = nomiRichiesti.map((nome) => ({ nome, trovata: findSquadra(tutteSquadre, nome) }));
+
+  // Le richieste senza squadra in anagrafe si registrano in automatico
   const autoRegistrate: string[] = [];
   const squadreTappa: SquadraTappa[] = await Promise.all(
-    nomiRichiesti.map(async (nomeRichiesto) => {
-      const nl = nomeRichiesto.toLowerCase();
-      let reg = tutteSquadre.find(
-        (s) => s.nome.toLowerCase() === nl || s.nome.toLowerCase().includes(nl),
-      );
+    abbinate.map(async ({ nome: nomeRichiesto, trovata }) => {
+      let reg = trovata;
 
       if (!reg) {
         // Squadra non in anagrafe: la registra con dati minimi (dallo store, così la cache resta allineata)
@@ -473,10 +486,7 @@ async function eseguiAggiornaSquadra(args: Argomenti, ctx: ContestoStrumenti): P
   const tutteSquadre = await fetchSquadre();
   // Chat cancellata durante la lettura: niente scrittura nell'anagrafe condivisa
   fermaSeCancellata(ctx.segnale);
-  const nl = nomeRicerca.toLowerCase();
-  const reg = tutteSquadre.find(
-    (s) => s.nome.toLowerCase() === nl || s.nome.toLowerCase().includes(nl),
-  );
+  const reg = findSquadra(tutteSquadre, nomeRicerca);
   if (!reg) throw new Error(`Squadra "${nomeRicerca}" non trovata in anagrafe.`);
 
   // Aggiorna solo i campi presenti negli argomenti

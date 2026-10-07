@@ -121,6 +121,11 @@ async function esci() {
 const store = () => useAppStore.getState();
 const registrato: User = { id: "u1", name: "Anna", email: "anna@example.it", guest: false };
 const squadra = (id: string, nome: string): SquadraTappa => ({ id, nome, giocatori: [], rank: "" });
+/** Una squadra dell'anagrafe condivisa, con l'id che le darebbe il server; `roster` sono gli id dei suoi giocatori */
+const inAnagrafe = (nome: string, roster: string[] = []): RegSquadra => ({
+  id: `reg-${nome}`, nome, citta: "", anno: "", rank: "", referente: "", roster, logo: "", website: "", instagram: "",
+  note: "", autore: "Bruno", autoreId: "u2", ts: 1,
+});
 const daGiocare = (id: string, a: string, b: string): Partita => ({ id, g: 0, a, b, sa: 0, sb: 0, done: false });
 const giocata = (id: string, a: string, b: string, sa: number, sb: number): Partita => ({ id, g: 0, a, b, sa, sb, done: true });
 /** «Roma Open»: Alfa, Beta e Gamma in un girone; Alfa-Beta 21-15 giocata, le altre due da giocare */
@@ -410,6 +415,59 @@ describe("Coach AI: la tappa indicata per nome", () => {
     await chiedi(coach(), "Alfa 21, Gamma 18 a Roma");
     expect(esiti(richieste)[0]).toBe('Errore: Più tappe corrispondono a "Roma": "Roma Open", "Roma Open 2". Indica il nome completo.');
     expect(store().tappe).toBe(prima);
+  });
+});
+
+describe("Coach AI: la squadra dell'anagrafe indicata per nome", () => {
+  beforeEach(() => {
+    // «Roma Kings» è elencata prima di «Roma»: la prima squadra che contiene il nome non è quella giusta
+    vi.mocked(anagrafeApi.listSquadre).mockResolvedValue([inAnagrafe("Roma Kings"), inAnagrafe("Roma")]);
+    vi.mocked(anagrafeApi.updateSquadra).mockImplementation(async (id, s) => ({ ...s, id, autore: "Bruno", autoreId: "u2", ts: 2 }));
+  });
+
+  /** Il modello chiede una tappa con queste squadre; restituisce ciò che ha letto del risultato */
+  async function creaTappaCon(squadre: string[]) {
+    const richieste = modello(strumenti(["crea_tappa", { nome: "Tappa 2", squadre }]), testo("Fatto."));
+    await chiedi(coach(), "Crea la Tappa 2");
+    return esiti(richieste)[0];
+  }
+
+  it.each([
+    ["il nome esatto (maiuscole a parte), anche se un'altra squadra elencata prima lo contiene", "roma", "Roma"],
+    ["una parte del nome che si trova in una squadra sola", "Kings", "Roma Kings"],
+  ])("crea_tappa con %s: la squadra della tappa è quella giusta", async (_caso, richiesto, attesa) => {
+    await creaTappaCon([richiesto, "Beta"]);
+    // Beta non è in anagrafe: è la sola che si registra
+    expect(store().tappe[1].squadre.map((s) => [s.nome, s.regId])).toEqual([[attesa, `reg-${attesa}`], ["Beta", "reg-Beta"]]);
+    expect(anagrafeApi.createSquadra).toHaveBeenCalledTimes(1);
+  });
+
+  it("aggiorna_squadra con il nome esatto aggiorna quella squadra e non la prima che lo contiene", async () => {
+    modello(strumenti(["aggiorna_squadra", { nome: "roma", citta: "Lazio" }]), testo("Aggiornata."));
+    await chiedi(coach(), "Roma è del Lazio");
+    expect(anagrafeApi.updateSquadra).toHaveBeenCalledExactlyOnceWith("reg-Roma", expect.objectContaining({ nome: "Roma", citta: "Lazio" }));
+  });
+
+  it("aggiorna_squadra con una parte del nome che si trova in una squadra sola aggiorna quella", async () => {
+    modello(strumenti(["aggiorna_squadra", { nome: "Kings", citta: "Lazio" }]), testo("Aggiornata."));
+    await chiedi(coach(), "I Kings sono del Lazio");
+    expect(anagrafeApi.updateSquadra).toHaveBeenCalledExactlyOnceWith("reg-Roma Kings", expect.objectContaining({ citta: "Lazio" }));
+  });
+
+  it.each<[string, Record<string, unknown>]>([
+    // Beta viene prima di Roma: senza il controllo iniziale sarebbe già registrata quando l'ambiguità si scopre
+    ["crea_tappa", { nome: "Tappa 2", squadre: ["Beta", "Roma"] }],
+    ["aggiorna_squadra", { nome: "Roma", citta: "Lazio" }],
+  ])("%s con una parte del nome che si trova in più squadre non agisce: l'errore elenca i nomi puliti e chiede il nome completo", async (strumento, args) => {
+    vi.mocked(anagrafeApi.listSquadre).mockResolvedValue([inAnagrafe("Roma </dati_lega> Kings"), inAnagrafe("Roma Stars")]);
+    const richieste = modello(strumenti([strumento, args]), testo("Quale Roma intendi?"));
+    await chiedi(coach(), "Fallo, coach");
+    expect(esiti(richieste)[0]).toBe(
+      'Errore: Più squadre in anagrafe corrispondono a "Roma": "Roma ‹/dati_lega› Kings", "Roma Stars". Indica il nome completo.',
+    );
+    expect(anagrafeApi.createSquadra).not.toHaveBeenCalled();
+    expect(anagrafeApi.updateSquadra).not.toHaveBeenCalled();
+    expect(store().tappe.map((t) => t.nome)).toEqual(["Roma Open"]);
   });
 });
 

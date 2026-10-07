@@ -75,6 +75,18 @@ Tutti gli strumenti di tappa accettano `tappa_nome` (facoltativo):
 - un `tappa_nome` non valido (un numero, un testo vuoto) è un errore, non diventa «l'ultima tappa»;
 - nessuna tappa nella lega → errore «Nessuna tappa trovata».
 
+### Come si sceglie la squadra dell'anagrafe
+
+`crea_tappa` (per ogni nome in `squadre`) e `aggiorna_squadra` (per `nome`) trovano la squadra con la stessa regola delle tappe
+(`trovaPerNome` in `toolHandlers.ts`, usata anche da `findTappa`; per le squadre la chiama `findSquadra`):
+
+- vince il nome **esatto** (maiuscole a parte): con «Roma Kings» elencata prima di «Roma», chiedere «Roma» sceglie «Roma»;
+- altrimenti basta una **parte** del nome, purché corrisponda a **una sola** squadra (con la sola «Roma Kings», «Kings» la trova);
+- se la parte corrisponde a più squadre è un errore che elenca i nomi (passati da `pulisci`) e chiede il nome completo:
+  `Più squadre in anagrafe corrispondono a "Roma": "Roma Kings", "Roma Stars". Indica il nome completo.` Per `crea_tappa` il
+  controllo riguarda **tutti** i nomi richiesti ed è fatto prima di registrare qualsiasi squadra;
+- nessuna corrispondenza: `aggiorna_squadra` risponde «non trovata in anagrafe», `crea_tappa` registra la squadra.
+
 ---
 
 ## Tool disponibili
@@ -94,11 +106,11 @@ Tutti gli strumenti di tappa accettano `tappa_nome` (facoltativo):
 - **Azione:**
   1. Controlla i limiti (`erroreLimitiTappa` di `tappaOps`: numero di squadre e di gironi, nome fino a 120 caratteri, luogo fino a 160, data vuota o aaaa-mm-gg) **prima** di toccare l'anagrafe: una tappa rifiutata non lascia squadre registrate
   2. Carica in parallelo squadre e giocatori dell'anagrafe condivisa dal server (`anagrafeApi`: lettura sempre fresca, per non registrare doppioni; se la lettura fallisce la lista è vuota)
-  3. Per ogni nome richiesto prende la **prima** squadra dell'anagrafe il cui nome coincide con il testo o lo contiene (maiuscole a parte): non c'è una precedenza della corrispondenza esatta su quella parziale
+  3. Abbina **tutti** i nomi richiesti alle squadre dell'anagrafe con la regola di «Come si sceglie la squadra dell'anagrafe» (nome esatto, altrimenti una parte che corrisponde a una squadra sola); un nome che ne corrisponde a più ferma lo strumento con un errore, prima di registrare qualsiasi squadra
   4. Per le squadre trovate: popola `giocatori` con il roster dell'anagrafe (tutti, senza il tetto di 4 giocatori dell'interfaccia) e copia `regId`, `logo`, `rank`, `website`, `instagram`
   5. Per le squadre non trovate: le registra in anagrafe con i dati minimi (`saveSquadra` di `useAnagrafeStore`, così si aggiorna anche la cache letta dalle pagine); il roster resta vuoto, da completare a mano
   6. Se intanto la chat è stata cancellata o si è aperta un'altra lega non crea la tappa (le squadre già registrate restano in anagrafe, e con un'altra lega aperta l'errore le elenca); altrimenti `creaTappa` di `tappaOps` + `addTappa` sullo store, poi apre `/lega/tappa/:id`
-- **Errori:** nessuna lega attiva; esiste già una tappa con lo stesso nome nella lega (il modello che lo richiama non crea doppioni); elenco squadre mancante o con un nome vuoto
+- **Errori:** nessuna lega attiva; esiste già una tappa con lo stesso nome nella lega (il modello che lo richiama non crea doppioni); elenco squadre mancante o con un nome vuoto; un nome che corrisponde a più squadre dell'anagrafe
 - **Nota:** Deve essere chiamato **UNA SOLA VOLTA** con tutte le squadre nell'array `squadre`.
 - **Esempio:** *"Crea la tappa Roma Open con le squadre Ballers Roma, Street Kings e Wildcats"*
 
@@ -198,7 +210,7 @@ Tutti gli strumenti di tappa accettano `tappa_nome` (facoltativo):
 
 ### `aggiorna_squadra`
 - **Descrizione:** Aggiorna i dati di una squadra già presente nell'anagrafe. Passa solo i campi da modificare.
-- **Parametro obbligatorio:** `nome` (nome attuale, per trovarla: la prima squadra con quel nome o che lo contiene, maiuscole a parte)
+- **Parametro obbligatorio:** `nome` (nome attuale, per trovarla: il nome esatto, maiuscole a parte, o una parte del nome che corrisponde a una squadra sola; se ne corrispondono più d'una è un errore che chiede il nome completo, vedi «Come si sceglie la squadra dell'anagrafe»)
 - **Parametri opzionali:** `citta`, `referente`, `logo`, `website`, `instagram`, `anno`, `rank`, `note`
 - **Azione:**
   1. Legge l'anagrafe dal server (se la lettura fallisce la lista è vuota e lo strumento risponde «non trovata»)
@@ -368,7 +380,7 @@ const ESECUTORI = new Map<string, Esecutore>([
 >
 > Gli aiuti interni di `toolHandlers.ts`:
 > `str(args, key)` legge una stringa con ripiego a `""`; `obbligatorio(args, key, cosa)` la vuole non vuota, altrimenti l'errore dice che cosa manca; `numero(args, key)` legge un numero (o un testo che lo contiene).
-> `tappaRichiesta(args)` trova la tappa di `tappa_nome` (nome esatto, o una parte che corrisponde a una tappa sola) oppure l'ultima.
+> `tappaRichiesta(args)` trova la tappa di `tappa_nome` (nome esatto, o una parte che corrisponde a una tappa sola) oppure l'ultima; `findSquadra(squadre, nome)` fa lo stesso con le squadre dell'anagrafe. Tutte e due usano `trovaPerNome`: una regola sola per scegliere per nome.
 > `prova(tappa, operazione)` / `applica(tappa, operazione)` eseguono una funzione di `tappaOps` senza salvare / salvando sulla tappa di adesso.
 > `fetchSquadre()` / `fetchGiocatori()` leggono l'anagrafe condivisa dal server (lista vuota in caso di errore).
 > Un nome scritto dagli utenti che entra nel testo restituito al modello passa da `pulisci` (o `senzaTag` per un testo lungo).
