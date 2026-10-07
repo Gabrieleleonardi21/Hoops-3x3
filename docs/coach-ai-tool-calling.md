@@ -49,8 +49,8 @@ abilita i flussi multi-step in un solo messaggio (es. *"crea la tappa e sorteggi
   sorteggia → risultati → fasi dirette → risultati → concludi).
 - **Guardia anti-stallo.** La firma di una chiamata è «nome dello strumento + argomenti» (il testo JSON del modello). Una
   chiamata con la stessa firma di una già fatta nella richiesta, riuscita o no, **non viene rieseguita**: il modello riceve
-  «Azione … già chiamata con gli stessi argomenti in questa richiesta: non ripeterla, rispondi all'utente» (il testo non dice
-  «eseguita», perché la prima chiamata può essere fallita). Se un round è fatto **solo** di ricicli il ciclo si interrompe e parte
+  `Azione "<nome dello strumento>" già chiamata con gli stessi argomenti in questa richiesta (vedi il suo risultato): non
+  ripeterla, rispondi all'utente.` (il testo non dice «eseguita», perché la prima chiamata può essere fallita). Se un round è fatto **solo** di ricicli il ciclo si interrompe e parte
   la chiamata finale senza strumenti: un modello bloccato non brucia tutti i round.
 - **Errori degli strumenti.** Uno strumento che fallisce non ferma gli altri. Argomenti che non sono un oggetto JSON: lo
   strumento non parte, il risultato è «Argomenti non validi». Un errore lanciato dallo strumento (un rifiuto di `tappaOps`, un
@@ -169,7 +169,11 @@ Tutti gli strumenti di tappa accettano `tappa_nome` (facoltativo):
   2. Prova `concludi(tappa)` di `tappaOps` senza salvare, che valida che tutte le partite dei gironi siano registrate e che, se esiste il `bracket`, tutti i suoi match siano `done` (altrimenti blocca: la finale non può restare aperta). È la stessa regola del bottone «Concludi» dell'interfaccia. Se rifiuta, non si chiede niente
   3. Chiede conferma; con «Conferma» salva la tappa con `conclusa: true` tramite `replaceTappa`
   4. Aspetta che la coda dei salvataggi sia vuota (la tappa conclusa deve essere arrivata al server) e la pubblica con `pubblica` dello store, che manda al server solo l'id (`PUT /api/archivio/{tappaId}`): la copia la costruisce il server da ciò che ha salvato. È la stessa funzione della pagina della tappa
-  5. Se la tappa non arriva al server o la pubblicazione non riesce, la tappa resta conclusa e il risultato dello strumento dice il motivo e indica «Riapri» e poi «Concludi» nella pagina della tappa. Se invece un conflitto con un altro dispositivo ha rimesso nello store la tappa del server, non conclusa (o l'ha tolta, perché lì è stata eliminata), il risultato dice che la tappa non è pubblicata e che nella lega aperta non risulta conclusa, con il motivo. Il motivo passa da `senzaTag` (`<` e `>` diventano ‹ ›), perché può riportare il nome della tappa scritto sul server. Una rinomina della lega ancora in attesa parte prima della pubblicazione, ma non si controlla: se la PATCH fallisce l'errore compare solo nella barra degli avvisi e la copia pubblica porta il nome che il server ha
+  5. Gli esiti, che arrivano al modello come testo:
+     - tutto riuscito: la tappa è conclusa e pubblicata;
+     - la tappa non arriva al server o la pubblicazione non riesce: la tappa resta conclusa, e il risultato dice il motivo e indica «Riapri» e poi «Concludi» nella pagina della tappa;
+     - un conflitto con un altro dispositivo ha rimesso nello store la tappa del server, non conclusa (o l'ha tolta, perché lì è stata eliminata): il risultato dice che la tappa non è pubblicata e che nella lega aperta non risulta conclusa, con il motivo.
+     Il motivo passa da `senzaTag` (`<` e `>` diventano ‹ ›), perché può riportare il nome della tappa scritto sul server. Una rinomina della lega ancora in attesa parte prima della pubblicazione, ma non si controlla: se la PATCH fallisce l'errore compare solo nella barra degli avvisi e la copia pubblica porta il nome che il server ha
 - **Esempio:** *"Concludi la tappa Roma Open"*
 
 ---
@@ -261,8 +265,9 @@ Il Coach è riservato agli utenti registrati, su tre livelli:
 
 1. **Interfaccia.** Se non c'è un utente o l'utente è un ospite (`user.guest`), `send` in `useCoachAI.ts` non chiama nessun
    endpoint: aggiunge la domanda e risponde in chat «Coach AI è riservato agli utenti registrati: crea un account gratuito dalla
-   home per usarlo.» (test: «senza utente il Coach risponde che è riservato ai registrati», in `coachTools.test.ts`). Il pulsante
-   «Consigli personalizzati del Coach AI» dell'analisi del giocatore (`GiocatoreAnalisi`) compare solo con un account.
+   home per usarlo.» Il pulsante «Consigli personalizzati del Coach AI» dell'analisi del giocatore (`GiocatoreAnalisi`) compare
+   solo con un account. Oggi per questo ramo non c'è un test dedicato, e nemmeno per il rifiuto dell'ospite in `concludi_tappa`
+   (punto 3): sono test ancora da scrivere.
 2. **Backend.** `/api/coach/**` richiede il JWT (`anyRequest().authenticated()` in `SecurityConfig`, repository backend): senza,
    401, che l'app mostra come «Sessione scaduta: esci e accedi di nuovo per usare Coach AI.».
 3. **Strumenti.** `concludi_tappa` ricontrolla l'utente prima di concludere e rifiuta un ospite («richiede un account

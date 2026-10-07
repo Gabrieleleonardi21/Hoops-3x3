@@ -2,16 +2,21 @@
 
 Direzione visiva dell'app (la design pass, unita in `main`). I token Tailwind sono in `src/index.css`
 (`@theme`), che è la fonte di verità: dove questo documento e il CSS divergono vale il CSS.
-Mockup di partenza in `docs/design/stitch-screens/` (home, profilo giocatore, campetti).
+Mockup di partenza in `docs/design/stitch-screens/` (home, profilo giocatore, campetti, punteggio partita).
 
 ## Concetto
 
 Campetto di notte sotto le luci al sodio: superfici asfalto quasi nere, un solo accento
 arancio "court", testo bianco gesso. Prodotto sportivo **data-intensivo**: densità alta,
 numeri tabulari, bordi al posto delle ombre (le ombre ci sono solo sul pulsante e sul pannello
-del Coach, che galleggiano sulla pagina). Niente pastello e niente gradienti (eccetto l'overlay
-sulla foto hero). Il solo sfondo semitrasparente è quello di intestazione e scheda d'accesso
-(90–95% opaco, con un leggero `backdrop-blur`).
+del Coach, che galleggiano sulla pagina, e nella barra interna della riga scelta dei Campetti).
+Niente pastello e niente gradienti (eccetto l'overlay sulla foto hero).
+
+La regola sulla trasparenza riguarda la sfocatura: il solo sfondo sfocato (`backdrop-blur`) è
+quello di intestazione (sfondo al 90%) e scheda d'accesso (95%). I velini colorati non sfocano:
+badge al 15%, avvisi al 10% (`court` o `loss`), filtro attivo dei Campetti al 15%, riga evidenziata
+delle statistiche al 5%; non sfocano nemmeno i pannelli interni (`asphalt-950` al 60%), l'etichetta
+della mappa (80%) e il fondo dei modali (`asphalt-950` all'80%).
 
 ## Colori
 
@@ -28,7 +33,7 @@ sulla foto hero). Il solo sfondo semitrasparente è quello di intestazione e sch
 | `chalk-dim`        | `#8C8780` | note e testo terziario (5.4:1 su 950, 4.6:1 su 800)         |
 | `court`            | `#FF6A1F` | accento: CTA, nav attiva, rank #1, focus ring (6.8:1)      |
 | `court-hover`      | `#FF7F3F` | hover del primario                                         |
-| `gold`             | `#F5C542` | 1° posto e miglior valore (leader, barra più alta della sparkline) |
+| `gold`             | `#F5C542` | 1° posto e miglior valore (leader, trofeo, barra più alta della sparkline), finale e campione del tabellone, stelle dei Campetti |
 | `win`              | `#3DD68C` | vittoria, DIFF positivo (10.4:1)                           |
 | `loss`             | `#FF4D4D` | sconfitta, DIFF negativo, errori (5.9:1)                   |
 | `live`             | `#FF3B3B` | badge LIVE con puntino pulsante                            |
@@ -102,13 +107,14 @@ Lo stato reale, con dove è garantito:
 
 - **Contrasto.** Il testo dei token del design (`chalk`, `chalk-muted`, `chalk-dim`, `court`, `win`, `loss`) è ≥ 4.5:1 sulla sua
   superficie (i valori nella tabella dei colori sono calcolati dagli esadecimali di `index.css`); il bordo dei campi
-  (`asphalt-500`) è ≥ 3:1 (WCAG 1.4.11).
+  (`asphalt-500`: `.statin`, `.scorein`) è ≥ 3:1 (WCAG 1.4.11). **Eccezione:** `.cellin`, il campo del tabellino (`StatsEditor`), ha
+  il bordo `asphalt-700` su `asphalt-800`, cioè 1,23:1, sotto il minimo: è un difetto noto, da portare a norma.
 - **Focus visibile.** Un anello di 2px `court` con offset 2px su ogni elemento interattivo (`:focus-visible` in `index.css`); è
   provato su ciò che prende il focus da codice (schede, esito del timer) in `tests/e2e/tastiera.spec.ts`. I campi di testo e di
   punteggio (`.statin`, `.scorein`, `.cellin`) al focus non hanno l'anello ma il bordo `court`.
-- **Area di tocco ≥ 44px.** Per chi usa il dito (sotto i 640px e con puntatore grossolano) la utility `area-tocco` dà almeno 44×44px
+- **Area di tocco ≥ 44px.** Per chi usa il dito (sotto i 640px di larghezza **oppure** con puntatore grossolano: `(width < 40rem), (pointer: coarse)`) la utility `area-tocco` dà almeno 44×44px
   ai pulsanti fatti con `Button` (collegamenti compresi), a quelli con la sola icona (X, cestini) e a «Scheda», «Profilo» ed «Esci»,
-  senza cambiare la grandezza dell'icona o del testo; con il mouse l'aspetto non cambia. Restano come sono le voci della
+  senza cambiare la grandezza dell'icona o del testo; con il mouse e sopra i 640px l'aspetto non cambia. Restano come sono le voci della
   navigazione, le schede dell'anagrafe (Giocatori, Squadre, Statistiche stagione) e i nomi delle card. Provato in
   `tests/e2e/area-di-tocco.spec.ts` a 390px di larghezza.
 - **Movimento.** `prefers-reduced-motion` azzera transizioni e animazioni (`index.css`).
@@ -119,4 +125,5 @@ Lo stato reale, con dove è garantito:
 - **Pulsanti con la sola icona** hanno `aria-label`.
 - **Finestre.** Le finestre modali (`Modal`: schede, timer, conferme) trattengono il focus con Tab e Maiusc+Tab, lo restituiscono a ciò
   che le ha aperte e si chiudono con Esc una alla volta (`usePilaFinestre`); le conferme hanno ruolo `alertdialog`, le altre `dialog`.
-  Il pannello del Coach è un `dialog` non modale: la pagina sotto resta raggiungibile. Provato in `tests/unit/modal.test.tsx`.
+  Provato in `tests/unit/modal.test.tsx`. Il pannello del Coach è un `dialog` non modale: Tab non è trattenuto e la pagina sotto resta
+  raggiungibile (`coachTools.test.ts`, «non è una finestra modale»).
