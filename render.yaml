@@ -1,0 +1,118 @@
+# Blueprint di Render: crea in un colpo solo frontend (sito statico), backend (container Docker dal repository
+# hoop3x3-backend) e database PostgreSQL. Dashboard di Render → New → Blueprint → questo repository.
+# Passi completi e controlli dopo il primo deploy: sezione «Deploy su Render» del README.
+#
+# Gli URL pubblici dipendono dai nomi dei servizi (https://<nome>.onrender.com). Se Render aggiunge un suffisso
+# perché il nome è già preso (è successo al backend: hoop3x3-api.onrender.com è di un altro account, il nostro è
+# hoop3x3-api-06m1.onrender.com), vanno aggiornati i punti segnati con «URL»: le rewrite di /api/* e /actuator/health qui sotto
+# e CORS_ORIGINS del backend.
+
+services:
+  # ── Frontend: build di Vite servita dalla CDN di Render ──────────────────────
+  - type: web
+    runtime: static
+    name: hoop3x3
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    envVars:
+      # Stessa versione di Node della CI
+      - key: NODE_VERSION
+        value: "22"
+      # VITE_API_URL resta vuota: le chiamate a /api passano dalla rewrite qui sotto, sulla stessa origine
+    routes:
+      # URL del backend. Le richieste a /api/* vanno al backend attraverso Render: per il browser pagina e API
+      # hanno la stessa origine, quindi il cookie di refresh (SameSite=Lax) funziona senza modifiche
+      - type: rewrite
+        source: /api/*
+        destination: https://hoop3x3-api-06m1.onrender.com/api/*
+      # URL del backend. Il controllo di salute passa dalla stessa strada: l'app lo chiama all'avvio per svegliare il
+      # backend se il piano free lo ha messo in pausa (svegliaServer in src/services/api.ts)
+      - type: rewrite
+        source: /actuator/health
+        destination: https://hoop3x3-api-06m1.onrender.com/actuator/health
+      # Single page app: ogni altro percorso (/tappa/..., /anagrafe, ...) lo gestisce React Router.
+      # Render applica le regole solo se nel build non c'è un file con quel percorso (logo, asset, ...)
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      # Gli asset di Vite hanno l'hash nel nome: il browser può tenerli in cache per sempre
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+      # Intestazioni di sicurezza di base su tutte le pagine
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+
+  # ── Backend: Spring Boot in un container (Dockerfile del repository hoop3x3-backend) ──
+  - type: web
+    runtime: docker
+    name: hoop3x3-api
+    repo: https://github.com/Gabrieleleonardi21/hoop3x3-backend
+    branch: main
+    # Il piano free si spegne dopo 15 minuti senza richieste e la prima richiesta dopo la pausa aspetta il
+    # riavvio della JVM (anche più di un minuto): per una demo dal vivo conviene il piano starter
+    plan: free
+    region: frankfurt
+    # Render considera pronto il nuovo deploy solo quando qui risponde 200 (server e database funzionanti): un deploy
+    # rotto non sostituisce quello attivo, e un servizio che smette di rispondere viene riavviato
+    healthCheckPath: /actuator/health
+    envVars:
+      # Connessione al database qui sotto (rete interna di Render, stessa regione)
+      - key: DB_HOST
+        fromDatabase:
+          name: hoop3x3-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: hoop3x3-db
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: hoop3x3-db
+          property: database
+      - key: DB_USERNAME
+        fromDatabase:
+          name: hoop3x3-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: hoop3x3-db
+          property: password
+      # Crea le tabelle da db/schema.sql al primo avvio; dopo non fa nulla (tutto IF NOT EXISTS)
+      - key: DB_INIT_MODE
+        value: always
+      # Stringa casuale generata da Render alla creazione (più di 32 caratteri)
+      - key: JWT_SECRET
+        generateValue: true
+      # HTTPS: il cookie di refresh viaggia solo su connessioni cifrate
+      - key: AUTH_COOKIE_SECURE
+        value: "true"
+      # URL del frontend: l'origine pubblica del sito statico, senza barra finale
+      - key: CORS_ORIGINS
+        value: https://hoop3x3.onrender.com
+      # Valori richiesti da Render alla creazione del Blueprint (sync: false = non stanno nel repository)
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      # true = al primo avvio carica i dati di prova del circuito Estathé 2025 (serve l'admin)
+      - key: SEED_DEMO
+        value: "false"
+
+databases:
+  # Il piano free di PostgreSQL scade dopo 30 giorni: per un uso continuativo serve un piano a pagamento
+  - name: hoop3x3-db
+    plan: free
+    region: frankfurt
+    databaseName: hoop3x3
+    user: hoop3x3

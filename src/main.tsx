@@ -3,7 +3,11 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
+import { svegliaServer } from "./services/api";
 import "./index.css";
+
+// Prima ancora del render: il backend (se era in pausa) inizia a ripartire mentre si carica la pagina
+svegliaServer();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

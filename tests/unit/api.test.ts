@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { api, token, ApiError, suSessioneFinita, avviaRinnovoAutomatico, testoErrore } from "../../src/services/api";
+import { api, token, ApiError, suSessioneFinita, avviaRinnovoAutomatico, testoErrore, svegliaServer } from "../../src/services/api";
 import { legheApi } from "../../src/services/legheApi";
 import { askCoach } from "../../src/services/aiService";
 import type { Tappa } from "../../src/types";
@@ -611,5 +611,23 @@ describe("testoErrore: il testo di un errore per l'utente", () => {
     expect(testoErrore(new TypeError("x is not iterable"))).toBe("errore imprevisto");
     expect(testoErrore("stringa")).toBe("errore imprevisto");
     expect(testoErrore(undefined)).toBe("errore imprevisto");
+  });
+});
+
+describe("svegliaServer", () => {
+  it("chiama /actuator/health una volta, senza Bearer anche con la sessione aperta", () => {
+    token.set(jwt(3600));
+    fetchFinto.mockResolvedValueOnce(ok({ status: "UP" }));
+    svegliaServer();
+    expect(fetchFinto).toHaveBeenCalledTimes(1);
+    expect(chiamata(0).url).toBe("/actuator/health");
+    expect(chiamata(0).init.headers).toBeUndefined();
+  });
+
+  it("ignora gli errori di rete: niente eccezioni né promesse rifiutate non gestite", async () => {
+    fetchFinto.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    expect(() => svegliaServer()).not.toThrow();
+    // lascia completare la promessa rifiutata: se nessuno la gestisse, Vitest segnalerebbe l'errore
+    await new Promise((r) => setTimeout(r, 0));
   });
 });

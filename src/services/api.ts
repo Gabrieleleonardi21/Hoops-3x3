@@ -206,6 +206,14 @@ export function suSessioneCambiataAltrove(fn: () => void): () => void {
   return gestoreSessioneCambiata.imposta(fn);
 }
 
+/** Sveglia il backend all'apertura dell'app, senza aspettare la risposta. Sul piano free di Render il server si spegne
+ *  dopo 15 minuti senza richieste e per ripartire impiega più di TEMPO_MASSIMO: partita subito, la chiamata lo
+ *  riaccende mentre l'utente guarda la home, e di solito al login è già pronto. /actuator/health è pubblico e leggero:
+ *  niente Bearer né tempo massimo, e gli errori (server spento in sviluppo, rete assente) si ignorano. */
+export function svegliaServer(): void {
+  fetch(`${BASE}/actuator/health`, { cache: "no-store" }).catch(() => {});
+}
+
 // Token cambiato da un'altra scheda: l'evento storage arriva solo alle altre schede dello stesso browser.
 // - Token comparso o sparito (accesso o uscita lì): la sessione del browser è cambiata, e chi dipende dal token lo deve sapere.
 // - Token cancellato: per tutte la sessione è finita. Un token appena rinnovato o salvato da un accesso non chiude niente
