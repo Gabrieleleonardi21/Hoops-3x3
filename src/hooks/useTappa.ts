@@ -247,6 +247,8 @@ export function useTappa(id: string | undefined) {
     if (!prima) return;
     const senzaVoce = collegateSenzaVoce(prima, regs);
     if (senzaVoce.length === 0) return;
+    // La lista parte con il token di adesso: se un accesso o un'uscita svuota la cache durante l'attesa, ha la forma del token di prima
+    const epocaAllInizio = useAnagrafeStore.getState().epoca;
     let fresche: RegSquadra[];
     try {
       fresche = await anagrafeApi.listSquadre();
@@ -261,8 +263,13 @@ export function useTappa(id: string | undefined) {
     if (!dopo) return;
     const soloInCache = (anagrafe.squadre ?? []).filter((c) => !fresche.some((f) => f.id === c.id));
     const conosciute = [...fresche, ...soloInCache];
-    // Le voci a cui le squadre sono collegate e che il server ha entrano in cache (senza invalidarla)
-    anagrafe.registraInCache(fresche.filter((voce) => senzaVoce.some((s) => s.regId === voce.id)));
+    // Le voci a cui le squadre sono collegate e che il server ha entrano in cache (senza invalidarla). Non se la cache è stata svuotata
+    // nell'attesa (accesso o uscita, anche in un'altra scheda): una voce letta con l'altro token sostituirebbe, per id, quella della
+    // cache nuova con la forma sbagliata (pubblica dopo un accesso, completa dopo un'uscita). I dati della tappa si allineano lo stesso:
+    // nome, logo, ranking e sito sono uguali nelle due forme
+    if (anagrafe.epoca === epocaAllInizio) {
+      anagrafe.registraInCache(fresche.filter((voce) => senzaVoce.some((s) => s.regId === voce.id)));
+    }
     const sincronizzata = (t: Tappa) => scollegaSenzaVoce(allineaConAnagrafe(t, conosciute), conosciute);
     if (sincronizzata(dopo) === dopo) return;
     updateTappa(dopo.id, sincronizzata);

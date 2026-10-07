@@ -11,9 +11,10 @@ import { useAnagrafeStore } from "../stores/useAnagrafeStore";
 
 export function useAnagrafe() {
   const anagrafe = useAnagrafeStore();
-  const { load, caricata } = anagrafe;
-  // Scarica l'anagrafe solo se non è già in cache. Con `caricata` tra le dipendenze riparte anche quando la cache viene svuotata
-  // sotto una pagina già aperta; dopo un errore resta falsa e non cambia, quindi niente tentativi a raffica
-  useEffect(() => { load(); }, [load, caricata]);
+  const { load, epoca } = anagrafe;
+  // Scarica l'anagrafe solo se non è già in cache. Con l'epoca tra le dipendenze riparte ogni volta che la cache viene svuotata sotto
+  // una pagina già aperta, anche se era in errore o in caricamento (`caricata` non cambierebbe). Un errore non cambia l'epoca:
+  // niente tentativi a raffica, il nuovo tentativo è il «Riprova»
+  useEffect(() => { load(); }, [load, epoca]);
   return anagrafe;
 }

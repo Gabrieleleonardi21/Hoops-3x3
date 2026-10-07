@@ -344,6 +344,61 @@ describe("useTappa: le modifiche partono dalla tappa com'è adesso, non da quell
         expect(squadre()[0].regId).toBe("r-nuova");
       });
 
+      describe("la lista fresca letta prima di un accesso o di un'uscita non entra in una cache che non è la sua (T2.15)", () => {
+        // La richiesta parte con il token di prima: la lista ha la forma di prima (pubblica senza token, completa con). Se nel frattempo
+        // la cache è stata svuotata e riempita di nuovo, registrare quelle voci la farebbe tornare alla forma sbagliata
+        const completa: RegSquadra = { ...voceNuova, referente: "Luigi Bianchi", autore: "Anna", autoreId: "u1" };
+        const pubblica: RegSquadra = { ...voceNuova, referente: "", autore: "", autoreId: null };
+
+        it("accesso durante l'attesa: la voce pubblica non sostituisce quella completa della cache nuova", async () => {
+          conSquadraCollegata();
+          const risposta = differita<RegSquadra[]>();
+          anagrafe.listSquadre.mockReturnValue(risposta.p);
+          useAnagrafeStore.setState({ giocatori: [], squadre: [], caricata: true });
+          const { result } = renderHook(() => useTappa("t1"));
+          let sincronizzazione = Promise.resolve();
+          act(() => { sincronizzazione = result.current.syncFromAnagrafe([]); });
+          // L'utente accede: la cache si svuota e il caricamento con il token la riempie con i dati completi
+          act(() => {
+            useAnagrafeStore.getState().svuota();
+            useAnagrafeStore.setState({ giocatori: [], squadre: [completa], caricata: true });
+          });
+          await act(async () => {
+            risposta.ok([pubblica]); // la lista del server, partita senza token
+            await sincronizzazione;
+          });
+          expect(useAnagrafeStore.getState().squadre).toEqual([completa]);
+        });
+
+        it("uscita durante l'attesa: la voce completa non sostituisce quella pubblica della cache nuova", async () => {
+          conSquadraCollegata();
+          const risposta = differita<RegSquadra[]>();
+          anagrafe.listSquadre.mockReturnValue(risposta.p);
+          useAnagrafeStore.setState({ giocatori: [], squadre: [completa], caricata: true });
+          const { result } = renderHook(() => useTappa("t1"));
+          let sincronizzazione = Promise.resolve();
+          act(() => { sincronizzazione = result.current.syncFromAnagrafe([]); });
+          // L'utente esce: la cache si svuota e una nuova lettura, senza token, la riempie con la forma pubblica
+          act(() => {
+            useAnagrafeStore.getState().svuota();
+            useAnagrafeStore.setState({ giocatori: [], squadre: [pubblica], caricata: true });
+          });
+          await act(async () => {
+            risposta.ok([completa]); // la lista del server, partita con il token
+            await sincronizzazione;
+          });
+          expect(useAnagrafeStore.getState().squadre).toEqual([pubblica]);
+        });
+
+        it("senza cambi nell'attesa la voce entra in cache come prima", async () => {
+          conSquadraCollegata();
+          anagrafe.listSquadre.mockResolvedValue([completa]);
+          useAnagrafeStore.setState({ giocatori: [], squadre: [], caricata: true });
+          await sincronizza([]);
+          expect(useAnagrafeStore.getState().squadre).toEqual([completa]);
+        });
+      });
+
       it("se la verifica sul server non riesce non si scollega niente", async () => {
         conSquadraCollegata();
         const prima = store().tappe[0];
