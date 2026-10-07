@@ -86,9 +86,6 @@ services:
         fromDatabase:
           name: hoop3x3-db
           property: password
-      # Crea le tabelle da db/schema.sql al primo avvio; dopo non fa nulla (tutto IF NOT EXISTS)
-      - key: DB_INIT_MODE
-        value: always
       # Stringa casuale generata da Render alla creazione (più di 32 caratteri)
       - key: JWT_SECRET
         generateValue: true
@@ -98,6 +95,17 @@ services:
       # URL del frontend: l'origine pubblica del sito statico, senza barra finale
       - key: CORS_ORIGINS
         value: https://hoop3x3.onrender.com
+      # Il sito statico inoltra /api/* con la rewrite: senza queste due variabili il limite di login, registrazione e
+      # rinnovo (per indirizzo IP) potrebbe contare l'indirizzo del proxy e non quello del visitatore, e 10 accessi al
+      # minuto varrebbero per tutto il sito. Spiegazione e verifica: README di hoop3x3-backend, sezioni «Deploy su
+      # Render» e «Limiti di frequenza».
+      # native: il backend legge l'indirizzo vero del visitatore da X-Forwarded-For, solo se la richiesta arriva da un proxy fidato
+      - key: SERVER_FORWARD_HEADERS_STRATEGY
+        value: native
+      # Limite provvisorio (di base è 10) finché non si verifica quale indirizzo arriva al backend. Dopo la verifica con due
+      # reti diverse, se il limite è per visitatore si toglie da qui e dalla dashboard (torna a 10)
+      - key: LIMITE_AUTH_AL_MINUTO
+        value: "60"
       # Valori richiesti da Render alla creazione del Blueprint (sync: false = non stanno nel repository)
       - key: ADMIN_EMAIL
         sync: false
