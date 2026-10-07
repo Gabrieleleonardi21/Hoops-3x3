@@ -320,6 +320,19 @@ describe("testoFileLega", () => {
     expect(JSON.parse(testo)).toEqual({ nome: "Roma", tappe });
     expect(testo).toContain("\n  \"nome\": \"Roma\"");
   });
+
+  it("la versione delle tappe non entra nel file: è uno stato del server, e l'import la fa ripartire da 0", () => {
+    const testo = testoFileLega("Roma", [{ ...tappaCompleta("a"), versione: 7 }]);
+    expect(JSON.parse(testo).tappe[0]).not.toHaveProperty("versione");
+    expect(JSON.parse(testo)).toEqual({ nome: "Roma", tappe: [tappaCompleta("a")] });
+  });
+});
+
+describe("leggiFileLega: la versione delle tappe", () => {
+  it("una versione nel file (scritto da un'altra app o a mano) si ignora: la tappa importata non ne ha", () => {
+    const [t] = lega(leggi({ nome: "L", tappe: [{ ...tappaCompleta("a"), versione: 5 }] })).tappe;
+    expect(t).not.toHaveProperty("versione");
+  });
 });
 
 describe("leggiLegaSalvata: la lega dell'ospite nel browser, controllata all'avvio", () => {

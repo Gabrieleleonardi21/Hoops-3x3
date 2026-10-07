@@ -125,7 +125,8 @@ const tappaCampi = z.object({
 /** Tappa di un file, con in più i limiti del server. L'id non c'è: ogni tappa importata ne riceve uno nuovo in leggiFileLega.
  *  Il tipo dichiarato fa fallire la compilazione se in src/types un campo obbligatorio cambia e lo schema no; un campo
  *  facoltativo nuovo invece va aggiunto in tappaCampi a mano, altrimenti l'import lo scarterebbe (il test dell'export
- *  completo in legaFile.test.ts lo segnala). */
+ *  completo in legaFile.test.ts lo segnala). L'unico campo che resta fuori apposta è `versione`: è uno stato del server, non
+ *  entra nel file (testoFileLega) e una versione scritta nel file si scarta. */
 const tappaSchema: z.ZodType<Omit<Tappa, "id">, z.ZodTypeDef, unknown> = tappaCampi
   .superRefine((t, ctx) => {
     // Solo i limiti dei campi del server (nome, luogo e data, in tappaOps): oltre quelli la tappa sarebbe rifiutata a ogni
@@ -222,8 +223,10 @@ export function leggiFileLega(testo: string, nomeFile: string): EsitoLettura {
   return { ok: true, lega: { nome, tappe } };
 }
 
-/** Il contenuto del file di export: nome e tappe, rientrati per essere leggibili */
-export const testoFileLega = (nome: string, tappe: Tappa[]): string => JSON.stringify({ nome, tappe }, null, 2);
+/** Il contenuto del file di export: nome e tappe, rientrati per essere leggibili. Senza la versione delle tappe: è uno stato del
+ *  server, che non vale per una lega importata (la POST la fa ripartire da 0), e l'import la scarterebbe comunque */
+export const testoFileLega = (nome: string, tappe: Tappa[]): string =>
+  JSON.stringify({ nome, tappe: tappe.map(({ versione: _versione, ...t }) => t) }, null, 2);
 
 /** Lega com'è nel browser dell'ospite, controllata: le tappe valide e, se qualcuna non lo era, l'avviso da mostrare */
 export interface LegaSalvata {
