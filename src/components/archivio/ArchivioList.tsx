@@ -2,6 +2,7 @@
 import { ErroreCaricamento } from "../ui/ErroreCaricamento";
 import { Loading } from "../ui/Loading";
 import { Section } from "../ui/Section";
+import { conteggio } from "../../utils/testi";
 import type { PubTappaMeta } from "../../types";
 
 /** `pubs` null = non ancora caricato: il caricamento, oppure l'errore con «Riprova» se `errore` c'è (mai «archivio vuoto»).
@@ -28,7 +29,7 @@ export function ArchivioList({ pubs, errore, onRiprova, onOpen }: {
                   <strong className="font-display text-lg text-chalk transition-colors group-hover:text-court">{voce.nome}</strong>
                   <span className="text-xs text-chalk-muted">{[voce.lega, voce.luogo, voce.data].filter(Boolean).join(" · ")}</span>
                 </span>
-                <span className="text-xs font-semibold text-chalk-muted">{voce.nSquadre} squadre · di {voce.autore || "?"}</span>
+                <span className="text-xs font-semibold text-chalk-muted">{conteggio(voce.nSquadre, "squadra", "squadre")} · di {voce.autore || "?"}</span>
               </button>
             ))}
           </div>

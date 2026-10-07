@@ -81,6 +81,14 @@ describe("archivioApi.list: l'elenco sintetico", () => {
     await expect(archivioApi.list()).resolves.toEqual([senzaDati]);
   });
 
+  // GUARDIA (passa già): fissa una regola che il codice ha da quando c'è lo schema, perché non si perda con una modifica futura
+  it("un campo in più nella voce (aggiunto domani dal server) non rompe l'elenco, ma non arriva a chi chiama", async () => {
+    rispondi([{ ...voce("a", 1), campoNuovo: "x", annidato: { dentro: true } }]);
+    const [letta] = await archivioApi.list();
+    expect(letta).toStrictEqual(voce("a", 1));
+    expect(Object.keys(letta).sort()).toEqual(["autore", "data", "lega", "luogo", "nSquadre", "nome", "tappaId", "ts"]);
+  });
+
   describe("una risposta che non ha la forma sintetica è un errore, mai un elenco da disegnare", () => {
     const casi: [string, unknown][] = [
       ["la forma di prima (tappa intera, senza tappaId, nome e nSquadre)", [voceVecchia]],
@@ -102,8 +110,9 @@ describe("archivioApi.list: l'elenco sintetico", () => {
       rispondi(corpo);
       const esito = await archivioApi.list().then(() => null, (e: unknown) => e);
       expect(esito).toBeInstanceOf(ApiError);
-      // Il motivo arriva fino alla pagina, dove compare sotto «Non è stato possibile caricare l'archivio»
-      expect((esito as ApiError).message).toContain("Risposta del server non valida");
+      // Il motivo arriva fino alla pagina, dove compare sotto «Non è stato possibile caricare l'archivio». È neutro: vale per
+      // qualunque causa (un server da aggiornare o un suo difetto), senza parlare di forme né di aggiornamenti
+      expect((esito as ApiError).message).toBe("Risposta del server non valida. Riprova più tardi.");
     });
   });
 });

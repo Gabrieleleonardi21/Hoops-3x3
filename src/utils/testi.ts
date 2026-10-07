@@ -31,12 +31,10 @@ export const SPAZIO_ESAURITO_ACCESSO =
 export const COPIA_LINK_NON_RIUSCITA =
   "Non è stato possibile copiare il link: gli appunti non sono disponibili in questo browser. Selezionalo e copialo a mano.";
 
-/** L'elenco dell'archivio arriva con una forma che l'app non riconosce: succede nei minuti tra l'aggiornamento dell'app e quello del
- *  server, che cambiano la forma dell'elenco in momenti diversi. Compare come motivo sotto «Non è stato possibile caricare
- *  l'archivio», con il «Riprova»: un elenco che non si può leggere non è un elenco vuoto. */
-export const ELENCO_ARCHIVIO_NON_VALIDO =
-  "Risposta del server non valida: l'elenco delle tappe non ha la forma attesa (il server potrebbe essere in aggiornamento). "
-  + "Riprova tra qualche minuto.";
+/** L'elenco dell'archivio arriva con una forma che l'app non riconosce. Il testo è neutro perché la causa può essere qualunque
+ *  (server e app non allineati, un difetto del server): non promette che passi da solo. Compare come motivo sotto «Non è stato
+ *  possibile caricare l'archivio», con il «Riprova»: un elenco che non si può leggere non è un elenco vuoto. */
+export const ELENCO_ARCHIVIO_NON_VALIDO = "Risposta del server non valida. Riprova più tardi.";
 
 /** Il numero con il nome al singolare o al plurale: «1 risultato», «12 risultati» */
 export function conteggio(n: number, singolare: string, plurale: string): string {

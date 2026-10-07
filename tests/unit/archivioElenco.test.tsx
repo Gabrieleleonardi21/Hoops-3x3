@@ -56,6 +56,16 @@ describe("Elenco dell'archivio: la voce sintetica", () => {
     expect(riga.textContent).toContain("8 squadre · di Admin");
   });
 
+  it("il numero di squadre è al singolare e al plurale: «1 squadra», «0 squadre», «8 squadre»", async () => {
+    fetchFinto.mockResolvedValue(rispondi([voce("a", "Una sola", { nSquadre: 1 }), voce("b", "Nessuna", { nSquadre: 0 }), voce("c", "Otto")]));
+    apri();
+    const riga = async (nome: string) => (await screen.findByText(nome)).closest("button")!.textContent;
+    expect(await riga("Una sola")).toContain("1 squadra · di Admin");
+    expect(await riga("Una sola")).not.toContain("1 squadre");
+    expect(await riga("Nessuna")).toContain("0 squadre · di Admin");
+    expect(await riga("Otto")).toContain("8 squadre · di Admin");
+  });
+
   it("senza luogo e data (stringhe vuote) restano la lega, senza separatori in più", async () => {
     fetchFinto.mockResolvedValue(rispondi([voce("a", "Tappa nuda", { luogo: "", data: "" })]));
     apri();

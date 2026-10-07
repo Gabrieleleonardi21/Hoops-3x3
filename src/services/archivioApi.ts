@@ -4,9 +4,11 @@ import { api, ApiError } from "./api";
 import { ELENCO_ARCHIVIO_NON_VALIDO } from "../utils/testi";
 import type { PubTappa, PubTappaMeta } from "../types";
 
-/** Una voce dell'elenco: tutti e otto i campi, sempre. L'annotazione tiene d'accordo schema e tipo: se uno cambia, l'altro non
- *  compila più. `luogo` e `data` possono essere "" ma mai assenti o null. Una voce con la forma di prima (la tappa intera dentro)
- *  non ha questi campi e non passa. Campi in più sono ignorati. */
+/** Una voce dell'elenco: tutti e otto i campi, sempre. L'annotazione controlla in una direzione sola: un campo del tipo che manca
+ *  allo schema (o scritto con un altro tipo) non compila; un campo in più nello schema compila lo stesso, e un test fissa i campi
+ *  che escono. `luogo` e `data` possono essere "" ma mai assenti o null. Una voce con la forma di prima (la tappa intera dentro)
+ *  non ha questi campi e non passa. I campi che lo schema non conosce sono scartati: un campo nuovo aggiunto dal server non rompe
+ *  l'app, ma non arriva a chi chiama. */
 const voceSchema: z.ZodType<PubTappaMeta> = z.object({
   tappaId: z.string().min(1),
   nome: z.string(),
