@@ -12,6 +12,8 @@ import type { RegGiocatore, RegSquadra } from "../types";
  * Il primo load() la scarica dal server; da lì in poi le pagine la leggono da qui senza altre
  * richieste, e ogni scrittura (dalle pagine o dal Coach AI) aggiorna sia il server sia la cache.
  * Le modifiche fatte da altri utenti si vedono al reload della pagina.
+ * La forma dei dati dipende dal token: senza account il server nasconde i dati personali (data di nascita, misure, note,
+ * autore), con un account li manda. Per questo la cache si svuota (svuota) ogni volta che cambia chi la guarda.
  */
 interface AnagrafeState {
   /** null = non ancora caricata (le pagine mostrano il caricamento, o l'errore se `errore` c'è) */
@@ -23,6 +25,10 @@ interface AnagrafeState {
   /** true dopo un caricamento riuscito: i load() successivi non richiamano il server */
   caricata: boolean;
   load: () => Promise<void>;
+  /** Butta via la cache: accesso, registrazione e uscita (useAuth), accesso o uscita in un'altra scheda (App). Il load() successivo
+   *  riscarica con il token di adesso. Un caricamento già in corso non conta più: la sua risposta, partita con il token di prima,
+   *  si scarta quando arriva e non riempie la cache con la forma sbagliata. */
+  svuota: () => void;
   /** Cerca una squadra per nome (case-insensitive): prima in cache, poi sul server */
   trovaSquadra: (nome: string) => Promise<RegSquadra | undefined>;
   /** Mette in cache voci lette dal server fuori dal caricamento (la ricerca per nome, la verifica di una tappa): in testa quelle nuove,
@@ -46,6 +52,8 @@ interface AnagrafeState {
 let inCorso: Promise<void> | null = null;
 // Scritture completate: un caricamento partito prima di una scrittura può non contenerla
 let scritture = 0;
+// Quante volte la cache è stata svuotata: una lettura partita in un'epoca diversa da quella di adesso ha la forma del token di prima
+let epoca = 0;
 
 export const useAnagrafeStore = create<AnagrafeState>((set, get) => {
   /** Dopo una scrittura riuscita aggiorna le liste in memoria; se non ci sono ancora le porterà il prossimo load() */
@@ -65,15 +73,34 @@ export const useAnagrafeStore = create<AnagrafeState>((set, get) => {
       if (get().caricata) return Promise.resolve();
       if (inCorso) return inCorso;
       const scrittureAllInizio = scritture;
+      const epocaAllInizio = epoca;
+      // Svuotata nel frattempo (accesso, uscita): la risposta è di un'altra sessione e non si usa, né come dati né come errore
+      const scaduta = () => epoca !== epocaAllInizio;
       set({ errore: null });
-      inCorso = Promise.all([anagrafeApi.listGiocatori(), anagrafeApi.listSquadre()])
+      const richiesta = Promise.all([anagrafeApi.listGiocatori(), anagrafeApi.listSquadre()])
         // La cache vale solo se nel frattempo non ci sono state scritture: altrimenti il prossimo load() riscarica
-        .then(([giocatori, squadre]) => set({ giocatori, squadre, caricata: scritture === scrittureAllInizio }))
+        .then(([giocatori, squadre]) => {
+          if (scaduta()) return;
+          set({ giocatori, squadre, caricata: scritture === scrittureAllInizio });
+        })
         // Server non raggiungibile o che risponde con un errore: le liste restano come erano (null se non sono mai arrivate) e il
         // motivo va in `errore`. La cache resta non valida: «Riprova», o il prossimo mount, ritenta
-        .catch((e) => set({ errore: testoErrore(e) }))
-        .finally(() => { inCorso = null; });
-      return inCorso;
+        .catch((e) => {
+          if (!scaduta()) set({ errore: testoErrore(e) });
+        })
+        // Solo la propria richiesta: dopo uno svuotamento `inCorso` può essere già quella di un caricamento più recente
+        .finally(() => {
+          if (inCorso === richiesta) inCorso = null;
+        });
+      inCorso = richiesta;
+      return richiesta;
+    },
+
+    svuota: () => {
+      epoca++;
+      // Il prossimo load() riparte da zero, non si accoda a una richiesta partita con il token di prima
+      inCorso = null;
+      set({ giocatori: null, squadre: null, errore: null, caricata: false });
     },
 
     trovaSquadra: async (nome) => {
@@ -83,11 +110,13 @@ export const useAnagrafeStore = create<AnagrafeState>((set, get) => {
       if (inCache) return inCache;
       // Non in cache: un altro utente può averla registrata dopo il caricamento, quindi prima di
       // farne un doppione si ricontrolla sul server (a server spento vale la risposta della cache)
+      const epocaAllInizio = epoca;
       const fresche = await anagrafeApi.listSquadre().catch(() => []);
       const trovata = fresche.find(stessoNome);
       // La voce entra in cache: chi la vedrà collegata a una squadra (la pagina della tappa, che scollega le squadre senza voce)
-      // la ritrova, e non la crede eliminata
-      if (trovata) get().registraInCache([trovata]);
+      // la ritrova, e non la crede eliminata. Non se nel frattempo la cache è stata svuotata: la voce ha la forma del token di prima
+      // e sostituirebbe quella completa di una cache nuova (a chi la cercava la squadra si restituisce lo stesso)
+      if (trovata && epoca === epocaAllInizio) get().registraInCache([trovata]);
       return trovata;
     },
 

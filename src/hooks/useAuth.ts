@@ -1,7 +1,10 @@
 /** Hook di autenticazione: login, registrazione (backend + JWT) e modalità ospite (solo browser).
  *  L'utente della sessione è persistito in localStorage così il reload non obbliga a rifare il login;
- *  il token JWT lo gestisce services/api.ts. */
+ *  il token JWT lo gestisce services/api.ts.
+ *  La cache dell'anagrafe si svuota a ogni accesso, registrazione e uscita (anche dell'ospite): il server manda i dati personali
+ *  solo a chi ha un token, quindi chi entra deve riscaricarla completa e chi esce non deve tenere in memoria dati riservati. */
 import { useAppStore, SESSION_KEY } from "../stores/useAppStore";
+import { useAnagrafeStore } from "../stores/useAnagrafeStore";
 import * as authService from "../services/authService";
 import type { User } from "../types";
 
@@ -22,6 +25,7 @@ export function useAuth() {
     const u = await authService.register(name, email, pass);
     setUser(u);
     saveSession(u);
+    useAnagrafeStore.getState().svuota(); // il token c'è già: l'anagrafe già in cache ha la forma pubblica
     await rehydrate();
   };
 
@@ -30,6 +34,7 @@ export function useAuth() {
     const u = await authService.login(email, pass);
     setUser(u);
     saveSession(u);
+    useAnagrafeStore.getState().svuota(); // il token c'è già: l'anagrafe già in cache ha la forma pubblica
     await rehydrate();
   };
 
@@ -56,6 +61,9 @@ export function useAuth() {
     }
     clearSession();
     reset();
+    // Prima di aspettare la rete, senza await fino alla cancellazione del token (dentro authService.logout): nessun caricamento
+    // può ripartire con il token di chi esce e riempire di nuovo la cache con i suoi dati riservati
+    useAnagrafeStore.getState().svuota();
     await authService.logout();
     return { uscito: true, nonSalvate };
   };

@@ -317,3 +317,153 @@ describe("useAnagrafeStore (cache dell'anagrafe)", () => {
     expect(store.getState().squadre!.map((s) => s.id)).toEqual(["s2", "s1"]);
   });
 });
+
+/** Una voce com'è per chi non ha un account (forma pubblica del server): stesse chiavi, campi riservati vuoti e autoreId null */
+function giocatorePubblico(id: string, nome: string): RegGiocatore {
+  return { ...giocatore(id, nome), nascita: "", citta: "", altezza: "", note: "", autore: "", autoreId: null };
+}
+function squadraPubblica(id: string, nome: string, roster: string[] = []): RegSquadra {
+  return { ...squadra(id, nome, roster), referente: "", autore: "", autoreId: null };
+}
+
+/** Una promessa che si risolve quando lo decide il test: il server finto che risponde in ritardo */
+function differita<T>() {
+  let risolvi: (valore: T) => void = () => {};
+  let rifiuta: (motivo: unknown) => void = () => {};
+  const promessa = new Promise<T>((ok, ko) => { risolvi = ok; rifiuta = ko; });
+  return { promessa, risolvi, rifiuta };
+}
+
+describe("useAnagrafeStore: svuota (T2.15, la forma dell'anagrafe dipende dal token)", () => {
+  it("svuota toglie le liste e la cache non vale più: il load successivo riscarica dal server", async () => {
+    const { api, store } = await nuovoStore();
+    await store.getState().load();
+    expect(store.getState().caricata).toBe(true);
+    store.getState().svuota();
+    expect(store.getState().giocatori).toBeNull();
+    expect(store.getState().squadre).toBeNull();
+    expect(store.getState().caricata).toBe(false);
+    await store.getState().load();
+    expect(api.listGiocatori).toHaveBeenCalledTimes(2);
+    expect(api.listSquadre).toHaveBeenCalledTimes(2);
+  });
+
+  it("dopo il login l'anagrafe viene riscaricata, e arriva la forma completa al posto di quella pubblica", async () => {
+    const { api, store } = await nuovoStore();
+    // Da ospite il server manda la forma pubblica
+    api.listGiocatori.mockResolvedValueOnce([giocatorePubblico("g1", "Mario")]);
+    api.listSquadre.mockResolvedValueOnce([squadraPubblica("s1", "Ballers", ["g1"])]);
+    await store.getState().load();
+    expect(store.getState().giocatori![0].nascita).toBe("");
+    // Accesso: la cache si svuota; col token il server manda tutto
+    store.getState().svuota();
+    api.listGiocatori.mockResolvedValueOnce([{ ...giocatore("g1", "Mario"), nascita: "1998-03-15", autoreId: "u1" }]);
+    api.listSquadre.mockResolvedValueOnce([{ ...squadra("s1", "Ballers", ["g1"]), referente: "Luigi Bianchi" }]);
+    await store.getState().load();
+    expect(store.getState().giocatori![0].nascita).toBe("1998-03-15");
+    expect(store.getState().squadre![0].referente).toBe("Luigi Bianchi");
+  });
+
+  it("svuota toglie anche l'errore di prima: la pagina torna al caricamento e non mostra il «Riprova» della sessione precedente", async () => {
+    const { api, store, ApiError } = await nuovoStore();
+    api.listGiocatori.mockRejectedValueOnce(new ApiError(503, "Servizio non disponibile"));
+    await store.getState().load();
+    expect(store.getState().errore).not.toBeNull();
+    store.getState().svuota();
+    expect(store.getState().errore).toBeNull();
+  });
+
+  it("un caricamento partito prima dello svuotamento non riempie la cache con la sua risposta arrivata dopo (forma pubblica di prima del login)", async () => {
+    const { api, store } = await nuovoStore();
+    // La richiesta parte senza token e il server risponde solo quando lo decide il test
+    const giocatoriLenti = differita<RegGiocatore[]>();
+    const squadreLente = differita<RegSquadra[]>();
+    api.listGiocatori.mockReturnValueOnce(giocatoriLenti.promessa);
+    api.listSquadre.mockReturnValueOnce(squadreLente.promessa);
+    const vecchio = store.getState().load();
+    // Accesso mentre la risposta è ancora in volo
+    store.getState().svuota();
+    giocatoriLenti.risolvi([giocatorePubblico("g1", "Mario")]);
+    squadreLente.risolvi([squadraPubblica("s1", "Ballers", ["g1"])]);
+    await vecchio;
+    // La risposta di prima è stata scartata: niente liste e cache non valida
+    expect(store.getState().giocatori).toBeNull();
+    expect(store.getState().squadre).toBeNull();
+    expect(store.getState().caricata).toBe(false);
+    // Il load successivo non si accoda alla richiesta vecchia: ne fa una nuova, con il token
+    api.listGiocatori.mockResolvedValueOnce([{ ...giocatore("g1", "Mario"), nascita: "1998-03-15" }]);
+    api.listSquadre.mockResolvedValueOnce([squadra("s1", "Ballers", ["g1"])]);
+    await store.getState().load();
+    expect(api.listGiocatori).toHaveBeenCalledTimes(2);
+    expect(store.getState().giocatori![0].nascita).toBe("1998-03-15");
+  });
+
+  it("la risposta di prima del login che arriva dopo il nuovo caricamento non sovrascrive i dati completi", async () => {
+    const { api, store } = await nuovoStore();
+    const giocatoriLenti = differita<RegGiocatore[]>();
+    api.listGiocatori.mockReturnValueOnce(giocatoriLenti.promessa);
+    api.listSquadre.mockResolvedValueOnce([squadraPubblica("s1", "Ballers", ["g1"])]);
+    const vecchio = store.getState().load();
+    store.getState().svuota();
+    // Il caricamento dopo l'accesso finisce per primo, con i dati completi
+    api.listGiocatori.mockResolvedValueOnce([{ ...giocatore("g1", "Mario"), nascita: "1998-03-15" }]);
+    api.listSquadre.mockResolvedValueOnce([squadra("s1", "Ballers", ["g1"])]);
+    await store.getState().load();
+    expect(store.getState().caricata).toBe(true);
+    // Solo adesso arriva la risposta vecchia, in forma pubblica
+    giocatoriLenti.risolvi([giocatorePubblico("g1", "Mario")]);
+    await vecchio;
+    expect(store.getState().giocatori![0].nascita).toBe("1998-03-15");
+    expect(store.getState().squadre![0].referente).toBe("");
+    expect(store.getState().caricata).toBe(true);
+    // E la cache resta valida: nessun'altra richiesta
+    await store.getState().load();
+    expect(api.listGiocatori).toHaveBeenCalledTimes(2);
+  });
+
+  it("un caricamento vecchio che fallisce dopo lo svuotamento non scrive un errore: la sessione nuova non c'entra", async () => {
+    const { api, store, ApiError } = await nuovoStore();
+    const giocatoriLenti = differita<RegGiocatore[]>();
+    api.listGiocatori.mockReturnValueOnce(giocatoriLenti.promessa);
+    const vecchio = store.getState().load();
+    store.getState().svuota();
+    giocatoriLenti.rifiuta(new ApiError(0, "Server non raggiungibile"));
+    await vecchio;
+    expect(store.getState().errore).toBeNull();
+  });
+
+  it("la fine del caricamento vecchio non toglie quello nuovo: due load dopo lo svuotamento condividono ancora la stessa richiesta", async () => {
+    const { api, store } = await nuovoStore();
+    const giocatoriLenti = differita<RegGiocatore[]>();
+    api.listGiocatori.mockReturnValueOnce(giocatoriLenti.promessa);
+    const vecchio = store.getState().load();
+    store.getState().svuota();
+    // Il caricamento nuovo è in corso (lento anche lui) quando il vecchio finisce
+    const nuovaRisposta = differita<RegGiocatore[]>();
+    api.listGiocatori.mockReturnValueOnce(nuovaRisposta.promessa);
+    const nuovo = store.getState().load();
+    giocatoriLenti.risolvi([giocatorePubblico("g1", "Mario")]);
+    await vecchio;
+    // Il vecchio è finito, il nuovo no: un altro load si accoda al nuovo invece di farne un terzo
+    const altro = store.getState().load();
+    nuovaRisposta.risolvi([giocatore("g1", "Mario")]);
+    await Promise.all([nuovo, altro]);
+    expect(api.listGiocatori).toHaveBeenCalledTimes(2);
+    expect(store.getState().caricata).toBe(true);
+  });
+
+  it("trovaSquadra: la voce letta prima dello svuotamento (forma pubblica) non entra nella cache nuova", async () => {
+    const { api, store } = await nuovoStore();
+    await store.getState().load();
+    // La lettura sul server parte prima dell'accesso e risponde dopo
+    const lenta = differita<RegSquadra[]>();
+    api.listSquadre.mockReturnValueOnce(lenta.promessa);
+    const ricerca = store.getState().trovaSquadra("Wildcats");
+    store.getState().svuota();
+    await store.getState().load(); // cache nuova, completa
+    lenta.risolvi([squadraPubblica("s2", "Wildcats")]);
+    // La squadra si trova lo stesso (serve a chi la cercava), ma non entra in una cache che non è la sua
+    expect(await ricerca).toEqual(squadraPubblica("s2", "Wildcats"));
+    expect(store.getState().squadre!.map((s) => s.id)).toEqual(["s1"]);
+  });
+});

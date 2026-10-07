@@ -3,9 +3,10 @@
 import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useAppStore } from "./stores/useAppStore";
+import { useAnagrafeStore } from "./stores/useAnagrafeStore";
 import { useAuth, saveSession } from "./hooks/useAuth";
 import * as authService from "./services/authService";
-import { avviaRinnovoAutomatico, suSessioneFinita } from "./services/api";
+import { avviaRinnovoAutomatico, suSessioneCambiataAltrove, suSessioneFinita } from "./services/api";
 import { Header } from "./components/layout/Header";
 import { SyncBanner } from "./components/layout/SyncBanner";
 import { Loading } from "./components/ui/Loading";
@@ -37,6 +38,8 @@ function messaggioFineSessione(nonSalvate: number): string {
 /** Sessione dell'utente registrato, per tutta la vita della pagina:
  *  - fine della sessione (rinnovo respinto, token cancellato da un'altra scheda, sessione scaduta all'avvio): uscita
  *    senza conferma, perché salvare non è più possibile, e ritorno al form con il messaggio;
+ *  - accesso o uscita in un'altra scheda (il token compare o sparisce): la cache dell'anagrafe si svuota, perché le richieste di
+ *    questa scheda cambiano insieme al token e con esse la forma dei dati (personali solo con un account);
  *  - rinnovo automatico del JWT finché c'è un utente registrato, fermato all'uscita;
  *  - verifica della sessione all'avvio (verifica).
  *  @returns `nonVerificata` = la verifica all'avvio non ha avuto risposta dal server; `riprova` la ripete */
@@ -84,6 +87,7 @@ function useSessione() {
   // Effect Event: il gestore registrato una volta sola usa sempre il logout e la navigate più recenti
   const alFineSessione = useEffectEvent(() => { void fineSessione(); });
   useEffect(() => suSessioneFinita(() => alFineSessione()), []);
+  useEffect(() => suSessioneCambiataAltrove(() => useAnagrafeStore.getState().svuota()), []);
 
   useEffect(() => {
     if (!registrato) return;

@@ -183,11 +183,29 @@ export function suSessioneFinita(fn: () => void): () => void {
   };
 }
 
-// Token cancellato da un'altra scheda: l'evento storage arriva solo alle altre schede dello stesso browser, e per
-// tutte la sessione è finita. Un token appena rinnovato o salvato da un accesso non chiude niente
+/** Gestore del cambio di sessione fatto in un'altra scheda (vedi suSessioneCambiataAltrove) */
+let gestoreSessioneCambiata: (() => void) | null = null;
+
+/** Registra il gestore del token che compare o sparisce per mano di un'altra scheda (accesso o uscita lì): le richieste di questa
+ *  scheda cambiano senza che la scheda l'abbia deciso (da quel momento portano il Bearer, o non lo portano più), e ciò che
+ *  dipende dal token, come i dati personali dell'anagrafe, va riletto. Un token solo rinnovato non conta: la sessione è la stessa.
+ *  Ce n'è uno solo: uno nuovo sostituisce il precedente.
+ *  @returns la funzione che lo toglie */
+export function suSessioneCambiataAltrove(fn: () => void): () => void {
+  gestoreSessioneCambiata = fn;
+  return () => {
+    if (gestoreSessioneCambiata === fn) gestoreSessioneCambiata = null;
+  };
+}
+
+// Token cambiato da un'altra scheda: l'evento storage arriva solo alle altre schede dello stesso browser.
+// - Token comparso o sparito (accesso o uscita lì): la sessione del browser è cambiata, e chi dipende dal token lo deve sapere.
+// - Token cancellato: per tutte la sessione è finita. Un token appena rinnovato o salvato da un accesso non chiude niente
 if (typeof window !== "undefined") {
   window.addEventListener("storage", (e) => {
-    if (e.key === TOKEN_KEY && !token.get()) gestoreFineSessione?.();
+    if (e.key !== TOKEN_KEY) return;
+    if ((e.oldValue === null) !== (e.newValue === null)) gestoreSessioneCambiata?.();
+    if (!token.get()) gestoreFineSessione?.();
   });
 }
 
