@@ -86,7 +86,8 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
   poi sul server) e, se lo trova, collega la squadra alla voce e ne copia
   nome, logo, ranking e sito. Il roster non si copia: i giocatori di una
   squadra di tappa si scrivono nella tappa; solo il Coach AI, creando una
-  tappa, porta con sé i giocatori del roster dell'anagrafe. Se il nome non
+  tappa, porta con sé i giocatori del roster dell'anagrafe (al massimo 4 per
+  squadra, come il tetto dell'interfaccia). Se il nome non
   c'è, l'app crea la scheda in anagrafe con il ranking, il logo e il sito che
   la squadra ha. Se il collegamento non riesce il motivo compare sotto il
   nome, con «Riprova». All'apertura della tappa le squadre collegate si
@@ -379,9 +380,14 @@ esplicitamente:
   crea_lega           Crea una nuova lega e la imposta come attiva.
   crea_tappa          Crea una tappa con tutte le squadre in un'unica chiamata
                       (da 2 a 64, con gli stessi limiti dell'interfaccia);
-                      cerca le squadre in anagrafe, ne porta con sé i
-                      giocatori del roster e, se mancanti, le registra
-                      automaticamente con i dati minimi.
+                      cerca le squadre in anagrafe (nome esatto, oppure una
+                      parte che corrisponde a una squadra sola: se ne
+                      corrispondono più d'una si ferma e chiede il nome
+                      completo), ne porta con sé i giocatori del roster, al
+                      massimo 4 per squadra (il modello sa chi è rimasto
+                      fuori), e registra con i dati minimi quelle mancanti.
+                      Se l'anagrafe non risponde non crea la tappa e non
+                      registra niente.
   sorteggia_gironi    Esegue il sorteggio (casuale o per ranking) su una tappa.
                       Se la tappa ha già dei risultati chiede conferma.
   genera_fasi_dirette Genera il tabellone a eliminazione diretta dalla
@@ -396,8 +402,10 @@ esplicitamente:
                       bozza). Chiede sempre conferma.
   registra_squadra    Aggiunge una squadra all'anagrafe condivisa.
   aggiorna_squadra    Modifica i dati di una squadra esistente in anagrafe
-                      (logo, città, referente, rank, ecc.); aggiorna solo i
-                      campi passati, gli altri restano invariati.
+                      (logo, città, referente, rank, ecc.); la squadra si
+                      sceglie come per crea_tappa; aggiorna solo i campi
+                      passati, gli altri restano invariati. Se l'anagrafe non
+                      risponde lo dice, senza modificare niente.
   registra_giocatore  Aggiunge un giocatore all'anagrafe condivisa.
   concludi_tappa      Conclude e pubblica la tappa nell'Archivio circuito
                       (richiede account non ospite). Chiede sempre conferma.

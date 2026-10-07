@@ -108,7 +108,7 @@ Il sito statico inoltra `/api/*` al backend con una regola di rewrite: per il br
 
 Ogni push su `main` di uno dei due repository ripubblica il servizio corrispondente.
 
-**Ordine di pubblicazione della fase 2** — frontend e backend non vanno online nello stesso istante, quindi l'ordine conta: prima questo frontend, subito dopo il backend, in un momento senza tornei in corso (nessuno sta salvando una tappa), poi si ricaricano le schede aperte. Perché non il contrario e che cosa succede nei minuti tra le due pubblicazioni: sezione «Ordine di pubblicazione della fase 2» nel README di [hoop3x3-backend](https://github.com/Gabrieleleonardi21/hoop3x3-backend).
+**Ordine di pubblicazione** — frontend e backend non vanno online nello stesso istante, quindi l'ordine conta: prima questo frontend, subito dopo il backend, in un momento senza tornei in corso (nessuno sta salvando una tappa), poi si ricaricano le schede aperte. Il backend nuovo rifiuta con 400 il salvataggio di una tappa senza `versione`: una scheda di questo frontend rimasta aperta dal backend precedente rilegge la lega e rimanda da sola (vedi «Versioni e conflitti» qui sotto), una scheda del frontend precedente continua a ricevere il 400 finché non si ricarica la pagina. Il perché dell'ordine, visto dal backend, è nel README di [hoop3x3-backend](https://github.com/Gabrieleleonardi21/hoop3x3-backend): sezioni «Sessioni e refresh token» («Ordine di pubblicazione») e «Tappe e modifiche da più dispositivi» («Compatibilità»).
 
 ## Script disponibili
 
@@ -141,18 +141,18 @@ Senza chiave il Coach risponde "non configurato" e il resto dell'app funziona no
 
 ## API REST
 
-Il contratto del backend (endpoint per endpoint, chi può chiamarlo, codici di stato, limiti) sta nella sezione «Endpoint» del README di [hoop3x3-backend](https://github.com/Gabrieleleonardi21/hoop3x3-backend), che la ricava dai test di accesso: qui non si ripete, per non farlo divergere. Il frontend chiama il backend solo da `src/services/`, e ogni servizio ha il suo gruppo di endpoint:
+Il contratto del backend (endpoint per endpoint, chi può chiamarlo, codici di stato) sta nella sezione «Endpoint» del README di [hoop3x3-backend](https://github.com/Gabrieleleonardi21/hoop3x3-backend), che la ricava dai test di accesso; i limiti (dimensioni, lunghezze, frequenza delle richieste) nelle sezioni «Limiti dell'API» e «Limiti di frequenza». Qui non si ripetono, per non farli divergere. Il frontend chiama il backend solo da `src/services/`, e ogni servizio ha il suo gruppo di endpoint:
 
 | Servizio | Gruppo di endpoint |
 |---|---|
-| `api.ts` (client HTTP: JWT, rinnovo, tempo massimo) | `POST /api/auth/refresh` (il rinnovo della sessione; se è respinto, anche `POST /api/auth/logout`) e `GET /actuator/health` (appena si apre l'app, per svegliare il backend dei piani free: `svegliaServer`) |
+| `api.ts` (client HTTP: JWT, rinnovo, tempo massimo) | `POST /api/auth/refresh` (il rinnovo della sessione) e `GET /actuator/health` (appena si apre l'app, per svegliare il backend dei piani free: `svegliaServer`). Se l'utente esce mentre un rinnovo è in corso, chiama anche `POST /api/auth/logout` per chiudere la sessione appena rinnovata; se il rinnovo è respinto (401) toglie solo il token e avvisa l'app che la sessione è finita |
 | `authService.ts` | `/api/auth/*`: registrazione, accesso, uscita e verifica della sessione (`/api/auth/me`) |
 | `legheApi.ts` | `/api/leghe` (indice, nuova lega, import con le tappe), `/api/leghe/{id}` (dettaglio, rinomina, eliminazione), `/api/leghe/{id}/tappe` (nuova tappa), `/api/tappe/{id}` (salvataggio ed eliminazione di una tappa) |
 | `anagrafeApi.ts` | `/api/anagrafe/giocatori` e `/api/anagrafe/squadre` (lettura, creazione, modifica, eliminazione) |
 | `archivioApi.ts` | `/api/archivio` (elenco) e `/api/archivio/{tappaId}` (dettaglio, pubblicazione, ritiro) |
 | `aiService.ts` | `POST /api/coach/chat` (il Coach AI) |
 
-Non usa `GET /api/utenti` (solo ADMIN) né `GET /api/coach/status`: la chiave Groq mancante la scopre dal 503 della chat. Il client mostra all'utente il campo `message` delle risposte d'errore del backend, o «Errore <status>» se il corpo manca.
+Non usa `GET /api/utenti` (solo ADMIN) né `GET /api/coach/status`: la chiave Groq mancante la scopre dal 503 della chat. Negli store e nelle pagine il client mostra all'utente il campo `message` delle risposte d'errore del backend (`testoErrore`), o «Errore <status>» se il corpo manca; la chat del Coach ha testi suoi (`errorMsg` in `useCoachAI.ts`) e riporta il `message` del backend solo per il 400.
 
 Un utente `ADMIN` iniziale viene creato al primo avvio dalle proprietà `ADMIN_EMAIL` / `ADMIN_PASSWORD` di `env.properties`.
 
