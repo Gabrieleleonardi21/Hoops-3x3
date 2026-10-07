@@ -618,12 +618,11 @@ export const useAppStore = create<AppState>((set, get) => {
   };
 
   /** Tappe il cui ultimo salvataggio il server ha rifiutato (dati non validi): id → nome mandato, motivo e lega (letta al rifiuto: dopo,
-   *  la lega aperta può essere un'altra). La coda non riprova e le
-   *  dà per smaltite, ma sul server c'è ancora la versione di prima: pubblicarla metterebbe in archivio una versione vecchia, e
-   *  uscire la perderebbe («Esci» le conta, salvaTutto). Una voce si toglie quando: un salvataggio della tappa riesce; si apre una
-   *  lega (selectLega: le sue tappe arrivano dal server, e quelle che non ci sono più non contano); la tappa o la lega si eliminano
-   *  (removeTappa, deleteLega); si esce (reset). Ogni cambio passa da rifiuta e togliRifiutata, che tengono la riga della barra
-   *  (avvisoRifiutate) uguale alla mappa. */
+   *  la lega aperta può essere un'altra). La coda non riprova e le dà per smaltite, ma sul server c'è ancora la versione di prima:
+   *  pubblicarla metterebbe in archivio una versione vecchia, e uscire la perderebbe («Esci» le conta, salvaTutto). Una voce si toglie
+   *  quando: un salvataggio della tappa riesce; si apre una lega (selectLega: le sue tappe arrivano dal server, e quelle che non ci
+   *  sono più non contano); la tappa o la lega si eliminano (removeTappa, deleteLega); si esce (reset). Ogni cambio passa da rifiuta
+   *  e togliRifiutata, che tengono la riga della barra (avvisoRifiutate) uguale alla mappa. */
   const rifiutate = new Map<string, { nome: string; motivo: string; legaId: string | null }>();
 
   /** La riga dei salvataggi rifiutati, rifatta dalla mappa */
