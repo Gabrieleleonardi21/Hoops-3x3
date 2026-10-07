@@ -113,4 +113,22 @@ describe("SyncBanner (avviso dei salvataggi)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Chiudi avviso dei conflitti" }));
     barraVuota();
   });
+
+  it("un salvataggio rifiutato ha una riga sua: un errore arrivato dopo non la copre, e sparisce quando la tappa si salva", async () => {
+    api.putTappa.mockRejectedValueOnce(new ApiError(400, "Dati della tappa non validi"));
+    await modificaESalva("t1");
+    api.rename.mockRejectedValue(new ApiError(500, "Errore del server"));
+    await act(async () => {
+      store().setLegaName("Nuovo nome");                     // la rinomina non riesce: un errore meno grave, dopo
+      await vi.advanceTimersByTimeAsync(400);
+    });
+    const [rifiuto, errore] = screen.getAllByRole("alert").map((r) => r.textContent);
+    expect(rifiuto).toBe("Salvataggio della tappa «Finale» non riuscito: Dati della tappa non validi");
+    expect(errore).toBe("Rinomina lega non riuscita: Errore del server");
+    fireEvent.click(screen.getByRole("button", { name: "Chiudi avviso" }));
+    // Il rifiuto resta finché è vero: sul server c'è la versione di prima
+    expect(screen.getByRole("alert").textContent).toContain("Dati della tappa non validi");
+    await modificaESalva("t1");                              // il salvataggio dopo riesce
+    barraVuota();
+  });
 });

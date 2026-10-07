@@ -20,6 +20,12 @@ export const SPAZIO_ESAURITO_CAMBIO =
   SPAZIO_ESAURITO_INIZIO + "le modifiche della lega aperta non sono salvate. Esportala («Esporta JSON») o libera spazio, "
   + "eliminando le leghe che non usi, prima di aprirne o crearne un'altra.";
 
+/** «Esci» dell'ospite mentre la lega aperta ha modifiche che il browser non ha salvato (spazio esaurito, anche con l'avviso chiuso):
+ *  esistono solo in questa pagina. Il testo della finestra «Uscire senza salvare?», con la via d'uscita per tenerle */
+export const USCITA_OSPITE_NON_SALVATA =
+  "Le ultime modifiche della lega aperta non sono salvate nel browser, perché lo spazio è esaurito: uscendo andranno perse. "
+  + "Per tenerle, annulla ed esporta la lega («Esporta JSON»).";
+
 /** Il JWT non si può scrivere nel browser (spazio esaurito) dopo una registrazione o un accesso riusciti sul server: l'account c'è, ma
  *  senza il JWT la sessione non può esistere, e il modulo d'accesso deve dire perché. */
 export const SPAZIO_ESAURITO_ACCESSO =
@@ -70,6 +76,14 @@ export function pubblicazioneSenzaSalvataggio(motivo: string | null): string {
   const testo = "Prima di pubblicare, l'ultima versione della tappa deve essere salvata sul server, ma il salvataggio non è riuscito";
   if (!motivo) return `${testo}.`;
   return `${testo}: ${motivo}`;
+}
+
+/** Il server ha rifiutato il salvataggio di una tappa (dati non validi): lì resta la versione di prima. È una frase della riga dei
+ *  salvataggi rifiutati nella barra degli avvisi, che dura finché il rifiuto vale. Il nome è quello mandato, che può essere proprio il
+ *  campo rifiutato (vuoto) */
+export function salvataggioRifiutato(nome: string, motivo: string): string {
+  if (!nome.trim()) return `Salvataggio di una tappa senza nome non riuscito: ${motivo}`;
+  return `Salvataggio della tappa «${nome.trim()}» non riuscito: ${motivo}`;
 }
 
 /* Conflitti tra dispositivi sulle tappe (T2.7): un altro dispositivo, o un'altra scheda, ha salvato la stessa tappa. Vale la tappa del

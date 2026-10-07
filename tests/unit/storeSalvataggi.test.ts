@@ -130,8 +130,48 @@ describe("store: creazione e modifica delle tappe passano dalla coda dei salvata
     store().updateTappa("t1", { nome: "" });
     await vi.advanceTimersByTimeAsync(60_000);
     expect(api.putTappa).toHaveBeenCalledTimes(1);
-    expect(store().syncError).toBe("Salvataggio tappa non riuscito: Il nome della tappa è obbligatorio");
+    expect(store().avvisoRifiutate).toBe("Salvataggio di una tappa senza nome non riuscito: Il nome della tappa è obbligatorio");
     expect(store().inSospeso).toBe(0);
+  });
+
+  it("un errore arrivato dopo un salvataggio rifiutato non lo copre: il rifiuto ha la sua riga", async () => {
+    useAppStore.setState({ tappe: [tappa("t1", "Finale")] });
+    api.putTappa.mockRejectedValue(new ApiError(400, "Dati della tappa non validi"));
+    api.rename.mockRejectedValue(new ApiError(500, "Errore del server"));
+    store().updateTappa("t1", { luogo: "Testaccio" });
+    await vi.advanceTimersByTimeAsync(400);
+    expect(store().syncError).toBeNull();                    // il rifiuto sta nella sua riga, non tra gli errori da chiudere
+    store().setLegaName("Nuovo nome");
+    await vi.advanceTimersByTimeAsync(400);
+    expect(store().syncError).toBe("Rinomina lega non riuscita: Errore del server");
+    expect(store().avvisoRifiutate).toBe("Salvataggio della tappa «Finale» non riuscito: Dati della tappa non validi");
+  });
+
+  it("un rifiuto vale finché la tappa c'è: eliminando la sua lega, anche se non è quella aperta, non resta nella barra né in «Esci»", async () => {
+    useAppStore.setState({ tappe: [tappa("t1", "Finale")] });
+    api.putTappa.mockRejectedValue(new ApiError(400, "Dati della tappa non validi"));
+    api.get.mockResolvedValue({ id: "l2", nome: "Inverno", tappe: [] });
+    api.remove.mockResolvedValue(undefined);
+    store().updateTappa("t1", { luogo: "Testaccio" });
+    await vi.advanceTimersByTimeAsync(400);
+    await store().selectLega("l2");                          // un'altra lega: il rifiuto di t1 resta vero
+    expect(store().avvisoRifiutate).toContain("«Finale»");
+    expect(await store().salvaTutto()).toBe(1);
+    await store().deleteLega("l1");
+    expect(store().avvisoRifiutate).toBeNull();
+    expect(await store().salvaTutto()).toBe(0);
+  });
+
+  it("un rifiuto vale finché la tappa c'è: una tappa mai creata sul server, che riaprendo la lega non c'è più, non resta nella barra", async () => {
+    api.addTappa.mockRejectedValue(new ApiError(400, "Dati della tappa non validi"));
+    api.get.mockResolvedValue({ id: "l1", nome: "Lega", tappe: [] });
+    store().addTappa(tappa("t2", "Nuova"));
+    await vi.advanceTimersByTimeAsync(400);
+    expect(store().avvisoRifiutate).toContain("«Nuova»");
+    await store().selectLega("l1");
+    expect(store().tappe).toEqual([]);
+    expect(store().avvisoRifiutate).toBeNull();
+    expect(await store().salvaTutto()).toBe(0);
   });
 
   it("alla chiusura della pagina le versioni in attesa partono con keepalive: POST per le tappe nuove, PUT per le altre", () => {
@@ -333,6 +373,28 @@ describe("logout: prima salva ciò che è in attesa, poi esce", () => {
     await vi.advanceTimersByTimeAsync(2000);
     expect(api.putTappa).toHaveBeenCalledTimes(2);
     expect(store().inSospeso).toBe(0);
+  });
+
+  it("un salvataggio rifiutato dal server conta tra le modifiche non salvate: «Esci» chiede conferma", async () => {
+    useAppStore.setState({ tappe: [tappa("t1")] });
+    api.putTappa.mockRejectedValue(new ApiError(400, "Il nome della tappa è obbligatorio"));
+    store().updateTappa("t1", { nome: "" });
+    await vi.advanceTimersByTimeAsync(400);                  // la coda la dà per smaltita: non ritenta un rifiuto
+    const conferma = vi.fn(async () => false);
+    const esito = await esci(conferma);
+    expect(conferma).toHaveBeenCalledWith(1);
+    expect(esito).toEqual({ uscito: false, nonSalvate: 1 });
+    expect(store().user).toEqual(registrato);
+  });
+
+  it("una tappa rifiutata e poi di nuovo in attesa conta una volta sola", async () => {
+    useAppStore.setState({ tappe: [tappa("t1")] });
+    api.putTappa.mockRejectedValueOnce(new ApiError(400, "Il nome della tappa è obbligatorio"));
+    store().updateTappa("t1", { nome: "" });
+    await vi.advanceTimersByTimeAsync(400);
+    api.putTappa.mockRejectedValue(new ApiError(0, "Server non raggiungibile"));
+    store().updateTappa("t1", { nome: "Finale" });           // non arriva: resta in attesa, e il rifiuto di prima vale ancora
+    expect(await store().salvaTutto()).toBe(1);
   });
 
   it("se tutto è già salvato esce senza chiedere conferma", async () => {

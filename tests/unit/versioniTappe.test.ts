@@ -357,7 +357,7 @@ describe("400 «Manca la versione»: pagina aperta prima dell'aggiornamento del 
     await vi.advanceTimersByTimeAsync(60_000);
     expect(api.putTappa).toHaveBeenCalledTimes(2);
     expect(api.get).toHaveBeenCalledTimes(1);
-    expect(store().syncError).toBe("Salvataggio tappa non riuscito: Il nome della tappa è obbligatorio");
+    expect(store().avvisoRifiutate).toBe("Salvataggio di una tappa senza nome non riuscito: Il nome della tappa è obbligatorio");
   });
 });
 

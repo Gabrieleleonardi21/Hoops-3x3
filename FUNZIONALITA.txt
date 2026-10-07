@@ -374,10 +374,13 @@ utenti registrati.
   JSONB), anagrafe in anagrafe_giocatori/anagrafe_squadre (+ tabella ponte
   per il roster), archivio in archivio_tappe. Lo store aggiorna subito la
   UI e salva in background (debounce 400 ms per tappa); un salvataggio
-  fallito è segnalato da una barra in alto. Ogni tappa ha una versione
-  decisa dal server: se un altro dispositivo l'ha salvata nel frattempo
-  (409), l'app mostra la tappa del server e lo dice nella stessa barra,
-  invece di sovrascriverne il lavoro.
+  fallito è segnalato da una barra in alto. Un salvataggio rifiutato dal
+  server (dati non validi) ha una riga sua, che un errore arrivato dopo non
+  copre e che resta finché la tappa non si salva, non si elimina o non si
+  riapre la lega; «Esci» lo conta tra le modifiche non salvate e chiede
+  conferma. Ogni tappa ha una versione decisa dal server: se un altro
+  dispositivo l'ha salvata nel frattempo (409), l'app mostra la tappa del
+  server e lo dice nella stessa barra, invece di sovrascriverne il lavoro.
 - Persistenza (ospite): localStorage per la lega (multi-lega con indice);
   anagrafe e archivio in sola lettura dal server. All'avvio la lega aperta
   si controlla con gli stessi campi dell'import, ma senza i limiti del
@@ -391,10 +394,12 @@ utenti registrati.
   quando torna a riuscire una scrittura che contiene la lega aperta (non
   basta l'indice, scritto eliminando un'altra lega: le modifiche della lega
   aperta potrebbero essere ancora solo in memoria) o quando la lega aperta
-  viene eliminata. Finché l'avviso c'è, aprire, creare o importare un'altra
-  lega prova prima a salvare quella aperta: se riesce l'avviso sparisce e si
-  procede, se no non cambia niente e un messaggio dice di esportarla o di
-  liberare spazio (le modifiche non si perdono in silenzio). Creare o
+  viene eliminata. La X chiude il testo dell'avviso ma non la protezione:
+  finché le modifiche restano solo in memoria, aprire, creare o importare
+  un'altra lega prova prima a salvare quella aperta (se riesce l'avviso
+  sparisce e si procede, se no non cambia niente e un messaggio dice di
+  esportarla o di liberare spazio: le modifiche non si perdono in silenzio)
+  e «Esci» chiede conferma («Uscire senza salvare?»). Creare o
   importare una lega senza spazio non crea niente (dati e indice entrano
   insieme, o nessuno dei due) e il messaggio dice «spazio esaurito». Un
   messaggio analogo compare nel modulo d'accesso se il JWT non si può

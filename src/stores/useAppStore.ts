@@ -10,7 +10,7 @@ import { leggiLegaSalvata, type LegaSalvata } from "../utils/legaFile";
 import { impronta } from "../utils/stessaTappa";
 import {
   SPAZIO_ESAURITO, SPAZIO_ESAURITO_CAMBIO, SPAZIO_ESAURITO_LEGA, eliminazioneTappaInConflitto, pubblicazioneSenzaSalvataggio,
-  tappaEliminataAltrove, tappaModificataAltrove,
+  salvataggioRifiutato, tappaEliminataAltrove, tappaModificataAltrove,
 } from "../utils/testi";
 
 /**
@@ -20,8 +20,8 @@ import {
  *  - registrato → backend REST (legheApi); creazione e modifiche delle tappe passano dalla coda
  *    dei salvataggi (saveQueue.ts): una raffica di input diventa un solo invio, mai due richieste
  *    insieme per la stessa tappa, nuovi tentativi se la rete o il server hanno un problema temporaneo.
- * Gli errori finiscono in `syncError`, le tappe non ancora salvate in `inSospeso` ed `erroreSalvataggio`
- * (tutti mostrati da SyncBanner in App). `syncError` porta anche gli avvisi sui dati dell'ospite nel browser: letti
+ * Gli errori finiscono in `syncError`, le tappe non ancora salvate in `inSospeso` ed `erroreSalvataggio`, i salvataggi rifiutati dal
+ * server in `avvisoRifiutate` (tutti mostrati da SyncBanner in App). `syncError` porta anche gli avvisi sui dati dell'ospite nel browser: letti
  * (tappe non valide scartate, lega illeggibile) e scritti (spazio esaurito: la modifica resta in memoria ma non è salvata),
  * e quelli dei conflitti con un altro dispositivo.
  * Ogni tappa del server ha una `versione` (T2.7): la PUT manda quella dell'ultima risposta, e se nel frattempo un altro
@@ -37,10 +37,19 @@ interface AppState {
   /** false mentre si caricano i dati dal server dopo login/reload (per i registrati) */
   ready: boolean;
   syncError: string | null;
+  /** Ospite: la lega aperta ha modifiche che il browser non ha salvato (spazio esaurito) e che esistono solo in memoria. È la
+   *  protezione, separata dal testo dell'avviso: la X della barra chiude il testo (`syncError`), non questo. Finché è vero, aprire,
+   *  creare o importare un'altra lega prova prima a salvare quella aperta, e «Esci» chiede conferma. Torna falso solo con una
+   *  scrittura riuscita che contiene la lega aperta, con l'eliminazione della lega aperta e all'uscita (reset) */
+  spazioEsaurito: boolean;
   /** Avvisi dei conflitti con un altro dispositivo (T2.7), una frase per tappa, finché non si chiudono. Stanno a parte da
    *  `syncError`: un errore arrivato dopo non deve nascondere che delle modifiche sono state scartate */
   avvisoConflitti: string | null;
   chiudiAvvisoConflitti: () => void;
+  /** Salvataggi di tappe rifiutati dal server (dati non validi), una frase per tappa. Viene da `rifiutate` e dura quanto il rifiuto:
+   *  non si chiude a mano, perché sul server resta la versione di prima finché la tappa non si salva, si elimina o si riapre la lega.
+   *  Sta a parte da `syncError`, come i conflitti: un errore meno grave arrivato dopo non lo deve coprire */
+  avvisoRifiutate: string | null;
   /** Tappe con modifiche non ancora confermate dal server (coda dei salvataggi) */
   inSospeso: number;
   /** Motivo dell'ultimo salvataggio non riuscito per un problema temporaneo (rete, sessione, server):
@@ -50,7 +59,8 @@ interface AppState {
   clearSyncError: () => void;
   /** Salva subito le modifiche in attesa (tappe e rinomina della lega) e aspetta le richieste in corso
    *  (logout, «Riprova ora», apertura di una lega).
-   *  @returns quante tappe hanno ancora modifiche non salvate */
+   *  @returns quante tappe hanno ancora modifiche non salvate: quelle in attesa e quelle il cui salvataggio il server ha rifiutato
+   *  (la coda le dà per smaltite, ma sul server c'è la versione di prima), ognuna una volta */
   salvaTutto: () => Promise<number>;
   /** Pubblica la tappa (già conclusa) nell'Archivio circuito. Prima salva tutto e aspetta la coda: la copia pubblica la costruisce il
    *  server da ciò che ha salvato, quindi deve avere l'ultima versione. Se la tappa non arriva al server (rete assente, dati
@@ -63,7 +73,6 @@ interface AppState {
   selectLega: (id: string) => Promise<void>;
   deleteLega: (id: string) => Promise<void>;
   setLegaName: (nome: string) => void;
-  setLega: (nome: string, tappe: Tappa[]) => void;
   addTappa: (t: Tappa) => void;
   /** Modifica una tappa. `modifica` è l'insieme dei campi da cambiare oppure una funzione `(tappa) => tappa`: la
    *  funzione riceve la tappa com'è nello store nel momento in cui viene applicata, non una copia letta prima
@@ -210,20 +219,22 @@ export const useAppStore = create<AppState>((set, get) => {
     set({ syncError: `${cosa}: ${testoErrore(e)}` });
   };
 
-  /** Toglie l'avviso «spazio esaurito» quando le scritture dell'ospite tornano a riuscire (per esempio dopo aver eliminato una
-   *  lega): da lì dice il falso. Gli altri avvisi non si toccano. */
+  /** Le modifiche dell'ospite non sono più solo in memoria: la protezione (spazioEsaurito) si abbassa e l'avviso «spazio esaurito»
+   *  sparisce, perché da lì direbbe il falso. Gli altri avvisi non si toccano. La chiamano solo una scrittura riuscita che contiene
+   *  la lega aperta (salvaLegaAperta, scriviLegaNuova), l'eliminazione della lega aperta e il cambio senza una lega aperta */
   const spazioTornato = () => {
+    set({ spazioEsaurito: false });
     if (get().syncError === SPAZIO_ESAURITO) set({ syncError: null });
   };
   /** Scrive i dati dell'ospite nel browser, una coppia (chiave, valore) per scrittura. Se il browser ne rifiuta una (spazio esaurito)
    *  l'azione riesce lo stesso, in memoria, e la barra degli avvisi dice che non è salvata: l'app non va in errore. Si tentano tutte,
-   *  anche dopo un rifiuto (una scrittura piccola può riuscire dove una grande no). Non toglie mai l'avviso: lo fa solo
-   *  salvaLegaAperta, perché una scrittura che riesce non prova che la lega aperta sia salvata.
+   *  anche dopo un rifiuto (una scrittura piccola può riuscire dove una grande no). Non toglie mai l'avviso né la protezione: lo fa
+   *  solo salvaLegaAperta, perché una scrittura che riesce non prova che la lega aperta sia salvata.
    *  @returns true se sono riuscite tutte */
   const scriviOspite = (...coppie: [string, string][]): boolean => {
     const riuscite = coppie.map(([chiave, valore]) => scrivi(chiave, valore));
     if (riuscite.includes(false)) {
-      set({ syncError: SPAZIO_ESAURITO });
+      set({ syncError: SPAZIO_ESAURITO, spazioEsaurito: true });
       return false;
     }
     return true;
@@ -249,18 +260,19 @@ export const useAppStore = create<AppState>((set, get) => {
     spazioTornato();
   };
 
-  /** Ospite: prima di aprire, creare o importare un'altra lega. Con l'avviso «spazio esaurito» attivo le modifiche della lega aperta
-   *  esistono solo in memoria, e il cambio le sostituirebbe (riaprendo la stessa lega, con la versione vecchia salvata nel browser)
-   *  e toglierebbe l'avviso: in silenzio. Quindi si prova a salvarla: se riesce, l'avviso sparisce e si procede; se no, non si cambia
-   *  niente e l'errore dice perché (lo mostrano le pagine che chiamano). Senza l'avviso non c'è niente da salvare. */
+  /** Ospite: prima di aprire, creare o importare un'altra lega. Con la protezione alzata (spazioEsaurito, anche se l'avviso è stato
+   *  chiuso con la X) le modifiche della lega aperta esistono solo in memoria, e il cambio le sostituirebbe (riaprendo la stessa lega,
+   *  con la versione vecchia salvata nel browser): in silenzio. Quindi si prova a salvarla: se riesce, protezione e avviso spariscono e
+   *  si procede; se no, non si cambia niente e l'errore dice perché (lo mostrano le pagine che chiamano). Senza la protezione non c'è
+   *  niente da salvare. */
   const salvaLegaApertaPrimaDelCambio = () => {
-    if (get().syncError !== SPAZIO_ESAURITO) return;
+    if (!get().spazioEsaurito) return;
     if (!get().legaId) {
       spazioTornato(); // nessuna lega aperta: non c'è niente da salvare
       return;
     }
     persistLocal();
-    if (get().syncError === SPAZIO_ESAURITO) throw new ApiError(507, SPAZIO_ESAURITO_CAMBIO);
+    if (get().spazioEsaurito) throw new ApiError(507, SPAZIO_ESAURITO_CAMBIO);
   };
 
   /** Chiave della lega aperta per ultima, di chi usa l'app adesso */
@@ -579,25 +591,49 @@ export const useAppStore = create<AppState>((set, get) => {
   const eliminataNelFrattempo = (e: unknown, t: Tappa) =>
     e instanceof ApiError && e.status === 404 && !get().tappe.some((x) => x.id === t.id);
 
-  /** Tappe il cui ultimo salvataggio il server ha rifiutato (dati non validi): id → motivo. La coda non riprova e le dà per
-   *  smaltite, ma sul server c'è ancora la versione di prima: pubblicarla metterebbe in archivio una versione vecchia. Una voce si
-   *  toglie quando: un salvataggio della tappa riesce; si apre una lega (selectLega: le sue tappe arrivano dal server); la tappa o
-   *  la lega si eliminano (removeTappa, deleteLega); si esce (reset). */
-  const rifiutate = new Map<string, string>();
+  /** Tappe il cui ultimo salvataggio il server ha rifiutato (dati non validi): id → nome mandato, motivo e lega (letta al rifiuto: dopo,
+   *  la lega aperta può essere un'altra). La coda non riprova e le
+   *  dà per smaltite, ma sul server c'è ancora la versione di prima: pubblicarla metterebbe in archivio una versione vecchia, e
+   *  uscire la perderebbe («Esci» le conta, salvaTutto). Una voce si toglie quando: un salvataggio della tappa riesce; si apre una
+   *  lega (selectLega: le sue tappe arrivano dal server, e quelle che non ci sono più non contano); la tappa o la lega si eliminano
+   *  (removeTappa, deleteLega); si esce (reset). Ogni cambio passa da rifiuta e togliRifiutata, che tengono la riga della barra
+   *  (avvisoRifiutate) uguale alla mappa. */
+  const rifiutate = new Map<string, { nome: string; motivo: string; legaId: string | null }>();
+
+  /** La riga dei salvataggi rifiutati, rifatta dalla mappa */
+  const mostraRifiutate = () => {
+    const frasi = [...rifiutate.values()].map(({ nome, motivo }) => salvataggioRifiutato(nome, motivo));
+    set({ avvisoRifiutate: frasi.join(" ") || null });
+  };
+  const rifiuta = (t: Tappa, e: unknown) => {
+    rifiutate.set(t.id, { nome: t.nome, motivo: testoErrore(e), legaId: legaDi(t.id) });
+    mostraRifiutate();
+  };
+  /** Il rifiuto della tappa non vale più; la riga si rifà solo se c'era */
+  const togliRifiutata = (id: string) => {
+    if (rifiutate.delete(id)) mostraRifiutate();
+  };
+  /** Toglie i rifiuti delle tappe della lega, tranne quelli delle tappe che `resta` tiene */
+  const togliRifiutateDellaLega = (legaId: string, resta: (id: string) => boolean = () => false) => {
+    for (const [id, voce] of [...rifiutate]) {
+      if (voce.legaId === legaId && !resta(id)) togliRifiutata(id);
+    }
+  };
 
   const coda = createSaveQueue({
     salva: (t) => salvaSulServer(t).then(
-      () => { rifiutate.delete(t.id); },
+      () => { togliRifiutata(t.id); },
       (e: unknown) => {
         if (eliminataNelFrattempo(e, t)) return;
-        if (!riprovabile(e)) rifiutate.set(t.id, testoErrore(e));
+        if (!riprovabile(e)) rifiuta(t, e);
         throw e;
       },
     ),
     riprovabile,
     ritardo: SAVE_DELAY,
+    // Un rifiuto (definitivo) è già nella sua riga, da rifiuta: qui solo i problemi temporanei, che la coda riprova
     onErrore: (e, definitivo) => {
-      if (definitivo) { reportError(e, "Salvataggio tappa non riuscito"); return; }
+      if (definitivo) return;
       set({ erroreSalvataggio: testoErrore(e) });
     },
     // Coda vuota = tutto confermato dal server: l'avviso del salvataggio non riuscito sparisce da solo
@@ -697,6 +733,8 @@ export const useAppStore = create<AppState>((set, get) => {
     inSospeso: 0,
     erroreSalvataggio: null,
     avvisoConflitti: null,
+    avvisoRifiutate: null,
+    spazioEsaurito: false,
 
     setUser: (user) => set({ user }),
     clearSyncError: () => set({ syncError: null }),
@@ -708,7 +746,8 @@ export const useAppStore = create<AppState>((set, get) => {
     salvaTutto: async () => {
       // Anche le DELETE che aspettano un salvataggio in volo: prima di «Esci» devono partire con il token
       await Promise.all([coda.svuota(), rinomina(), ...eliminazioniInAttesa.values()]);
-      return coda.inAttesa().length;
+      // Una tappa rifiutata e poi modificata di nuovo, ancora in attesa, è in tutti e due gli elenchi: conta una volta
+      return new Set([...coda.inAttesa().map((t) => t.id), ...rifiutate.keys()]).size;
     },
 
     pubblica: async (tappaId) => {
@@ -718,7 +757,7 @@ export const useAppStore = create<AppState>((set, get) => {
       // Il salvataggio di questa tappa non è andato a buon fine (rete assente: è ancora in coda; dati rifiutati: la coda l'ha
       // scartata; conflitto con un altro dispositivo: ora c'è la tappa del server, diversa da quella che si voleva pubblicare):
       // la pubblicazione non parte. Le modifiche in sospeso di altre tappe non c'entrano
-      const rifiutata = rifiutate.get(tappaId);
+      const rifiutata = rifiutate.get(tappaId)?.motivo;
       const sostituita = sostituite.get(tappaId);
       const inCoda = coda.inAttesa().some((t) => t.id === tappaId);
       if (inCoda || rifiutata !== undefined || sostituita !== undefined) {
@@ -757,10 +796,13 @@ export const useAppStore = create<AppState>((set, get) => {
         // Dopo la GET: anche le versioni in volo e le tappe aggiunte nel frattempo, con la POST ancora da confermare (C1)
         const locali = [...inCoda, ...coda.nonConfermate()];
         const nuove = locali.filter((t) => daCreare.get(t.id) === id);
-        // Le tappe arrivano com'è sul server: un vecchio rifiuto del loro salvataggio non vale più, e non deve bloccare la pubblicazione
-        for (const t of lega.tappe) rifiutate.delete(t.id);
+        const tappe = conVersioniLocali(id, lega.tappe, locali, nuove, notePrima);
+        // Le tappe arrivano com'è sul server: un vecchio rifiuto del loro salvataggio non vale più, e non deve bloccare la pubblicazione.
+        // Nemmeno quello di una tappa della lega che non c'è più (mai creata sul server): non resta niente da salvare
+        for (const t of lega.tappe) togliRifiutata(t.id);
+        togliRifiutateDellaLega(id, (tid) => tappe.some((t) => t.id === tid));
         ricordaLega(id);
-        set({ legaId: id, legaName: lega.nome, tappe: conVersioniLocali(id, lega.tappe, locali, nuove, notePrima) });
+        set({ legaId: id, legaName: lega.nome, tappe });
         return;
       }
       salvaLegaApertaPrimaDelCambio();
@@ -780,6 +822,8 @@ export const useAppStore = create<AppState>((set, get) => {
       }
       const leghe = get().leghe.filter((m) => m.id !== id);
       if (!isRemote()) writeIndex(leghe);
+      // I rifiuti delle tappe della lega non valgono più, anche se non è quella aperta: non c'è più niente da salvare
+      togliRifiutateDellaLega(id);
       if (get().legaId === id) {
         // Le tappe se ne vanno con la lega: i loro salvataggi in attesa o in nuovo tentativo partirebbero dopo la DELETE
         // e avrebbero un 404 (la POST, su una lega che non c'è più), cioè un errore per dati eliminati apposta
@@ -787,11 +831,10 @@ export const useAppStore = create<AppState>((set, get) => {
           coda.annulla(t.id);
           senzaRisposta.delete(t.id);
           daCreare.delete(t.id);
-          rifiutate.delete(t.id);
         }
         localStorage.removeItem(chiaveAttiva());
         set({ leghe, legaId: null, legaName: "", tappe: [] });
-        spazioTornato(); // la lega con le modifiche non salvate non c'è più: l'avviso non dice più il vero
+        spazioTornato(); // la lega con le modifiche non salvate non c'è più: avviso e protezione non dicono più il vero
       } else {
         set({ leghe });
       }
@@ -819,9 +862,6 @@ export const useAppStore = create<AppState>((set, get) => {
       }
       salvaLegaAperta([legaStorageKey(s.legaId), JSON.stringify({ nome: legaName, tappe: s.tappe })], [INDEX_KEY, JSON.stringify(leghe)]);
     },
-
-    // Usato per viste pubbliche/archivio: non cambia legaId né persiste
-    setLega: (legaName, tappe) => set({ legaName, tappe }),
 
     addTappa: (t) => {
       set((s) => ({ tappe: [...s.tappe, t] }));
@@ -888,7 +928,7 @@ export const useAppStore = create<AppState>((set, get) => {
         // Un salvataggio ancora in attesa su una tappa eliminata darebbe 404; quello già in volo finisce, e la DELETE lo aspetta.
         // I corpi senza risposta della tappa li prende la DELETE (eliminaSulServer), per decidere dopo un suo 409
         const inVolo = coda.annulla(id);
-        rifiutate.delete(id);
+        togliRifiutata(id);
         touchIndex();
         // Creazione non ancora confermata: niente DELETE, la tappa potrebbe non essere mai arrivata al server
         if (daCreare.delete(id)) {
@@ -915,7 +955,10 @@ export const useAppStore = create<AppState>((set, get) => {
       eliminazioniInAttesa.clear();
       // Chi esce dimentica la sua lega aperta; quella dell'altra modalità (ospite o registrato) resta
       localStorage.removeItem(chiaveAttiva());
-      set({ user: null, legaId: null, leghe: [], legaName: "", tappe: [], ready: true, syncError: null, avvisoConflitti: null });
+      set({
+        user: null, legaId: null, leghe: [], legaName: "", tappe: [], ready: true, syncError: null, avvisoConflitti: null,
+        avvisoRifiutate: null, spazioEsaurito: false,
+      });
     },
 
     rehydrate: async () => {

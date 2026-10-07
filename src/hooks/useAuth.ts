@@ -44,7 +44,8 @@ export function useAuth() {
 
   /** Uscita. Primo passo: salvare le modifiche ancora in attesa, finché il token c'è. Se qualcuna non arriva
    *  al server decide `conferma`, passata dall'interfaccia (il pulsante «Esci» mostra la finestra di conferma):
-   *  false = l'utente resta. Senza `conferma` si esce comunque: è il caso della sessione già finita, quando
+   *  false = l'utente resta. Lo stesso per l'ospite con modifiche che il browser non ha salvato (spazioEsaurito): non ha una
+   *  coda, e `nonSalvate` resta 0. Senza `conferma` si esce comunque: è il caso della sessione già finita, quando
    *  salvare non è più possibile. Poi lo stato locale, così l'interfaccia non aspetta la rete, e la revoca sul server.
    *  @returns `uscito` false se l'utente ha scelto di restare; `nonSalvate` = tappe con modifiche che non sono
    *  arrivate al server (perse, se si è usciti) */
@@ -52,11 +53,12 @@ export function useAuth() {
     conferma?: (nonSalvate: number) => Promise<boolean>,
   ): Promise<{ uscito: boolean; nonSalvate: number }> => {
     const nonSalvate = await salvaTutto();
-    if (nonSalvate > 0 && conferma) {
+    const { user: chiEsce, spazioEsaurito } = useAppStore.getState();
+    const eraOspite = chiEsce?.guest === true;
+    if ((nonSalvate > 0 || (eraOspite && spazioEsaurito)) && conferma) {
       const esci = await conferma(nonSalvate);
       if (!esci) return { uscito: false, nonSalvate };
     }
-    const eraOspite = useAppStore.getState().user?.guest === true;
     clearSession();
     reset();
     // Prima di aspettare la rete, senza await fino alla cancellazione del token (dentro authService.logout): nessun caricamento

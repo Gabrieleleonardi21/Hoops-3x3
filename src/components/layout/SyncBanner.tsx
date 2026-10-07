@@ -1,14 +1,16 @@
-/** Barra degli avvisi di sincronizzazione con il server, sotto l'header. Tre righe possibili:
+/** Barra degli avvisi di sincronizzazione con il server, sotto l'header. Quattro righe possibili:
  *  - salvataggio delle tappe non riuscito per un problema temporaneo (rete, sessione, server): quante tappe
  *    aspettano e perché. La coda riprova da sola, «Riprova ora» anticipa il tentativo e l'avviso sparisce
  *    da solo quando tutto è salvato;
  *  - i conflitti con un altro dispositivo (T2.7), una frase per tappa: salvata altrove (ora nello store c'è quella del
  *    server), eliminata altrove, o non eliminata perché salvata nello stesso istante. Sta a parte dagli errori, così
  *    un errore arrivato dopo non nasconde che delle modifiche sono state scartate; si chiude a mano;
- *  - gli altri errori (dati rifiutati dal server, rinomina, eliminazione, caricamento), che si chiudono a mano.
+ *  - i salvataggi rifiutati dal server (dati non validi), una frase per tappa. Sta a parte per lo stesso motivo, e non si chiude:
+ *    sparisce da sola quando non è più vera (la tappa si salva, si elimina, o si riapre la lega);
+ *  - gli altri errori (rinomina, eliminazione, caricamento, dati dell'ospite), che si chiudono a mano.
  *  Lo stato in memoria resta corretto in tutti i casi.
- *  Ogni riga ha il suo ruolo, così il lettore di schermo legge solo quella che cambia: `alert` per le righe da chiudere
- *  (errori e conflitti), `status` per le modifiche non salvate, che cambiano spesso e da sole. */
+ *  Ogni riga ha il suo ruolo, così il lettore di schermo legge solo quella che cambia: `alert` per errori, conflitti e rifiuti,
+ *  `status` per le modifiche non salvate, che cambiano spesso e da sole. */
 import { useAppStore } from "../../stores/useAppStore";
 import { tappeNonSalvate } from "../../utils/tappeNonSalvate";
 import { Button } from "../ui/Button";
@@ -31,12 +33,13 @@ export function SyncBanner() {
   const clear = useAppStore((s) => s.clearSyncError);
   const conflitti = useAppStore((s) => s.avvisoConflitti);
   const chiudiConflitti = useAppStore((s) => s.chiudiAvvisoConflitti);
+  const rifiutate = useAppStore((s) => s.avvisoRifiutate);
   const inSospeso = useAppStore((s) => s.inSospeso);
   const motivo = useAppStore((s) => s.erroreSalvataggio);
   const salvaTutto = useAppStore((s) => s.salvaTutto);
   // Solo dopo un salvataggio non riuscito: le tappe in viaggio verso il server durante un salvataggio normale non si segnalano
   const nonSalvate = motivo !== null && inSospeso > 0;
-  if (!error && !nonSalvate && !conflitti) return null;
+  if (!error && !nonSalvate && !conflitti && !rifiutate) return null;
   return (
     <div className="space-y-1.5 border-b border-loss/40 bg-loss/10 px-4 py-2 text-[13px] font-semibold text-chalk">
       {nonSalvate && (
@@ -48,6 +51,7 @@ export function SyncBanner() {
         </div>
       )}
       {conflitti && <RigaDaChiudere testo={conflitti} etichetta="Chiudi avviso dei conflitti" onChiudi={chiudiConflitti} />}
+      {rifiutate && <div role="alert" className="mx-auto max-w-5xl">{rifiutate}</div>}
       {error && <RigaDaChiudere testo={error} etichetta="Chiudi avviso" onChiudi={clear} />}
     </div>
   );

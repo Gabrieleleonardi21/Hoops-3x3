@@ -231,6 +231,26 @@ describe("ospite: con le modifiche non salvate, aprire, creare o importare un'al
     expect(store().syncError).toBeNull();
   });
 
+  it("chiudere l'avviso con la X chiude il testo, non la protezione: «Apri» con lo spazio ancora pieno dà errore", async () => {
+    versioneVecchia();
+    modificaNonSalvata();
+    store().clearSyncError();                                // la X della barra
+    expect(store().syncError).toBeNull();
+    expect(store().spazioEsaurito).toBe(true);
+    await expect(store().selectLega("l1")).rejects.toMatchObject({ status: 507 });
+    expect(store().tappe[0].nome).toBe("Finale");            // la versione vecchia del browser non l'ha sostituita
+  });
+
+  it("dopo la X, liberato lo spazio, «Apri» salva prima la lega aperta", async () => {
+    versioneVecchia();
+    const pieno = modificaNonSalvata();
+    store().clearSyncError();
+    pieno.mockRestore();
+    await store().selectLega("l1");
+    expect(nomeSalvato()).toBe("Finale");
+    expect(store().spazioEsaurito).toBe(false);
+  });
+
   it("senza modifiche non salvate (nessun avviso) aprire un'altra lega non scrive né chiede niente", async () => {
     versioneVecchia();
     localStorage.setItem("hoop3x3_lega_l2", JSON.stringify({ nome: "Inverno", tappe: [] }));
@@ -285,6 +305,33 @@ describe("ospite: l'avviso «spazio esaurito» sparisce quando le scritture torn
     store().updateTappa("t1", { nome: "Finale 2" });
     expect(store().syncError).toBeNull();
     expect(JSON.parse(localStorage.getItem("hoop3x3_lega_l1")!).tappe[0].nome).toBe("Finale 2");
+  });
+
+  it("la protezione (spazioEsaurito) si abbassa con una scrittura riuscita della lega aperta, non con quella del solo indice", async () => {
+    localStorage.setItem("hoop3x3_lega_l2", JSON.stringify({ nome: "Inverno", tappe: [] }));
+    useAppStore.setState({ leghe: [...store().leghe, { id: "l2", nome: "Inverno", ts: 1, nTappe: 0 }] });
+    const pieno = browserPieno();
+    store().updateTappa("t1", { nome: "Finale" });
+    expect(store().spazioEsaurito).toBe(true);
+    pieno.mockRestore();
+    await store().deleteLega("l2");                          // entra solo l'indice
+    expect(store().spazioEsaurito).toBe(true);
+    store().updateTappa("t1", { nome: "Finale 2" });         // entra la lega aperta
+    expect(store().spazioEsaurito).toBe(false);
+  });
+
+  it("la protezione si abbassa anche eliminando la lega aperta, e uscendo", async () => {
+    const pieno = browserPieno();
+    store().updateTappa("t1", { nome: "Finale" });
+    pieno.mockRestore();
+    await store().deleteLega("l1");
+    expect(store().spazioEsaurito).toBe(false);
+    useAppStore.setState({ legaId: "l1", tappe: [tappa()], leghe: [{ id: "l1", nome: "Estate", ts: 1, nTappe: 1 }] });
+    browserPieno();
+    store().updateTappa("t1", { nome: "Finale" });
+    expect(store().spazioEsaurito).toBe(true);
+    store().reset();
+    expect(store().spazioEsaurito).toBe(false);
   });
 
   it("un altro avviso non si toglie: sparisce solo quello dello spazio", () => {
