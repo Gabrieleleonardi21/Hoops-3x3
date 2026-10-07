@@ -192,6 +192,9 @@ function riprovabile(e: unknown): boolean {
  *  il messaggio generico «I dati sono stati modificati o eliminati…»); sulla POST che esiste già (T1.6). Si distinguono dal metodo */
 const conflitto = (e: unknown): e is ApiError => e instanceof ApiError && e.status === 409;
 
+/** 404 del server: la tappa (o la sua lega) non c'è */
+const nonTrovata = (e: unknown): e is ApiError => e instanceof ApiError && e.status === 404;
+
 /** 400 della PUT senza versione: la tappa è stata caricata da una pagina aperta prima dell'aggiornamento del server (T2.7). Si
  *  riconosce dal messaggio del server, perché gli altri 400 sono dati rifiutati */
 const mancaVersione = (e: unknown): e is ApiError =>
@@ -489,9 +492,22 @@ export const useAppStore = create<AppState>((set, get) => {
     return false;
   };
 
+  /** Dopo un 404 della PUT su una tappa ancora qui: il server controlla l'esistenza della tappa prima della versione, quindi una tappa
+   *  eliminata da un altro dispositivo dà 404 e non 409. Si rilegge la lega per esserne certi: se la tappa non c'è più esce anche da
+   *  qui, con l'avviso (eliminataAltrove: true); se l'utente l'ha eliminata qui nel frattempo non c'è niente da dire (true); se c'è
+   *  ancora, false, e l'errore resta quello della PUT. Se la lega non si legge lancia l'errore della lettura: se è temporaneo la coda
+   *  riprova */
+  const eliminataSulServer = async (t: Tappa): Promise<boolean> => {
+    const legaId = legaDi(t.id);
+    if (!legaId) return false;
+    if (await tappaSulServer(legaId, t.id)) return false;
+    if (!eliminataQui(legaId, t.id)) eliminataAltrove(legaId, t);
+    return true;
+  };
+
   /** PUT della tappa con la versione nota. Dopo un 409, o un 400 «Manca la versione» al primo invio, si rilegge la lega
    *  (dopoUnConflitto) e si rimanda al massimo una volta: se anche quell'invio fallisce vale la gestione degli errori di sempre,
-   *  tranne un altro 409, dopo il quale vale la tappa del server */
+   *  tranne un altro 409, dopo il quale vale la tappa del server. Dopo un 404 si rilegge la lega (eliminataSulServer) */
   const aggiornaSulServer = async (t: Tappa, rimandata = false): Promise<void> => {
     try {
       confermata(t, await legheApi.putTappa(conVersione(t)));
@@ -502,6 +518,8 @@ export const useAppStore = create<AppState>((set, get) => {
         if (await dopoUnConflitto(t, e, rimandata)) await aggiornaSulServer(t, true);
         return;
       }
+      // Un 404 atteso (la tappa o la sua lega eliminate qui) non chiede la rilettura: lo lascia passare eliminataNelFrattempo
+      if (nonTrovata(e) && !eliminataNelFrattempo(e, t) && await eliminataSulServer(t)) return;
       throw e;
     }
   };
@@ -585,11 +603,19 @@ export const useAppStore = create<AppState>((set, get) => {
     if (eliminatePrimaDellaCreazione.delete(t.id)) eliminaDopo(null, t.id);
   };
 
-  /** Un 404 per una tappa che non è più nello stato non è un salvataggio fallito: la tappa è stata eliminata e non c'è più
-   *  niente da salvare. Da questo client succede solo eliminando la sua lega (la DELETE di una tappa aspetta la richiesta in volo,
-   *  eliminaDopo), oppure quando la tappa l'ha eliminata un altro dispositivo */
-  const eliminataNelFrattempo = (e: unknown, t: Tappa) =>
-    e instanceof ApiError && e.status === 404 && !get().tappe.some((x) => x.id === t.id);
+  /** Leghe la cui DELETE è partita da qui e non è ancora finita (deleteLega): le loro tappe stanno per andarsene con loro */
+  const legheInEliminazione = new Set<string>();
+
+  /** Un 404 per una tappa che non è più nello stato, o la cui lega si sta eliminando, non è un salvataggio fallito: la tappa è
+   *  stata eliminata e non c'è più niente da salvare. Da questo client succede eliminando la sua lega (anche con un nuovo tentativo
+   *  partito durante la DELETE, quando la tappa è ancora nello stato), dopo una DELETE della tappa partita alla chiusura della
+   *  pagina, oppure quando la tappa l'ha eliminata un altro dispositivo e qui è già uscita */
+  const eliminataNelFrattempo = (e: unknown, t: Tappa) => {
+    if (!nonTrovata(e)) return false;
+    const lega = legaDi(t.id);
+    if (lega !== null && legheInEliminazione.has(lega)) return true;
+    return !get().tappe.some((x) => x.id === t.id);
+  };
 
   /** Tappe il cui ultimo salvataggio il server ha rifiutato (dati non validi): id → nome mandato, motivo e lega (letta al rifiuto: dopo,
    *  la lega aperta può essere un'altra). La coda non riprova e le
@@ -816,7 +842,13 @@ export const useAppStore = create<AppState>((set, get) => {
 
     deleteLega: async (id) => {
       if (isRemote()) {
-        await legheApi.remove(id);
+        // Durante la DELETE un nuovo tentativo di salvataggio di una sua tappa riceve 404: non è un errore (eliminataNelFrattempo)
+        legheInEliminazione.add(id);
+        try {
+          await legheApi.remove(id);
+        } finally {
+          legheInEliminazione.delete(id);
+        }
       } else {
         localStorage.removeItem(legaStorageKey(id));
       }

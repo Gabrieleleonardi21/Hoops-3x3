@@ -381,7 +381,9 @@ utenti registrati.
   riapre la lega; «Esci» lo conta tra le modifiche non salvate e chiede
   conferma. Ogni tappa ha una versione decisa dal server: se un altro
   dispositivo l'ha salvata nel frattempo (409), l'app mostra la tappa del
-  server e lo dice nella stessa barra, invece di sovrascriverne il lavoro.
+  server e lo dice nella stessa barra, invece di sovrascriverne il lavoro;
+  se l'ha eliminata (la PUT riceve 404 o 409), rilegge la lega e, se la
+  tappa non c'è più, la toglie con lo stesso avviso.
 - Persistenza (ospite): localStorage per la lega (multi-lega con indice);
   anagrafe e archivio in sola lettura dal server. All'avvio la lega aperta
   si controlla con gli stessi campi dell'import, ma senza i limiti del

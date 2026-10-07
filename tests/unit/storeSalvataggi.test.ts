@@ -300,6 +300,29 @@ describe("eliminazioni con salvataggi in sospeso: nessun errore per dati elimina
   });
 });
 
+describe("eliminare la lega aperta mentre un salvataggio riparte", () => {
+  it("un nuovo tentativo partito durante la DELETE della lega riceve 404: nessun errore, nemmeno per un momento, e nessuna rilettura", async () => {
+    useAppStore.setState({ tappe: [tappa("t1")] });
+    api.putTappa.mockRejectedValueOnce(new ApiError(0, "Server non raggiungibile"));
+    store().updateTappa("t1", { nome: "Finale" });
+    await vi.advanceTimersByTimeAsync(400);                  // non riesce: nuovo tentativo fra 2 secondi
+    const remove = differita<void>();
+    api.remove.mockReturnValueOnce(remove.p);
+    api.putTappa.mockRejectedValue(new ApiError(404, "Tappa non trovata: t1")); // il server ha già eliminato la lega
+    const eliminazione = store().deleteLega("l1");
+    await vi.advanceTimersByTimeAsync(2000);                 // il nuovo tentativo parte con la DELETE ancora in corso
+    expect(api.putTappa).toHaveBeenCalledTimes(2);
+    expect(store().syncError).toBeNull();
+    expect(store().avvisoRifiutate).toBeNull();
+    expect(api.get).not.toHaveBeenCalled();                  // la lega se ne sta andando: non si rilegge
+    remove.ok(undefined);
+    await eliminazione;
+    expect(store().syncError).toBeNull();
+    expect(store().avvisoRifiutate).toBeNull();
+    expect(await store().salvaTutto()).toBe(0);
+  });
+});
+
 describe("logout: prima salva ciò che è in attesa, poi esce", () => {
   beforeEach(() => {
     token.set("jwt-di-prova");

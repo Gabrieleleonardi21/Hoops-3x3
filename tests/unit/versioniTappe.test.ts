@@ -622,6 +622,77 @@ describe("conflitti: i casi rischiosi", () => {
   });
 });
 
+describe("404 sulla PUT: la tappa l'ha eliminata un altro dispositivo", () => {
+  // Il server controlla l'esistenza della tappa prima della versione: una tappa eliminata altrove dà 404 alla PUT, non 409
+  it("si rilegge la lega: la tappa non c'è più, esce dallo store con l'avviso e non si ritenta", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1", "Prima"), 3);
+    server.ha(tappa("t2", "Seconda"), 0);
+    await apri();
+    server.salvate.delete("t1");                             // l'altro dispositivo la elimina
+    store().updateTappa("t1", { luogo: "Testaccio" });
+    await vi.advanceTimersByTimeAsync(400);
+    expect(api.get).toHaveBeenCalledTimes(2);                // l'apertura e la rilettura dopo il 404
+    expect(store().tappe.map((t) => t.id)).toEqual(["t2"]);
+    expect(store().leghe[0].nTappe).toBe(1);
+    expect(store().avvisoConflitti).toBe(tappaEliminataAltrove("Prima"));
+    expect(store().avvisoRifiutate).toBeNull();
+    expect(store().syncError).toBeNull();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(api.putTappa).toHaveBeenCalledTimes(1);
+    expect(await store().salvaTutto()).toBe(0);
+  });
+
+  it("se la rilettura non riesce per la rete la coda ritenta, e al tentativo dopo la tappa esce", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1"), 3);
+    await apri();
+    server.salvate.delete("t1");
+    api.get.mockRejectedValueOnce(new ApiError(0, "Server non raggiungibile"));
+    store().updateTappa("t1", { luogo: "Testaccio" });
+    await vi.advanceTimersByTimeAsync(400);
+    expect(store().erroreSalvataggio).toBe("Server non raggiungibile");
+    expect(store().tappe.map((t) => t.id)).toEqual(["t1"]);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(store().tappe).toEqual([]);
+    expect(store().avvisoConflitti).toBe(tappaEliminataAltrove("Tappa"));
+    expect(store().inSospeso).toBe(0);
+  });
+
+  it("eliminata anche qui mentre si rilegge la lega: nessun avviso né errore, e la DELETE dopo tollera il 404", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1"), 3);
+    await apri();
+    server.salvate.delete("t1");
+    const rilettura = differita();
+    api.get.mockImplementationOnce(async (id) => {
+      await rilettura.p;
+      return { id, nome: "Lega", tappe: [...server.salvate.values()].map(copia) };
+    });
+    store().updateTappa("t1", { luogo: "Testaccio" });
+    await vi.advanceTimersByTimeAsync(400);                  // 404, la rilettura resta in corso
+    store().removeTappa("t1");
+    rilettura.ok();
+    await vi.advanceTimersByTimeAsync(0);
+    senzaAvvisi();
+    expect(store().avvisoRifiutate).toBeNull();
+    expect(api.removeTappa).toHaveBeenCalledExactlyOnceWith("t1");
+  });
+
+  it("se la tappa sul server c'è ancora, l'errore resta quello della PUT", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1"), 3);
+    await apri();
+    api.putTappa.mockRejectedValueOnce(new ApiError(404, "Tappa non trovata: t1"));
+    store().updateTappa("t1", { luogo: "Testaccio" });
+    await vi.advanceTimersByTimeAsync(400);
+    expect(api.get).toHaveBeenCalledTimes(2);
+    expect(store().tappe.map((t) => t.id)).toEqual(["t1"]);
+    expect(store().avvisoRifiutate).toBe("Salvataggio della tappa «Tappa» non riuscito: Tappa non trovata: t1");
+    expect(store().avvisoConflitti).toBeNull();
+  });
+});
+
 describe("corpi senza risposta: niente doppioni, e un tetto", () => {
   it("la stessa copia rimandata più volte senza risposta («Riprova ora») conta una volta: non fa uscire il corpo salvato", async () => {
     const server = serverFinto();
