@@ -1,4 +1,4 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Locator, type Page } from "@playwright/test";
 import {
   bloccaApiNonPreviste, json, rispondiAlRisveglio, salvaPrimaPartitaAperta, salvaPrimoMatchDelTabellone, tappaConDuePartite,
 } from "./helpers";
@@ -11,6 +11,18 @@ async function serverFinto(page: Page) {
   await page.route("**/api/anagrafe/**", (route) => route.fulfill(json([])));
   await rispondiAlRisveglio(page);
   return nonPreviste;
+}
+
+/** La card di un match del tabellone, trovata dall'etichetta della sua intestazione («Semifinale 1», «Finale»): il tabellone non ha ruoli
+ *  né nomi accessibili per le sue card, e la colonna con il titolo del turno («Finale») sta fuori dalla card */
+const cardDelMatch = (page: Page, etichetta: string) =>
+  page.locator("div.overflow-hidden").filter({ has: page.getByText(etichetta, { exact: true }) });
+
+/** La squadra A di un match ancora da giocare, letta dal nome del suo primo campo punteggio («Punti Squadra 3»). Con il 21 a 15 che
+ *  scrivono gli helper vince lei: il vincitore si conosce prima di giocare */
+async function squadraA(match: Locator) {
+  const nome = await match.getByRole("spinbutton").first().getAttribute("aria-label");
+  return nome!.replace("Punti ", "");
 }
 
 // I singoli passi (crea tappa, sorteggio, punteggio, conferme) li provano già gli altri file: qui conta che il percorso intero regga,
@@ -34,21 +46,30 @@ test("percorso dell'Ospite: gironi, tabellone giocato fino alla finale, e «Conc
   await salvaPrimaPartitaAperta(page);
   await expect(page.getByRole("heading", { name: "Fase finale" })).toBeVisible();
   await page.getByRole("button", { name: /Genera bracket/i }).click();
-  await expect(page.getByText(/^Semifinale \d$/)).toHaveCount(2);
-  await expect(page.getByText("Finale", { exact: true }).first()).toBeVisible();
-  // La finale aspetta i vincitori delle semifinali: i suoi due posti sono ancora da determinare
-  await expect(page.getByText("TBD", { exact: true })).toHaveCount(2);
+  const semifinale1 = cardDelMatch(page, "Semifinale 1");
+  const semifinale2 = cardDelMatch(page, "Semifinale 2");
+  const finale = cardDelMatch(page, "Finale");
+  await expect(semifinale1).toBeVisible();
+  await expect(semifinale2).toBeVisible();
+  // La finale aspetta i vincitori delle semifinali: i suoi due posti sono ancora da determinare, e non si può giocare
+  await expect(finale.getByText("TBD", { exact: true })).toHaveCount(2);
+  await expect(finale.getByRole("spinbutton")).toHaveCount(0);
 
-  // Si giocano le semifinali: i vincitori occupano i posti della finale
+  // Si giocano le semifinali: in finale vanno i due vincitori, il primo nel posto A e il secondo nel posto B
+  const vincitore1 = await squadraA(semifinale1);
   await salvaPrimoMatchDelTabellone(page);
-  await expect(page.getByText("TBD", { exact: true })).toHaveCount(1);
+  await expect(finale.getByText("TBD", { exact: true })).toHaveCount(1);
+  const vincitore2 = await squadraA(semifinale2);
   await salvaPrimoMatchDelTabellone(page);
-  await expect(page.getByText("TBD", { exact: true })).toHaveCount(0);
+  await expect(finale.getByText("TBD", { exact: true })).toHaveCount(0);
+  await expect(finale.getByRole("spinbutton")).toHaveCount(2);
+  await expect(finale.getByRole("spinbutton").nth(0)).toHaveAccessibleName(`Punti ${vincitore1}`);
+  await expect(finale.getByRole("spinbutton").nth(1)).toHaveAccessibleName(`Punti ${vincitore2}`);
 
   // La finale: chi la vince è il campione, e non c'è più niente da giocare
-  await expect(page.getByText("Campione")).toHaveCount(0);
+  await expect(finale.getByText("Campione")).toHaveCount(0);
   await salvaPrimoMatchDelTabellone(page);
-  await expect(page.getByText("Campione")).toBeVisible();
+  await expect(finale.getByText("Campione")).toBeVisible();
   await expect(page.locator("input.scorein")).toHaveCount(0);
 
   // Con tutto giocato «Concludi» non trova più partite mancanti, ma l'Ospite non può pubblicare: il messaggio lo dice e la tappa resta aperta
