@@ -211,3 +211,22 @@ describe("pubblica: se la coda non riesce a svuotarsi non si pubblica, e si sa p
     });
   });
 });
+
+describe("eliminare una tappa o una lega non chiama l'archivio: le pubblicazioni se ne vanno con la cascata del server", () => {
+  // Il server toglie da solo le pubblicazioni di una tappa o di una lega eliminata (FK con ON DELETE CASCADE): un ritiro
+  // esplicito del client sarebbe superfluo e, a pubblicazione già sparita, darebbe 404. Nel client non ce n'è nessuno.
+  it("tappa: solo la DELETE della tappa", async () => {
+    api.removeTappa.mockResolvedValue(undefined);
+    store().removeTappa("t1");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(api.removeTappa).toHaveBeenCalledExactlyOnceWith("t1");
+    expect(archivio.rimuovi).not.toHaveBeenCalled();
+  });
+
+  it("lega: solo la DELETE della lega", async () => {
+    api.remove.mockResolvedValue(undefined);
+    await store().deleteLega("l1");
+    expect(api.remove).toHaveBeenCalledExactlyOnceWith("l1");
+    expect(archivio.rimuovi).not.toHaveBeenCalled();
+  });
+});

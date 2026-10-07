@@ -43,6 +43,15 @@ export const PERDITA_RIAPERTURA =
   "La tappa uscirà dall'Archivio circuito e il suo link pubblico smetterà di funzionare finché non la concluderai di nuovo. "
   + "Sorteggio e risultati restano.";
 
+/** Avviso sulla pagina di una tappa conclusa che non è (o non è aggiornata) nell'Archivio circuito, con la via d'uscita: per
+ *  ripubblicare la tappa va riaperta e conclusa di nuovo. `motivo` è il perché della pubblicazione non riuscita; null = nessun
+ *  tentativo fallito, è la verifica con l'archivio a non averla trovata. */
+export function tappaNonPubblicata(motivo: string | null): string {
+  const uscita = "usa «Riapri» e poi «Concludi».";
+  if (!motivo) return `La tappa è conclusa ma non risulta pubblicata nell'Archivio circuito. Per pubblicarla ${uscita}`;
+  return `La pubblicazione nell'Archivio circuito non è riuscita. Per riprovare ${uscita} Motivo: ${motivo}`;
+}
+
 /** La pubblicazione non parte: la copia pubblica la costruisce il server da ciò che ha salvato, e l'ultima versione della tappa
  *  non gli è arrivata (rete assente, dati rifiutati). `motivo` è il perché del salvataggio non riuscito, se si sa. */
 export function pubblicazioneSenzaSalvataggio(motivo: string | null): string {

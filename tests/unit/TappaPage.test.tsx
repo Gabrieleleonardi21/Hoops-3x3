@@ -10,7 +10,7 @@ import { anagrafeApi } from "../../src/services/anagrafeApi";
 import { archivioApi } from "../../src/services/archivioApi";
 import { ApiError } from "../../src/services/api";
 import { DEFAULT_RULES } from "../../src/constants/rules";
-import type { RegGiocatore, RegSquadra, Tappa, User } from "../../src/types";
+import type { PubTappa, RegGiocatore, RegSquadra, Tappa, User } from "../../src/types";
 
 // Si sostituisce solo la rete delle leghe: pagina, hook, store e coda dei salvataggi sono quelli veri
 vi.mock("../../src/services/legheApi", () => ({
@@ -517,17 +517,22 @@ describe("TappaPage: copiare il link pubblico di una tappa conclusa (FS-9)", () 
   });
 });
 
+/** La pubblicazione com'è nell'archivio, per la verifica che parte quando si apre una tappa conclusa */
+const pubblicazione = (t: Tappa): PubTappa => ({ tappa: t, lega: "Lega", autore: "Anna", autoreId: "u1", ts: 1 });
+
 describe("TappaPage: «Riapri» chiede conferma quando toglie la tappa dall'archivio", () => {
   const conclusa = (): Tappa => ({ ...conUnRisultato(), conclusa: true });
   const riapri = () => screen.getByRole("button", { name: "Riapri" });
 
   beforeEach(() => {
+    vi.mocked(archivioApi.get).mockResolvedValue(pubblicazione(conclusa()));
     vi.mocked(archivioApi.rimuovi).mockResolvedValue(undefined);
     useAppStore.setState({ tappe: [conclusa()] });
   });
 
-  it("registrato: la finestra dice che la tappa esce dall'Archivio; «Annulla» non cambia niente e non tocca il server", () => {
+  it("registrato: la finestra dice che la tappa esce dall'Archivio; «Annulla» non cambia niente e non tocca il server", async () => {
     apriPagina({});
+    await screen.findByText("Conclusa e pubblicata nell'archivio");
     fireEvent.click(riapri());
     expect(screen.getByRole("dialog", { name: "Riaprire la tappa?" }).textContent)
       .toContain("La tappa uscirà dall'Archivio circuito e il suo link pubblico smetterà di funzionare");
@@ -536,24 +541,189 @@ describe("TappaPage: «Riapri» chiede conferma quando toglie la tappa dall'arch
     expect(archivioApi.rimuovi).not.toHaveBeenCalled();
   });
 
-  it("registrato: «Conferma» riapre la tappa e la toglie dall'archivio", async () => {
+  it("registrato: «Conferma» toglie la tappa dall'archivio e poi la riapre", async () => {
     apriPagina({});
+    await screen.findByText("Conclusa e pubblicata nell'archivio");
     fireEvent.click(riapri());
     fireEvent.click(screen.getByRole("button", { name: "Conferma" }));
-    expect(store().tappe[0].conclusa).toBe(false);
+    // La tappa si riapre quando il server ha tolto la pubblicazione, non prima
+    await waitFor(() => expect(store().tappe[0].conclusa).toBe(false));
     expect(archivioApi.rimuovi).toHaveBeenCalledExactlyOnceWith("t1");
     // La pagina torna a quella di organizzazione, con i suoi comandi
     expect(screen.getByRole("button", { name: "Elimina" })).toBeTruthy();
-    await act(async () => {}); // lascia finire la richiesta all'archivio
   });
 
-  it("ospite: non ha niente di pubblicato, quindi la tappa si riapre subito, senza finestra", async () => {
-    useAppStore.setState({ user: ospite });
+  it("mentre il server toglie la pubblicazione «Riapri» è disattivato: un secondo clic non manda un'altra richiesta", async () => {
+    const risposta = differita<void>();
+    vi.mocked(archivioApi.rimuovi).mockReturnValue(risposta.p);
     apriPagina({});
+    await screen.findByText("Conclusa e pubblicata nell'archivio");
+    fireEvent.click(riapri());
+    fireEvent.click(screen.getByRole("button", { name: "Conferma" }));
+    await waitFor(() => expect((riapri() as HTMLButtonElement).disabled).toBe(true));
+    expect(store().tappe[0].conclusa).toBe(true);
+    await act(async () => { risposta.ok(); });
+    await waitFor(() => expect(store().tappe[0].conclusa).toBe(false));
+    expect(archivioApi.rimuovi).toHaveBeenCalledTimes(1);
+  });
+
+  it("se il server non riesce a togliere la pubblicazione la tappa resta conclusa e la pagina dice perché; riprovare funziona", async () => {
+    vi.mocked(archivioApi.rimuovi).mockRejectedValueOnce(new ApiError(0, "Server non raggiungibile: controlla la connessione."));
+    apriPagina({});
+    await screen.findByText("Conclusa e pubblicata nell'archivio");
+    fireEvent.click(riapri());
+    fireEvent.click(screen.getByRole("button", { name: "Conferma" }));
+    const avviso = await screen.findByRole("alert");
+    expect(avviso.textContent).toBe("Riapertura non riuscita, la tappa resta conclusa: Server non raggiungibile: controlla la connessione.");
+    // Né riaperta né fuori dall'archivio: coerente con quello che il server ha ancora
+    expect(store().tappe[0].conclusa).toBe(true);
+    expect(screen.getByText("Conclusa e pubblicata nell'archivio")).toBeTruthy();
+    expect((riapri() as HTMLButtonElement).disabled).toBe(false);
+    // Il secondo tentativo riesce: l'avviso non resta
+    fireEvent.click(riapri());
+    fireEvent.click(screen.getByRole("button", { name: "Conferma" }));
+    await waitFor(() => expect(store().tappe[0].conclusa).toBe(false));
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("il 404 dell'archivio (la pubblicazione non c'era più) non è un errore: la tappa si riapre", async () => {
+    vi.mocked(archivioApi.rimuovi).mockRejectedValue(new ApiError(404, "Tappa non presente in archivio"));
+    apriPagina({});
+    await screen.findByText("Conclusa e pubblicata nell'archivio");
+    fireEvent.click(riapri());
+    fireEvent.click(screen.getByRole("button", { name: "Conferma" }));
+    await waitFor(() => expect(store().tappe[0].conclusa).toBe(false));
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("tappa che non risulta in archivio: «Riapri» non avverte di una perdita che non c'è, e non chiama il server", async () => {
+    vi.mocked(archivioApi.get).mockRejectedValue(new ApiError(404, "Tappa non presente in archivio"));
+    apriPagina({});
+    await screen.findByText("Conclusa, non pubblicata");
     fireEvent.click(riapri());
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(store().tappe[0].conclusa).toBe(false);
-    await act(async () => {});
+    expect(archivioApi.rimuovi).not.toHaveBeenCalled();
+  });
+
+  it("ospite: non ha niente di pubblicato, quindi la tappa si riapre subito, senza finestra e senza chiamare l'archivio", async () => {
+    useAppStore.setState({ user: ospite });
+    apriPagina({});
+    // Una tappa conclusa dell'ospite (arrivata da un file importato) non dice di essere pubblicata: non lo è
+    expect(screen.getByText("Conclusa")).toBeTruthy();
+    expect(screen.queryByText(/pubblicata/i)).toBeNull();
+    fireEvent.click(riapri());
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await waitFor(() => expect(store().tappe[0].conclusa).toBe(false));
+    expect(archivioApi.get).not.toHaveBeenCalled();
+    expect(archivioApi.rimuovi).not.toHaveBeenCalled();
+  });
+});
+
+describe("TappaPage: l'esito della pubblicazione di una tappa conclusa", () => {
+  /** Tutte le partite giocate: la tappa si può concludere */
+  const tuttoGiocato = (): Tappa => ({
+    ...conUnRisultato(),
+    partite: conUnRisultato().partite.map((m) => ({ ...m, sa: 21, sb: 15, done: true })),
+  });
+  const concludi = () => fireEvent.click(screen.getByRole("button", { name: /Concludi e pubblica la tappa/ }));
+  const nonPubblicata = "Conclusa, non pubblicata";
+  const pubblicata = "Conclusa e pubblicata nell'archivio";
+
+  beforeEach(() => {
+    vi.mocked(archivioApi.pubblica).mockImplementation(async (id) => pubblicazione({ ...tuttoGiocato(), id }));
+    useAppStore.setState({ tappe: [tuttoGiocato()] });
+  });
+
+  it("pubblicazione riuscita: la pagina dice che la tappa è pubblicata, senza avvisi", async () => {
+    apriPagina({});
+    concludi();
+    await screen.findByText(pubblicata);
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(archivioApi.pubblica).toHaveBeenCalledExactlyOnceWith("t1");
+  });
+
+  it("pubblicazione fallita: la pagina NON dice «pubblicata», dice perché e indica «Riapri» e poi «Concludi»", async () => {
+    vi.mocked(archivioApi.pubblica).mockRejectedValue(new ApiError(0, "Server non raggiungibile: controlla la connessione."));
+    apriPagina({});
+    concludi();
+    const avviso = await screen.findByRole("alert");
+    expect(avviso.textContent).toContain("La pubblicazione nell'Archivio circuito non è riuscita");
+    expect(avviso.textContent).toContain("«Riapri» e poi «Concludi»");
+    expect(avviso.textContent).toContain("Server non raggiungibile: controlla la connessione.");
+    expect(screen.getByText(nonPubblicata)).toBeTruthy();
+    expect(screen.queryByText(pubblicata)).toBeNull();
+    // La tappa è conclusa: è la pubblicazione che non è riuscita
+    expect(store().tappe[0].conclusa).toBe(true);
+  });
+
+  it("la tappa non arriva al server: non si pubblica e la pagina dice che il salvataggio è la causa", async () => {
+    vi.mocked(legheApi.putTappa).mockRejectedValue(new ApiError(0, "Server non raggiungibile: controlla la connessione."));
+    apriPagina({});
+    concludi();
+    const avviso = await screen.findByRole("alert");
+    expect(avviso.textContent).toContain("salvata sul server");
+    expect(avviso.textContent).toContain("Server non raggiungibile: controlla la connessione.");
+    expect(archivioApi.pubblica).not.toHaveBeenCalled();
+    expect(screen.queryByText(pubblicata)).toBeNull();
+  });
+
+  it("la via d'uscita indicata funziona: «Riapri» (senza finestra, non c'è niente da perdere) e poi «Concludi»", async () => {
+    vi.mocked(archivioApi.pubblica).mockRejectedValueOnce(new ApiError(0, "Server non raggiungibile"));
+    apriPagina({});
+    concludi();
+    await screen.findByRole("alert");
+    fireEvent.click(screen.getByRole("button", { name: "Riapri" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(archivioApi.rimuovi).not.toHaveBeenCalled();
+    concludi();
+    await screen.findByText(pubblicata);
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(archivioApi.pubblica).toHaveBeenCalledTimes(2);
+  });
+
+  describe("aprendo una tappa già conclusa (dopo un ricaricamento) la pagina verifica con l'archivio", () => {
+    beforeEach(() => { useAppStore.setState({ tappe: [{ ...tuttoGiocato(), conclusa: true }] }); });
+
+    it("c'è: «Conclusa e pubblicata nell'archivio»", async () => {
+      vi.mocked(archivioApi.get).mockResolvedValue(pubblicazione(tuttoGiocato()));
+      apriPagina({});
+      await screen.findByText(pubblicata);
+      expect(archivioApi.get).toHaveBeenCalledExactlyOnceWith("t1");
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+
+    it("non c'è (404): lo dice, con la via d'uscita", async () => {
+      vi.mocked(archivioApi.get).mockRejectedValue(new ApiError(404, "Tappa non presente in archivio"));
+      apriPagina({});
+      await screen.findByText(nonPubblicata);
+      const avviso = screen.getByRole("alert");
+      expect(avviso.textContent).toContain("non risulta pubblicata");
+      expect(avviso.textContent).toContain("«Riapri» e poi «Concludi»");
+    });
+
+    it("la verifica non riesce (rete assente): la pagina non afferma niente, né «pubblicata» né «non pubblicata»", async () => {
+      vi.mocked(archivioApi.get).mockRejectedValue(new ApiError(0, "Server non raggiungibile"));
+      apriPagina({});
+      await screen.findByText("Conclusa");
+      await act(async () => {}); // lascia finire la verifica
+      expect(screen.queryByText(pubblicata)).toBeNull();
+      expect(screen.queryByText(nonPubblicata)).toBeNull();
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+  });
+
+  it("un video aggiunto a una tappa conclusa che non si ripubblica: la pagina lo dice e la tappa resta pubblicata com'era", async () => {
+    useAppStore.setState({ tappe: [{ ...tuttoGiocato(), conclusa: true }] });
+    vi.mocked(archivioApi.get).mockResolvedValue(pubblicazione(tuttoGiocato()));
+    vi.mocked(archivioApi.pubblica).mockRejectedValue(new ApiError(0, "Server non raggiungibile"));
+    apriPagina({});
+    await screen.findByText(pubblicata);
+    fireEvent.change(screen.getByLabelText("Link video"), { target: { value: "https://youtu.be/abcdefghijk" } });
+    fireEvent.click(screen.getByRole("button", { name: "Aggiungi" }));
+    const avviso = await screen.findByRole("alert");
+    expect(avviso.textContent).toContain("Server non raggiungibile");
+    expect(screen.getByText(pubblicata)).toBeTruthy();
   });
 });
 

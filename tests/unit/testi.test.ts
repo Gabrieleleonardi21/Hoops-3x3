@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   COPIA_LINK_NON_RIUSCITA, PERDITA_RIAPERTURA, SPAZIO_ESAURITO, SPAZIO_ESAURITO_ACCESSO, SPAZIO_ESAURITO_LEGA,
-  conteggio, perditaGiocatore, perditaLega, perditaSquadraAnagrafe,
+  conteggio, perditaGiocatore, perditaLega, perditaSquadraAnagrafe, pubblicazioneSenzaSalvataggio, tappaNonPubblicata,
 } from "../../src/utils/testi";
 import type { LegaMeta, RegGiocatore, RegSquadra } from "../../src/types";
 
@@ -56,5 +56,26 @@ describe("avvisi per lo spazio del browser esaurito", () => {
     expect(SPAZIO_ESAURITO_LEGA).toContain("la lega non si può salvare");
     expect(SPAZIO_ESAURITO_ACCESSO).toContain("non si può salvare l'accesso");
     expect(COPIA_LINK_NON_RIUSCITA).not.toMatch(/^Spazio esaurito/);
+  });
+});
+
+describe("testi della pubblicazione nell'Archivio circuito", () => {
+  it("tappa non pubblicata: con un tentativo fallito dice perché; verificata in archivio dice che non risulta; sempre la via d'uscita", () => {
+    const uscita = "«Riapri» e poi «Concludi»";
+    const fallita = tappaNonPubblicata("Server non raggiungibile");
+    expect(fallita).toContain("non è riuscita");
+    expect(fallita).toContain("Motivo: Server non raggiungibile");
+    expect(fallita).toContain(uscita);
+    const verificata = tappaNonPubblicata(null);
+    expect(verificata).toContain("non risulta pubblicata");
+    expect(verificata).not.toContain("Motivo");
+    expect(verificata).toContain(uscita);
+  });
+
+  it("salvataggio mancante: dice che si pubblica dopo il salvataggio, col motivo se lo si sa", () => {
+    expect(pubblicazioneSenzaSalvataggio("Server non raggiungibile"))
+      .toBe("Prima di pubblicare, l'ultima versione della tappa deve essere salvata sul server, ma il salvataggio non è riuscito: Server non raggiungibile");
+    expect(pubblicazioneSenzaSalvataggio(null))
+      .toBe("Prima di pubblicare, l'ultima versione della tappa deve essere salvata sul server, ma il salvataggio non è riuscito.");
   });
 });

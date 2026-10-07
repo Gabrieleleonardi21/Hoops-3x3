@@ -9,7 +9,7 @@ import { useConfermaPerdita } from "../hooks/useConfermaPerdita";
 import { useInvio } from "../hooks/useInvio";
 import { eSegnaposto } from "../domain/tappaOps";
 import { testoErrore } from "../services/api";
-import { COPIA_LINK_NON_RIUSCITA } from "../utils/testi";
+import { COPIA_LINK_NON_RIUSCITA, tappaNonPubblicata } from "../utils/testi";
 import { TappaEditPanel } from "../components/tappa/TappaEditPanel";
 import { TappaRules } from "../components/tappa/TappaRules";
 import { TappaConclusion } from "../components/tappa/TappaConclusion";
@@ -47,6 +47,8 @@ export function TappaPage() {
   // «Elimina» e «Riapri» chiedono conferma: ognuno ha la sua finestra, mostrata nella vista in cui il pulsante compare
   const elimina = useConfermaPerdita(h.perditaTappa);
   const riapri = useConfermaPerdita(h.perditaRiapertura);
+  // «Riapri» toglie la pubblicazione dal server: finché aspetta il pulsante è disattivato e, se non riesce, l'errore compare qui
+  const riapertura = useInvio();
 
   // Quando l'anagrafe carica, sincronizza le squadre della tappa (per nome o regId)
   useEffect(() => {
@@ -117,16 +119,29 @@ export function TappaPage() {
 
   /* tappa conclusa: vista pubblica + aggiunta video + riapertura */
   if (t.conclusa) {
+    // «Pubblicata» solo se lo è davvero: l'esito della pubblicazione e la verifica con l'archivio sono nello stato dell'hook. Se
+    // non si sa (verifica in corso o non riuscita, ospite) la pagina dice solo che la tappa è conclusa
+    const { pubblicata, errore } = h.statoArchivio;
+    let badge = <Badge><Icon name="flag" size={11} /> Conclusa</Badge>;
+    if (pubblicata === true) badge = <Badge tone="win"><Icon name="flag" size={11} /> Conclusa e pubblicata nell'archivio</Badge>;
+    if (pubblicata === false) badge = <Badge tone="loss"><Icon name="flag" size={11} /> Conclusa, non pubblicata</Badge>;
+    let avvisoArchivio: string | null = null;
+    if (errore || pubblicata === false) avvisoArchivio = tappaNonPubblicata(errore);
     return (
       <div>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2.5">
-          <Badge tone="win"><Icon name="flag" size={11} /> Conclusa e pubblicata nell'archivio</Badge>
+          {badge}
           <span className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={() => navigate("/lega")}><Icon name="arrowLeft" size={14} /> Tutte le tappe</Button>
             <Button variant="outline" size="sm" onClick={() => setShareOpen((o) => !o)}><Icon name="share" size={14} /> Condividi</Button>
-            <Button variant="ghost" size="sm" onClick={() => riapri.chiedi("Riaprire la tappa?", () => h.riapri())}>Riapri</Button>
+            <Button variant="ghost" size="sm" disabled={riapertura.invio}
+              onClick={() => riapri.chiedi("Riaprire la tappa?", () => { void riapertura.esegui(() => h.riapri(), "Riapertura non riuscita, la tappa resta conclusa"); })}>
+              Riapri
+            </Button>
           </span>
         </div>
+        {avvisoArchivio && <p className="mb-3 text-[13px] font-semibold text-loss" role="alert">{avvisoArchivio}</p>}
+        {riapertura.errore && <p className="mb-3 text-[13px] font-semibold text-loss" role="alert">{riapertura.errore}</p>}
 
         {/* Pannello condivisione link pubblico */}
         {shareOpen && (

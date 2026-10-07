@@ -9,6 +9,7 @@ import { archivioApi } from "../../src/services/archivioApi";
 import { anagrafeApi } from "../../src/services/anagrafeApi";
 import { useAnagrafeStore } from "../../src/stores/useAnagrafeStore";
 import { ApiError } from "../../src/services/api";
+import { PERDITA_RIAPERTURA } from "../../src/utils/testi";
 import { DEFAULT_RULES } from "../../src/constants/rules";
 import type { Partita, RegSquadra, SquadraTappa, Tappa, User } from "../../src/types";
 
@@ -586,26 +587,182 @@ describe("useTappa: sorteggio, punteggio e conclusione rifiutati restituiscono i
   });
 });
 
-describe("useTappa: «Concludi» con la pubblicazione non riuscita", () => {
-  it("il messaggio dice come ripubblicare, e la strada indicata funziona: «Riapri» e poi «Concludi»", async () => {
+describe("useTappa: pubblicazione nell'archivio di una tappa conclusa", () => {
+  /** La tappa già conclusa, come quando si apre la pagina dopo un ricaricamento */
+  const conclusa = (): Tappa => ({ ...sorteggiata([giocata("m1")]), conclusa: true });
+  /** Monta l'hook e lascia finire la verifica che parte all'apertura di una tappa conclusa */
+  async function apri() {
+    const hook = renderHook(() => useTappa("t1"));
+    await act(async () => {});
+    return hook;
+  }
+
+  it("«Concludi» riuscita: la tappa risulta pubblicata, senza errori, e «Riapri» avverte che la toglie dall'archivio", async () => {
     useAppStore.setState({ tappe: [sorteggiata([giocata("m1")])] });
-    archivio.pubblica.mockRejectedValueOnce(new Error("rete assente"));
-    archivio.rimuovi.mockResolvedValue(undefined);
     const { result } = renderHook(() => useTappa("t1"));
+    expect(result.current.statoArchivio).toEqual({ pubblicata: null, errore: null }); // tappa aperta: niente da dire
+    await act(async () => { await result.current.concludi(); });
+    expect(result.current.statoArchivio).toEqual({ pubblicata: true, errore: null });
+    expect(result.current.perditaRiapertura()).toBe(PERDITA_RIAPERTURA);
+  });
+
+  it("«Concludi» con la pubblicazione fallita: la tappa resta conclusa ma NON risulta pubblicata, col motivo; «Riapri» non ha niente da perdere", async () => {
+    useAppStore.setState({ tappe: [sorteggiata([giocata("m1")])] });
+    archivio.pubblica.mockRejectedValueOnce(new ApiError(0, "Server non raggiungibile"));
+    const { result } = renderHook(() => useTappa("t1"));
+    let errore: string | null = "non eseguito";
+    await act(async () => { errore = await result.current.concludi(); });
+    // La conclusione è riuscita (il messaggio di «Concludi» riguarda solo ciò che la impedisce): l'esito della pubblicazione
+    // sta nello stato, perché la sezione «Concludi» sparisce appena la tappa è conclusa e un messaggio lì non lo vedrebbe nessuno
+    expect(errore).toBeNull();
+    expect(store().tappe[0].conclusa).toBe(true);
+    expect(result.current.statoArchivio).toEqual({ pubblicata: false, errore: "Server non raggiungibile" });
+    expect(result.current.perditaRiapertura()).toBeNull();
+  });
+
+  it("la via d'uscita funziona: «Riapri» (senza toccare l'archivio, la tappa non c'è) e poi «Concludi»", async () => {
+    useAppStore.setState({ tappe: [sorteggiata([giocata("m1")])] });
+    archivio.pubblica.mockRejectedValueOnce(new ApiError(0, "Server non raggiungibile"));
+    const { result } = renderHook(() => useTappa("t1"));
+    await act(async () => { await result.current.concludi(); });
+    // «Concludi» da solo non ripubblica: la tappa è già conclusa (R5)
     let errore: string | null = null;
     await act(async () => { errore = await result.current.concludi(); });
-    expect(errore).toBe("Tappa conclusa, ma pubblicazione non riuscita: riprova con «Riapri» e poi «Concludi».");
-    expect(store().tappe[0].conclusa).toBe(true);
-
-    // «Concludi» da solo non ripubblica: la tappa è già conclusa (R5)
-    await act(async () => { errore = await result.current.concludi(); });
     expect(errore).toBe("La tappa è conclusa: riaprila per modificarla.");
-
     // «Riapri» e poi «Concludi»: la pubblicazione riparte e questa volta riesce
     await act(async () => { await result.current.riapri(); });
+    expect(archivio.rimuovi).not.toHaveBeenCalled();
+    expect(store().tappe[0].conclusa).toBe(false);
     await act(async () => { errore = await result.current.concludi(); });
     expect(errore).toBeNull();
     expect(archivio.pubblica).toHaveBeenCalledTimes(2);
-    expect(store().tappe[0].conclusa).toBe(true);
+    expect(result.current.statoArchivio).toEqual({ pubblicata: true, errore: null });
+  });
+
+  it("con la tappa che non arriva al server «Concludi» non pubblica e dice perché", async () => {
+    useAppStore.setState({ tappe: [sorteggiata([giocata("m1")])] });
+    api.putTappa.mockRejectedValue(new ApiError(0, "Server non raggiungibile"));
+    const { result } = renderHook(() => useTappa("t1"));
+    await act(async () => { await result.current.concludi(); });
+    expect(archivio.pubblica).not.toHaveBeenCalled();
+    expect(result.current.statoArchivio.pubblicata).toBe(false);
+    expect(result.current.statoArchivio.errore).toContain("salvata sul server");
+    expect(result.current.statoArchivio.errore).toContain("Server non raggiungibile");
+  });
+
+  describe("all'apertura di una tappa conclusa si chiede all'archivio se c'è", () => {
+    beforeEach(() => { useAppStore.setState({ tappe: [conclusa()] }); });
+
+    it("c'è: risulta pubblicata", async () => {
+      const { result } = await apri();
+      expect(archivio.get).toHaveBeenCalledExactlyOnceWith("t1");
+      expect(result.current.statoArchivio).toEqual({ pubblicata: true, errore: null });
+      expect(result.current.perditaRiapertura()).toBe(PERDITA_RIAPERTURA);
+    });
+
+    it("404: non è pubblicata, e «Riapri» non ha niente da perdere", async () => {
+      archivio.get.mockRejectedValue(new ApiError(404, "Tappa non presente in archivio"));
+      const { result } = await apri();
+      expect(result.current.statoArchivio).toEqual({ pubblicata: false, errore: null });
+      expect(result.current.perditaRiapertura()).toBeNull();
+    });
+
+    it("rete assente o guasto del server: non si sa, e non si dice né «pubblicata» né «non pubblicata»", async () => {
+      archivio.get.mockRejectedValue(new ApiError(503, "Servizio non disponibile"));
+      const { result } = await apri();
+      expect(result.current.statoArchivio).toEqual({ pubblicata: null, errore: null });
+      // Nel dubbio «Riapri» avverte, come prima
+      expect(result.current.perditaRiapertura()).toBe(PERDITA_RIAPERTURA);
+    });
+
+    it("una tappa aperta (non conclusa) non chiede niente", async () => {
+      useAppStore.setState({ tappe: [tappa()] });
+      await apri();
+      expect(archivio.get).not.toHaveBeenCalled();
+    });
+
+    it("l'ospite non pubblica: niente verifica, niente da dire sull'archivio", async () => {
+      useAppStore.setState({ user: ospite });
+      const { result } = await apri();
+      expect(archivio.get).not.toHaveBeenCalled();
+      expect(result.current.statoArchivio).toEqual({ pubblicata: null, errore: null });
+      expect(result.current.perditaRiapertura()).toBeNull();
+    });
+  });
+
+  describe("«Riapri»", () => {
+    beforeEach(() => {
+      useAppStore.setState({ tappe: [conclusa()] });
+      archivio.rimuovi.mockResolvedValue(undefined);
+    });
+
+    it("toglie la tappa dall'archivio e poi la riapre", async () => {
+      const { result } = await apri();
+      await act(async () => { await result.current.riapri(); });
+      expect(archivio.rimuovi).toHaveBeenCalledExactlyOnceWith("t1");
+      expect(store().tappe[0].conclusa).toBe(false);
+      expect(result.current.statoArchivio).toEqual({ pubblicata: null, errore: null });
+    });
+
+    it("se la DELETE fallisce l'errore arriva a chi chiama e la tappa resta conclusa e in archivio", async () => {
+      archivio.rimuovi.mockRejectedValue(new ApiError(0, "Server non raggiungibile"));
+      const { result } = await apri();
+      let errore: unknown = null;
+      await act(async () => { await result.current.riapri().catch((e: unknown) => { errore = e; }); });
+      expect(errore).toMatchObject({ status: 0, message: "Server non raggiungibile" });
+      expect(store().tappe[0].conclusa).toBe(true);
+      expect(result.current.statoArchivio.pubblicata).toBe(true);
+    });
+
+    it("404 sulla DELETE: la tappa non era più in archivio, si riapre lo stesso", async () => {
+      archivio.rimuovi.mockRejectedValue(new ApiError(404, "Tappa non presente in archivio"));
+      const { result } = await apri();
+      await act(async () => { await result.current.riapri(); });
+      expect(store().tappe[0].conclusa).toBe(false);
+    });
+
+    it("già verificata come non pubblicata: niente DELETE, si riapre subito", async () => {
+      archivio.get.mockRejectedValue(new ApiError(404, "Tappa non presente in archivio"));
+      const { result } = await apri();
+      await act(async () => { await result.current.riapri(); });
+      expect(archivio.rimuovi).not.toHaveBeenCalled();
+      expect(store().tappe[0].conclusa).toBe(false);
+    });
+
+    it("ospite: si riapre senza nessuna chiamata all'archivio (prima partiva una DELETE senza JWT, che falliva sempre in silenzio)", async () => {
+      useAppStore.setState({ user: ospite });
+      const { result } = await apri();
+      await act(async () => { await result.current.riapri(); });
+      expect(archivio.rimuovi).not.toHaveBeenCalled();
+      expect(store().tappe[0].conclusa).toBe(false);
+    });
+  });
+
+  describe("un video aggiunto a una tappa conclusa si ripubblica", () => {
+    beforeEach(() => { useAppStore.setState({ tappe: [conclusa()] }); });
+
+    it("riuscito: pubblicata, senza errori", async () => {
+      const { result } = await apri();
+      await act(async () => { result.current.addVideo("Finale", "https://youtu.be/a"); });
+      expect(result.current.statoArchivio).toEqual({ pubblicata: true, errore: null });
+    });
+
+    it("fallito: la copia pubblica resta com'era (la tappa resta «pubblicata») e il motivo non va perso", async () => {
+      const { result } = await apri();
+      archivio.pubblica.mockRejectedValueOnce(new ApiError(0, "Server non raggiungibile"));
+      await act(async () => { result.current.addVideo("Finale", "https://youtu.be/a"); });
+      expect(result.current.statoArchivio).toEqual({ pubblicata: true, errore: "Server non raggiungibile" });
+    });
+  });
+
+  it("ospite: «Concludi» non conclude e non chiama l'archivio (come prima)", async () => {
+    useAppStore.setState({ user: ospite, tappe: [sorteggiata([giocata("m1")])] });
+    const { result } = renderHook(() => useTappa("t1"));
+    let errore: string | null = null;
+    await act(async () => { errore = await result.current.concludi(); });
+    expect(errore).toBe("La pubblicazione nell'Archivio circuito richiede un account registrato.");
+    expect(store().tappe[0].conclusa).toBeFalsy();
+    expect(archivio.pubblica).not.toHaveBeenCalled();
+    expect(archivio.get).not.toHaveBeenCalled();
   });
 });
