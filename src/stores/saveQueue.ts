@@ -109,7 +109,8 @@ export function createSaveQueue(opz: Opzioni) {
       return [...voci.values()].every((v) => v.ultima === null);
     },
 
-    /** La tappa è stata eliminata: niente più salvataggi per lei */
+    /** La tappa è stata eliminata, oppure dopo un conflitto valgono i dati del server: niente più salvataggi per le sue
+     *  modifiche in attesa. Una richiesta già in volo finisce da sola, e non riparte con quelle */
     annulla(id: string) {
       const v = voci.get(id);
       if (!v) return;

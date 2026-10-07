@@ -114,6 +114,22 @@ describe("ospite: le scritture su localStorage sono protette (FS-9)", () => {
   });
 });
 
+describe("ospite: la versione delle tappe (T2.7) non lo riguarda", () => {
+  it("modifiche, tappe nuove e import restano nel browser senza versione, e al server non parte niente", async () => {
+    store().updateTappa("t1", { nome: "Finale" });
+    store().addTappa({ ...tappa(), id: "t2" });
+    const tappe = JSON.parse(localStorage.getItem("hoop3x3_lega_l1")!).tappe;
+    expect(tappe.map((t: Tappa) => t.nome)).toEqual(["Finale", "Tappa"]);
+    expect(tappe.some((t: Tappa) => "versione" in t)).toBe(false);
+    await store().importLega("Importata", [{ ...tappa(), id: "t3" }]);
+    expect(store().tappe[0]).not.toHaveProperty("versione");
+    const legaImportata = JSON.parse(localStorage.getItem(`hoop3x3_lega_${store().legaId}`)!);
+    expect(legaImportata.tappe[0]).not.toHaveProperty("versione");
+    const rete = vi.mocked(legheApi);
+    for (const chiamata of [rete.putTappa, rete.addTappa, rete.get, rete.create]) expect(chiamata).not.toHaveBeenCalled();
+  });
+});
+
 describe("ospite: creare o importare una lega è tutto o niente (FS-9)", () => {
   /** Le chiavi dei dati delle leghe nel browser (l'indice e la lega aperta hanno un altro nome) */
   const chiaviLega = () => Object.keys(localStorage).filter((k) => k.startsWith("hoop3x3_lega_"));

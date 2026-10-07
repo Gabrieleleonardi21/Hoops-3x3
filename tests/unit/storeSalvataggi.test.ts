@@ -68,10 +68,13 @@ describe("store: creazione e modifica delle tappe passano dalla coda dei salvata
     api.addTappa
       .mockRejectedValueOnce(new ApiError(0, "Server non raggiungibile")) // il server l'ha creata, la risposta non è arrivata
       .mockRejectedValueOnce(new ApiError(409, "Esiste già una tappa con id t1"));
+    // La versione della tappa creata si legge dalla lega (T2.7): la PUT la deve mandare
+    api.get.mockResolvedValue({ id: "l1", nome: "Lega", tappe: [{ ...tappa("t1"), versione: 0 }] });
     store().addTappa(tappa("t1"));
     await vi.advanceTimersByTimeAsync(400 + 2000);
     expect(api.addTappa).toHaveBeenCalledTimes(2);
     expect(api.putTappa).toHaveBeenCalledTimes(1);
+    expect(api.putTappa.mock.calls[0][0].versione).toBe(0);
     expect(store().inSospeso).toBe(0);
     expect(store().syncError).toBeNull();
     // Da qui la tappa esiste: le modifiche successive vanno con la PUT

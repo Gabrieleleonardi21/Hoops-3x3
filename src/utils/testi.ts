@@ -72,6 +72,22 @@ export function pubblicazioneSenzaSalvataggio(motivo: string | null): string {
   return `${testo}: ${motivo}`;
 }
 
+/* Conflitti tra dispositivi sulle tappe (T2.7): un altro dispositivo, o un'altra scheda, ha salvato la stessa tappa. Vale la tappa del
+ * server, e la barra degli avvisi sotto l'intestazione lo dice. Il nome è quello della tappa sul server. */
+
+/** Un salvataggio ha trovato sul server una tappa cambiata da un altro dispositivo: ora nello store c'è quella, e le modifiche fatte qui
+ *  e non ancora salvate sono state scartate (salvarle avrebbe cancellato il lavoro dell'altro) */
+export function tappaModificataAltrove(nome: string): string {
+  return `La tappa «${nome}» è stata modificata da un altro dispositivo: ora vedi la versione salvata sul server, `
+    + "e le modifiche fatte qui che non erano ancora salvate sono state scartate.";
+}
+
+/** L'eliminazione di una tappa non è riuscita perché un altro dispositivo l'ha salvata nello stesso istante: la tappa resta */
+export function eliminazioneTappaInConflitto(nome: string): string {
+  return `La tappa «${nome}» non è stata eliminata: un altro dispositivo l'ha modificata nello stesso momento. `
+    + "Ora vedi la versione salvata sul server: se vuoi, eliminala di nuovo.";
+}
+
 /** Eliminare una lega cancella le sue tappe: si dice quante sono (l'elenco delle leghe non carica i risultati) */
 export function perditaLega(m: LegaMeta): string {
   if (m.nTappe === 0) return `Verrà eliminata la lega «${m.nome}», che non ha tappe.`;

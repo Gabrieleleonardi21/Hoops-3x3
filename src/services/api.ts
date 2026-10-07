@@ -33,6 +33,16 @@ export function testoErrore(e: unknown): string {
   return "errore imprevisto";
 }
 
+/** Status dopo i quali non si sa se il server ha eseguito la richiesta: nessuna risposta (0: rete assente, tempo massimo scaduto)
+ *  oppure una risposta del proxy al posto del server (502, 503, 504: dietro Render la richiesta può essere arrivata lo stesso) */
+const ESITO_IGNOTO = [0, 502, 503, 504];
+
+/** true se dopo questo errore non si sa se il server ha eseguito la richiesta. Lo usano la pubblicazione (useTappa: non si dice
+ *  «non pubblicata») e la coda delle tappe (useAppStore: il corpo mandato può essere stato salvato) */
+export function esitoIgnoto(e: unknown): boolean {
+  return e instanceof ApiError && ESITO_IGNOTO.includes(e.status);
+}
+
 /** La richiesta non ha avuto risposta: tempo massimo scaduto, rete assente o server spento */
 function erroreDiRete(e: unknown): ApiError {
   if (e instanceof DOMException && e.name === "TimeoutError") {

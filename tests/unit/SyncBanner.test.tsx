@@ -70,4 +70,15 @@ describe("SyncBanner (avviso dei salvataggi)", () => {
     expect(api.putTappa).toHaveBeenCalledTimes(2);
     expect(screen.queryByRole("alert")).toBeNull();
   });
+
+  it("un 409 perché un altro dispositivo ha salvato la tappa: l'avviso dice che vale la versione del server", async () => {
+    api.putTappa.mockRejectedValueOnce(new ApiError(409, "La tappa è stata modificata da un altro dispositivo: ricaricala"));
+    api.get.mockResolvedValue({ id: "l1", nome: "Lega", tappe: [{ ...tappa("t1"), nome: "Dell'altro", versione: 8 }, tappa("t2")] });
+    await modificaESalva("t1");
+    const avviso = screen.getByRole("alert").textContent;
+    expect(avviso).toContain("La tappa «Dell'altro» è stata modificata da un altro dispositivo: ora vedi la versione salvata sul server");
+    expect(avviso).not.toContain("modifiche non salvate.");   // niente in sospeso: la coda ha scartato la versione superata
+    fireEvent.click(screen.getByRole("button", { name: "Chiudi avviso" }));
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
 });

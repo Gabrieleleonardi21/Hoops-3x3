@@ -1,0 +1,401 @@
+// @vitest-environment jsdom
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { useAppStore } from "../../src/stores/useAppStore";
+import { legheApi } from "../../src/services/legheApi";
+import { ApiError } from "../../src/services/api";
+import { DEFAULT_RULES } from "../../src/constants/rules";
+import { eliminazioneTappaInConflitto, tappaModificataAltrove } from "../../src/utils/testi";
+import type { Tappa, User } from "../../src/types";
+
+/* Versione delle tappe (T2.7): la PUT manda la versione dell'ultima risposta del server, e un 409 si risolve rileggendo la lega.
+ * Si sostituisce solo la rete delle leghe: store e coda dei salvataggi sono quelli veri, il server è quello finto qui sotto. */
+vi.mock("../../src/services/legheApi", () => ({
+  legheApi: {
+    list: vi.fn(), create: vi.fn(), get: vi.fn(), rename: vi.fn(), remove: vi.fn(),
+    addTappa: vi.fn(), putTappa: vi.fn(), removeTappa: vi.fn(),
+  },
+}));
+
+const api = vi.mocked(legheApi);
+const registrato: User = { id: "u1", name: "Anna", email: "anna@example.it", guest: false };
+const store = () => useAppStore.getState();
+
+const tappa = (id: string, nome = "Tappa"): Tappa => ({
+  id, nome, luogo: "", data: "", nGironi: 1, regole: { ...DEFAULT_RULES }, squadre: [], gironi: null, partite: [], video: [],
+});
+
+const MODIFICATA = "La tappa è stata modificata da un altro dispositivo: ricaricala";
+const MANCA_VERSIONE = "Manca la versione della tappa (campo versione): ricarica la pagina e riprova";
+const NESSUNA_RISPOSTA = "Il server non risponde: controlla la connessione e riprova.";
+
+/** Promessa controllabile a mano: il test decide quando il "server" risponde */
+function differita() {
+  let ok!: () => void;
+  const p = new Promise<void>((res) => { ok = res; });
+  return { p, ok };
+}
+
+const copia = <T>(v: T): T => JSON.parse(JSON.stringify(v));
+
+/** Server finto con le regole del backend dopo T2.7 (LegaService): la POST crea la tappa con la versione 0, la PUT senza versione
+ *  riceve 400, con una versione diversa da quella salvata 409, altrimenti salva e la versione sale (il server vero la lascia uguale
+ *  per una PUT identica: qui non serve). Salva le tappe normalizzate come il server: nome, luogo e data senza spazi ai lati, campi
+ *  assenti vuoti. */
+function serverFinto() {
+  const salvate = new Map<string, Tappa>();
+  const normalizzata = (t: Tappa, versione: number): Tappa => ({
+    ...copia(t), nome: t.nome.trim(), luogo: (t.luogo ?? "").trim(), data: (t.data ?? "").trim(),
+    squadre: t.squadre ?? [], partite: t.partite ?? [], video: t.video ?? [], gironi: t.gironi ?? null, versione,
+  });
+  const server = {
+    salvate,
+    /** Una tappa che il server ha già, con questa versione */
+    ha(t: Tappa, versione: number) { salvate.set(t.id, { ...copia(t), versione }); },
+    /** Un altro dispositivo salva la tappa: la versione sale */
+    salvaAltrove(id: string, modifica: Partial<Tappa>) {
+      const t = salvate.get(id)!;
+      salvate.set(id, { ...t, ...modifica, versione: t.versione! + 1 });
+    },
+    put: async (t: Tappa) => {
+      if (t.versione === undefined || t.versione === null) throw new ApiError(400, MANCA_VERSIONE);
+      const attuale = salvate.get(t.id);
+      if (!attuale) throw new ApiError(404, `Tappa non trovata: ${t.id}`);
+      if (t.versione !== attuale.versione) throw new ApiError(409, MODIFICATA);
+      salvate.set(t.id, normalizzata(t, attuale.versione! + 1));
+      return copia(salvate.get(t.id)!);
+    },
+    post: async (_legaId: string, t: Tappa) => {
+      if (salvate.has(t.id)) throw new ApiError(409, `Esiste già una tappa con id ${t.id}`);
+      salvate.set(t.id, normalizzata(t, 0));
+      return copia(salvate.get(t.id)!);
+    },
+  };
+  api.putTappa.mockImplementation(server.put);
+  api.addTappa.mockImplementation(server.post);
+  api.get.mockImplementation(async (id) => ({ id, nome: "Lega", tappe: [...salvate.values()].map(copia) }));
+  api.removeTappa.mockImplementation(async (id) => { salvate.delete(id); });
+  return server;
+}
+
+/** La prossima PUT arriva al server, che la salva, ma la risposta si perde (tempo massimo scaduto mentre Render ripartiva) */
+function rispostaPersa(server: ReturnType<typeof serverFinto>) {
+  api.putTappa.mockImplementationOnce(async (t) => {
+    await server.put(t);
+    throw new ApiError(0, NESSUNA_RISPOSTA);
+  });
+}
+
+/** Versioni e nomi delle PUT partite, in ordine */
+const putPartite = () => api.putTappa.mock.calls.map(([t]) => [t.nome, t.versione]);
+
+/** Apre la lega l1 come dopo «Le mie leghe»: le tappe arrivano dal server con la loro versione */
+const apri = () => store().selectLega("l1");
+
+beforeEach(() => {
+  vi.useFakeTimers();
+  vi.resetAllMocks();
+  useAppStore.setState({
+    user: registrato, legaId: null, legaName: "", leghe: [{ id: "l1", nome: "Lega", ts: 1, nTappe: 0 }], tappe: [],
+    syncError: null, inSospeso: 0, erroreSalvataggio: null,
+  });
+});
+
+afterEach(() => {
+  store().reset(); // svuota la coda, così nessun salvataggio passa al test successivo
+  vi.useRealTimers();
+});
+
+describe("la PUT manda la versione dell'ultima risposta del server", () => {
+  it("due PUT di seguito: la seconda parte con la versione della risposta della prima", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1"), 3);
+    await apri();
+    expect(store().tappe[0].versione).toBe(3);
+    store().updateTappa("t1", { nome: "Semifinale" });
+    await vi.advanceTimersByTimeAsync(400);
+    store().updateTappa("t1", { nome: "Finale" });
+    await vi.advanceTimersByTimeAsync(400);
+    expect(putPartite()).toEqual([["Semifinale", 3], ["Finale", 4]]);
+    expect(server.salvate.get("t1")).toMatchObject({ nome: "Finale", versione: 5 });
+    expect(store().tappe[0].versione).toBe(5);
+    expect(store().syncError).toBeNull();
+  });
+
+  it("una modifica fatta con la PUT in volo resta: la risposta cambia solo la versione, e la modifica parte con quella nuova", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1"), 3);
+    await apri();
+    const prima = differita();
+    const seconda = differita();
+    api.putTappa
+      .mockImplementationOnce(async (t) => { await prima.p; return server.put(t); })
+      .mockImplementationOnce(async (t) => { await seconda.p; return server.put(t); });
+    store().updateTappa("t1", { nome: "Semifinale" });
+    await vi.advanceTimersByTimeAsync(400);              // la PUT di «Semifinale» resta in volo
+    store().updateTappa("t1", { luogo: "Testaccio" });   // modifica locale mentre la PUT è in volo
+    prima.ok();
+    await vi.advanceTimersByTimeAsync(0);                // risposta: versione 4, con il luogo ancora vuoto
+    expect(store().tappe[0]).toMatchObject({ nome: "Semifinale", luogo: "Testaccio", versione: 4 });
+    expect(putPartite()).toEqual([["Semifinale", 3], ["Semifinale", 4]]);
+    expect(api.putTappa.mock.calls[1][0].luogo).toBe("Testaccio");
+    seconda.ok();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(server.salvate.get("t1")).toMatchObject({ luogo: "Testaccio", versione: 5 });
+    expect(store().tappe[0]).toMatchObject({ luogo: "Testaccio", versione: 5 });
+  });
+
+  it("la PUT aspetta la POST di creazione e parte con la versione 0 della sua risposta", async () => {
+    const server = serverFinto();
+    await apri();
+    const post = differita();
+    api.addTappa.mockImplementationOnce(async (legaId, t) => { await post.p; return server.post(legaId, t); });
+    store().addTappa(tappa("t1"));
+    await vi.advanceTimersByTimeAsync(400);              // la POST resta in volo
+    store().updateTappa("t1", { nome: "Finale" });
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(api.putTappa).not.toHaveBeenCalled();         // senza la prima versione il server risponderebbe 400
+    post.ok();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(putPartite()).toEqual([["Finale", 0]]);
+    expect(store().tappe[0].versione).toBe(1);
+  });
+
+  it("alla chiusura della pagina la PUT con keepalive porta la versione nota, non quella della copia in coda", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1"), 3);
+    await apri();
+    const prima = differita();
+    api.putTappa.mockImplementationOnce(async (t) => { await prima.p; return server.put(t); });
+    store().updateTappa("t1", { nome: "Semifinale" });
+    await vi.advanceTimersByTimeAsync(400);
+    store().updateTappa("t1", { nome: "Finale" });       // copia in coda fatta prima della risposta: versione 3
+    api.putTappa.mockImplementationOnce(async (t) => { await differita().p; return t; }); // il nuovo invio resta in volo
+    prima.ok();
+    await vi.advanceTimersByTimeAsync(0);
+    window.dispatchEvent(new Event("pagehide"));
+    expect(api.putTappa).toHaveBeenLastCalledWith(expect.objectContaining({ nome: "Finale", versione: 4 }), true);
+  });
+
+  it("una lega importata: le tappe nascono sul server con la versione 0 e la prima PUT la manda", async () => {
+    const server = serverFinto();
+    api.create.mockImplementation(async (nome, tappe = []) => {
+      for (const t of tappe) await server.post("l9", t);
+      return { id: "l9", nome, ts: 1, nTappe: tappe.length };
+    });
+    await store().importLega("Importata", [tappa("t1")]);
+    expect(store().tappe[0].versione).toBe(0);
+    store().updateTappa("t1", { nome: "Finale" });
+    await vi.advanceTimersByTimeAsync(400);
+    expect(putPartite()).toEqual([["Finale", 0]]);
+    expect(server.salvate.get("t1")).toMatchObject({ nome: "Finale", versione: 1 });
+  });
+});
+
+describe("409 sulla PUT: la tappa l'ha cambiata un altro dispositivo", () => {
+  it("vale la tappa del server, con la sua versione; l'avviso è visibile e il corpo vecchio non si rimanda", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1"), 3);
+    await apri();
+    server.salvaAltrove("t1", { nome: "Nome dell'altro" });  // versione 4
+    store().updateTappa("t1", { luogo: "Testaccio" });
+    await vi.advanceTimersByTimeAsync(400);
+    expect(api.get).toHaveBeenCalledTimes(2);                // l'apertura e la rilettura dopo il 409
+    expect(store().tappe[0]).toEqual(server.salvate.get("t1"));
+    expect(store().tappe[0].versione).toBe(4);
+    expect(store().syncError).toBe(tappaModificataAltrove("Nome dell'altro"));
+    expect(store().inSospeso).toBe(0);
+    expect(store().erroreSalvataggio).toBeNull();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(api.putTappa).toHaveBeenCalledTimes(1);           // nessun nuovo tentativo con il luogo dell'altra versione
+    expect(server.salvate.get("t1")).toMatchObject({ nome: "Nome dell'altro", luogo: "", versione: 4 });
+    // La modifica successiva parte dalla tappa del server, con la sua versione
+    store().updateTappa("t1", { data: "2026-07-01" });
+    await vi.advanceTimersByTimeAsync(400);
+    expect(api.putTappa).toHaveBeenLastCalledWith(expect.objectContaining({ nome: "Nome dell'altro", data: "2026-07-01", versione: 4 }));
+    expect(server.salvate.get("t1")!.versione).toBe(5);
+  });
+
+  it("anche le modifiche fatte durante la rilettura si scartano: erano costruite sulla versione superata", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1"), 3);
+    await apri();
+    server.salvaAltrove("t1", { nome: "Nome dell'altro" });
+    const rilettura = differita();
+    api.get.mockImplementationOnce(async (id) => {
+      await rilettura.p;
+      return { id, nome: "Lega", tappe: [...server.salvate.values()].map(copia) };
+    });
+    store().updateTappa("t1", { luogo: "Testaccio" });
+    await vi.advanceTimersByTimeAsync(400);                  // 409, la rilettura resta in corso
+    store().updateTappa("t1", { data: "2026-07-01" });
+    rilettura.ok();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(api.putTappa).toHaveBeenCalledTimes(1);
+    expect(store().tappe[0]).toEqual(server.salvate.get("t1"));
+  });
+
+  it("con il messaggio generico del server vale lo stesso", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1"), 3);
+    await apri();
+    server.salvaAltrove("t1", { nome: "Nome dell'altro" });
+    api.putTappa.mockRejectedValueOnce(new ApiError(409, "I dati sono stati modificati o eliminati da un'altra richiesta: ricarica"));
+    store().updateTappa("t1", { luogo: "Testaccio" });
+    await vi.advanceTimersByTimeAsync(400);
+    expect(store().tappe[0]).toEqual(server.salvate.get("t1"));
+    expect(store().syncError).toBe(tappaModificataAltrove("Nome dell'altro"));
+  });
+});
+
+describe("409 sulla PUT dopo un proprio salvataggio rimasto senza risposta", () => {
+  it("la tappa del server è l'ultimo corpo mandato: si prende la sua versione e si rimanda lo stato locale, senza avviso", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1"), 3);
+    await apri();
+    rispostaPersa(server);
+    store().updateTappa("t1", { nome: "Finale" });
+    await vi.advanceTimersByTimeAsync(400);                  // salvata dal server (versione 4), risposta persa
+    expect(server.salvate.get("t1")!.versione).toBe(4);
+    store().updateTappa("t1", { luogo: "Testaccio" });       // modifica fatta nel frattempo
+    await vi.advanceTimersByTimeAsync(400);                  // PUT con la versione 3 → 409 → rilettura → nuovo invio
+    expect(putPartite()).toEqual([["Finale", 3], ["Finale", 3], ["Finale", 4]]);
+    expect(server.salvate.get("t1")).toMatchObject({ nome: "Finale", luogo: "Testaccio", versione: 5 });
+    expect(store().tappe[0]).toMatchObject({ nome: "Finale", luogo: "Testaccio", versione: 5 });
+    expect(store().syncError).toBeNull();
+    expect(store().inSospeso).toBe(0);
+    expect(store().erroreSalvataggio).toBeNull();
+  });
+
+  it("vale anche se il nuovo tentativo è automatico, con lo stesso corpo", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1"), 3);
+    await apri();
+    rispostaPersa(server);
+    store().updateTappa("t1", { nome: "Finale" });
+    await vi.advanceTimersByTimeAsync(400 + 2000);           // il nuovo tentativo dopo 2 secondi riceve 409
+    expect(putPartite()).toEqual([["Finale", 3], ["Finale", 3], ["Finale", 4]]);
+    expect(store().syncError).toBeNull();
+    expect(store().tappe[0]).toMatchObject({ nome: "Finale", versione: 5 });
+  });
+
+  it("il confronto è quello del server: spazi ai lati e campi assenti, che il server normalizza, non fanno differenza", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1"), 3);
+    await apri();
+    rispostaPersa(server);
+    // Corpo con spazi ai lati e senza data né video: il server salva «Finale», «Roma», "" e []
+    store().updateTappa("t1", { nome: "  Finale  ", luogo: " Roma ", data: undefined, video: undefined } as Partial<Tappa>);
+    await vi.advanceTimersByTimeAsync(400);
+    expect(server.salvate.get("t1")).toMatchObject({ nome: "Finale", luogo: "Roma", data: "", video: [], versione: 4 });
+    store().updateTappa("t1", { nGironi: 2 });
+    await vi.advanceTimersByTimeAsync(400);
+    expect(store().syncError).toBeNull();
+    expect(server.salvate.get("t1")).toMatchObject({ nome: "Finale", nGironi: 2, versione: 5 });
+    expect(store().tappe[0]).toMatchObject({ nGironi: 2, versione: 5 });
+  });
+
+  it("anche se il server ha salvato un tentativo precedente e non l'ultimo, il conflitto resta del client", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1"), 3);
+    await apri();
+    rispostaPersa(server);                                   // «Finale» salvata, risposta persa
+    api.putTappa.mockRejectedValueOnce(new ApiError(0, NESSUNA_RISPOSTA)); // il tentativo dopo non arriva al server
+    store().updateTappa("t1", { nome: "Finale" });
+    await vi.advanceTimersByTimeAsync(400);
+    store().updateTappa("t1", { luogo: "Testaccio" });
+    await vi.advanceTimersByTimeAsync(400);                  // anche questo senza risposta
+    store().updateTappa("t1", { data: "2026-07-01" });
+    await vi.advanceTimersByTimeAsync(400);                  // 409: sul server c'è «Finale», non l'ultimo corpo mandato
+    expect(store().syncError).toBeNull();
+    expect(server.salvate.get("t1")).toMatchObject({ luogo: "Testaccio", data: "2026-07-01", versione: 5 });
+  });
+
+  it("alla chiusura della pagina il salvataggio con keepalive non si legge: se la pagina resta viva il 409 dopo è riconosciuto", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1"), 3);
+    await apri();
+    store().updateTappa("t1", { nome: "Finale" });
+    window.dispatchEvent(new Event("pagehide"));             // PUT con keepalive: il server la salva (versione 4)
+    await vi.advanceTimersByTimeAsync(0);
+    expect(server.salvate.get("t1")!.versione).toBe(4);
+    await vi.advanceTimersByTimeAsync(400);                  // la pagina torna (cache del browser): parte la PUT in coda
+    expect(store().syncError).toBeNull();
+    expect(store().tappe[0]).toMatchObject({ nome: "Finale", versione: 5 });
+  });
+});
+
+describe("400 «Manca la versione»: pagina aperta prima dell'aggiornamento del server", () => {
+  it("si rilegge la lega e si rimanda una volta sola, con la versione del server", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1"), 3);
+    useAppStore.setState({ legaId: "l1", tappe: [tappa("t1")] }); // tappa caricata dal backend di prima: senza versione
+    store().updateTappa("t1", { nome: "Finale" });
+    await vi.advanceTimersByTimeAsync(400);
+    expect(api.get).toHaveBeenCalledTimes(1);
+    expect(putPartite()).toEqual([["Finale", undefined], ["Finale", 3]]);
+    expect(server.salvate.get("t1")).toMatchObject({ nome: "Finale", versione: 4 });
+    expect(store().tappe[0]).toMatchObject({ nome: "Finale", versione: 4 });
+    expect(store().syncError).toBeNull();
+  });
+
+  it("se anche il nuovo invio fallisce vale la gestione di sempre, senza un terzo invio", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1"), 3);
+    useAppStore.setState({ legaId: "l1", tappe: [tappa("t1")] });
+    api.putTappa
+      .mockRejectedValueOnce(new ApiError(400, MANCA_VERSIONE))
+      .mockRejectedValueOnce(new ApiError(400, "Il nome della tappa è obbligatorio"));
+    store().updateTappa("t1", { nome: "" });
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(api.putTappa).toHaveBeenCalledTimes(2);
+    expect(api.get).toHaveBeenCalledTimes(1);
+    expect(store().syncError).toBe("Salvataggio tappa non riuscito: Il nome della tappa è obbligatorio");
+  });
+});
+
+describe("409 sulla DELETE di una tappa: un altro dispositivo l'ha salvata nello stesso istante", () => {
+  it("la tappa resta: torna al suo posto, com'è sul server, e compare l'avviso", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1", "Prima"), 3);
+    server.ha(tappa("t2", "Seconda"), 0);
+    await apri();
+    server.salvaAltrove("t1", { nome: "Salvata altrove" });
+    api.removeTappa.mockRejectedValueOnce(new ApiError(409, MODIFICATA));
+    store().removeTappa("t1");
+    expect(store().tappe.map((t) => t.id)).toEqual(["t2"]);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(store().tappe.map((t) => t.id)).toEqual(["t1", "t2"]);
+    expect(store().tappe[0]).toEqual(server.salvate.get("t1"));
+    expect(store().leghe[0].nTappe).toBe(2);
+    expect(store().syncError).toBe(eliminazioneTappaInConflitto("Salvata altrove"));
+    // Si modifica con la versione del server
+    store().updateTappa("t1", { luogo: "Testaccio" });
+    await vi.advanceTimersByTimeAsync(400);
+    expect(putPartite()).toEqual([["Salvata altrove", 4]]);
+    expect(server.salvate.get("t1")!.versione).toBe(5);
+  });
+});
+
+describe("409 sulla POST: la tappa è già stata creata (T1.6), gestito come prima", () => {
+  it("si passa alla PUT con questa copia, che è la più recente, e con la versione della tappa creata, senza avviso", async () => {
+    const server = serverFinto();
+    await apri();
+    api.addTappa.mockImplementationOnce(async (legaId, t) => {
+      await server.post(legaId, t);
+      throw new ApiError(0, NESSUNA_RISPOSTA);               // creata, ma la risposta si perde
+    });
+    store().addTappa(tappa("t1"));
+    await vi.advanceTimersByTimeAsync(400);
+    store().updateTappa("t1", { nome: "Finale" });
+    await vi.advanceTimersByTimeAsync(400);                  // POST di nuovo → 409 → PUT
+    expect(api.addTappa).toHaveBeenCalledTimes(2);
+    expect(putPartite()).toEqual([["Finale", 0]]);
+    expect(server.salvate.get("t1")).toMatchObject({ nome: "Finale", versione: 1 });
+    expect(store().syncError).toBeNull();
+    // Da qui la tappa esiste: le modifiche successive vanno con la PUT e la versione nuova
+    store().updateTappa("t1", { luogo: "Testaccio" });
+    await vi.advanceTimersByTimeAsync(400);
+    expect(api.addTappa).toHaveBeenCalledTimes(2);
+    expect(putPartite().at(-1)).toEqual(["Finale", 1]);
+  });
+});

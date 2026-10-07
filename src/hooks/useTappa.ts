@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAppStore, tappaCorrente } from "../stores/useAppStore";
 import { archivioApi } from "../services/archivioApi";
-import { ApiError, testoErrore } from "../services/api";
+import { ApiError, esitoIgnoto, testoErrore } from "../services/api";
 import { anagrafeApi } from "../services/anagrafeApi";
 import { useAnagrafeStore } from "../stores/useAnagrafeStore";
 import { uid } from "../utils/uid";
@@ -99,10 +99,9 @@ const SCONOSCIUTO: StatoArchivio = { pubblicata: null, errore: null };
  *  nemmeno partita (412 locale: la tappa non era salvata). Non si sa con rete assente o tempo scaduto (status 0), né con un 502, 503 o
  *  504: dietro un proxy (Render) la PUT può essere stata eseguita dal server anche se la risposta è andata persa o il proxy ha
  *  risposto al suo posto. Dire «non pubblicata» farebbe riaprire la tappa lasciando la copia pubblica; nel dubbio «Riapri» ritira
- *  (la PUT è un upsert e la DELETE tollera il 404). */
-const ESITO_IGNOTO = [0, 502, 503, 504];
+ *  (la PUT è un upsert e la DELETE tollera il 404). L'elenco degli status di esito ignoto sta in api.ts (esitoIgnoto). */
 function nonPubblicataSicuro(e: unknown): boolean {
-  return e instanceof ApiError && !ESITO_IGNOTO.includes(e.status);
+  return e instanceof ApiError && !esitoIgnoto(e);
 }
 
 /** Lo stato della pubblicazione di una tappa, per `setArchivio` */

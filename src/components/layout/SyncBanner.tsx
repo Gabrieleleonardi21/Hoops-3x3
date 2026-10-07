@@ -2,7 +2,9 @@
  *  - salvataggio delle tappe non riuscito per un problema temporaneo (rete, sessione, server): quante tappe
  *    aspettano e perché. La coda riprova da sola, «Riprova ora» anticipa il tentativo e l'avviso sparisce
  *    da solo quando tutto è salvato;
- *  - gli altri errori (dati rifiutati dal server, rinomina, eliminazione, caricamento), che si chiudono a mano.
+ *  - gli altri errori (dati rifiutati dal server, rinomina, eliminazione, caricamento), che si chiudono a mano. Qui
+ *    compaiono anche gli avvisi dei conflitti con un altro dispositivo (T2.7): la tappa è stata salvata altrove e ora
+ *    nello store c'è quella del server, oppure non si è potuta eliminare perché salvata nello stesso istante.
  *  Lo stato in memoria resta corretto in entrambi i casi. */
 import { useAppStore } from "../../stores/useAppStore";
 import { tappeNonSalvate } from "../../utils/tappeNonSalvate";

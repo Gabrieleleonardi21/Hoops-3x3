@@ -13,6 +13,7 @@ import { anagrafeApi } from "../../src/services/anagrafeApi";
 import { archivioApi } from "../../src/services/archivioApi";
 import { ApiError } from "../../src/services/api";
 import { DEFAULT_RULES } from "../../src/constants/rules";
+import { tappaModificataAltrove } from "../../src/utils/testi";
 import type { ToolCall } from "../../src/services/aiService";
 import type { Partita, RegSquadra, SquadraTappa, Tappa, User } from "../../src/types";
 
@@ -552,6 +553,21 @@ describe("Coach AI: conferma nel pannello prima delle azioni distruttive (D4)", 
     expect(esiti(richieste)[0]).toContain("«Riapri» e poi «Concludi»");
     expect(esiti(richieste)[0]).toContain("Motivo: Prima di pubblicare, l'ultima versione della tappa deve essere salvata sul server");
     expect(esiti(richieste)[0]).toContain("Server non raggiungibile");
+  });
+
+  it("concludi_tappa con la tappa salvata intanto da un altro dispositivo: niente pubblicazione, vale la tappa del server", async () => {
+    // Il Coach passa dallo store come le pagine: la PUT porta la versione della tappa, e il 409 si risolve rileggendo la lega
+    useAppStore.setState({ tappe: [{ ...romaOpenGiocata(), versione: 3 }] });
+    const delServer: Tappa = { ...romaOpenGiocata(), luogo: "Ostia", versione: 4 };
+    vi.mocked(legheApi.putTappa).mockRejectedValueOnce(new ApiError(409, "La tappa è stata modificata da un altro dispositivo: ricaricala"));
+    vi.mocked(legheApi.get).mockResolvedValue({ id: "l1", nome: "Circuito", tappe: [delServer] });
+    const richieste = modello(strumenti(["concludi_tappa", { tappa_nome: "Roma Open" }]), testo("Non pubblicata."));
+    const c = coach();
+    await chiediEConferma(c, "Concludi Roma Open", true);
+    expect(legheApi.putTappa).toHaveBeenCalledWith(expect.objectContaining({ conclusa: true, versione: 3 }));
+    expect(archivioApi.pubblica).not.toHaveBeenCalled();
+    expect(store().tappe[0]).toEqual(delServer);
+    expect(esiti(richieste)[0]).toContain(tappaModificataAltrove("Roma Open"));
   });
 
   it("un'azione che verrebbe rifiutata non chiede conferma: concludere con gare da giocare", async () => {

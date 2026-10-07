@@ -366,7 +366,10 @@ utenti registrati.
   JSONB), anagrafe in anagrafe_giocatori/anagrafe_squadre (+ tabella ponte
   per il roster), archivio in archivio_tappe. Lo store aggiorna subito la
   UI e salva in background (debounce 400 ms per tappa); un salvataggio
-  fallito è segnalato da una barra in alto.
+  fallito è segnalato da una barra in alto. Ogni tappa ha una versione
+  decisa dal server: se un altro dispositivo l'ha salvata nel frattempo
+  (409), l'app mostra la tappa del server e lo dice nella stessa barra,
+  invece di sovrascriverne il lavoro.
 - Persistenza (ospite): localStorage per la lega (multi-lega con indice);
   anagrafe e archivio in sola lettura dal server. All'avvio la lega aperta
   si controlla con gli stessi campi dell'import, ma senza i limiti del

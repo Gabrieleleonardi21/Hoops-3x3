@@ -5,6 +5,7 @@ import { legheApi } from "../../src/services/legheApi";
 import { archivioApi } from "../../src/services/archivioApi";
 import { ApiError } from "../../src/services/api";
 import { DEFAULT_RULES } from "../../src/constants/rules";
+import { tappaModificataAltrove } from "../../src/utils/testi";
 import type { Tappa, User } from "../../src/types";
 
 // Si sostituisce solo la rete (leghe e archivio): store e coda dei salvataggi sono quelli veri
@@ -214,6 +215,33 @@ describe("pubblica: se la coda non riesce a svuotarsi non si pubblica, e si sa p
     await vi.advanceTimersByTimeAsync(400);   // la modifica di t2 non riesce e resta in coda
     expect(store().inSospeso).toBe(1);
     await store().pubblica("t1");              // t1 non ha niente in sospeso
+    expect(archivio.pubblica).toHaveBeenCalledExactlyOnceWith("t1");
+  });
+
+  it("un conflitto con un altro dispositivo durante il salvataggio blocca la pubblicazione, e il motivo lo dice", async () => {
+    // Il server ha la tappa salvata da un altro dispositivo: la PUT riceve 409 e la rilettura la porta nello store
+    api.putTappa.mockRejectedValueOnce(new ApiError(409, "La tappa è stata modificata da un altro dispositivo: ricaricala"));
+    api.get.mockResolvedValue({ id: "l1", nome: "Lega", tappe: [{ ...tappa("t1", "Dell'altro"), versione: 9 }, tappa("t2", "Altra")] });
+    store().updateTappa("t1", { nome: "Finale" });
+    const errore = await store().pubblica("t1").then(() => null, (e: unknown) => e);
+    expect(errore).toBeInstanceOf(ApiError);
+    expect((errore as ApiError).message).toContain("salvata sul server");
+    expect((errore as ApiError).message).toContain(tappaModificataAltrove("Dell'altro"));
+    // Né la versione con «Finale», che il server non ha, né quella dell'altro dispositivo, che l'utente non ha ancora visto
+    expect(archivio.pubblica).not.toHaveBeenCalled();
+    expect(store().tappe[0]).toMatchObject({ nome: "Dell'altro", versione: 9 });
+  });
+
+  it("dopo un conflitto risolto con la tappa del server il vecchio rifiuto non blocca più la pubblicazione", async () => {
+    api.putTappa.mockRejectedValueOnce(new ApiError(400, "Il nome della tappa è obbligatorio"));
+    store().updateTappa("t1", { nome: "" });
+    await vi.advanceTimersByTimeAsync(400);          // rifiutata: la pubblicazione sarebbe bloccata
+    api.putTappa.mockRejectedValueOnce(new ApiError(409, "La tappa è stata modificata da un altro dispositivo: ricaricala"));
+    api.get.mockResolvedValue({ id: "l1", nome: "Lega", tappe: [{ ...tappa("t1", "Dell'altro"), versione: 9 }, tappa("t2", "Altra")] });
+    store().updateTappa("t1", { luogo: "Roma" });
+    await vi.advanceTimersByTimeAsync(400);          // 409: nello store c'è la tappa del server, che il server ha già
+    expect(store().tappe[0]).toMatchObject({ nome: "Dell'altro", versione: 9 });
+    await store().pubblica("t1");
     expect(archivio.pubblica).toHaveBeenCalledExactlyOnceWith("t1");
   });
 
