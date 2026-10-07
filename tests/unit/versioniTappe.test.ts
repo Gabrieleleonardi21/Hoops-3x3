@@ -684,3 +684,95 @@ describe("la versione nota non scende mai", () => {
     expect(server.salvate.get("t1")).toMatchObject({ nome: "Finale", luogo: "Testaccio", versione: 5 });
   });
 });
+
+describe("riaprire la lega aperta mentre un salvataggio è in volo (C1)", () => {
+  const risultato = { sa: 21, sb: 15, done: true };
+  /** Una tappa con una partita ancora da giocare */
+  const conPartita = (id: string): Tappa => ({ ...tappa(id), partite: [{ id: "m1", g: 0, a: "s1", b: "s2", sa: 0, sb: 0, done: false }] });
+
+  /** La GET della prossima apertura legge la lega appena parte e risponde quando il test chiama `ok`: è una lettura partita
+   *  prima dei salvataggi che il test fa nel frattempo */
+  function letturaLenta(server: ReturnType<typeof serverFinto>) {
+    const lettura = differita();
+    api.get.mockImplementationOnce(async (id) => {
+      const letta = { id, nome: "Lega", tappe: [...server.salvate.values()].map(copia) };
+      await lettura.p;
+      return letta;
+    });
+    return lettura;
+  }
+
+  it("la GET risponde mentre la PUT del risultato è in volo, la PUT dopo: la modifica successiva porta il risultato", async () => {
+    const server = serverFinto();
+    server.ha(conPartita("t1"), 3);
+    await apri();
+    const lettura = letturaLenta(server);
+    const put = differita();
+    api.putTappa.mockImplementationOnce(async (t) => { await put.p; return server.put(t); });
+    const apertura = store().selectLega("l1");               // «Apri» sulla lega aperta: la GET parte
+    await vi.advanceTimersByTimeAsync(0);
+    store().updateTappaPartita("t1", "m1", risultato);       // il risultato: la PUT parte e resta in volo
+    await vi.advanceTimersByTimeAsync(400);
+    lettura.ok();
+    await apertura;                                          // la GET risponde prima, con la partita da giocare
+    expect(store().tappe[0].partite[0]).toMatchObject(risultato);
+    put.ok();
+    await vi.advanceTimersByTimeAsync(0);                    // poi la PUT: versione 4
+    store().updateTappa("t1", { luogo: "Testaccio" });
+    await vi.advanceTimersByTimeAsync(400);
+    expect(api.putTappa.mock.calls.at(-1)![0]).toMatchObject({ luogo: "Testaccio", versione: 4, partite: [risultato] });
+    expect(server.salvate.get("t1")).toMatchObject({ luogo: "Testaccio", versione: 5, partite: [risultato] });
+    senzaAvvisi();
+  });
+
+  it("una tappa creata durante la GET, con la POST ancora in volo, resta nello store (H3)", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1"), 3);
+    await apri();
+    const lettura = letturaLenta(server);
+    const post = differita();
+    api.addTappa.mockImplementationOnce(async (legaId, t) => { await post.p; return server.post(legaId, t); });
+    const apertura = store().selectLega("l1");
+    await vi.advanceTimersByTimeAsync(0);
+    store().addTappa(tappa("t2", "Nuova"));
+    await vi.advanceTimersByTimeAsync(400);                  // la POST parte e resta in volo
+    lettura.ok();
+    await apertura;                                          // la GET non la conosce
+    expect(store().tappe.map((t) => t.id)).toEqual(["t1", "t2"]);
+    post.ok();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(store().tappe.map((t) => t.id)).toEqual(["t1", "t2"]);
+    expect(store().tappe[1].versione).toBe(0);
+    expect(server.salvate.has("t2")).toBe(true);
+  });
+
+  it("una tappa la cui POST è confermata durante la GET, che non la contiene, resta nello store", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1"), 3);
+    await apri();
+    const lettura = letturaLenta(server);
+    const apertura = store().selectLega("l1");
+    await vi.advanceTimersByTimeAsync(0);
+    store().addTappa(tappa("t2", "Nuova"));
+    await vi.advanceTimersByTimeAsync(400);                  // la POST arriva al server dopo la lettura, e risponde
+    expect(server.salvate.has("t2")).toBe(true);
+    lettura.ok();
+    await apertura;
+    expect(store().tappe.map((t) => t.id)).toEqual(["t1", "t2"]);
+    // Da qui la tappa esiste: la modifica parte con la PUT e la versione della POST
+    store().updateTappa("t2", { luogo: "Ostia" });
+    await vi.advanceTimersByTimeAsync(400);
+    expect(putPartite()).toEqual([["Nuova", 0]]);
+    senzaAvvisi();
+  });
+
+  it("una tappa eliminata da un altro dispositivo prima della GET esce dallo store riaprendo la lega, come prima", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1"), 3);
+    server.ha(tappa("t2", "Seconda"), 0);
+    await apri();
+    server.salvate.delete("t2");                             // l'altro dispositivo la elimina
+    await apri();
+    expect(store().tappe.map((t) => t.id)).toEqual(["t1"]);
+  });
+});

@@ -615,27 +615,38 @@ export const useAppStore = create<AppState>((set, get) => {
     if (t) coda.accoda(t);
   };
 
-  /** Tappe di una lega appena arrivate dal server, con sopra le versioni locali non ancora salvate: senza,
+  /** Tappe di una lega appena arrivate dal server, con sopra le versioni locali non ancora confermate: senza,
    *  lo schermo tornerebbe alla versione del server e la modifica successiva sostituirebbe in coda quella
-   *  con i risultati. `inCoda` = versioni in attesa lette prima della GET (un nuovo tentativo partito durante
-   *  la GET può salvarle dopo che il server ha già letto la versione vecchia); si aggiungono quelle entrate in
-   *  coda nel frattempo. `nuove` = tappe della lega non ancora create sul server, assenti dalla risposta.
+   *  con i risultati. `locali` = le versioni in attesa lette prima della GET (un nuovo tentativo partito durante
+   *  la GET può salvarle dopo che il server ha già letto la versione vecchia) e quelle non confermate a GET finita, comprese le
+   *  richieste ancora in volo (C1): la loro risposta alza la versione nota senza toccare i dati, quindi i dati devono essere già i
+   *  loro. A parità di tappa vale l'ultima dell'elenco. `nuove` = tappe della lega non ancora create sul server, assenti dalla risposta.
    *  La versione segue i dati: una tappa del server porta la sua, una versione locale quella su cui si basa (con quella del server
    *  cancellerebbe in silenzio il lavoro di un altro dispositivo; così la sua PUT riceve il 409 e decide dopoUnConflitto).
    *  Una tappa letta con una versione più vecchia di quella nota viene da una lettura partita prima di un salvataggio riuscito di
-   *  qui: i suoi dati sono superati, e resta quella dello store. */
-  const conVersioniLocali = (legaId: string, dalServer: Tappa[], inCoda: Tappa[], nuove: Tappa[]): Tappa[] => {
-    const locali = new Map([...inCoda, ...coda.inAttesa()].map((t) => [t.id, t]));
+   *  qui: i suoi dati sono superati, e resta quella dello store.
+   *  Una tappa dello store creata sul server durante la GET (sulServer la dà in questa lega, ma prima della GET non c'era: `notePrima`)
+   *  manca dalla risposta se la GET l'ha letta prima della POST: resta. Una che il server conosceva già prima della GET e che manca
+   *  l'ha eliminata un altro dispositivo: esce, come prima. */
+  const conVersioniLocali = (
+    legaId: string, dalServer: Tappa[], locali: Tappa[], nuove: Tappa[], notePrima: Set<string>,
+  ): Tappa[] => {
+    const perId = new Map(locali.map((t) => [t.id, t]));
     const tappe = dalServer.map((t) => {
-      const locale = locali.get(t.id);
+      const locale = perId.get(t.id);
       if (locale) return conVersione(locale);
       const nelloStore = get().tappe.find((x) => x.id === t.id);
       if (nelloStore && piuVecchiaDellaNota(t)) return conVersione(nelloStore);
       ricordaTappe(legaId, [t]);
       return conVersione(t);
     });
+    const manca = (id: string) => !tappe.some((x) => x.id === id);
     for (const t of nuove) {
-      if (!tappe.some((x) => x.id === t.id)) tappe.push(locali.get(t.id) ?? t);
+      if (manca(t.id)) tappe.push(perId.get(t.id) ?? t);
+    }
+    for (const t of get().tappe) {
+      const creataDuranteLaGet = sulServer.get(t.id)?.legaId === legaId && !notePrima.has(t.id);
+      if (creataDuranteLaGet && manca(t.id)) tappe.push(conVersione(perId.get(t.id) ?? t));
     }
     return tappe;
   };
@@ -740,12 +751,16 @@ export const useAppStore = create<AppState>((set, get) => {
         // Prima si salva ciò che è in attesa: quello che resta (rete assente) è più recente della risposta del server
         await get().salvaTutto();
         const inCoda = coda.inAttesa();
-        const nuove = inCoda.filter((t) => daCreare.get(t.id) === id);
+        // Le tappe della lega che il server conosce già prima della GET: se mancano dalla risposta sono state eliminate altrove
+        const notePrima = new Set(get().tappe.filter((t) => sulServer.get(t.id)?.legaId === id).map((t) => t.id));
         const lega = await legheApi.get(id);
+        // Dopo la GET: anche le versioni in volo e le tappe aggiunte nel frattempo, con la POST ancora da confermare (C1)
+        const locali = [...inCoda, ...coda.nonConfermate()];
+        const nuove = locali.filter((t) => daCreare.get(t.id) === id);
         // Le tappe arrivano com'è sul server: un vecchio rifiuto del loro salvataggio non vale più, e non deve bloccare la pubblicazione
         for (const t of lega.tappe) rifiutate.delete(t.id);
         ricordaLega(id);
-        set({ legaId: id, legaName: lega.nome, tappe: conVersioniLocali(id, lega.tappe, inCoda, nuove) });
+        set({ legaId: id, legaName: lega.nome, tappe: conVersioniLocali(id, lega.tappe, locali, nuove, notePrima) });
         return;
       }
       salvaLegaApertaPrimaDelCambio();
