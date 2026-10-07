@@ -115,13 +115,21 @@ describe.each(AREE)("analyzePlayer3x3: %s rispetto alla media della tappa", (are
   });
 });
 
-describe("analyzePlayer3x3: media della tappa molto bassa", () => {
-  it("sotto 0,3 a partita si divide per 0,3, non per la media: chi ha la stessa media bassa degli altri è da migliorare", () => {
-    // 2 rimbalzi in 10 partite per tutti e due = 0,2 a partita. 0,2 / 0,3 = 0,67; diviso per la media sarebbe 1
+// Quando la media della tappa è molto bassa il rapporto si calcola su un pavimento di 0,3 (Math.max(avg, 0,3)): senza, chi ha la stessa
+// media degli altri avrebbe sempre rapporto 1. I due casi sotto stringono il valore: il pavimento sta tra 0,25 e 0,31
+describe("analyzePlayer3x3: media della tappa molto bassa (pavimento del rapporto)", () => {
+  it("con la media a 0,2 a partita il rapporto è 0,2 / 0,3 = 0,67 e non 1: stessa media degli altri, ma è da migliorare", () => {
+    // 2 rimbalzi in 10 partite per tutti e due. Con un pavimento di 0,25 o meno il rapporto sarebbe 0,8 o più: nessuna carenza
     expect(carenze(analisi({ ...BASE, rb: 2 }, { ...BASE, rb: 2 }, 10))).toEqual(["Rimbalzo"]);
   });
 
-  it("a 0,3 esatto si divide per la media: stessa media degli altri, rapporto 1, nessuna carenza", () => {
+  it("con la media a 0,25 a partita il rapporto è 0,25 / 0,3 = 0,83: nessuna carenza (un pavimento sopra 0,31 la segnerebbe)", () => {
+    // 5 rimbalzi in 20 partite per tutti e due; gli altri totali sono raddoppiati per restare sopra il pavimento in ogni area
+    const base20 = { ...BASE, pt: 20, as: 10, ru: 8 };
+    expect(carenze(analisi({ ...base20, rb: 5 }, { ...base20, rb: 5 }, 20))).toEqual([]);
+  });
+
+  it("con la media a 0,3 esatto il pavimento non cambia niente: stessa media degli altri, rapporto 1, nessuna carenza", () => {
     expect(carenze(analisi({ ...BASE, rb: 3 }, { ...BASE, rb: 3 }, 10))).toEqual([]);
   });
 });
