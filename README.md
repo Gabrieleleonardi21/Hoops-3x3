@@ -171,7 +171,7 @@ src/
 
 Tema unico dark "Asphalt": palette, font (Barlow Condensed + IBM Plex Sans), scala e regole di
 accessibilità sono in [`docs/design-system.md`](docs/design-system.md). I mockup di riferimento
-(Stitch) sono in `reference/stitch-screens/`, la hero in `reference/hero/`.
+(Stitch) sono in `docs/design/stitch-screens/`; la foto della hero è `public/hero-court.jpg`.
 
 ## Dati e persistenza
 

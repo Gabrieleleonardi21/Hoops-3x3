@@ -9,8 +9,9 @@ playwright-report
 .env
 *.local
 
-# Cache Python della skill UI UX Pro Max
-.claude/skills/**/__pycache__
+# Strumenti personali: configurazione di Claude Code (skill, hook) e dell'editor. Ognuno tiene i suoi, fuori dal repository
+.claude/
+.vscode/
 
 # Grafo generato da graphify (cache locale)
 graphify-out/
