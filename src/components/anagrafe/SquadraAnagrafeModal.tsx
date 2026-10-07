@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useInvio } from "../../hooks/useInvio";
 import { useConfermaPerdita } from "../../hooks/useConfermaPerdita";
-import { useFocusModifica } from "../../hooks/useFocusFinestra";
+import { focusIniziale, useFocusModifica } from "../../hooks/useFocusFinestra";
 import { Modal } from "../ui/Modal";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
@@ -13,6 +13,13 @@ import { perditaSquadraAnagrafe } from "../../utils/testi";
 
 /** Campi modificabili (roster escluso: richiede UI dedicata) */
 type EditDraft = Pick<RegSquadra, "nome" | "citta" | "anno" | "rank" | "referente" | "logo" | "website" | "instagram" | "note">;
+
+/** Dove porta il logo, detto nel suo titolo: con lo stesso ordine del collegamento, sito > Instagram > ricerca Google */
+function titoloLogo(s: RegSquadra): string {
+  if (s.website) return `Vai al sito di ${s.nome}`;
+  if (s.instagram) return `Instagram di ${s.nome}`;
+  return `Cerca "${s.nome}" su Google`;
+}
 
 /** Modale con tutte le informazioni di una squadra dell'anagrafe.
  *  L'autore (o un ADMIN) può modificare tutti i campi principali o eliminare la squadra, dopo una conferma. `onUpdate` e
@@ -76,11 +83,6 @@ export function SquadraAnagrafeModal({
   // Fallback: se mancano sito e Instagram usa una ricerca Google del nome squadra
   const logoLink = safeUrl(s.website || s.instagram ||
     `https://www.google.com/search?q=${encodeURIComponent(s.nome + " basket 3x3")}`);
-  const logoTitle = s.website
-    ? `Vai al sito di ${s.nome}`
-    : s.instagram
-      ? `Instagram di ${s.nome}`
-      : `Cerca "${s.nome}" su Google`;
 
   const row = (label: string, value: React.ReactNode) => (
     <div className="flex gap-2 text-[13.5px]"><span className="w-28 shrink-0 text-chalk-muted">{label}</span><span className="font-semibold text-chalk">{value}</span></div>
@@ -92,7 +94,7 @@ export function SquadraAnagrafeModal({
       {/* Logo centrato — sempre cliccabile: sito > instagram > ricerca Google */}
       <div className="mb-4 flex justify-center">
         {s.logo ? (
-          <a href={logoLink} target="_blank" rel="noopener noreferrer" title={logoTitle}>
+          <a href={logoLink} target="_blank" rel="noopener noreferrer" title={titoloLogo(s)}>
             <img src={safeUrl(s.logo)} alt={`Logo ${s.nome}`} className="h-32 w-32 object-contain"
               onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
           </a>
@@ -106,7 +108,7 @@ export function SquadraAnagrafeModal({
           un Invio dato di riflesso li aprirebbe), e il lettore di schermo legge i dati. tabIndex -1: si prende il focus per programma, senza
           entrare nell'ordine di Tab; l'anello del focus resta, con la tastiera è l'unico indicatore. Solo se c'è almeno un dato (haDati) */}
       {!editing && (
-        <div {...(haDati && { tabIndex: -1, "data-focus-iniziale": true })}>
+        <div {...focusIniziale(haDati)}>
           <div className="mb-4 flex flex-col gap-1.5">
             {s.citta && row("Città", <>{s.citta}{s.anno ? ` · fondata nel ${s.anno}` : ""}</>)}
             {!s.citta && s.anno && row("Fondata", s.anno)}

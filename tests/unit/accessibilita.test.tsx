@@ -7,6 +7,7 @@ import { Loading } from "../../src/components/ui/Loading";
 import { ArchivioList } from "../../src/components/archivio/ArchivioList";
 import { ArchivioTappaView } from "../../src/components/archivio/ArchivioTappaView";
 import { SquadraModal } from "../../src/components/archivio/SquadraModal";
+import { focusIniziale } from "../../src/hooks/useFocusFinestra";
 import { tappaDiProva } from "./tappeDiProva";
 import type { PubTappaMeta, SquadraTappa } from "../../src/types";
 
@@ -106,5 +107,22 @@ describe("SquadraModal (archivio): il focus iniziale", () => {
     apri({ ...alfa, giocatori: [] });
     expect(document.querySelector("[data-focus-iniziale]")).toBeNull();
     expect(document.activeElement).toBe(screen.getByRole("dialog", { name: "Scheda squadra Alfa" }));
+  });
+
+  it("il roster dice «Nessun giocatore registrato.» solo se è vuoto; altrimenti elenca i giocatori", () => {
+    apri({ ...alfa, giocatori: [] });
+    expect(screen.getByText("Nessun giocatore registrato.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Mario" })).toBeNull();
+    cleanup();
+    apri(alfa);
+    expect(screen.queryByText("Nessun giocatore registrato.")).toBeNull();
+    expect(screen.getByRole("button", { name: "Mario" })).toBeTruthy();
+  });
+});
+
+describe("focusIniziale: il blocco dei dati di una scheda prende il focus solo se ha qualcosa da leggere", () => {
+  it("con dei dati: tabIndex -1 (si prende per programma, fuori dall'ordine di Tab) e il segno che Modal cerca; senza, niente", () => {
+    expect(focusIniziale(true)).toEqual({ tabIndex: -1, "data-focus-iniziale": true });
+    expect(focusIniziale(false)).toEqual({});
   });
 });

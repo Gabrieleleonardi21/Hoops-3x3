@@ -85,7 +85,7 @@ export function LegheListPage() {
       {errore && <p className="-mt-4 mb-6 text-[13px] font-semibold text-loss" role="alert">{errore}</p>}
 
       {/* Lista leghe esistenti */}
-      <Section title="Leghe" kicker={`${leghe.length} ${leghe.length === 1 ? "lega" : "leghe"}`}>
+      <Section title="Leghe" kicker={conteggio(leghe.length, "lega", "leghe")}>
         {leghe.length === 0 ? (
           <p className="text-[15px] text-chalk-muted">Nessuna lega ancora: crea la prima qui sopra.</p>
         ) : (

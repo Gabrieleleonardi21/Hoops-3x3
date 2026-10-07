@@ -22,6 +22,14 @@ export function useFocusFinestra(dove: () => HTMLElement | null) {
   }, []);
 }
 
+/** Le proprietà del blocco dei dati di una scheda (Modal), che all'apertura prende il focus al posto del primo collegamento: il segno
+ *  `data-focus-iniziale` che Modal cerca e tabIndex -1 (si prende per programma, senza entrare nell'ordine di Tab). Solo se il blocco
+ *  ha qualcosa da leggere (`haDati`): vuoto sarebbe alto 0, con l'anello del focus, e il focus va al primo elemento raggiungibile */
+export function focusIniziale(haDati: boolean): { tabIndex?: number; "data-focus-iniziale"?: boolean } {
+  if (!haDati) return {};
+  return { tabIndex: -1, "data-focus-iniziale": true };
+}
+
 /** La scheda che passa dalla vista dei dati al form di modifica e ritorno: il pulsante premuto sparisce con la sua vista, e il focus
  *  cadrebbe su body. Entrando in modifica va al primo campo del form (`form` è la ref del suo contenitore); uscendone («Annulla» o un
  *  salvataggio riuscito) torna al primo pulsante delle azioni (`azioni` è la ref del loro contenitore), cioè «Modifica». */

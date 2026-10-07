@@ -142,6 +142,16 @@ describe("Anagrafe: il focus nelle schede (modali)", () => {
     expect(collegamenti).not.toContain(document.activeElement);
   });
 
+  it.each([
+    ["con il sito porta al sito", { website: "https://ballers.it", instagram: "https://instagram.com/ballers" }, "Vai al sito di Ballers"],
+    ["senza sito porta a Instagram", { instagram: "https://instagram.com/ballers" }, "Instagram di Ballers"],
+    ["senza sito né Instagram cerca la squadra su Google", {}, 'Cerca "Ballers" su Google'],
+  ])("il logo della scheda %s, e il titolo lo dice", (_caso, campi, titolo) => {
+    render(<SquadraAnagrafeModal s={{ ...squadra, logo: "/logos/ballers.svg", ...campi }} giocatori={[]} user={autore}
+      onClose={nulla} onRemove={riuscita} onUpdate={riuscita} />);
+    expect(screen.getByTitle(titolo).tagName).toBe("A");
+  });
+
   it("la scheda di una squadra con il solo nome (l'unico campo obbligatorio) non ha un blocco vuoto da mettere a fuoco: il focus va al primo elemento raggiungibile", () => {
     mostraSquadraModal(autore); // la squadra di prova ha solo il nome
     expect(document.querySelector("[data-focus-iniziale]")).toBeNull();

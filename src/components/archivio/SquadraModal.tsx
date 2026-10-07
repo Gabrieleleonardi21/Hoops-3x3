@@ -1,5 +1,6 @@
 import type { SquadraTappa } from "../../types";
 import { safeUrl } from "../../utils/safeUrl";
+import { focusIniziale } from "../../hooks/useFocusFinestra";
 import { Modal } from "../ui/Modal";
 import { Icon } from "../ui/Icon";
 
@@ -35,7 +36,7 @@ export function SquadraModal({ squadra, onClose, onSelectPlayer, hasStats }: {
       {/* Il focus iniziale è sul blocco dei dati, non sul primo collegamento (il logo, il sito: si aprono in un'altra scheda del browser, e
           un Invio dato di riflesso li aprirebbe), e il lettore di schermo legge i dati. tabIndex -1: si prende il focus per programma, senza
           entrare nell'ordine di Tab; l'anello del focus resta, con la tastiera è l'unico indicatore */}
-      <div {...(haDati && { tabIndex: -1, "data-focus-iniziale": true })}>
+      <div {...focusIniziale(haDati)}>
         {/* Logo centrato — cliccabile se la squadra ha un sito web */}
         {logoMostrato && <div className="mb-4 flex justify-center">{logoMostrato}</div>}
         {(squadra.website || squadra.instagram) && (
@@ -48,9 +49,8 @@ export function SquadraModal({ squadra, onClose, onSelectPlayer, hasStats }: {
         {/* Roster */}
         <div className="rounded border border-asphalt-700 bg-asphalt-950/60 p-3.5">
           <div className="kicker mb-2.5">Roster</div>
-          {giocatori.length === 0 ? (
-            <span className="text-[13px] text-chalk-muted">Nessun giocatore registrato.</span>
-          ) : (
+          {giocatori.length === 0 && <span className="text-[13px] text-chalk-muted">Nessun giocatore registrato.</span>}
+          {giocatori.length > 0 && (
             <div className="flex flex-col gap-1.5">
               {giocatori.map((p) => (
                 <button key={p.id} onClick={() => { onClose(); onSelectPlayer(p.id); }} disabled={!hasStats}

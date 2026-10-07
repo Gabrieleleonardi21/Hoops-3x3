@@ -77,6 +77,19 @@ describe("Elenco delle leghe: «Elimina lega» chiede conferma con la finestra d
   }
   const cestino = () => screen.getByRole("button", { name: "Elimina lega Estate" });
 
+  it("l'intestazione dell'elenco conta le leghe al singolare e al plurale", () => {
+    apriLeghe();
+    expect(screen.getByText("1 lega")).toBeTruthy();
+    cleanup();
+    useAppStore.setState({ leghe: [estate, { id: "l2", nome: "Inverno", ts: 1, nTappe: 0 }] });
+    render(
+      <MemoryRouter initialEntries={["/leghe"]}>
+        <Routes><Route path="/leghe" element={<LegheListPage />} /></Routes>
+      </MemoryRouter>,
+    );
+    expect(screen.getByText("2 leghe")).toBeTruthy();
+  });
+
   it("la finestra dice quale lega e quante tappe si perdono; il confronto del browser non si usa", () => {
     apriLeghe();
     fireEvent.click(cestino());
