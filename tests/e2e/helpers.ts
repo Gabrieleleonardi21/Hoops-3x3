@@ -20,15 +20,49 @@ export async function tappaConDuePartite(page: Page) {
   await page.getByRole("button", { name: /Sorteggio casuale/i }).click();
 }
 
-/** Scrive il risultato della prima partita ancora aperta e lo salva */
-export async function salvaPrimaPartitaAperta(page: Page) {
+/** Scrive 21 a 15 nei due campi del primo match ancora aperto (`.scorein`, in ordine nel DOM): vince la squadra A */
+async function scriviPunteggio(page: Page) {
   await page.locator("input.scorein").nth(0).fill("21");
   await page.locator("input.scorein").nth(1).fill("15");
+}
+
+/** Scrive il risultato della prima partita ancora aperta di un girone e lo salva */
+export async function salvaPrimaPartitaAperta(page: Page) {
+  await scriviPunteggio(page);
   await page.getByRole("button", { name: /Salva risultato/i }).first().click();
+}
+
+/** Scrive il risultato del primo match del tabellone ancora aperto (con le due squadre già note) e lo salva. A gironi finiti i
+ *  campi del punteggio sono solo quelli del tabellone, il cui pulsante si chiama «Salva», non «Salva risultato» */
+export async function salvaPrimoMatchDelTabellone(page: Page) {
+  await scriviPunteggio(page);
+  await page.getByRole("button", { name: "Salva", exact: true }).first().click();
 }
 
 /** Una risposta JSON del server finto */
 export const json = (corpo: unknown) => ({ status: 200, contentType: "application/json", body: JSON.stringify(corpo) });
+
+/** Risponde alla chiamata con cui l'app, all'avvio, sveglia il backend (svegliaServer). Senza, passa dal proxy di Vite, che con il
+ *  backend spento stampa un errore a ogni test */
+export const rispondiAlRisveglio = (page: Page) =>
+  page.route("**/actuator/health", (route) => route.fulfill(json({ status: "UP" })));
+
+/** Impedisce che una chiamata a /api arrivi al backend (cioè al proxy di Vite): quelle a cui il test non ha dato una risposta finta
+ *  ricevono 404 e si annotano, così a fine test si controlla che non ce ne siano state. Va chiamata PRIMA delle risposte finte: tra
+ *  più rotte che combaciano vince l'ultima registrata.
+ *  @returns l'elenco, che si riempie man mano, delle chiamate non previste ("GET /api/...") */
+export async function bloccaApiNonPreviste(page: Page): Promise<string[]> {
+  const nonPreviste: string[] = [];
+  await page.route("**/api/**", (route) => {
+    const richiesta = route.request();
+    nonPreviste.push(`${richiesta.method()} ${new URL(richiesta.url()).pathname}`);
+    return route.fulfill({
+      status: 404, contentType: "application/json",
+      body: JSON.stringify({ message: "Chiamata non prevista dal test", timestamp: 1 }),
+    });
+  });
+  return nonPreviste;
+}
 
 /** Un giocatore dell'anagrafe, scritto da Anna (id "u1", l'utente di `utenteRegistrato`): lei può modificarlo ed eliminarlo */
 export function giocatoreDiAnna(id: string, nome: string, cognome: string) {
