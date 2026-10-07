@@ -5,7 +5,7 @@ import { legheApi } from "../services/legheApi";
 import { ApiError, testoErrore } from "../services/api";
 import { createSaveQueue } from "./saveQueue";
 import { leggiLegaSalvata, type LegaSalvata } from "../utils/legaFile";
-import { SPAZIO_ESAURITO, SPAZIO_ESAURITO_LEGA } from "../utils/testi";
+import { SPAZIO_ESAURITO, SPAZIO_ESAURITO_CAMBIO, SPAZIO_ESAURITO_LEGA } from "../utils/testi";
 
 /**
  * Store globale: utente, indice leghe e lega attiva con le sue tappe.
@@ -209,6 +209,20 @@ export const useAppStore = create<AppState>((set, get) => {
     spazioTornato();
   };
 
+  /** Ospite: prima di aprire, creare o importare un'altra lega. Con l'avviso «spazio esaurito» attivo le modifiche della lega aperta
+   *  esistono solo in memoria, e il cambio le sostituirebbe (riaprendo la stessa lega, con la versione vecchia salvata nel browser)
+   *  e toglierebbe l'avviso: in silenzio. Quindi si prova a salvarla: se riesce, l'avviso sparisce e si procede; se no, non si cambia
+   *  niente e l'errore dice perché (lo mostrano le pagine che chiamano). Senza l'avviso non c'è niente da salvare. */
+  const salvaLegaApertaPrimaDelCambio = () => {
+    if (get().syncError !== SPAZIO_ESAURITO) return;
+    if (!get().legaId) {
+      spazioTornato(); // nessuna lega aperta: non c'è niente da salvare
+      return;
+    }
+    persistLocal();
+    if (get().syncError === SPAZIO_ESAURITO) throw new ApiError(507, SPAZIO_ESAURITO_CAMBIO);
+  };
+
   /** Chiave della lega aperta per ultima, di chi usa l'app adesso */
   const chiaveAttiva = () => {
     if (isRemote()) return ACTIVE_KEY_REGISTRATO;
@@ -365,6 +379,7 @@ export const useAppStore = create<AppState>((set, get) => {
         set({ legaId: meta.id, leghe: [meta, ...get().leghe], legaName: meta.nome, tappe: [] });
         return meta.id;
       }
+      salvaLegaApertaPrimaDelCambio();
       const id = uid();
       const meta: LegaMeta = { id, nome: trimmed, ts: Date.now(), nTappe: 0 };
       const leghe = [...get().leghe, meta];
@@ -385,6 +400,7 @@ export const useAppStore = create<AppState>((set, get) => {
         set({ legaId: id, legaName: lega.nome, tappe: conVersioniLocali(lega.tappe, inCoda, nuove) });
         return;
       }
+      salvaLegaApertaPrimaDelCambio();
       const letta = readLegaData(id);
       // L'ospite non ha un server: una lega che nel browser non c'è o è rovinata si segnala come la segnalerebbe il server
       // (404), e la pagina mostra il motivo come per ogni altro errore
@@ -410,6 +426,7 @@ export const useAppStore = create<AppState>((set, get) => {
         }
         localStorage.removeItem(chiaveAttiva());
         set({ leghe, legaId: null, legaName: "", tappe: [] });
+        spazioTornato(); // la lega con le modifiche non salvate non c'è più: l'avviso non dice più il vero
       } else {
         set({ leghe });
       }
@@ -482,6 +499,7 @@ export const useAppStore = create<AppState>((set, get) => {
         set({ legaId: meta.id, leghe: [meta, ...get().leghe], legaName: meta.nome, tappe });
         return;
       }
+      salvaLegaApertaPrimaDelCambio();
       const id = uid();
       const meta: LegaMeta = { id, nome: trimmed, ts: Date.now(), nTappe: tappe.length };
       const leghe = [...get().leghe, meta];

@@ -52,6 +52,15 @@ function browserPienoPerLeLeghe() {
   });
 }
 
+/** Il browser che rifiuta solo i dati di una lega (grandi), e accetta il resto, indice e leghe nuove (piccole) compresi */
+function browserPienoPerLaLega(id: string) {
+  const scrivi = Storage.prototype.setItem;
+  return vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (this: Storage, chiave: string, valore: string) {
+    if (chiave === `hoop3x3_lega_${id}`) throw new DOMException("The quota has been exceeded.", "QuotaExceededError");
+    scrivi.call(this, chiave, valore);
+  });
+}
+
 beforeEach(() => {
   localStorage.clear();
   useAppStore.setState({
@@ -130,7 +139,103 @@ describe("ospite: creare o importare una lega è tutto o niente (FS-9)", () => {
   });
 });
 
+describe("ospite: con le modifiche non salvate, aprire, creare o importare un'altra lega non le perde (FS-9)", () => {
+  /** La lega aperta com'era salvata nel browser prima della modifica: una versione vecchia, che aprendola sostituirebbe quella in memoria */
+  const versioneVecchia = () => {
+    localStorage.setItem("hoop3x3_lega_l1", JSON.stringify({ nome: "Estate", tappe: [tappa()] }));
+    localStorage.setItem("hoop3x3_leghe_index", JSON.stringify(store().leghe));
+  };
+  const nomeSalvato = () => JSON.parse(localStorage.getItem("hoop3x3_lega_l1")!).tappe[0].nome;
+  /** Una modifica che non si riesce a salvare: l'avviso c'è e la lega aperta è solo in memoria */
+  const modificaNonSalvata = () => {
+    const pieno = browserPieno();
+    store().updateTappa("t1", { nome: "Finale" });
+    expect(store().syncError).toMatch(/spazio esaurito/i);
+    return pieno;
+  };
+
+  it("«Apri» sulla stessa lega con lo spazio ancora pieno: errore, modifiche in memoria intatte e avviso ancora lì", async () => {
+    versioneVecchia();
+    modificaNonSalvata();
+    const tappeInMemoria = store().tappe;
+    await expect(store().selectLega("l1")).rejects.toMatchObject({
+      status: 507, message: expect.stringMatching(/modifiche della lega aperta non sono salvate/i),
+    });
+    expect(store().tappe).toBe(tappeInMemoria);
+    expect(store().tappe[0].nome).toBe("Finale");
+    expect(store().syncError).toMatch(/spazio esaurito/i);
+  });
+
+  it("l'errore dice di esportare o liberare spazio prima di aprire o creare un'altra lega", async () => {
+    versioneVecchia();
+    modificaNonSalvata();
+    const errore = await store().selectLega("l1").then(() => new Error("doveva fallire"), (e: Error) => e);
+    expect(errore.message).toMatch(/^Spazio esaurito nel browser: /);
+    expect(errore.message).toContain("Esporta JSON");
+    expect(errore.message).toMatch(/libera spazio/i);
+    expect(errore.message).toMatch(/aprirne o crearne un'altra/);
+  });
+
+  it("«Apri» dopo aver liberato spazio: la lega aperta si salva, la riapertura mostra le modifiche e l'avviso sparisce", async () => {
+    versioneVecchia();
+    const pieno = modificaNonSalvata();
+    pieno.mockRestore(); // l'utente libera spazio
+    await store().selectLega("l1");
+    expect(nomeSalvato()).toBe("Finale");
+    expect(store().tappe[0].nome).toBe("Finale");
+    expect(store().syncError).toBeNull();
+  });
+
+  it.each([
+    ["creare", () => store().createLega("Nuova")],
+    ["importare", () => store().importLega("Importata", [tappa()])],
+  ])("%s con lo spazio per la lega nuova ma non per salvare quella aperta: errore, nessuna lega nuova, modifiche e avviso intatti", async (_caso, azione) => {
+    versioneVecchia();
+    browserPienoPerLaLega("l1"); // la lega nuova è piccola e entrerebbe; quella aperta no
+    store().updateTappa("t1", { nome: "Finale" });
+    expect(store().syncError).toMatch(/spazio esaurito/i);
+    await expect(azione()).rejects.toMatchObject({ status: 507, message: expect.stringMatching(/modifiche della lega aperta non sono salvate/i) });
+    expect(store().legaId).toBe("l1");
+    expect(store().leghe.map((m) => m.id)).toEqual(["l1"]);
+    expect(store().tappe[0].nome).toBe("Finale");
+    expect(store().syncError).toMatch(/spazio esaurito/i);
+    expect(Object.keys(localStorage).filter((k) => k.startsWith("hoop3x3_lega_"))).toEqual(["hoop3x3_lega_l1"]); // niente lega nuova nel browser
+  });
+
+  it.each([
+    ["creare", () => store().createLega("Nuova")],
+    ["importare", () => store().importLega("Importata", [tappa()])],
+  ])("%s dopo aver liberato spazio: la lega aperta si salva prima, poi si procede", async (_caso, azione) => {
+    versioneVecchia();
+    const pieno = modificaNonSalvata();
+    pieno.mockRestore();
+    await azione();
+    expect(nomeSalvato()).toBe("Finale"); // la lega di prima è nel browser con le sue modifiche
+    expect(store().legaId).not.toBe("l1");
+    expect(store().syncError).toBeNull();
+  });
+
+  it("senza modifiche non salvate (nessun avviso) aprire un'altra lega non scrive né chiede niente", async () => {
+    versioneVecchia();
+    localStorage.setItem("hoop3x3_lega_l2", JSON.stringify({ nome: "Inverno", tappe: [] }));
+    useAppStore.setState({ leghe: [...store().leghe, { id: "l2", nome: "Inverno", ts: 1, nTappe: 0 }] });
+    await store().selectLega("l2");
+    expect(store().legaId).toBe("l2");
+    expect(nomeSalvato()).toBe("Tappa"); // la lega di prima non è stata riscritta
+  });
+});
+
 describe("ospite: l'avviso «spazio esaurito» sparisce quando le scritture tornano a riuscire (FS-9)", () => {
+  it("eliminando la lega aperta l'avviso sparisce: non c'è più niente da salvare", async () => {
+    const pieno = browserPieno();
+    store().updateTappa("t1", { nome: "Finale" });
+    expect(store().syncError).toMatch(/spazio esaurito/i);
+    pieno.mockRestore();
+    await store().deleteLega("l1");
+    expect(store().legaId).toBeNull();
+    expect(store().syncError).toBeNull();
+  });
+
   it("dopo aver liberato spazio, il salvataggio successivo toglie l'avviso", () => {
     const pieno = browserPieno();
     store().updateTappa("t1", { nome: "Finale" });

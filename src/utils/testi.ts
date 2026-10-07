@@ -3,15 +3,22 @@
  *  mai come HTML. */
 import type { LegaMeta, RegGiocatore, RegSquadra } from "../types";
 
-/** Avvisi quando il browser rifiuta di scrivere i dati dell'ospite (spazio esaurito o archivio disattivato). Per le modifiche
- *  (barra degli avvisi) ciò che si fa da quel momento resta solo in questa pagina; per una lega nuova, creata o importata, non si
- *  crea niente. La via d'uscita è quella che l'app offre: esportare la lega ed eliminare quelle che non si usano. */
+/* Avvisi quando il browser rifiuta di scrivere i dati dell'ospite (spazio esaurito o archivio disattivato). Cominciano tutti
+ * allo stesso modo. La via d'uscita è quella che l'app offre: esportare la lega ed eliminare quelle che non si usano.
+ *  - SPAZIO_ESAURITO: barra degli avvisi. Una modifica non si è salvata: da quel momento resta solo in questa pagina.
+ *  - SPAZIO_ESAURITO_LEGA: una lega nuova, creata o importata, non si salva, quindi non si crea niente.
+ *  - SPAZIO_ESAURITO_CAMBIO: aprire, creare o importare un'altra lega sostituirebbe la lega aperta, che ha modifiche non salvate:
+ *    non si cambia niente finché non sono salve.
+ *  - SPAZIO_ESAURITO_ACCESSO: più sotto, per il modulo d'accesso. */
 const SPAZIO_ESAURITO_INIZIO = "Spazio esaurito nel browser: ";
 export const SPAZIO_ESAURITO =
   SPAZIO_ESAURITO_INIZIO + "le ultime modifiche non sono salvate e andranno perse se chiudi o ricarichi la pagina. "
   + "Esporta la lega («Esporta JSON») ed elimina le leghe che non usi per liberare spazio.";
 export const SPAZIO_ESAURITO_LEGA =
   SPAZIO_ESAURITO_INIZIO + "la lega non si può salvare. Elimina le leghe che non usi per liberare spazio.";
+export const SPAZIO_ESAURITO_CAMBIO =
+  SPAZIO_ESAURITO_INIZIO + "le modifiche della lega aperta non sono salvate. Esportala («Esporta JSON») o libera spazio, "
+  + "eliminando le leghe che non usi, prima di aprirne o crearne un'altra.";
 
 /** Il JWT non si può scrivere nel browser (spazio esaurito) dopo una registrazione o un accesso riusciti sul server: l'account c'è, ma
  *  senza il JWT la sessione non può esistere, e il modulo d'accesso deve dire perché. */
