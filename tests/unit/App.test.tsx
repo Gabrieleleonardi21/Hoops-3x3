@@ -309,7 +309,10 @@ describe("App: anagrafe e sessione cambiata in un'altra scheda (T2.15)", () => {
   it("con l'anagrafe aperta, l'accesso in un'altra scheda la ricarica da sola con i dati completi", async () => {
     token.clear();
     // Senza token il server manda la forma pubblica, con il token quella completa
-    risposte["/api/anagrafe/giocatori"] = () => json(200, [token.get() ? completo : pubblico]);
+    risposte["/api/anagrafe/giocatori"] = () => {
+      if (token.get()) return json(200, [completo]);
+      return json(200, [pubblico]);
+    };
     risposte["/api/anagrafe/squadre"] = () => json(200, []);
     window.history.replaceState(null, "", "/anagrafe");
     avvia(ospite);

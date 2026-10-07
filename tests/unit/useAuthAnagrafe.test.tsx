@@ -69,8 +69,14 @@ beforeEach(() => {
   vi.resetAllMocks();
   localStorage.clear();
   conToken = false;
-  anagrafe.listGiocatori.mockImplementation(async () => [conToken ? giocatoreCompleto : giocatorePubblico]);
-  anagrafe.listSquadre.mockImplementation(async () => [conToken ? squadraCompleta : squadraPubblica]);
+  anagrafe.listGiocatori.mockImplementation(async () => {
+    if (conToken) return [giocatoreCompleto];
+    return [giocatorePubblico];
+  });
+  anagrafe.listSquadre.mockImplementation(async () => {
+    if (conToken) return [squadraCompleta];
+    return [squadraPubblica];
+  });
   leghe.list.mockResolvedValue([]);
   // L'accesso e la registrazione salvano il token: da lì il server manda la forma completa
   auth.login.mockImplementation(async () => { conToken = true; return registrato; });
