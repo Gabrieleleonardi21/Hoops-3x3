@@ -24,7 +24,8 @@ calling. Il browser non conosce né la chiave né il modello.
 | `src/domain/tappaOps.ts` | Operazioni di tappa come funzioni pure (sorteggio, risultati, fasi dirette, conclusione): le stesse usate dall'interfaccia, testate in `tests/unit/tappaOps.test.ts` |
 | `src/utils/buildCoachContext.ts` | Il riassunto della lega nel prompt (`<dati_lega>`) e i filtri `pulisci` / `senzaTag` per i nomi scritti dagli utenti |
 
-I test del Coach sono in `tests/unit/coachStrumenti.test.ts` (definizioni ed esecutori corrispondono) e
+I test del Coach sono in `tests/unit/coachStrumenti.test.ts` (definizioni ed esecutori corrispondono, e ogni strumento ha la sua
+sezione `` ### `nome` `` in questo documento: uno strumento nuovo senza sezione fa fallire il test) e
 `tests/unit/coachTools.test.ts` (strumenti, conferme, chat, pannello, errori del server).
 
 ## Flusso di esecuzione
@@ -373,6 +374,10 @@ const ESECUTORI = new Map<string, Esecutore>([
 ### 4. Aggiungi l'etichetta del badge in `CoachPanel.tsx`
 
 `TOOL_LABELS` (al passato: «Squadra aggiornata») dà il testo del badge sotto la risposta; senza, il badge mostra il nome del tool.
+
+### 5. Documenta lo strumento in questo file
+
+Una sezione `` ### `nome_tool` `` in «Tool disponibili», come le altre: `coachStrumenti.test.ts` controlla che ogni strumento ne abbia una.
 
 > Se il tool modifica una tappa, la regola va in `src/domain/tappaOps.ts` (funzione pura `(tappa, …) → Esito`, con il suo test in `tests/unit/tappaOps.test.ts`): nel tool ci si limita a leggere la tappa fresca, chiamare la funzione e salvare con `applica`.
 >
