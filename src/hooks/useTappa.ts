@@ -10,6 +10,7 @@ import { giocatoriDi, nomeGiocatore, nomeSquadra } from "../utils/tappaInfo";
 import * as ops from "../domain/tappaOps";
 import type { Esito, ModoSorteggio } from "../domain/tappaOps";
 import type { EventoGara, Partita, RegSquadra, SquadraTappa, StatLine, StatSheet, Tappa } from "../types";
+import { MAX_ROSTER, MIN_ROSTER } from "../constants/rules";
 
 export interface MatchDraft {
   sa: string;
@@ -33,7 +34,7 @@ function numify(sheet: MatchDraft["pa"]): StatSheet {
 }
 
 /* Letture su una tappa qualsiasi: l'hook le applica alla tappa del render, le operazioni a quella di adesso */
-const rosterCompleto = (t: Tappa | null, teamId: string) => giocatoriDi(t?.squadre, teamId).length >= 3;
+const rosterCompleto = (t: Tappa | null, teamId: string) => giocatoriDi(t?.squadre, teamId).length >= MIN_ROSTER;
 
 /* Sincronizzazione con l'anagrafe: funzioni pure, che si applicano alla tappa com'è adesso nello store */
 
@@ -270,7 +271,7 @@ export function useTappa(id: string | undefined) {
   const addPlayer = (teamId: string) =>
     aggiornaSquadra(teamId, (s) => {
       const giocatori = s.giocatori || [];
-      if (giocatori.length >= 4) return s;
+      if (giocatori.length >= MAX_ROSTER) return s;
       return { ...s, giocatori: [...giocatori, { id: uid(), nome: "" }] };
     });
   const renamePlayer = (teamId: string, pid: string, nome: string) =>
@@ -317,7 +318,7 @@ export function useTappa(id: string | undefined) {
       const sides: ["pa" | "pb", string, number][] = [["pa", m.a, sa], ["pb", m.b, sb]];
       for (const [side, teamId, total] of sides) {
         const pls = giocatoriDi(corrente.squadre, teamId);
-        if (pls.length < 3) return `${nomeSquadra(corrente.squadre, teamId)} non ha un roster valido (minimo 3 giocatori).`;
+        if (pls.length < MIN_ROSTER) return `${nomeSquadra(corrente.squadre, teamId)} non ha un roster valido (minimo ${MIN_ROSTER} giocatori).`;
         const vals = pls.map((p) => parseInt(String(draft[side]?.[p.id]?.pt ?? ""), 10));
         if (vals.some((v) => isNaN(v) || v < 0))
           return `Inserisci i punti (PT) di OGNI giocatore di ${nomeSquadra(corrente.squadre, teamId)} (anche 0).`;

@@ -3,6 +3,7 @@ import { useAppStore } from "../stores/useAppStore";
 import { uid } from "../utils/uid";
 import { creaTappa, erroreLimitiTappa } from "../domain/tappaOps";
 import type { Esito } from "../domain/tappaOps";
+import { nomeSegnaposto } from "../constants/rules";
 
 export interface NuovaTappaInput {
   nome: string;
@@ -31,7 +32,7 @@ export function useLega() {
       data: input.data,
       nGironi,
       squadre: Array.from({ length: nSquadre }, (_, i) => ({
-        id: uid(), nome: `Squadra ${i + 1}`, giocatori: [], rank: "",
+        id: uid(), nome: nomeSegnaposto(i + 1), giocatori: [], rank: "",
       })),
     });
     if (esito.ok) addTappa(esito.tappa);

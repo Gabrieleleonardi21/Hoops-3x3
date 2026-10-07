@@ -204,8 +204,12 @@ describe("Anagrafe: il focus nelle schede (modali)", () => {
     mostra(autore);
     fireEvent.click(screen.getByRole("button", { name: "Modifica" }));
     fireEvent.click(screen.getByRole("button", { name: "Salva modifiche" }));
-    await waitFor(() => expect(screen.queryByRole("button", { name: "Salva modifiche" })).toBeNull()); // il server ha accettato: si esce dal form
-    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Modifica" }));
+    // Il server ha accettato: si esce dal form, e il focus torna a «Modifica». Lo sposta un effetto dopo il disegno: si aspetta anche
+    // lui, altrimenti sotto carico il controllo arriva prima dell'effetto (il test cadeva una volta ogni tanto)
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: "Salva modifiche" })).toBeNull();
+      expect(document.activeElement).toBe(screen.getByRole("button", { name: "Modifica" }));
+    });
   });
 
   it("se il server rifiuta il salvataggio il form resta e con lui il focus non si sposta da «Salva modifiche»", async () => {

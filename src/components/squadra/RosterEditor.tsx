@@ -1,7 +1,8 @@
-/** Editor del roster di una squadra in una tappa: max 4 giocatori, min 3 per poter sorteggiare. */
+/** Editor del roster di una squadra in una tappa: al massimo MAX_ROSTER giocatori, almeno MIN_ROSTER per poter sorteggiare (constants/rules). */
 import type { GiocatoreRoster } from "../../types";
 import { Icon } from "../ui/Icon";
 import { Button } from "../ui/Button";
+import { MAX_ROSTER } from "../../constants/rules";
 
 interface Props {
   giocatori: GiocatoreRoster[];
@@ -22,9 +23,9 @@ export function RosterEditor({ giocatori, onAdd, onRename, onRemove }: Props) {
           </button>
         </div>
       ))}
-      {giocatori.length < 4 && (
+      {giocatori.length < MAX_ROSTER && (
         <Button variant="link" className="self-start" onClick={onAdd}>
-          <Icon name="plus" size={12} /> Aggiungi giocatore ({giocatori.length}/4)
+          <Icon name="plus" size={12} /> Aggiungi giocatore ({giocatori.length}/{MAX_ROSTER})
         </Button>
       )}
     </div>

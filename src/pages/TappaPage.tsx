@@ -28,6 +28,7 @@ import { Icon } from "../components/ui/Icon";
 import { Section } from "../components/ui/Section";
 import { Badge } from "../components/ui/Badge";
 import { useUtente } from "../components/auth/RequireAuth";
+import { MAX_ROSTER, MIN_ROSTER } from "../constants/rules";
 
 /** Riga d'errore sopra il contenuto della tappa: role="alert", così il lettore di schermo la annuncia appena compare */
 function Avviso({ children }: { children: ReactNode }) {
@@ -200,7 +201,7 @@ export function TappaPage() {
 
       <Section title="Le squadre iscritte" kicker={`${t.squadre.length} squadre`}>
         <p className="mb-3 text-[13px] text-chalk-muted">
-          Ogni squadra deve inserire i propri giocatori (minimo 3, massimo 4): senza roster completi non si possono sorteggiare i gironi.
+          Ogni squadra deve inserire i propri giocatori (minimo {MIN_ROSTER}, massimo {MAX_ROSTER}): senza roster completi non si possono sorteggiare i gironi.
           {user.guest && " In modalità Ospite il controllo è disattivato per le prove."}
         </p>
         <div className="mb-4 grid gap-3 grid-cols-[repeat(auto-fill,minmax(240px,1fr))]">
