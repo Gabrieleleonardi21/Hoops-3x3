@@ -151,5 +151,4 @@
   body { background: #fff !important; color: #000 !important; font-size: 12px; }
   a { text-decoration: none; color: inherit; }
   section, .standtable, .statstable { page-break-inside: avoid; }
-  .print-show { display: block !important; }
 }

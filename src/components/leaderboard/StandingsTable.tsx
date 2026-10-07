@@ -22,13 +22,11 @@ const COLS: { key: SortKey; label: string; title: string; num?: boolean }[] = [
 interface Props {
   rows: StandingRow[];
   logos?: Record<string, string | undefined>; // id squadra → url logo
-  highlightId?: string;                        // riga con rail arancio (es. squadra dell'utente)
   caption?: string;                            // testo per screen reader
   compact?: boolean;                           // nasconde PF/PS su schermi stretti
-  onRowClick?: (row: StandingRow) => void;
 }
 
-export function StandingsTable({ rows, logos, highlightId, caption = "Classifica", compact, onRowClick }: Props) {
+export function StandingsTable({ rows, logos, caption = "Classifica", compact }: Props) {
   const [sort, setSort] = useState<{ key: SortKey; desc: boolean } | null>(null);
 
   // Rango FIBA fissato sull'ordine in ingresso, così resta corretto anche riordinando per altre colonne
@@ -84,12 +82,10 @@ export function StandingsTable({ rows, logos, highlightId, caption = "Classifica
         <tbody>
           {sorted.map((r) => {
             const first = r.rank === 1 && r.g > 0;
-            const hl = r.id === highlightId;
             const diffCls = r.diff > 0 ? "text-win" : r.diff < 0 ? "text-loss" : "text-chalk-muted";
-            const rowCls = `h-9 border-b border-asphalt-700 last:border-b-0 ${hl ? "bg-court/10 shadow-[inset_3px_0_0_var(--color-court)]" : "hover:bg-asphalt-900"}${
-              onRowClick ? " cursor-pointer" : ""}`;
+            const rowCls = "h-9 border-b border-asphalt-700 last:border-b-0 hover:bg-asphalt-900";
             return (
-              <tr key={r.id} className={rowCls} onClick={onRowClick ? () => onRowClick(r) : undefined}>
+              <tr key={r.id} className={rowCls}>
                 <td className={`text-center font-display text-base ${first ? "text-court" : "text-chalk-muted"}`}>{r.rank}</td>
                 <td className="px-2 text-left font-semibold text-chalk">
                   <span className="flex items-center gap-2 min-w-0">
