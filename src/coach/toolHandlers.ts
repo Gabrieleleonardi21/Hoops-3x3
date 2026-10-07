@@ -284,8 +284,8 @@ async function eseguiCreaTappa(args: Argomenti, ctx: ContestoStrumenti): Promise
           return g ? { id: uid(), nome: `${g.nome} ${g.cognome}` } : null;
         })
         .filter((g): g is GiocatoreRoster => g !== null);
-      // Al massimo MAX_ROSTER, il tetto che l'interfaccia impone alle squadre di una tappa: gli altri restano fuori
-      // (i primi dell'anagrafe restano) e lo strumento lo dice, perché chi gioca lo sceglie l'utente dalla pagina della tappa
+      // Al massimo MAX_ROSTER, il tetto che l'interfaccia impone alle squadre di una tappa: gli altri (dopo i primi dell'anagrafe)
+      // restano fuori e lo strumento ne dice i nomi, perché chi gioca lo decide l'utente dalla pagina della tappa
       const giocatori = delRoster.slice(0, MAX_ROSTER);
 
       return {
@@ -299,13 +299,13 @@ async function eseguiCreaTappa(args: Argomenti, ctx: ContestoStrumenti): Promise
           website: reg.website || undefined,
           instagram: reg.instagram || undefined,
         },
-        fuori: delRoster.length - giocatori.length,
+        fuori: delRoster.slice(MAX_ROSTER).map((g) => g.nome),
       };
     })
   );
   const squadreTappa: SquadraTappa[] = abbinamenti.map((a) => a.squadra);
   // Le squadre con giocatori rimasti fuori, nell'ordine in cui sono state richieste
-  const tagliate = abbinamenti.filter((a) => a.fuori > 0);
+  const tagliate = abbinamenti.filter((a) => a.fuori.length > 0);
 
   // Chat cancellata durante le registrazioni (già spedite, finiscono comunque): la tappa non va creata
   fermaSeCancellata(ctx.segnale);
@@ -327,9 +327,12 @@ async function eseguiCreaTappa(args: Argomenti, ctx: ContestoStrumenti): Promise
   if (autoRegistrate.length) msg += `. Registrate automaticamente nell'anagrafe: ${autoRegistrate.join(", ")}`;
   msg += ".";
   if (tagliate.length) {
-    // Nomi dall'anagrafe condivisa: scritti da altri, passano da pulisci
-    const elenco = tagliate.map((a) => `${pulisci(a.squadra.nome)} ${a.fuori}`).join(", ");
-    msg += ` Giocatori oltre il massimo di ${MAX_ROSTER} per squadra, rimasti fuori dal roster (tenuti i primi dell'anagrafe): ${elenco}. L'utente può sceglierli dalla pagina della tappa.`;
+    // «Squadra: giocatore, giocatore» e le squadre separate da «;»: un nome di squadra che finisce con un numero («Roma Open 2»)
+    // non si confonde con un conteggio. Nomi dall'anagrafe condivisa, scritti da altri: passano da pulisci
+    const elenco = tagliate.map((a) => `${pulisci(a.squadra.nome)}: ${a.fuori.map(pulisci).join(", ")}`).join("; ");
+    // Nella pagina della tappa i giocatori si scrivono a mano (RosterEditor): non c'è una scelta dall'anagrafe
+    msg += ` Giocatori oltre il massimo di ${MAX_ROSTER} per squadra, rimasti fuori dal roster (tenuti i primi dell'anagrafe): ${elenco}.`;
+    msg += " Nella pagina della tappa il roster si cambia a mano: l'utente toglie un giocatore e scrive il nome di chi vuole al suo posto.";
   }
   return msg;
 }
