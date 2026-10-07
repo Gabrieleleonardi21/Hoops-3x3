@@ -195,6 +195,19 @@ describe("pubblica: se la coda non riesce a svuotarsi non si pubblica, e si sa p
     expect(eventi).toEqual(["salva Finale", "pubblica t1"]);
   });
 
+  it("cambiare lega e tornare indietro toglie il blocco: la tappa si ricarica com'è sul server, non resta un motivo vecchio", async () => {
+    api.putTappa.mockRejectedValueOnce(new ApiError(400, "Il nome della tappa è obbligatorio"));
+    store().updateTappa("t1", { nome: "" });
+    await vi.advanceTimersByTimeAsync(400);        // il salvataggio è rifiutato: la tappa è «rifiutata»
+    api.get
+      .mockResolvedValueOnce({ id: "l2", nome: "Altra lega", tappe: [] })
+      .mockResolvedValueOnce({ id: "l1", nome: "Lega", tappe: [tappa("t1")] });
+    await store().selectLega("l2");
+    await store().selectLega("l1");
+    await store().pubblica("t1");
+    expect(archivio.pubblica).toHaveBeenCalledExactlyOnceWith("t1");
+  });
+
   it("le modifiche non salvate di un'altra tappa non impediscono di pubblicare questa", async () => {
     api.putTappa.mockRejectedValue(new ApiError(0, "Server non raggiungibile"));
     store().updateTappa("t2", { nome: "Altra, modificata" });

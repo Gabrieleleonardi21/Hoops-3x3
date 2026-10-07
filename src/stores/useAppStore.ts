@@ -39,10 +39,12 @@ interface AppState {
    *  (logout, «Riprova ora», apertura di una lega).
    *  @returns quante tappe hanno ancora modifiche non salvate */
   salvaTutto: () => Promise<number>;
-  /** Pubblica la tappa (già conclusa) nell'Archivio circuito. Prima salva tutto e aspetta la coda, rinomina della lega compresa:
-   *  la copia pubblica la costruisce il server da ciò che ha salvato, quindi deve avere l'ultima versione. Se la tappa non arriva
-   *  al server (rete assente, dati rifiutati) non pubblica e rifiuta con il motivo; rifiuta anche con l'errore dell'archivio
-   *  (409 se la tappa non risulta conclusa sul server). Lo usano la pagina della tappa e il Coach, con lo stesso ordine. */
+  /** Pubblica la tappa (già conclusa) nell'Archivio circuito. Prima salva tutto e aspetta la coda: la copia pubblica la costruisce il
+   *  server da ciò che ha salvato, quindi deve avere l'ultima versione. Se la tappa non arriva al server (rete assente, dati
+   *  rifiutati) non pubblica e rifiuta con il motivo; rifiuta anche con l'errore dell'archivio (409 se la tappa non risulta conclusa
+   *  sul server). Anche la rinomina della lega in attesa parte prima, ma non si controlla: se la PATCH fallisce l'errore compare solo
+   *  nella barra degli avvisi e la copia pubblica porta il nome che il server ha. Lo usano la pagina della tappa e il Coach,
+   *  con lo stesso ordine. */
   pubblica: (tappaId: string) => Promise<void>;
   createLega: (nome: string) => Promise<string>;
   selectLega: (id: string) => Promise<void>;
@@ -425,6 +427,8 @@ export const useAppStore = create<AppState>((set, get) => {
         const inCoda = coda.inAttesa();
         const nuove = inCoda.filter((t) => daCreare.get(t.id) === id);
         const lega = await legheApi.get(id);
+        // Le tappe arrivano com'è sul server: un vecchio rifiuto del loro salvataggio non vale più, e non deve bloccare la pubblicazione
+        for (const t of lega.tappe) rifiutate.delete(t.id);
         ricordaLega(id);
         set({ legaId: id, legaName: lega.nome, tappe: conVersioniLocali(lega.tappe, inCoda, nuove) });
         return;
