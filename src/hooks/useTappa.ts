@@ -95,6 +95,13 @@ export interface StatoArchivio {
 }
 const SCONOSCIUTO: StatoArchivio = { pubblicata: null, errore: null };
 
+/** La pubblicazione è fallita e si sa che la copia non c'è: o il server ha risposto con un errore, oppure la richiesta non è nemmeno
+ *  partita (412 locale: la tappa non era salvata). Con rete assente o tempo scaduto (status 0) non si sa: la richiesta può essere
+ *  arrivata e il server aver pubblicato lo stesso, e dire «non pubblicata» farebbe riaprire la tappa lasciando la copia pubblica. */
+function nonPubblicataSicuro(e: unknown): boolean {
+  return e instanceof ApiError && e.status !== 0;
+}
+
 /** Lo stato della pubblicazione di una tappa, per `setArchivio` */
 const registra = (tappaId: string, stato: StatoArchivio) =>
   (tutti: Record<string, StatoArchivio>): Record<string, StatoArchivio> => ({ ...tutti, [tappaId]: stato });
@@ -105,6 +112,8 @@ export function useTappa(id: string | undefined) {
   /** Stato della pubblicazione per tappa. Sta qui e non nella sezione «Concludi», che sparisce appena la tappa è conclusa. */
   const [archivio, setArchivio] = useState<Record<string, StatoArchivio>>({});
   const statoArchivio = archivio[id ?? ""] ?? SCONOSCIUTO;
+  /** Pubblicazioni in corso: finché ce n'è una la pagina non lascia riaprire la tappa (la copia nascerebbe dopo, su una tappa riaperta) */
+  const [inCorso, setInCorso] = useState(0);
 
   // Aprendo una tappa già conclusa si chiede all'archivio se c'è: dopo un ricaricamento, o dopo una pubblicazione non riuscita (anche
   // del Coach), la pagina non può saperlo da sola. Solo il 404 dice che non c'è: rete assente o guasto del server non dicono niente,
@@ -113,12 +122,19 @@ export function useTappa(id: string | undefined) {
     if (!id || !user || user.guest || !tappaCorrente(id)?.conclusa) return;
     let attuale = true; // una risposta arrivata dopo che la tappa o l'utente sono cambiati non si applica
     const verifica = async () => {
+      let trovata = true;
       try {
         await archivioApi.get(id);
-        if (attuale) setArchivio(registra(id, { pubblicata: true, errore: null }));
       } catch (e) {
-        if (attuale && e instanceof ApiError && e.status === 404) setArchivio(registra(id, { pubblicata: false, errore: null }));
+        if (!(e instanceof ApiError && e.status === 404)) return;
+        trovata = false;
       }
+      if (!attuale) return;
+      // Se per la tappa c'è già uno stato (riaperta, conclusa di nuovo, pubblicata) la risposta è di una domanda fatta prima: non vale più
+      setArchivio((tutti) => {
+        if (tutti[id]) return tutti;
+        return registra(id, { pubblicata: trovata, errore: null })(tutti);
+      });
     };
     void verifica();
     return () => { attuale = false; };
@@ -326,6 +342,7 @@ export function useTappa(id: string | undefined) {
   /* ── video + pubblicazione ── */
   const republish = async (t: Tappa) => {
     if (!t.conclusa || !user || user.guest) return;
+    setInCorso((n) => n + 1);
     try {
       // Prima il server riceve la tappa col video, poi la copia pubblica si ricostruisce da lì
       await pubblica(t.id);
@@ -333,6 +350,8 @@ export function useTappa(id: string | undefined) {
     } catch (e) {
       // La copia pubblica resta com'era: se la tappa era in archivio ci resta, ma senza il video, e il motivo compare nella pagina
       setArchivio((tutti) => ({ ...tutti, [t.id]: { pubblicata: (tutti[t.id] ?? SCONOSCIUTO).pubblicata, errore: testoErrore(e) } }));
+    } finally {
+      setInCorso((n) => n - 1);
     }
   };
   const addVideo = (titolo: string, url: string) => {
@@ -360,15 +379,21 @@ export function useTappa(id: string | undefined) {
     const esito = ops.concludi(corrente);
     if (!esito.ok) return esito.errore;
     if (user.guest) return "La pubblicazione nell'Archivio circuito richiede un account registrato.";
+    setInCorso((n) => n + 1); // prima della conclusione: la pagina cambia con «Riapri» già disattivato
     replaceTappa(esito.tappa);
     // Da qui la pagina è un'altra (la sezione «Concludi» non c'è più): se la pubblicazione non riesce, il messaggio che si
     // restituisce non lo leggerebbe nessuno. L'esito sta nello stato, e la pagina lo mostra accanto alla tappa. La tappa resta
-    // conclusa e una tappa conclusa non si conclude di nuovo: per ripubblicare va riaperta
+    // conclusa e una tappa conclusa non si conclude di nuovo: per ripubblicare va riaperta. «Non pubblicata» solo se si sa; se
+    // l'esito è ignoto (rete assente, tempo scaduto) lo stato resta «non si sa» e «Riapri» ritira la copia, se c'è
     try {
       await pubblica(esito.tappa.id);
       setArchivio(registra(esito.tappa.id, { pubblicata: true, errore: null }));
     } catch (e) {
-      setArchivio(registra(esito.tappa.id, { pubblicata: false, errore: testoErrore(e) }));
+      let pubblicata: boolean | null = null;
+      if (nonPubblicataSicuro(e)) pubblicata = false;
+      setArchivio(registra(esito.tappa.id, { pubblicata, errore: testoErrore(e) }));
+    } finally {
+      setInCorso((n) => n - 1);
     }
     return null;
   };
@@ -391,7 +416,7 @@ export function useTappa(id: string | undefined) {
   };
 
   return {
-    user, legaName, tappa, statoArchivio,
+    user, legaName, tappa, statoArchivio, pubblicando: inCorso > 0,
     nameOf, playersOf, playerNameById, teamComplete,
     setInfo, rinomina, perditaRisultati, perditaTappa, perditaSquadra, perditaRiapertura, setNGironi, setRule, addTeam, removeTeam,
     renameTeam, setTeamRank, setTeamWebsite, setTeamLogo, applyReg, syncFromAnagrafe,

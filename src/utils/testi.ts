@@ -52,6 +52,13 @@ export function tappaNonPubblicata(motivo: string | null): string {
   return `La pubblicazione nell'Archivio circuito non è riuscita. Per riprovare ${uscita} Motivo: ${motivo}`;
 }
 
+/** Avviso sulla pagina di una tappa che è in archivio ma la cui ultima ripubblicazione (dopo un video aggiunto o tolto) non è riuscita:
+ *  la tappa resta pubblicata, ma la copia pubblica non è aggiornata, e un video tolto resta visibile a tutti finché non lo è. */
+export function copiaPubblicaNonAggiornata(motivo: string): string {
+  return "La copia pubblica non è aggiornata: l'ultima modifica ai video (un video aggiunto, o uno tolto che resta visibile a tutti) "
+    + `non è stata pubblicata. Per aggiornarla usa «Riapri» e poi «Concludi». Motivo: ${motivo}`;
+}
+
 /** La pubblicazione non parte: la copia pubblica la costruisce il server da ciò che ha salvato, e l'ultima versione della tappa
  *  non gli è arrivata (rete assente, dati rifiutati). `motivo` è il perché del salvataggio non riuscito, se si sa. */
 export function pubblicazioneSenzaSalvataggio(motivo: string | null): string {

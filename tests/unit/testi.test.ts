@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   COPIA_LINK_NON_RIUSCITA, PERDITA_RIAPERTURA, SPAZIO_ESAURITO, SPAZIO_ESAURITO_ACCESSO, SPAZIO_ESAURITO_LEGA,
-  conteggio, perditaGiocatore, perditaLega, perditaSquadraAnagrafe, pubblicazioneSenzaSalvataggio, tappaNonPubblicata,
+  conteggio, copiaPubblicaNonAggiornata, perditaGiocatore, perditaLega, perditaSquadraAnagrafe, pubblicazioneSenzaSalvataggio, tappaNonPubblicata,
 } from "../../src/utils/testi";
 import type { LegaMeta, RegGiocatore, RegSquadra } from "../../src/types";
 
@@ -70,6 +70,14 @@ describe("testi della pubblicazione nell'Archivio circuito", () => {
     expect(verificata).toContain("non risulta pubblicata");
     expect(verificata).not.toContain("Motivo");
     expect(verificata).toContain(uscita);
+  });
+
+  it("copia pubblica non aggiornata: dice che un video tolto resta visibile a tutti, col motivo, e indica «Riapri» e poi «Concludi»", () => {
+    const testo = copiaPubblicaNonAggiornata("Server non raggiungibile");
+    expect(testo).toContain("La copia pubblica non è aggiornata");
+    expect(testo).toContain("resta visibile a tutti");
+    expect(testo).toContain("«Riapri» e poi «Concludi»");
+    expect(testo).toContain("Motivo: Server non raggiungibile");
   });
 
   it("salvataggio mancante: dice che si pubblica dopo il salvataggio, col motivo se lo si sa", () => {

@@ -643,14 +643,14 @@ describe("TappaPage: l'esito della pubblicazione di una tappa conclusa", () => {
     expect(archivioApi.pubblica).toHaveBeenCalledExactlyOnceWith("t1");
   });
 
-  it("pubblicazione fallita: la pagina NON dice «pubblicata», dice perché e indica «Riapri» e poi «Concludi»", async () => {
-    vi.mocked(archivioApi.pubblica).mockRejectedValue(new ApiError(0, "Server non raggiungibile: controlla la connessione."));
+  it("pubblicazione rifiutata dal server: la pagina NON dice «pubblicata», dice perché e indica «Riapri» e poi «Concludi»", async () => {
+    vi.mocked(archivioApi.pubblica).mockRejectedValue(new ApiError(503, "Servizio non disponibile: riprova tra poco."));
     apriPagina({});
     concludi();
     const avviso = await screen.findByRole("alert");
     expect(avviso.textContent).toContain("La pubblicazione nell'Archivio circuito non è riuscita");
     expect(avviso.textContent).toContain("«Riapri» e poi «Concludi»");
-    expect(avviso.textContent).toContain("Server non raggiungibile: controlla la connessione.");
+    expect(avviso.textContent).toContain("Servizio non disponibile: riprova tra poco.");
     expect(screen.getByText(nonPubblicata)).toBeTruthy();
     expect(screen.queryByText(pubblicata)).toBeNull();
     // La tappa è conclusa: è la pubblicazione che non è riuscita
@@ -669,17 +669,49 @@ describe("TappaPage: l'esito della pubblicazione di una tappa conclusa", () => {
   });
 
   it("la via d'uscita indicata funziona: «Riapri» (senza finestra, non c'è niente da perdere) e poi «Concludi»", async () => {
-    vi.mocked(archivioApi.pubblica).mockRejectedValueOnce(new ApiError(0, "Server non raggiungibile"));
+    // Esito certo: il server rifiuta la tappa conclusa (400), quindi la pubblicazione non parte (412)
+    vi.mocked(legheApi.putTappa).mockRejectedValueOnce(new ApiError(400, "Dati non validi"));
     apriPagina({});
     concludi();
     await screen.findByRole("alert");
+    expect(screen.getByText(nonPubblicata)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Riapri" }));
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(archivioApi.rimuovi).not.toHaveBeenCalled();
     concludi();
     await screen.findByText(pubblicata);
     expect(screen.queryByRole("alert")).toBeNull();
-    expect(archivioApi.pubblica).toHaveBeenCalledTimes(2);
+    expect(archivioApi.pubblica).toHaveBeenCalledExactlyOnceWith("t1");
+  });
+
+  it("PUT dell'archivio senza risposta (rete assente, tempo scaduto): l'esito è ignoto, la pagina non dice «non pubblicata» e «Riapri» ritira la copia", async () => {
+    vi.mocked(archivioApi.pubblica).mockRejectedValueOnce(new ApiError(0, "Il server non risponde: controlla la connessione e riprova."));
+    vi.mocked(archivioApi.rimuovi).mockResolvedValue(undefined);
+    apriPagina({});
+    concludi();
+    const avviso = await screen.findByRole("alert");
+    expect(avviso.textContent).toContain("Il server non risponde");
+    expect(avviso.textContent).toContain("«Riapri» e poi «Concludi»");
+    expect(screen.getByText("Conclusa")).toBeTruthy();
+    expect(screen.queryByText(nonPubblicata)).toBeNull();
+    expect(screen.queryByText(pubblicata)).toBeNull();
+    // Il server potrebbe aver pubblicato: «Riapri» avverte e poi toglie la copia
+    fireEvent.click(screen.getByRole("button", { name: "Riapri" }));
+    expect(screen.getByRole("dialog", { name: "Riaprire la tappa?" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Conferma" }));
+    await waitFor(() => expect(store().tappe[0].conclusa).toBe(false));
+    expect(archivioApi.rimuovi).toHaveBeenCalledExactlyOnceWith("t1");
+  });
+
+  it("mentre la pubblicazione è in corso «Riapri» è disattivato: riaprire adesso lascerebbe la copia pubblica di una tappa riaperta", async () => {
+    const risposta = differita<PubTappa>();
+    vi.mocked(archivioApi.pubblica).mockReturnValue(risposta.p);
+    apriPagina({});
+    concludi();
+    await waitFor(() => expect((screen.getByRole("button", { name: "Riapri" }) as HTMLButtonElement).disabled).toBe(true));
+    await act(async () => { risposta.ok(pubblicazione(tuttoGiocato())); });
+    await screen.findByText(pubblicata);
+    expect((screen.getByRole("button", { name: "Riapri" }) as HTMLButtonElement).disabled).toBe(false);
   });
 
   describe("aprendo una tappa già conclusa (dopo un ricaricamento) la pagina verifica con l'archivio", () => {
@@ -722,8 +754,12 @@ describe("TappaPage: l'esito della pubblicazione di una tappa conclusa", () => {
     fireEvent.change(screen.getByLabelText("Link video"), { target: { value: "https://youtu.be/abcdefghijk" } });
     fireEvent.click(screen.getByRole("button", { name: "Aggiungi" }));
     const avviso = await screen.findByRole("alert");
+    expect(avviso.textContent).toContain("La copia pubblica non è aggiornata");
+    expect(avviso.textContent).toContain("resta visibile a tutti");
     expect(avviso.textContent).toContain("Server non raggiungibile");
+    // La tappa è in archivio e ci resta: il badge non si contraddice con l'avviso («la pubblicazione non è riuscita»)
     expect(screen.getByText(pubblicata)).toBeTruthy();
+    expect(avviso.textContent).not.toContain("La pubblicazione nell'Archivio circuito non è riuscita");
   });
 });
 

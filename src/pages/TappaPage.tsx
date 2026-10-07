@@ -1,7 +1,7 @@
 /** Pagina di gestione di una tappa: mostra due viste distinte —
  *  in modifica (squadre, sorteggio, gironi, statistiche, video)
  *  oppure sola-lettura se la tappa è già conclusa e pubblicata. */
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { useTappa } from "../hooks/useTappa";
 import { useAnagrafe } from "../hooks/useAnagrafe";
@@ -9,7 +9,7 @@ import { useConfermaPerdita } from "../hooks/useConfermaPerdita";
 import { useInvio } from "../hooks/useInvio";
 import { eSegnaposto } from "../domain/tappaOps";
 import { testoErrore } from "../services/api";
-import { COPIA_LINK_NON_RIUSCITA, tappaNonPubblicata } from "../utils/testi";
+import { COPIA_LINK_NON_RIUSCITA, copiaPubblicaNonAggiornata, tappaNonPubblicata } from "../utils/testi";
 import { TappaEditPanel } from "../components/tappa/TappaEditPanel";
 import { TappaRules } from "../components/tappa/TappaRules";
 import { TappaConclusion } from "../components/tappa/TappaConclusion";
@@ -27,6 +27,11 @@ import { Card } from "../components/ui/Card";
 import { Icon } from "../components/ui/Icon";
 import { Section } from "../components/ui/Section";
 import { Badge } from "../components/ui/Badge";
+
+/** Riga d'errore sopra il contenuto della tappa: role="alert", così il lettore di schermo la annuncia appena compare */
+function Avviso({ children }: { children: ReactNode }) {
+  return <p className="mb-3 text-[13px] font-semibold text-loss" role="alert">{children}</p>;
+}
 
 export function TappaPage() {
   const { id } = useParams();
@@ -125,8 +130,10 @@ export function TappaPage() {
     let badge = <Badge><Icon name="flag" size={11} /> Conclusa</Badge>;
     if (pubblicata === true) badge = <Badge tone="win"><Icon name="flag" size={11} /> Conclusa e pubblicata nell'archivio</Badge>;
     if (pubblicata === false) badge = <Badge tone="loss"><Icon name="flag" size={11} /> Conclusa, non pubblicata</Badge>;
+    // Tre avvisi diversi: in archivio ma non aggiornata (video), non pubblicata, oppure verificata come assente
     let avvisoArchivio: string | null = null;
-    if (errore || pubblicata === false) avvisoArchivio = tappaNonPubblicata(errore);
+    if (errore && pubblicata === true) avvisoArchivio = copiaPubblicaNonAggiornata(errore);
+    else if (errore || pubblicata === false) avvisoArchivio = tappaNonPubblicata(errore);
     return (
       <div>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2.5">
@@ -134,14 +141,14 @@ export function TappaPage() {
           <span className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={() => navigate("/lega")}><Icon name="arrowLeft" size={14} /> Tutte le tappe</Button>
             <Button variant="outline" size="sm" onClick={() => setShareOpen((o) => !o)}><Icon name="share" size={14} /> Condividi</Button>
-            <Button variant="ghost" size="sm" disabled={riapertura.invio}
+            <Button variant="ghost" size="sm" disabled={riapertura.invio || h.pubblicando}
               onClick={() => riapri.chiedi("Riaprire la tappa?", () => { void riapertura.esegui(() => h.riapri(), "Riapertura non riuscita, la tappa resta conclusa"); })}>
               Riapri
             </Button>
           </span>
         </div>
-        {avvisoArchivio && <p className="mb-3 text-[13px] font-semibold text-loss" role="alert">{avvisoArchivio}</p>}
-        {riapertura.errore && <p className="mb-3 text-[13px] font-semibold text-loss" role="alert">{riapertura.errore}</p>}
+        {avvisoArchivio && <Avviso>{avvisoArchivio}</Avviso>}
+        {riapertura.errore && <Avviso>{riapertura.errore}</Avviso>}
 
         {/* Pannello condivisione link pubblico */}
         {shareOpen && (
