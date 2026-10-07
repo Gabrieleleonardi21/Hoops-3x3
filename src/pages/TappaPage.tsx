@@ -27,7 +27,7 @@ import { Card } from "../components/ui/Card";
 import { Icon } from "../components/ui/Icon";
 import { Section } from "../components/ui/Section";
 import { Badge } from "../components/ui/Badge";
-import { useUtente } from "../components/auth/RequireAuth";
+import { useUtente } from "../hooks/useUtente";
 import { MAX_ROSTER, MIN_ROSTER } from "../constants/rules";
 
 /** Riga d'errore sopra il contenuto della tappa: role="alert", così il lettore di schermo la annuncia appena compare */

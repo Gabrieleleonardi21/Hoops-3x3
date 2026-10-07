@@ -776,7 +776,9 @@ export const useAppStore = create<AppState>((set, get) => {
       set((s) => ({ tappe: [...s.tappe, t] }));
       if (isRemote()) {
         touchIndex();
-        daCreare.set(t.id, get().legaId!); // il primo invio della coda sarà la POST di creazione
+        // Il primo invio della coda sarà la POST di creazione, nella lega aperta (le tappe si aggiungono solo con una lega aperta)
+        const legaId = get().legaId;
+        if (legaId) daCreare.set(t.id, legaId);
       }
       afterTappaChange(t.id);
     },

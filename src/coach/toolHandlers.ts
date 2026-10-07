@@ -187,6 +187,14 @@ function coppiaCombacia(squA: string, squB: string, queryA: string, queryB: stri
   return false;
 }
 
+/** Una squadra di una partita trovata per nome: c'è sempre, perché la ricerca è passata dai nomi delle squadre della tappa. Se manca
+ *  la tappa è rovinata, e lo strumento si ferma invece di registrare un risultato a metà */
+function squadraDellaPartita(tappa: Tappa, id: string | null): SquadraTappa {
+  const squadra = squadraDi(tappa.squadre, id);
+  if (!squadra) throw new Error(`Tappa "${pulisci(tappa.nome)}": una squadra della partita non è più nella tappa.`);
+  return squadra;
+}
+
 /** Anagrafe dal backend; in caso di errore lista vuota (il tool risponde comunque). */
 async function fetchSquadre(): Promise<RegSquadra[]> {
   return anagrafeApi.listSquadre().catch(() => []);
@@ -384,8 +392,8 @@ function eseguiRegistraRisultato(args: Argomenti): string {
   // --- Risultato di un girone ---
   if (matchGirone) {
     const mg = matchGirone;
-    const sqA = tappa.squadre.find((s) => s.id === mg.a)!;
-    const sqB = tappa.squadre.find((s) => s.id === mg.b)!;
+    const sqA = squadraDellaPartita(tappa, mg.a);
+    const sqB = squadraDellaPartita(tappa, mg.b);
     // Allinea i punteggi all'ordine a/b della partita per non invertirli
     let sa = pB;
     let sb = pA;
@@ -405,8 +413,8 @@ function eseguiRegistraRisultato(args: Argomenti): string {
   // --- Risultato della fase a eliminazione diretta ---
   if (matchBracket) {
     const mb = matchBracket;
-    const sqA = tappa.squadre.find((s) => s.id === mb.squadraA)!;
-    const sqB = tappa.squadre.find((s) => s.id === mb.squadraB)!;
+    const sqA = squadraDellaPartita(tappa, mb.squadraA);
+    const sqB = squadraDellaPartita(tappa, mb.squadraB);
     // Allinea i punteggi all'ordine squadraA/squadraB del match
     let ptA = pB;
     let ptB = pA;

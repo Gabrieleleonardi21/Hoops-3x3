@@ -29,6 +29,13 @@ function tappaInCorso(tappe: Tappa[]): Tappa | null {
   return conGironi.at(-1) ?? aperte.at(-1) ?? tappe.at(-1) ?? null;
 }
 
+/** A che punto è la tappa, per l'intestazione della dashboard */
+function statoTappa(t: Tappa): string {
+  if (t.conclusa) return "Tappa conclusa";
+  if (t.gironi) return "Tappa in corso";
+  return "Tappa in preparazione";
+}
+
 export function HomePage() {
   const user = useAppStore((s) => s.user);
   const legaId = useAppStore((s) => s.legaId);
@@ -75,7 +82,7 @@ export function HomePage() {
   }
 
   /* ── Dashboard ── */
-  const stato = t.conclusa ? "Tappa conclusa" : t.gironi ? "Tappa in corso" : "Tappa in preparazione";
+  const stato = statoTappa(t);
   return (
     <>
       <Hero

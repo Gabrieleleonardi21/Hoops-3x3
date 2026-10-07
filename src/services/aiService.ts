@@ -58,8 +58,9 @@ interface ApiMsg {
  *  aspetta un po' di più, per ricevere la risposta o l'errore del server invece di abbandonare prima */
 const TEMPO_MASSIMO_COACH = 65_000;
 
-/** Chiamata HTTP base verso il proxy. Accetta messaggi API-level e opzionali tool definitions. */
-async function callGroq(
+/** Chiamata HTTP al Coach del backend (POST /api/coach/chat, che parla con il modello): messaggi API-level e, se servono, le
+ *  definizioni degli strumenti */
+async function chiamaCoach(
   messages: ApiMsg[],
   tools?: ToolDef[],
 ): Promise<{ content: string | null; tool_calls?: ToolCall[] }> {
@@ -90,7 +91,7 @@ export async function askCoach(preamble: string, history: ChatMsg[]): Promise<st
     { role: "system", content: preamble },
     ...history.map((m) => ({ role: m.role, content: m.content })),
   ];
-  const { content } = await callGroq(messages);
+  const { content } = await chiamaCoach(messages);
   return content || "Non ho una risposta ora, riprova.";
 }
 
@@ -169,7 +170,7 @@ export async function askCoachWithTools(
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     fermaSeAbbandonata(segnale);
-    const res = await callGroq(messages, tools);
+    const res = await chiamaCoach(messages, tools);
 
     // Nessun tool richiesto: è la risposta finale da mostrare in chat
     if (!res.tool_calls?.length) {
@@ -204,6 +205,6 @@ export async function askCoachWithTools(
 
   // Cap raggiunto o loop interrotto: una chiamata finale senza tool forza la risposta di chiusura.
   fermaSeAbbandonata(segnale);
-  const final = await callGroq(messages);
+  const final = await chiamaCoach(messages);
   return { text: final.content || "Fatto!", calledTools };
 }

@@ -124,7 +124,7 @@ useAppStore.subscribe((stato, prima) => {
   if (autore(stato.user) !== autore(prima.user)) cancellaChat();
 });
 
-/** Messaggi di errore specifici per codice Groq. */
+/** Il messaggio per l'utente secondo il codice dell'errore (AiError, da aiService). */
 function errorMsg(err: unknown): string {
   if (err instanceof AiError) {
     if (err.code === "AUTH") return "Sessione scaduta: esci e accedi di nuovo per usare Coach AI.";

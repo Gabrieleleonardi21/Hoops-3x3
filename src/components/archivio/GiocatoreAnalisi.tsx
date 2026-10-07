@@ -85,15 +85,18 @@ export function GiocatoreAnalisi({ tappa, pid, onClose }: { tappa: Tappa; pid: s
           ))}
 
           <div className="mt-1 border-t border-asphalt-700 pt-3">
-            {aiText ? (
+            {/* La risposta del Coach; senza, il pulsante per chiederla (solo con un account) o l'invito a registrarsi */}
+            {aiText && (
               <p className="m-0 text-sm leading-relaxed">
                 <span className="kicker text-court">Coach AI · </span>{aiText}
               </p>
-            ) : aiAvailable ? (
+            )}
+            {!aiText && aiAvailable && (
               <Button variant="outline" size="sm" onClick={chiediAlCoach} disabled={aiLoading}>
                 {aiLoading ? <span className="pulse">Il coach sta guardando le sue partite…</span> : <><Icon name="ball" size={14} /> Consigli personalizzati del Coach AI</>}
               </Button>
-            ) : (
+            )}
+            {!aiText && !aiAvailable && (
               <p className="m-0 text-[11px] text-chalk-muted">
                 Con un account registrato qui compaiono anche i consigli personalizzati del Coach AI.
               </p>

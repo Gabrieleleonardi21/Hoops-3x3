@@ -71,7 +71,7 @@ export function SquadraCard({ s, index, h, erroreAnagrafe, onNameCommit }: {
         onRename={(pid, nome) => h.renamePlayer(s.id, pid, nome)}
         onRemove={(pid) => h.removePlayer(s.id, pid)} />
 
-      {h.tappa!.squadre.length > 2 && (
+      {(h.tappa?.squadre.length ?? 0) > 2 && (
         <Button variant="link" className="mt-2 text-chalk-dim"
           onClick={() => chiedi("Rimuovere la squadra?", () => h.removeTeam(s.id))}>Rimuovi squadra</Button>
       )}

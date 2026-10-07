@@ -17,7 +17,7 @@ import { Loading } from "../components/ui/Loading";
 import { Button } from "../components/ui/Button";
 import { Icon } from "../components/ui/Icon";
 import type { RegGiocatore, RegSquadra } from "../types";
-import { useUtente } from "../components/auth/RequireAuth";
+import { useUtente } from "../hooks/useUtente";
 
 export function AnagrafePage() {
   const user  = useUtente();

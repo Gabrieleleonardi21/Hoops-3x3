@@ -28,10 +28,12 @@ function CampoConfermato({ valore, onConferma, ...campo }: {
 }
 
 export function TappaEditPanel({ h }: { h: ReturnType<typeof useTappa> }) {
-  const t = h.tappa!;
   // Il motivo dell'ultima modifica rifiutata (numero di gironi non valido, troppe squadre)
   const [errore, setErrore] = useState<string | null>(null);
   const { chiedi, finestra } = useConfermaPerdita(h.perditaRisultati);
+  // La pagina apre il pannello solo con la tappa caricata; il controllo sta dopo gli hook, che vanno chiamati sempre
+  const t = h.tappa;
+  if (!t) return null;
 
   /** Nuovo numero di gironi: prima si controlla (funzione pura, non salva niente), così un numero non valido dà
    *  subito il messaggio e lo stesso numero non fa niente; la conferma si chiede solo per un cambio vero */

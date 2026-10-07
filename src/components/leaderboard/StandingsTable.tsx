@@ -26,6 +26,20 @@ interface Props {
   compact?: boolean;                           // nasconde PF/PS su schermi stretti
 }
 
+/** aria-sort di una colonna: l'ordine se è quella attiva, altrimenti «none» */
+function ordineAria(attiva: boolean, desc: boolean): "ascending" | "descending" | "none" {
+  if (!attiva) return "none";
+  if (desc) return "descending";
+  return "ascending";
+}
+
+/** Il colore della differenza canestri: positiva in verde, negativa in rosso, zero neutra */
+function coloreDiff(diff: number): string {
+  if (diff > 0) return "text-win";
+  if (diff < 0) return "text-loss";
+  return "text-chalk-muted";
+}
+
 export function StandingsTable({ rows, logos, caption = "Classifica", compact }: Props) {
   const [sort, setSort] = useState<{ key: SortKey; desc: boolean } | null>(null);
 
@@ -63,7 +77,7 @@ export function StandingsTable({ rows, logos, caption = "Classifica", compact }:
           <tr className="bg-asphalt-900">
             {COLS.map((c) => {
               const active = sort?.key === c.key;
-              const ariaSort = active ? (sort.desc ? "descending" : "ascending") : "none";
+              const ariaSort = ordineAria(active, sort?.desc ?? false);
               const align = c.key === "nome" ? "text-left" : "text-center";
               const extra = c.key === "pf" || c.key === "ps" ? hideCls : "";
               return (
@@ -82,7 +96,7 @@ export function StandingsTable({ rows, logos, caption = "Classifica", compact }:
         <tbody>
           {sorted.map((r) => {
             const first = r.rank === 1 && r.g > 0;
-            const diffCls = r.diff > 0 ? "text-win" : r.diff < 0 ? "text-loss" : "text-chalk-muted";
+            const diffCls = coloreDiff(r.diff);
             const rowCls = "h-9 border-b border-asphalt-700 last:border-b-0 hover:bg-asphalt-900";
             return (
               <tr key={r.id} className={rowCls}>
