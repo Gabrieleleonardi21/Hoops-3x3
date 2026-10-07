@@ -6,8 +6,7 @@ import { useFocusModifica } from "../../hooks/useFocusFinestra";
 import { Modal } from "../ui/Modal";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
-import { Input } from "../ui/Input";
-import { REG_ROLES } from "../../constants/roles";
+import { CampiGiocatore } from "./CampiAnagrafe";
 import { eta } from "../../utils/eta";
 import { puoModificare } from "../../utils/permessi";
 import { perditaGiocatore } from "../../utils/testi";
@@ -108,27 +107,8 @@ export function GiocatoreModal({
       {/* ── Modalità modifica ── */}
       {editing && (
         <div ref={form} className="mb-4 flex flex-col gap-2.5">
-          {/* maxLength come GiocatoreRequestDTO (nome e cognome 80, note 2000): oltre, il server risponde 400 */}
-          <div className="grid-auto" style={{ "--min": "140px" }}>
-            <Input label="Nome" value={draft.nome} onChange={set("nome")} maxLength={80} />
-            <Input label="Cognome" value={draft.cognome} onChange={set("cognome")} maxLength={80} />
-            <Input label="Soprannome" value={draft.soprannome} onChange={set("soprannome")} />
-            <Input label="Data di nascita" type="date" value={draft.nascita} onChange={set("nascita")} />
-            <Input label="Città" value={draft.citta} onChange={set("citta")} />
-            <Input label="Nazionalità" value={draft.nazionalita} onChange={set("nazionalita")} />
-            <Input label="Altezza (cm)" type="number" min={0} value={draft.altezza} onChange={set("altezza")} />
-            <Input label="Peso (kg)" type="number" min={0} value={draft.peso} onChange={set("peso")} />
-            <label className="input-label">
-              Ruolo
-              <select className="statin mt-1" value={draft.ruolo} onChange={set("ruolo")}>
-                {REG_ROLES.map((r) => <option key={r}>{r}</option>)}
-              </select>
-            </label>
-            <Input label="N. maglia" type="number" min={0} value={draft.numero} onChange={set("numero")} />
-            <Input label="Squadra" value={draft.squadra} onChange={set("squadra")} />
-            <Input label="Anni di esperienza" type="number" min={0} value={draft.esperienza} onChange={set("esperienza")} />
-          </div>
-          <Input label="Note sportive" value={draft.note} onChange={set("note")} placeholder="es. tiratore da fuori" maxLength={2000} />
+          {/* Gli stessi campi del form di creazione; la scheda è stretta, le colonne più piccole */}
+          <CampiGiocatore valori={draft} set={set} squadre={squadre} griglia={{ "--min": "140px" }} />
           <div className="mt-1 flex gap-2">
             <Button onClick={saveEdit} disabled={invio}>Salva modifiche</Button>
             <Button variant="ghost" onClick={annullaModifica} disabled={invio}>Annulla</Button>
