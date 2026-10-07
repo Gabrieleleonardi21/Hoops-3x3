@@ -126,7 +126,7 @@ describe("BracketSection: «Elimina bracket e ricomincia» chiede conferma (FD-2
   it("apre la finestra e dice che cosa si perde; finché non si risponde il tabellone c'è", () => {
     mostra(tappaConTabellone());
     fireEvent.click(elimina());
-    expect(screen.getByRole("dialog", { name: "Eliminare il tabellone?" }).textContent)
+    expect(screen.getByRole("alertdialog", { name: "Eliminare il tabellone?" }).textContent)
       .toContain("Verrà eliminato il tabellone. I risultati dei gironi restano.");
     expect(nelloStore().bracket).toHaveLength(3);
   });
@@ -138,7 +138,7 @@ describe("BracketSection: «Elimina bracket e ricomincia» chiede conferma (FD-2
     if (!esito.ok) throw new Error(esito.errore);
     mostra(vista, esito.tappa);
     fireEvent.click(elimina());
-    expect(screen.getByRole("dialog", { name: "Eliminare il tabellone?" }).textContent)
+    expect(screen.getByRole("alertdialog", { name: "Eliminare il tabellone?" }).textContent)
       .toContain("Verranno eliminati il tabellone e 1 risultato. I risultati dei gironi restano.");
   });
 
@@ -147,7 +147,7 @@ describe("BracketSection: «Elimina bracket e ricomincia» chiede conferma (FD-2
     const prima = nelloStore();
     fireEvent.click(elimina());
     fireEvent.click(screen.getByRole("button", { name: "Annulla" }));
-    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
     expect(nelloStore()).toBe(prima);
   });
 

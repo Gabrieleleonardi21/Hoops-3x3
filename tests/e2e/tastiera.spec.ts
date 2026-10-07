@@ -33,7 +33,7 @@ test("anagrafe: scheda, poi conferma; Tab non esce dalla conferma e Esc chiude u
   // Con Tab fino a «Elimina», poi Invio: si apre la conferma sopra la scheda, con il focus sul pulsante più sicuro
   await tabFinoA(page, scheda.getByRole("button", { name: "Elimina" }));
   await page.keyboard.press("Enter");
-  const conferma = page.getByRole("dialog", { name: "Eliminare il giocatore?" });
+  const conferma = page.getByRole("alertdialog", { name: "Eliminare il giocatore?" });
   await expect(conferma.getByRole("button", { name: "Annulla" })).toBeFocused();
 
   // Tab e Maiusc+Tab, molte più volte dei pulsanti che ci sono: il focus gira nella conferma. Non arriva mai né alla scheda sotto né
@@ -41,7 +41,8 @@ test("anagrafe: scheda, poi conferma; Tab non esce dalla conferma e Esc chiude u
   await giraDentro(page, conferma, "Tab", 8);
   await giraDentro(page, conferma, "Shift+Tab", 8);
   await expect(page.getByRole("button", { name: "Elimina Luigi Bianchi", exact: true })).not.toBeFocused();
-  await expect(page.getByRole("dialog")).toHaveCount(2); // la scheda e la conferma, non una terza
+  await expect(page.getByRole("dialog")).toHaveCount(1); // la scheda
+  await expect(page.getByRole("alertdialog")).toHaveCount(1); // e la conferma, non una seconda
 
   // Esc chiude solo la conferma, e il focus torna a «Elimina» della scheda
   await page.keyboard.press("Escape");
@@ -61,7 +62,7 @@ test("anagrafe: la X di una card apre la conferma; Annulla la chiude e il focus 
   const xLuigi = page.getByRole("button", { name: "Elimina Luigi Bianchi", exact: true });
   await tabFinoA(page, xLuigi);
   await page.keyboard.press("Enter");
-  const conferma = page.getByRole("dialog", { name: "Eliminare il giocatore?" });
+  const conferma = page.getByRole("alertdialog", { name: "Eliminare il giocatore?" });
   await expect(conferma.getByRole("button", { name: "Annulla" })).toBeFocused();
   await giraDentro(page, conferma, "Tab", 6);
   await page.keyboard.press("Escape");
@@ -85,7 +86,7 @@ test("timer: il focus entra su START, Esc con la partita in corso chiede conferm
 
   // Con la partita in corso Esc chiede conferma, con il focus su «Annulla»; Tab non esce dalla conferma
   await page.keyboard.press("Escape");
-  const conferma = page.getByRole("dialog", { name: "Chiudere il timer?" });
+  const conferma = page.getByRole("alertdialog", { name: "Chiudere il timer?" });
   await expect(conferma.getByRole("button", { name: "Annulla" })).toBeFocused();
   await giraDentro(page, conferma, "Tab", 6);
   await giraDentro(page, conferma, "Shift+Tab", 6);
@@ -289,7 +290,7 @@ test("timer: se il tempo scade con la conferma di chiusura aperta il focus resta
   await tabFinoA(page, timer.getByRole("button", { name: "START" }));
   await page.keyboard.press("Space");
   await page.keyboard.press("Escape");
-  const conferma = page.getByRole("dialog", { name: "Chiudere il timer?" });
+  const conferma = page.getByRole("alertdialog", { name: "Chiudere il timer?" });
   const annulla = conferma.getByRole("button", { name: "Annulla" });
   await expect(annulla).toBeFocused();
 
@@ -313,7 +314,7 @@ test("anagrafe: Esc tenuto premuto chiude solo la conferma; rilasciato e premuto
   const scheda = page.getByRole("dialog", { name: "Scheda giocatore Mario Rossi" });
   await tabFinoA(page, scheda.getByRole("button", { name: "Elimina" }));
   await page.keyboard.press("Enter");
-  const conferma = page.getByRole("dialog", { name: "Eliminare il giocatore?" });
+  const conferma = page.getByRole("alertdialog", { name: "Eliminare il giocatore?" });
   await expect(conferma).toBeVisible();
 
   // Il tasto tenuto premuto: il browser ripete l'evento (repeat). Chiude la conferma, non anche la scheda

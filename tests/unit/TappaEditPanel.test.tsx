@@ -67,7 +67,7 @@ describe("TappaEditPanel: numero di gironi (R3)", () => {
     expect(nelloStore().gironi).not.toBeNull();
     fireEvent.blur(campoGironi());
     expect(nelloStore()).toMatchObject({ nGironi: 1, gironi: null, partite: [] });
-    expect(screen.queryByRole("dialog")).toBeNull(); // senza risultati da perdere non si chiede niente
+    expect(screen.queryByRole("alertdialog")).toBeNull(); // senza risultati da perdere non si chiede niente
   });
 
   it("si applica anche con Invio", () => {
@@ -133,11 +133,11 @@ describe("TappaEditPanel: conferma prima di cancellare i risultati (R2)", () => 
     const prima = nelloStore();
     scrivi(campoGironi(), "1");
     fireEvent.blur(campoGironi());
-    const finestra = screen.getByRole("dialog", { name: "Cambiare il numero di gironi?" });
+    const finestra = screen.getByRole("alertdialog", { name: "Cambiare il numero di gironi?" });
     expect(finestra.textContent).toContain("Verranno eliminati il sorteggio e 2 risultati.");
     expect(nelloStore()).toBe(prima); // finché non si risponde non cambia niente
     fireEvent.click(screen.getByRole("button", { name: "Annulla" }));
-    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
     expect(nelloStore()).toBe(prima);
     expect(campoGironi().value).toBe("2");
   });
@@ -154,14 +154,14 @@ describe("TappaEditPanel: conferma prima di cancellare i risultati (R2)", () => 
     apri(tappa(true));
     scrivi(campoGironi(), "5");
     fireEvent.blur(campoGironi());
-    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
     expect(screen.getByRole("alert").textContent).toMatch(/Numero di gironi non valido/);
   });
 
   it("«Aggiungi squadra» con risultati chiede conferma prima di cancellarli", () => {
     apri(tappa(true));
     fireEvent.click(screen.getByRole("button", { name: /Aggiungi squadra/ }));
-    expect(screen.getByRole("dialog", { name: "Aggiungere una squadra?" }).textContent)
+    expect(screen.getByRole("alertdialog", { name: "Aggiungere una squadra?" }).textContent)
       .toContain("Verranno eliminati il sorteggio e 2 risultati.");
     expect(nelloStore().squadre).toHaveLength(4);
     fireEvent.click(screen.getByRole("button", { name: "Conferma" }));

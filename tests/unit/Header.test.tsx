@@ -56,10 +56,10 @@ describe("Header: «Esci» con modifiche non salvate", () => {
   it("chiede conferma dicendo che cosa si perde; con «Annulla» si resta dentro", async () => {
     store().updateTappa("t1", { nome: "Finale" });
     clicEsci();
-    const finestra = await screen.findByRole("dialog", { name: "Uscire senza salvare?" });
+    const finestra = await screen.findByRole("alertdialog", { name: "Uscire senza salvare?" });
     expect(finestra.textContent).toContain("1 tappa ha modifiche non salvate: uscendo andranno perse.");
     fireEvent.click(screen.getByRole("button", { name: "Annulla" }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
     expect(store().user).toEqual(registrato);
     expect(screen.getByText("Archivio")).toBeTruthy();
   });
@@ -101,11 +101,11 @@ describe("Header: «Esci» dell'ospite con lo spazio del browser esaurito", () =
   it("chiede la stessa conferma dei registrati, anche dopo la X dell'avviso; con «Annulla» si resta", async () => {
     modificaNonSalvata();
     clicEsciOspite();
-    const finestra = await screen.findByRole("dialog", { name: "Uscire senza salvare?" });
+    const finestra = await screen.findByRole("alertdialog", { name: "Uscire senza salvare?" });
     expect(finestra.textContent).toContain("Le ultime modifiche della lega aperta non sono salvate nel browser");
     expect(finestra.textContent).toContain("uscendo andranno perse");
     fireEvent.click(screen.getByRole("button", { name: "Annulla" }));
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
     expect(store().user).toEqual(ospite);
     expect(store().tappe[0].nome).toBe("Finale");
   });

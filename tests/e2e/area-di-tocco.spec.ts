@@ -39,7 +39,7 @@ test.describe("a 390 px di larghezza", () => {
     await almeno44(page.getByRole("button", { name: "Apri", exact: true }), "«Apri» (pulsante piccolo)");
 
     await page.getByRole("button", { name: "Elimina lega Lega di prova" }).click();
-    const conferma = page.getByRole("dialog", { name: "Eliminare la lega?" });
+    const conferma = page.getByRole("alertdialog", { name: "Eliminare la lega?" });
     await almeno44(conferma.getByRole("button", { name: "Chiudi" }), "X della finestra (icona 20 px)");
     await almeno44(conferma.getByRole("button", { name: "Annulla" }), "«Annulla»");
     await almeno44(conferma.getByRole("button", { name: "Conferma" }), "«Conferma»");

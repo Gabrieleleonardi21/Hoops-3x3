@@ -31,7 +31,7 @@ test("il timer di gara usa le regole della tappa, resta giusto con la scheda in 
 
   // La partita è cominciata: Esc non chiude subito, chiede conferma e dice che cosa si perde
   await page.keyboard.press("Escape");
-  const conferma = page.getByRole("dialog", { name: "Chiudere il timer?" });
+  const conferma = page.getByRole("alertdialog", { name: "Chiudere il timer?" });
   await expect(conferma).toContainText("il tempo di gara (1:30)");
   // Con la conferma aperta Esc chiude solo quella: il timer resta, con la partita com'era
   await page.keyboard.press("Escape");

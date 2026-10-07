@@ -14,8 +14,10 @@ function doveAtterra(finestra: HTMLElement, contenuto: HTMLElement): HTMLElement
   return contenuto.querySelector<HTMLElement>("[data-focus-iniziale]") ?? raggiungibili(contenuto)[0] ?? finestra;
 }
 
-export function Modal({ title, subtitle, label, width = 480, onClose, children }: {
-  title?: React.ReactNode; subtitle?: React.ReactNode; label: string; width?: number;
+/** `role`: `dialog` per le finestre (schede, timer); `alertdialog` per quelle che chiedono una decisione su una perdita (ConfirmDialog),
+ *  che il lettore di schermo annuncia come un avviso */
+export function Modal({ title, subtitle, label, width = 480, role = "dialog", onClose, children }: {
+  title?: React.ReactNode; subtitle?: React.ReactNode; label: string; width?: number; role?: "dialog" | "alertdialog";
   onClose: () => void; children: React.ReactNode;
 }) {
   const finestra = useRef<HTMLDivElement>(null);
@@ -36,8 +38,9 @@ export function Modal({ title, subtitle, label, width = 480, onClose, children }
       {/* Il clic dentro la card non deve arrivare allo sfondo, altrimenti la chiuderebbe. tabIndex -1: la finestra può prendere il
           focus (senza entrare nell'ordine di Tab) quando dentro non c'è niente da raggiungere. Con l'anello del focus: da tastiera è
           l'unico indicatore, col mouse (un clic nella finestra la mette a fuoco) non compare */}
-      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- ferma solo la propagazione del clic */}
-      <div ref={finestra} tabIndex={-1} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={label}
+      {/* Con il ruolo passato come proprietà jsx-a11y non lo conosce, e no-noninteractive-element-interactions non scatta più */}
+      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events -- ferma solo la propagazione del clic */}
+      <div ref={finestra} tabIndex={-1} onClick={(e) => e.stopPropagation()} role={role} aria-modal="true" aria-label={label}
         className="modal-card flex max-h-[88vh] w-full flex-col" style={{ maxWidth: width }}>
         <div className="flex items-start justify-between gap-3 border-b border-asphalt-700 px-5 py-3">
           <div className="min-w-0">

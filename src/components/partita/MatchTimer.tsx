@@ -34,6 +34,9 @@ function avviato(c: Cronometro, ora: number): Cronometro {
   return { fine: ora + c.resto };
 }
 
+/** Una finestra dell'app: le schede e il timer (dialog) e le conferme (alertdialog, vedi ConfirmDialog) */
+const FINESTRA = '[role="dialog"], [role="alertdialog"]';
+
 /** Tutti e due i cronometri a durata intera e fermi */
 const daCapo = (durata: number, periodo: number): Tempo => ({ gara: { resto: durata }, possesso: { resto: periodo }, ora: 0 });
 
@@ -111,8 +114,8 @@ export function MatchTimer({ regole, teamA, teamB, onClose }: {
   const decisa = "vincitore" in stato;
   useEffect(() => {
     if (!decisa || !esito.current) return;
-    const finestraDelFocus = document.activeElement?.closest('[role="dialog"]');
-    if (finestraDelFocus && finestraDelFocus !== esito.current.closest('[role="dialog"]')) return;
+    const finestraDelFocus = document.activeElement?.closest(FINESTRA);
+    if (finestraDelFocus && finestraDelFocus !== esito.current.closest(FINESTRA)) return;
     esito.current.focus();
   }, [decisa]);
 

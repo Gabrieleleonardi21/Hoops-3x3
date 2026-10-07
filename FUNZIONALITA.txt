@@ -437,7 +437,9 @@ utenti registrati.
   cambio del numero di gironi o delle squadre con dei risultati registrati;
   rimuovi squadra con un nome scritto, dei giocatori o dei risultati nella
   tappa (una squadra appena aggiunta si toglie subito); riapri una tappa
-  pubblicata. «Annulla», Esc e la X non cambiano niente.
+  pubblicata. «Annulla», Esc e la X non cambiano niente. Per i lettori di
+  schermo la finestra di conferma è un avviso che chiede una decisione
+  (ruolo alertdialog), non una finestra qualsiasi.
 - Finestre e tastiera: le finestre (schede, conferme, timer) stanno in una
   pila. Il focus entra nella finestra all'apertura e torna, alla chiusura, a
   ciò che l'aveva aperta, se c'è ancora (dopo «Elimina» e «Conferma» la voce

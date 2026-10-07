@@ -322,7 +322,7 @@ describe("TappaPage: conferma prima di cancellare i risultati (R2)", () => {
     apriPagina({});
     const prima = store().tappe[0];
     fireEvent.click(screen.getByRole("button", { name: /Sorteggio casuale/ }));
-    expect(screen.getByRole("dialog", { name: "Rifare il sorteggio?" }).textContent)
+    expect(screen.getByRole("alertdialog", { name: "Rifare il sorteggio?" }).textContent)
       .toContain("Verranno eliminati il sorteggio e 1 risultato.");
     fireEvent.click(screen.getByRole("button", { name: "Annulla" }));
     expect(store().tappe[0]).toBe(prima);
@@ -338,14 +338,14 @@ describe("TappaPage: conferma prima di cancellare i risultati (R2)", () => {
     apriPagina({});
     const prima = store().tappe[0];
     fireEvent.click(screen.getByRole("button", { name: /Sorteggio per ranking/ }));
-    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
     expect(store().tappe[0]).not.toBe(prima);
   });
 
   it("«Rimuovi squadra» con risultati chiede conferma prima di cancellarli", () => {
     apriPagina({});
     fireEvent.click(screen.getAllByRole("button", { name: "Rimuovi squadra" })[2]);
-    expect(screen.getByRole("dialog", { name: "Rimuovere la squadra?" }).textContent)
+    expect(screen.getByRole("alertdialog", { name: "Rimuovere la squadra?" }).textContent)
       .toContain("Verranno eliminati la squadra «Gamma», il sorteggio e 1 risultato.");
     expect(store().tappe[0].squadre).toHaveLength(3);
     fireEvent.click(screen.getByRole("button", { name: "Conferma" }));
@@ -365,7 +365,7 @@ describe("TappaPage: «Elimina» chiede conferma (FD-2)", () => {
     apriPagina({});
     const prima = store().tappe[0];
     fireEvent.click(elimina());
-    expect(screen.getByRole("dialog", { name: "Eliminare la tappa?" }).textContent)
+    expect(screen.getByRole("alertdialog", { name: "Eliminare la tappa?" }).textContent)
       .toContain("Verranno eliminati la tappa «Roma Open» con 3 squadre, il sorteggio e 1 risultato.");
     expect(store().tappe[0]).toBe(prima);
   });
@@ -374,7 +374,7 @@ describe("TappaPage: «Elimina» chiede conferma (FD-2)", () => {
     useAppStore.setState({ tappe: [tappa()] });
     apriPagina({});
     fireEvent.click(elimina());
-    expect(screen.getByRole("dialog", { name: "Eliminare la tappa?" }).textContent)
+    expect(screen.getByRole("alertdialog", { name: "Eliminare la tappa?" }).textContent)
       .toContain("Verrà eliminata la tappa «Roma Open» con 2 squadre.");
   });
 
@@ -383,7 +383,7 @@ describe("TappaPage: «Elimina» chiede conferma (FD-2)", () => {
     const prima = store().tappe[0];
     fireEvent.click(elimina());
     fireEvent.click(screen.getByRole("button", { name: "Annulla" }));
-    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
     expect(store().tappe).toEqual([prima]);
     expect(screen.getByRole("heading", { name: "Roma Open" })).toBeTruthy();
     expect(screen.queryByText("Elenco delle tappe")).toBeNull();
@@ -431,14 +431,14 @@ describe("TappaPage: «Rimuovi squadra» chiede conferma quando si perde qualcos
   it("una squadra appena aggiunta (nome provvisorio, nessun giocatore) si toglie subito, senza finestra", () => {
     apriPagina({});
     rimuovi(2);
-    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
     expect(nomiNelloStore()).toEqual(["Alfa", "Beta"]);
   });
 
   it("un nome scritto si perde: la finestra lo dice; «Annulla» lascia la squadra, «Conferma» la toglie", () => {
     apriPagina({});
     rimuovi(1);
-    expect(screen.getByRole("dialog", { name: "Rimuovere la squadra?" }).textContent).toContain("Verrà eliminata la squadra «Beta».");
+    expect(screen.getByRole("alertdialog", { name: "Rimuovere la squadra?" }).textContent).toContain("Verrà eliminata la squadra «Beta».");
     fireEvent.click(screen.getByRole("button", { name: "Annulla" }));
     expect(nomiNelloStore()).toEqual(["Alfa", "Beta", "Squadra 3"]);
     rimuovi(1);
@@ -449,7 +449,7 @@ describe("TappaPage: «Rimuovi squadra» chiede conferma quando si perde qualcos
   it("i giocatori con il nome si perdono: la finestra dice quanti", () => {
     apriPagina({});
     rimuovi(0);
-    expect(screen.getByRole("dialog", { name: "Rimuovere la squadra?" }).textContent)
+    expect(screen.getByRole("alertdialog", { name: "Rimuovere la squadra?" }).textContent)
       .toContain("Verrà eliminata la squadra «Alfa» con 3 giocatori.");
   });
 
@@ -460,7 +460,7 @@ describe("TappaPage: «Rimuovi squadra» chiede conferma quando si perde qualcos
     });
     apriPagina({});
     rimuovi(2);
-    expect(screen.getByRole("dialog", { name: "Rimuovere la squadra?" }).textContent)
+    expect(screen.getByRole("alertdialog", { name: "Rimuovere la squadra?" }).textContent)
       .toContain("Verranno eliminati la squadra «Squadra 3», il sorteggio e 1 risultato.");
   });
 });
@@ -534,7 +534,7 @@ describe("TappaPage: «Riapri» chiede conferma quando toglie la tappa dall'arch
     apriPagina({});
     await screen.findByText("Conclusa e pubblicata nell'archivio");
     fireEvent.click(riapri());
-    expect(screen.getByRole("dialog", { name: "Riaprire la tappa?" }).textContent)
+    expect(screen.getByRole("alertdialog", { name: "Riaprire la tappa?" }).textContent)
       .toContain("La tappa uscirà dall'Archivio circuito e il suo link pubblico smetterà di funzionare");
     fireEvent.click(screen.getByRole("button", { name: "Annulla" }));
     expect(store().tappe[0].conclusa).toBe(true);
@@ -601,7 +601,7 @@ describe("TappaPage: «Riapri» chiede conferma quando toglie la tappa dall'arch
     apriPagina({});
     await screen.findByText("Conclusa, non pubblicata");
     fireEvent.click(riapri());
-    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
     expect(store().tappe[0].conclusa).toBe(false);
     expect(archivioApi.rimuovi).not.toHaveBeenCalled();
   });
@@ -613,7 +613,7 @@ describe("TappaPage: «Riapri» chiede conferma quando toglie la tappa dall'arch
     expect(screen.getByText("Conclusa")).toBeTruthy();
     expect(screen.queryByText(/pubblicata/i)).toBeNull();
     fireEvent.click(riapri());
-    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
     await waitFor(() => expect(store().tappe[0].conclusa).toBe(false));
     expect(archivioApi.get).not.toHaveBeenCalled();
     expect(archivioApi.rimuovi).not.toHaveBeenCalled();
@@ -676,7 +676,7 @@ describe("TappaPage: l'esito della pubblicazione di una tappa conclusa", () => {
     await screen.findByRole("alert");
     expect(screen.getByText(nonPubblicata)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Riapri" }));
-    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
     expect(archivioApi.rimuovi).not.toHaveBeenCalled();
     concludi();
     await screen.findByText(pubblicata);
@@ -697,7 +697,7 @@ describe("TappaPage: l'esito della pubblicazione di una tappa conclusa", () => {
     expect(screen.queryByText(pubblicata)).toBeNull();
     // Il server potrebbe aver pubblicato: «Riapri» avverte e poi toglie la copia
     fireEvent.click(screen.getByRole("button", { name: "Riapri" }));
-    expect(screen.getByRole("dialog", { name: "Riaprire la tappa?" })).toBeTruthy();
+    expect(screen.getByRole("alertdialog", { name: "Riaprire la tappa?" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Conferma" }));
     await waitFor(() => expect(store().tappe[0].conclusa).toBe(false));
     expect(archivioApi.rimuovi).toHaveBeenCalledExactlyOnceWith("t1");

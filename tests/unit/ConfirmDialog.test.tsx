@@ -18,7 +18,11 @@ function apri() {
 describe("ConfirmDialog (finestra di conferma)", () => {
   it("dice che cosa si perde e procede solo con «Conferma»", () => {
     const { onConfirm, onCancel } = apri();
-    expect(screen.getByRole("dialog", { name: "Uscire senza salvare?" }).textContent).toContain(TESTO);
+    // alertdialog: chiede una decisione su una perdita, e il lettore di schermo la annuncia come tale (non una finestra qualsiasi)
+    const finestra = screen.getByRole("alertdialog", { name: "Uscire senza salvare?" });
+    expect(finestra.getAttribute("aria-modal")).toBe("true");
+    expect(finestra.textContent).toContain(TESTO);
+    expect(screen.queryByRole("dialog")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Conferma" }));
     expect(onConfirm).toHaveBeenCalledTimes(1);
     expect(onCancel).not.toHaveBeenCalled();

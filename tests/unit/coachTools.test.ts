@@ -913,6 +913,7 @@ describe("CoachPanel", () => {
     expect(richiesta.textContent).toContain("Verranno eliminati il sorteggio e 1 risultato.");
     expect(within(richiesta).getByRole("button", { name: "Annulla" })).toBeTruthy();
     expect(screen.getAllByRole("dialog")).toHaveLength(1); // solo il pannello del Coach
+    expect(screen.queryByRole("alertdialog")).toBeNull(); // nessuna finestra di conferma a parte
     fireEvent.click(within(richiesta).getByRole("button", { name: "Conferma" }));
     await screen.findByText("Sorteggio rifatto.");
     expect(screen.queryByRole("group")).toBeNull();

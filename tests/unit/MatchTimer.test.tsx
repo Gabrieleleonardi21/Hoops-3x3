@@ -574,7 +574,7 @@ describe("MatchTimer: accessibilità dei punti e dell'esito", () => {
     fireEvent.keyDown(window, { key: "Escape" });
     scadere(); // vince A mentre la conferma è aperta
     fireEvent.click(screen.getByRole("button", { name: "Annulla" }));
-    expect(screen.queryByRole("dialog", { name: "Chiudere il timer?" })).toBeNull();
+    expect(screen.queryByRole("alertdialog", { name: "Chiudere il timer?" })).toBeNull();
     expect(document.activeElement).toBe(screen.getByRole("status")); // STOP, da cui il focus partiva, non c'è più
   });
 
@@ -638,7 +638,7 @@ describe("MatchTimer: è una finestra come le altre (Modal)", () => {
 
 describe("MatchTimer: chiuderlo con una partita cominciata chiede conferma", () => {
   const esc = () => fireEvent.keyDown(window, { key: "Escape" });
-  const confermaAperta = () => screen.queryByRole("dialog", { name: "Chiudere il timer?" });
+  const confermaAperta = () => screen.queryByRole("alertdialog", { name: "Chiudere il timer?" });
   /** Il timer con `onClose` finto: chi lo apre decide se chiuderlo; qui si guarda solo se la richiesta arriva */
   function apriConChiusura(regole: Regole = DEFAULT_RULES) {
     const onClose = vi.fn();

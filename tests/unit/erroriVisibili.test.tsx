@@ -915,7 +915,7 @@ describe("Anagrafe: il server rifiuta, la pagina non mostra il dato come salvato
     expect(xMario.disabled).toBe(true);
     expect(xLuigi.disabled).toBe(true);
     fireEvent.click(xLuigi);
-    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
     expect(anagrafe.removeGiocatore).toHaveBeenCalledTimes(1);
     await act(async () => { risposta.ok(); });
     await waitFor(() => expect(screen.queryByRole("button", { name: "Elimina Mario Rossi" })).toBeNull());
@@ -937,7 +937,7 @@ describe("Anagrafe: il server rifiuta, la pagina non mostra il dato come salvato
     expect(xBallers.disabled).toBe(true);
     expect(xFalchi.disabled).toBe(true);
     fireEvent.click(xFalchi);
-    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
     expect(anagrafe.removeSquadra).toHaveBeenCalledTimes(1);
     await act(async () => { risposta.ok(); });
     await waitFor(() => expect(screen.queryByRole("button", { name: "Elimina Ballers" })).toBeNull());

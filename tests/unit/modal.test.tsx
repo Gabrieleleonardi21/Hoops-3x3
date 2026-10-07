@@ -271,7 +271,7 @@ describe("Modal: la conferma sopra una scheda", () => {
     const elimina = screen.getByRole("button", { name: "Elimina" });
     expect(document.activeElement).toBe(elimina); // il primo elemento della scheda
     fireEvent.click(elimina);
-    const conferma = screen.getByRole("dialog", { name: "Eliminare il giocatore?" });
+    const conferma = screen.getByRole("alertdialog", { name: "Eliminare il giocatore?" });
     return { mario, elimina, conferma, luigi: screen.getByRole("button", { name: "Elimina Luigi" }) };
   }
 
@@ -300,7 +300,7 @@ describe("Modal: la conferma sopra una scheda", () => {
     const onChiudiScheda = vi.fn();
     const { mario, elimina } = apriSchedaEConferma(onChiudiScheda);
     esc();
-    expect(screen.queryByRole("dialog", { name: "Eliminare il giocatore?" })).toBeNull();
+    expect(screen.queryByRole("alertdialog", { name: "Eliminare il giocatore?" })).toBeNull();
     expect(screen.getByRole("dialog", { name: "Scheda giocatore" })).toBeTruthy();
     expect(onChiudiScheda).not.toHaveBeenCalled();
     expect(document.activeElement).toBe(elimina);
@@ -315,7 +315,7 @@ describe("Modal: la conferma sopra una scheda", () => {
     const onChiudiScheda = vi.fn();
     apriSchedaEConferma(onChiudiScheda);
     esc(); // la pressione: chiude la conferma
-    expect(screen.queryByRole("dialog", { name: "Eliminare il giocatore?" })).toBeNull();
+    expect(screen.queryByRole("alertdialog", { name: "Eliminare il giocatore?" })).toBeNull();
     for (let i = 0; i < 5; i++) fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape", repeat: true }); // il tasto tenuto
     expect(onChiudiScheda).not.toHaveBeenCalled();
     expect(screen.getByRole("dialog", { name: "Scheda giocatore" })).toBeTruthy();
@@ -330,7 +330,8 @@ describe("Modal: la conferma sopra una scheda", () => {
     mario.focus();
     fireEvent.click(mario);
     fireEvent.click(screen.getByRole("button", { name: "Elimina" }));
-    expect(screen.getAllByRole("dialog")).toHaveLength(2);
+    expect(screen.getAllByRole("dialog")).toHaveLength(1); // la scheda
+    expect(screen.getAllByRole("alertdialog")).toHaveLength(1); // e la conferma
     unmount();
     esc();
     expect(onChiudiScheda).not.toHaveBeenCalled();

@@ -80,7 +80,7 @@ describe("Elenco delle leghe: «Elimina lega» chiede conferma con la finestra d
   it("la finestra dice quale lega e quante tappe si perdono; il confronto del browser non si usa", () => {
     apriLeghe();
     fireEvent.click(cestino());
-    expect(screen.getByRole("dialog", { name: "Eliminare la lega?" }).textContent)
+    expect(screen.getByRole("alertdialog", { name: "Eliminare la lega?" }).textContent)
       .toContain("Verrà eliminata la lega «Estate» con 2 tappe, squadre e risultati compresi.");
     expect(confermaDelBrowser).not.toHaveBeenCalled();
     expect(leghe.remove).not.toHaveBeenCalled(); // finché non si risponde il server non riceve niente
@@ -104,14 +104,14 @@ describe("Elenco delle leghe: «Elimina lega» chiede conferma con la finestra d
     expect(screen.getByText(/^1 tappa/)).toBeTruthy();
     expect(screen.getByText(/^2 tappe/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Elimina lega Una" }));
-    expect(screen.getByRole("dialog", { name: "Eliminare la lega?" }).textContent).toContain("con 1 tappa,");
+    expect(screen.getByRole("alertdialog", { name: "Eliminare la lega?" }).textContent).toContain("con 1 tappa,");
   });
 
   it("«Annulla» non elimina niente: nessuna DELETE, la lega resta nell'elenco", () => {
     apriLeghe();
     fireEvent.click(cestino());
     annulla();
-    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
     expect(leghe.remove).not.toHaveBeenCalled();
     expect(screen.getByText("Estate")).toBeTruthy();
     expect(useAppStore.getState().leghe).toEqual([estate]);
@@ -151,7 +151,7 @@ describe("Anagrafe: le eliminazioni dalle card chiedono conferma", () => {
   it("giocatore: la finestra dice che sparisce dall'anagrafe condivisa e dai roster in cui c'è (Mario è nel roster dei Ballers)", async () => {
     apriAnagrafe();
     fireEvent.click(await xGiocatore());
-    expect(screen.getByRole("dialog", { name: "Eliminare il giocatore?" }).textContent)
+    expect(screen.getByRole("alertdialog", { name: "Eliminare il giocatore?" }).textContent)
       .toContain("Verrà eliminato il giocatore «Mario Rossi» dall'anagrafe condivisa e da 1 roster.");
     expect(anagrafe.removeGiocatore).not.toHaveBeenCalled();
   });
@@ -160,7 +160,7 @@ describe("Anagrafe: le eliminazioni dalle card chiedono conferma", () => {
     anagrafe.listSquadre.mockResolvedValue([squadra("s1", "Ballers")]);
     apriAnagrafe();
     fireEvent.click(await xGiocatore());
-    expect(screen.getByRole("dialog", { name: "Eliminare il giocatore?" }).textContent)
+    expect(screen.getByRole("alertdialog", { name: "Eliminare il giocatore?" }).textContent)
       .toContain("Verrà eliminato il giocatore «Mario Rossi» dall'anagrafe condivisa.");
   });
 
@@ -180,7 +180,7 @@ describe("Anagrafe: le eliminazioni dalle card chiedono conferma", () => {
   it("squadra: la finestra dice che sparisce dall'anagrafe e che i giocatori del roster restano", async () => {
     apriAnagrafe();
     fireEvent.click(await xSquadra());
-    expect(screen.getByRole("dialog", { name: "Eliminare la squadra?" }).textContent)
+    expect(screen.getByRole("alertdialog", { name: "Eliminare la squadra?" }).textContent)
       .toContain("Verrà eliminata la squadra «Ballers» dall'anagrafe condivisa. I giocatori del roster restano registrati.");
     expect(anagrafe.removeSquadra).not.toHaveBeenCalled();
   });
@@ -202,10 +202,10 @@ describe("Anagrafe: le eliminazioni dalle card chiedono conferma", () => {
     apriAnagrafe();
     fireEvent.click(await screen.findByRole("button", { name: "Mario Rossi" }));
     fireEvent.click(screen.getByRole("button", { name: "Elimina" }));
-    expect(screen.getByRole("dialog", { name: "Eliminare il giocatore?" })).toBeTruthy();
+    expect(screen.getByRole("alertdialog", { name: "Eliminare il giocatore?" })).toBeTruthy();
     expect(anagrafe.removeGiocatore).not.toHaveBeenCalled();
     conferma();
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
     expect(anagrafe.removeGiocatore).toHaveBeenCalledExactlyOnceWith("g1");
   });
 });
@@ -232,10 +232,10 @@ describe("Anagrafe: le eliminazioni dalle schede (modali) chiedono conferma", ()
     const g = gestori();
     mostra(g);
     elimina();
-    expect(screen.getByRole("dialog", { name: titolo }).textContent).toContain(testo);
+    expect(screen.getByRole("alertdialog", { name: titolo }).textContent).toContain(testo);
     expect(g.onRemove).not.toHaveBeenCalled();
     annulla();
-    expect(screen.queryByRole("dialog", { name: titolo })).toBeNull();
+    expect(screen.queryByRole("alertdialog", { name: titolo })).toBeNull();
     expect(g.onRemove).not.toHaveBeenCalled();
     expect(g.onClose).not.toHaveBeenCalled();
   });
@@ -247,7 +247,7 @@ describe("Anagrafe: le eliminazioni dalle schede (modali) chiedono conferma", ()
       </MemoryRouter>,
     );
     elimina();
-    expect(screen.getByRole("dialog", { name: "Eliminare il giocatore?" }).textContent)
+    expect(screen.getByRole("alertdialog", { name: "Eliminare il giocatore?" }).textContent)
       .toContain("Verrà eliminato il giocatore «Mario Rossi» dall'anagrafe condivisa e da 2 roster.");
   });
 
@@ -284,7 +284,7 @@ describe("Anagrafe: le eliminazioni dalle schede (modali) chiedono conferma", ()
   ])("%s: se con la conferma aperta si smonta tutto insieme (tasto «Indietro»), lo scroll della pagina torna", (_tipo, mostra) => {
     const { unmount } = mostra(gestori());
     elimina();
-    expect(screen.getByRole("dialog", { name: /Eliminare/ })).toBeTruthy();
+    expect(screen.getByRole("alertdialog", { name: /Eliminare/ })).toBeTruthy();
     expect(document.body.style.overflow).toBe("hidden");
     unmount();
     expect(document.body.style.overflow).toBe("");

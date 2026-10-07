@@ -140,7 +140,7 @@ describe("App: sessione che finisce mentre l'utente lavora", () => {
     await act(async () => { await api("/api/leghe").catch(() => {}); });
     expect(await screen.findByText(`${MESSAGGIO}. 2 tappe avevano modifiche non salvate.`)).toBeTruthy();
     // Senza conferma: a sessione finita non c'è più modo di salvare
-    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
   });
 
   it("uscita in un'altra scheda (token cancellato, evento storage): anche questa torna al form con il messaggio", async () => {

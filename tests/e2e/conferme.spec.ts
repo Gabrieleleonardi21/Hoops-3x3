@@ -22,7 +22,7 @@ test("«Elimina» su una tappa apre la conferma: «Annulla» non cambia niente, 
 
   const elimina = page.getByRole("button", { name: "Elimina", exact: true });
   await elimina.click();
-  const finestra = page.getByRole("dialog", { name: "Eliminare la tappa?" });
+  const finestra = page.getByRole("alertdialog", { name: "Eliminare la tappa?" });
   await expect(finestra).toContainText("Verranno eliminati la tappa «Tappa da eliminare» con 8 squadre, il sorteggio e 1 risultato.");
 
   // «Annulla»: la finestra si chiude e la tappa è ancora lì, sorteggio e risultato compresi (anche dopo il ricaricamento)
@@ -35,7 +35,7 @@ test("«Elimina» su una tappa apre la conferma: «Annulla» non cambia niente, 
 
   // «Conferma»: la tappa si elimina e si torna all'elenco, che non la mostra più
   await elimina.click();
-  await page.getByRole("dialog", { name: "Eliminare la tappa?" }).getByRole("button", { name: "Conferma" }).click();
+  await page.getByRole("alertdialog", { name: "Eliminare la tappa?" }).getByRole("button", { name: "Conferma" }).click();
   await expect(page).toHaveURL(/\/lega$/);
   await expect(page.getByText(/Nessuna tappa in calendario/)).toBeVisible();
   await expect(page.getByText("Tappa da eliminare")).toHaveCount(0);
@@ -49,7 +49,7 @@ test("«Elimina lega» chiede conferma con la finestra dell'app, non con quella 
   await page.getByRole("navigation", { name: "Principale" }).getByRole("link", { name: "Le mie leghe" }).click();
 
   await page.getByRole("button", { name: "Elimina lega Lega da eliminare" }).click();
-  const finestra = page.getByRole("dialog", { name: "Eliminare la lega?" });
+  const finestra = page.getByRole("alertdialog", { name: "Eliminare la lega?" });
   await expect(finestra).toContainText("Verrà eliminata la lega «Lega da eliminare», che non ha tappe.");
 
   // «Annulla»: la lega resta nell'elenco
@@ -59,7 +59,7 @@ test("«Elimina lega» chiede conferma con la finestra dell'app, non con quella 
 
   // «Conferma»: la lega sparisce
   await page.getByRole("button", { name: "Elimina lega Lega da eliminare" }).click();
-  await page.getByRole("dialog", { name: "Eliminare la lega?" }).getByRole("button", { name: "Conferma" }).click();
+  await page.getByRole("alertdialog", { name: "Eliminare la lega?" }).getByRole("button", { name: "Conferma" }).click();
   await expect(page.getByText(/Nessuna lega ancora/)).toBeVisible();
   expect(dialoghiDelBrowser).toEqual([]);
 });
@@ -80,14 +80,14 @@ test("«Numero gironi» non cancella nulla mentre si scrive né ridigitando lo s
   await gironi.fill("");
   await gironi.fill("2");
   await gironi.press("Tab");
-  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Girone A" })).toBeVisible();
   await expect(page.getByText("21", { exact: true }).first()).toBeVisible();
 
   // Un numero diverso, con un risultato registrato, chiede conferma; «Annulla» lascia tutto com'era
   await gironi.fill("1");
   await gironi.press("Tab");
-  const finestra = page.getByRole("dialog", { name: "Cambiare il numero di gironi?" });
+  const finestra = page.getByRole("alertdialog", { name: "Cambiare il numero di gironi?" });
   await expect(finestra).toContainText("Verranno eliminati il sorteggio e 1 risultato.");
   await finestra.getByRole("button", { name: "Annulla" }).click();
   await expect(gironi).toHaveValue("2");
@@ -100,7 +100,7 @@ test("un nome lungo e senza spazi resta dentro la finestra di conferma", async (
   await page.getByLabel(/Nome tappa/i).fill("N".repeat(120)); // il massimo che il campo ammette
   await page.getByRole("button", { name: /Crea la tappa/i }).click();
   await page.getByRole("button", { name: "Elimina", exact: true }).click();
-  const scheda = page.getByRole("dialog", { name: "Eliminare la tappa?" });
+  const scheda = page.getByRole("alertdialog", { name: "Eliminare la tappa?" });
   await expect(scheda).toContainText("N".repeat(120));
   // Se il nome non va a capo, il testo è più largo del corpo della finestra, che scorrerebbe in orizzontale
   const sbordo = await scheda.locator("p").evaluate((testo) => {
