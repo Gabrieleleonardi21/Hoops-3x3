@@ -33,8 +33,8 @@ describe("Statistiche stagione: la tabella", () => {
     render(<StatsCircuito tappe={[t1, t2, t3]} />);
     // #, giocatore, squadra, G, PT, Pt/G, RB, Rb/G, AS, RU, ST: in cima Luca, 15 punti a partita contro 10
     expect(righeTabella()).toEqual([
-      ["1", "Luca Bianchi", "Beta", "1", "15", "15.0", "0", "0.0", "0", "0", "0"],
-      ["2", "Mario Rossi", "Alfa", "3", "30", "10.0", "7", "2.3", "2", "1", "0"],
+      ["1", "Luca Bianchi", "Beta", "1", "15", "15,0", "0", "0,0", "0", "0", "0"],
+      ["2", "Mario Rossi", "Alfa", "3", "30", "10,0", "7", "2,3", "2", "1", "0"],
     ]);
   });
 

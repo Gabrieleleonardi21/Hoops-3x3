@@ -1,6 +1,7 @@
 import type { Tappa } from "../types";
 import { tappaLeaders, type LeaderRow } from "./tappaLeaders";
 import { SCONOSCIUTO } from "./tappaInfo";
+import { fmtMedia } from "./formato";
 
 export interface AreaMiglioramento {
   area: string;
@@ -51,7 +52,6 @@ export const DRILLS: Record<string, string[]> = {
   ],
 };
 
-const f = (v: number) => v.toFixed(1).replace(".", ",");
 
 export function analyzePlayer3x3(tappa: Tappa, pid: string): PlayerAnalysis | null {
   const rows = tappaLeaders(tappa);
@@ -80,10 +80,10 @@ export function analyzePlayer3x3(tappa: Tappa, pid: string): PlayerAnalysis | nu
   const ratio = (mine: number, avg: number) => mine / Math.max(avg, 0.3);
 
   const candidates: { area: string; r: number; motivo: string }[] = [
-    { area: "Realizzazione", r: ratio(medie.pt, tappaAvg.pt), motivo: `media di ${f(medie.pt)} punti a partita contro i ${f(tappaAvg.pt)} di media della tappa` },
-    { area: "Rimbalzo", r: ratio(medie.rb, tappaAvg.rb), motivo: `${f(medie.rb)} rimbalzi a partita contro i ${f(tappaAvg.rb)} di media della tappa` },
-    { area: "Creazione di gioco", r: ratio(medie.as, tappaAvg.as), motivo: `${f(medie.as)} assist a partita contro i ${f(tappaAvg.as)} di media della tappa` },
-    { area: "Difesa", r: ratio(myDef, tappaAvg.def), motivo: `${f(myDef)} tra recuperi e stoppate a partita contro i ${f(tappaAvg.def)} di media della tappa` },
+    { area: "Realizzazione", r: ratio(medie.pt, tappaAvg.pt), motivo: `media di ${fmtMedia(medie.pt)} punti a partita contro i ${fmtMedia(tappaAvg.pt)} di media della tappa` },
+    { area: "Rimbalzo", r: ratio(medie.rb, tappaAvg.rb), motivo: `${fmtMedia(medie.rb)} rimbalzi a partita contro i ${fmtMedia(tappaAvg.rb)} di media della tappa` },
+    { area: "Creazione di gioco", r: ratio(medie.as, tappaAvg.as), motivo: `${fmtMedia(medie.as)} assist a partita contro i ${fmtMedia(tappaAvg.as)} di media della tappa` },
+    { area: "Difesa", r: ratio(myDef, tappaAvg.def), motivo: `${fmtMedia(myDef)} tra recuperi e stoppate a partita contro i ${fmtMedia(tappaAvg.def)} di media della tappa` },
   ];
 
   const migliorare: AreaMiglioramento[] = [];
@@ -91,13 +91,13 @@ export function analyzePlayer3x3(tappa: Tappa, pid: string): PlayerAnalysis | nu
   if (medie.pe >= 1 && medie.pe > medie.as)
     migliorare.push({
       area: "Gestione del possesso",
-      motivo: `perde ${f(medie.pe)} palloni a partita, più degli assist che distribuisce (${f(medie.as)})`,
+      motivo: `perde ${fmtMedia(medie.pe)} palloni a partita, più degli assist che distribuisce (${fmtMedia(medie.as)})`,
       esercizi: DRILLS["Gestione del possesso"],
     });
   if (medie.fa >= 2.5)
     migliorare.push({
       area: "Disciplina nei falli",
-      motivo: `${f(medie.fa)} falli a partita: nel 3x3 il bonus di squadra arriva in fretta`,
+      motivo: `${fmtMedia(medie.fa)} falli a partita: nel 3x3 il bonus di squadra arriva in fretta`,
       esercizi: DRILLS["Disciplina nei falli"],
     });
 

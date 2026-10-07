@@ -8,8 +8,8 @@ import { analyzePlayer3x3 } from "../../utils/analyzePlayer3x3";
 import { askCoach, AiError } from "../../services/aiService";
 import { useAppStore } from "../../stores/useAppStore";
 import type { Tappa } from "../../types";
+import { fmtMedia } from "../../utils/formato";
 
-const f = (v: number) => v.toFixed(1).replace(".", ",");
 
 export function GiocatoreAnalisi({ tappa, pid, onClose }: { tappa: Tappa; pid: string; onClose: () => void }) {
   const a = analyzePlayer3x3(tappa, pid);
@@ -24,7 +24,7 @@ export function GiocatoreAnalisi({ tappa, pid, onClose }: { tappa: Tappa; pid: s
     try {
       const preamble =
         "Sei un allenatore esperto di basket 3x3 (regole FIBA: canestri da 1 e 2 punti, gara a 21 o 10 minuti, possesso di 12 secondi). Rispondi in italiano, tono diretto e incoraggiante, massimo 130 parole, senza markdown e senza elenchi puntati.";
-      const domanda = `Analizza questo giocatore di un torneo 3x3 e dagli consigli pratici di allenamento. ${a.nome} (${a.squadra}), ${a.partite} partite giocate. Medie a partita: ${f(a.medie.pt)} punti, ${f(a.medie.rb)} rimbalzi, ${f(a.medie.as)} assist, ${f(a.medie.ru)} recuperi, ${f(a.medie.st)} stoppate, ${f(a.medie.pe)} palle perse, ${f(a.medie.fa)} falli. Aree deboli individuate: ${a.migliorare.map((m) => m.area).join(", ") || "nessuna"}. Dai 2-3 consigli specifici e un esercizio in più non banale.`;
+      const domanda = `Analizza questo giocatore di un torneo 3x3 e dagli consigli pratici di allenamento. ${a.nome} (${a.squadra}), ${a.partite} partite giocate. Medie a partita: ${fmtMedia(a.medie.pt)} punti, ${fmtMedia(a.medie.rb)} rimbalzi, ${fmtMedia(a.medie.as)} assist, ${fmtMedia(a.medie.ru)} recuperi, ${fmtMedia(a.medie.st)} stoppate, ${fmtMedia(a.medie.pe)} palle perse, ${fmtMedia(a.medie.fa)} falli. Aree deboli individuate: ${a.migliorare.map((m) => m.area).join(", ") || "nessuna"}. Dai 2-3 consigli specifici e un esercizio in più non banale.`;
       const reply = await askCoach(preamble, [{ role: "user", content: domanda }]);
       setAiText(reply);
     } catch (e) {
@@ -52,7 +52,7 @@ export function GiocatoreAnalisi({ tappa, pid, onClose }: { tappa: Tappa; pid: s
               <tbody>
                 <tr>
                   {([a.medie.pt, a.medie.rb, a.medie.as, a.medie.ru, a.medie.st, a.medie.pe, a.medie.fa]).map((v, i) => (
-                    <td key={i} className="font-display text-lg text-chalk">{f(v)}</td>
+                    <td key={i} className="font-display text-lg text-chalk">{fmtMedia(v)}</td>
                   ))}
                 </tr>
               </tbody>

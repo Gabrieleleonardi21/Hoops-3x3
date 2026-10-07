@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { statGiocatori } from "../../utils/statGiocatori";
 import type { Tappa } from "../../types";
+import { fmtMedia } from "../../utils/formato";
 
 export function StatsCircuito({ tappe }: { tappe: Tappa[] }) {
   // Per media punti a partita, la più alta in cima. L'array è nuovo: ordinarlo qui non tocca altro
@@ -16,7 +17,11 @@ export function StatsCircuito({ tappe }: { tappe: Tappa[] }) {
     );
   }
 
-  const avg = (v: number, g: number) => (g > 0 ? (v / g).toFixed(1) : "—");
+  // Media a partita; senza partite non c'è media
+  const avg = (v: number, g: number) => {
+    if (g > 0) return fmtMedia(v / g);
+    return "—";
+  };
   const HEAD: [string, string][] = [["#", "Posizione"], ["Giocatore", "Giocatore"], ["Squadra", "Squadra"], ["G", "Gare"], ["PT", "Punti"], ["Pt/G", "Punti a gara"], ["RB", "Rimbalzi"], ["Rb/G", "Rimbalzi a gara"], ["AS", "Assist"], ["RU", "Rubate"], ["ST", "Stoppate"]];
 
   return (

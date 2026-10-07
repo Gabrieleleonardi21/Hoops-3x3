@@ -20,6 +20,7 @@ import { tappaLeaders } from "../utils/tappaLeaders";
 import { ultimoRisultato } from "../utils/ultimoRisultato";
 import type { Tappa } from "../types";
 import { logoSquadra, nomeSquadra } from "../utils/tappaInfo";
+import { fmtMedia, letteraGirone } from "../utils/formato";
 
 /** Tappa "in corso": la più recente non conclusa con gironi sorteggiati, altrimenti l'ultima creata */
 function tappaInCorso(tappe: Tappa[]): Tappa | null {
@@ -89,9 +90,9 @@ export function HomePage() {
       />
 
       <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
-        <Section title="Classifica live" kicker={t.gironi ? `Girone ${String.fromCharCode(65 + gi)}` : "In attesa del sorteggio"} className="mb-0">
+        <Section title="Classifica live" kicker={t.gironi ? `Girone ${letteraGirone(gi)}` : "In attesa del sorteggio"} className="mb-0">
           {rows.length ? (
-            <StandingsTable rows={rows} logos={logos} caption={`Classifica girone ${String.fromCharCode(65 + gi)}`} compact />
+            <StandingsTable rows={rows} logos={logos} caption={`Classifica girone ${letteraGirone(gi)}`} compact />
           ) : (
             <Card>
               <p className="text-[13px] text-chalk-muted">I gironi non sono ancora stati sorteggiati.</p>
@@ -116,7 +117,7 @@ export function HomePage() {
               {prossime.map((m) => (
                 <li key={m.id} className="flex items-center gap-2 border-b border-asphalt-700 px-3 py-2 text-[13px] last:border-b-0">
                   <span className="min-w-0 flex-1 truncate text-right font-display text-base">{nameOf(m.a)}</span>
-                  <span className="shrink-0 rounded-sm bg-asphalt-800 px-1.5 text-[10.5px] font-semibold text-chalk-muted">G{String.fromCharCode(65 + m.g)}</span>
+                  <span className="shrink-0 rounded-sm bg-asphalt-800 px-1.5 text-[10.5px] font-semibold text-chalk-muted">G{letteraGirone(m.g)}</span>
                   <span className="min-w-0 flex-1 truncate font-display text-base">{nameOf(m.b)}</span>
                 </li>
               ))}
@@ -132,7 +133,7 @@ export function HomePage() {
               const top = [...leaders].filter((p) => p[k] > 0).sort((a, b) => b[k] - a[k] || b.pt - a.pt)[0];
               if (!top) return null;
               return (
-                <StatTile key={k} label={label} value={top[k]} sub={`(${(top[k] / top.g).toFixed(1)})`}
+                <StatTile key={k} label={label} value={top[k]} sub={`(${fmtMedia(top[k] / top.g)})`}
                   meta={<><span className="font-semibold">{top.nome}</span> <span className="text-chalk-muted">· {top.squadra}</span></>}
                   highlight={k === "pt"} />
               );

@@ -2,6 +2,7 @@
  *  Mostra il totale e la media a partita tra parentesi; il primo è in oro. */
 import type { LeaderRow } from "../../utils/tappaLeaders";
 import type { StatLine } from "../../types";
+import { fmtMedia } from "../../utils/formato";
 
 export function LeaderCard({ label, statKey, players }: {
   label: string; statKey: keyof StatLine; players: LeaderRow[];
@@ -23,7 +24,7 @@ export function LeaderCard({ label, statKey, players }: {
               </span>
               <span className={`font-display text-xl ${first ? "text-gold" : "text-chalk"}`}>
                 {p[statKey]}
-                <span className="ml-1 font-sans text-[10.5px] font-medium text-chalk-muted">({(p[statKey] / p.g).toFixed(1)})</span>
+                <span className="ml-1 font-sans text-[10.5px] font-medium text-chalk-muted">({fmtMedia(p[statKey] / p.g)})</span>
               </span>
             </li>
           );

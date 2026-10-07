@@ -15,6 +15,7 @@ import { Icon } from "../ui/Icon";
 import { Section } from "../ui/Section";
 import type { Tappa, SquadraTappa } from "../../types";
 import { giocatoriDi, logoSquadra, nomeGiocatore, nomeSquadra } from "../../utils/tappaInfo";
+import { letteraGirone } from "../../utils/formato";
 
 /** Vista in sola lettura di una tappa: tappe concluse e archivio del circuito */
 export function ArchivioTappaView({ t, lega, autore }: { t: Tappa; lega?: string; autore?: string }) {
@@ -66,7 +67,7 @@ export function ArchivioTappaView({ t, lega, autore }: { t: Tappa; lega?: string
       {t.gironi && t.gironi.map((g, gi) => {
         const matches = t.partite.filter((m) => m.g === gi);
         const rows = standings(g, matches, nameOf);
-        const letter = String.fromCharCode(65 + gi);
+        const letter = letteraGirone(gi);
         return (
           <Section key={gi} title={`Girone ${letter}`} kicker={g.map(nameOf).join(" · ")}>
             <div className="flex flex-col gap-2">

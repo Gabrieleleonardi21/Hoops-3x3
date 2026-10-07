@@ -1,5 +1,6 @@
 import { STAT_KEYS } from "../../constants/rules";
-import type { StatLine, StatSheet, GiocatoreRoster } from "../../types";
+import type { StatSheet, GiocatoreRoster } from "../../types";
+import { toStatLine } from "../../utils/statLine";
 
 /** Tabella in sola lettura delle statistiche registrate di una squadra */
 export function StatsView({ teamName, players, sheet }: {
@@ -23,7 +24,7 @@ export function StatsView({ teamName, players, sheet }: {
         <tbody>
           {players.filter((p) => sheet[p.id] !== undefined).map((p) => {
             const raw = sheet[p.id];
-            const st: StatLine = typeof raw === "object" && raw !== null ? raw : { pt: raw as number };
+            const st = toStatLine(raw);
             return (
               <tr key={p.id}>
                 <td className="tname">{p.nome}</td>

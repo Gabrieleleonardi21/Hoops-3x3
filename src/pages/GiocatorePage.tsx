@@ -22,6 +22,7 @@ import { Icon } from "../components/ui/Icon";
 import { Sparkline } from "../components/profile/Sparkline";
 import type { RegGiocatore, Tappa } from "../types";
 import { nomeSquadra } from "../utils/tappaInfo";
+import { fmtMedia } from "../utils/formato";
 
 /** true se il nome nel roster corrisponde al giocatore dell'anagrafe, in un ordine o nell'altro. Si confronta con la
  *  stessa normalizzazione della tabella di stagione */
@@ -51,7 +52,6 @@ const BADGE_ESITO: Record<Esito, { tone: "win" | "loss" | "neutral"; lettera: st
   pari: { tone: "neutral", lettera: "=" },
 };
 
-const f1 = (n: number) => n.toFixed(1);
 
 /** Somma le righe di stagione dello stesso giocatore: sono più d'una se il nome compare in più squadre */
 const somma = (righe: StatGiocatore[]): Totali => righe.reduce((acc, r) => ({
@@ -130,7 +130,7 @@ export function GiocatorePage() {
   // Le squadre da cui vengono i totali, ognuna una volta: lo stesso nome scritto nei due ordini nella stessa squadra sono due
   // righe di stagione, ma una squadra sola. Vale la grafia dell'ultima riga
   const squadreStat = [...new Map(stagione.map((row): [string, string] => [normalizza(row.squadra), row.squadra])).values()];
-  const avg = (v: number) => (tot.g ? `(${f1(v / tot.g)}/g)` : undefined);
+  const avg = (v: number) => (tot.g ? `(${fmtMedia(v / tot.g)}/g)` : undefined);
   const age = eta(g.nascita);
   const bio = [g.ruolo, g.squadra, g.citta, age !== null ? `${age} anni` : "", g.altezza ? `${g.altezza} cm` : "", g.peso ? `${g.peso} kg` : ""].filter(Boolean);
   // Vinte e perse si contano sulle stesse partite dell'elenco; una parità non è nessuna delle due, quindi V e P possono non sommare G
