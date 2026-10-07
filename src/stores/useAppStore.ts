@@ -315,9 +315,10 @@ export const useAppStore = create<AppState>((set, get) => {
   const sostituite = new Map<string, string>();
   /** Le frasi dell'avviso dei conflitti ancora aperto (avvisoConflitti), una per tappa: id → frase */
   const avvisiConflitto = new Map<string, string>();
-  /** DELETE che aspettano la fine della richiesta in volo della loro tappa (eliminaDopo): salvaTutto, prima di «Esci», aspetta anche
-   *  loro, così il token c'è ancora quando partono */
-  const eliminazioniInAttesa = new Set<Promise<void>>();
+  /** DELETE di tappe non ancora confermate dal server, in attesa della fine della richiesta in volo della loro tappa o già partite
+   *  (eliminaDopo): id → attesa. salvaTutto, prima di «Esci», le aspetta, così il token c'è ancora quando partono; alla chiusura della
+   *  pagina partono con keepalive (pagehide), altrimenti si perderebbero e la tappa ricomparirebbe */
+  const eliminazioniInAttesa = new Map<string, Promise<void>>();
 
   /** La lega di una tappa: quella detta dal server, oppure quella in cui la tappa si sta creando, oppure la lega aperta */
   const legaDi = (id: string): string | null => sulServer.get(id)?.legaId ?? daCreare.get(id) ?? get().legaId;
@@ -332,7 +333,7 @@ export const useAppStore = create<AppState>((set, get) => {
   };
 
   /** true se la tappa arriva da una lettura più vecchia della versione nota: i suoi dati sono superati da un salvataggio di qui */
-  const piùVecchiaDellaNota = (t: Tappa): boolean => {
+  const piuVecchiaDellaNota = (t: Tappa): boolean => {
     const nota = sulServer.get(t.id)?.versione;
     return nota !== undefined && t.versione !== undefined && t.versione < nota;
   };
@@ -532,6 +533,8 @@ export const useAppStore = create<AppState>((set, get) => {
   /** La DELETE di una tappa; `inviate` sono i suoi corpi rimasti senza risposta, per decidere dopo un 409 */
   const mandaDelete = (id: string, legaId: string | null, inviate: Tappa[], rimandata: boolean): Promise<void> =>
     legheApi.removeTappa(id).catch(async (e: unknown) => {
+      // 404: sul server la tappa non c'è già più (per esempio l'ha eliminata la DELETE partita alla chiusura della pagina)
+      if (e instanceof ApiError && e.status === 404) return;
       if (!conflitto(e) || !legaId) {
         reportError(e, "Eliminazione tappa non riuscita");
         return;
@@ -544,16 +547,17 @@ export const useAppStore = create<AppState>((set, get) => {
     mandaDelete(id, legaId, prendiSenzaRisposta(id), false);
 
   /** La DELETE parte quando è finita la richiesta in volo della tappa, se ce n'è una (coda.annulla la restituisce): arrivando
-   *  insieme a un salvataggio avrebbe un 409. Intanto salvaTutto la aspetta (eliminazioniInAttesa) */
+   *  insieme a un salvataggio avrebbe un 409. Senza richiesta in volo parte subito. Finché il server non la conferma resta in
+   *  eliminazioniInAttesa (salvaTutto e chiusura della pagina) */
   const eliminaDopo = (inVolo: Promise<void> | null, id: string) => {
     const legaId = legaDi(id); // letta subito: intanto si può aprire un'altra lega
-    if (!inVolo) {
-      void eliminaSulServer(id, legaId);
-      return;
-    }
-    const attesa = inVolo.then(() => eliminaSulServer(id, legaId));
-    eliminazioniInAttesa.add(attesa);
-    void attesa.finally(() => eliminazioniInAttesa.delete(attesa));
+    let attesa: Promise<void>;
+    if (inVolo) attesa = inVolo.then(() => eliminaSulServer(id, legaId));
+    else attesa = eliminaSulServer(id, legaId);
+    eliminazioniInAttesa.set(id, attesa);
+    void attesa.finally(() => {
+      if (eliminazioniInAttesa.get(id) === attesa) eliminazioniInAttesa.delete(id);
+    });
   };
 
   /** Invio di una copia della tappa (lo chiama la coda, una richiesta alla volta per tappa): POST finché la creazione non è
@@ -566,11 +570,12 @@ export const useAppStore = create<AppState>((set, get) => {
     }
     await creaSulServer(legaId, t);
     daCreare.delete(t.id);
-    if (eliminatePrimaDellaCreazione.delete(t.id)) void eliminaSulServer(t.id, legaId);
+    if (eliminatePrimaDellaCreazione.delete(t.id)) eliminaDopo(null, t.id);
   };
 
-  /** Un 404 per una tappa che non è più nello stato non è un salvataggio fallito: la tappa è stata eliminata (la DELETE
-   *  è arrivata prima della PUT in volo, oppure se n'è andata con la sua lega) e non c'è più niente da salvare */
+  /** Un 404 per una tappa che non è più nello stato non è un salvataggio fallito: la tappa è stata eliminata e non c'è più
+   *  niente da salvare. Da questo client succede solo eliminando la sua lega (la DELETE di una tappa aspetta la richiesta in volo,
+   *  eliminaDopo), oppure quando la tappa l'ha eliminata un altro dispositivo */
   const eliminataNelFrattempo = (e: unknown, t: Tappa) =>
     e instanceof ApiError && e.status === 404 && !get().tappe.some((x) => x.id === t.id);
 
@@ -625,7 +630,7 @@ export const useAppStore = create<AppState>((set, get) => {
       const locale = locali.get(t.id);
       if (locale) return conVersione(locale);
       const nelloStore = get().tappe.find((x) => x.id === t.id);
-      if (nelloStore && piùVecchiaDellaNota(t)) return conVersione(nelloStore);
+      if (nelloStore && piuVecchiaDellaNota(t)) return conVersione(nelloStore);
       ricordaTappe(legaId, [t]);
       return conVersione(t);
     });
@@ -657,6 +662,9 @@ export const useAppStore = create<AppState>((set, get) => {
         }
         legheApi.addTappa(legaId, t, true).catch(() => {});
       }
+      // Le DELETE non ancora confermate, comprese quelle che aspettano un salvataggio in volo: senza keepalive si perderebbero e la
+      // tappa ricomparirebbe. Se la pagina torna dalla cache del browser la DELETE in attesa parte lo stesso, e il suo 404 si tollera
+      for (const id of eliminazioniInAttesa.keys()) legheApi.removeTappa(id, true).catch(() => {});
     });
   }
 
@@ -688,7 +696,7 @@ export const useAppStore = create<AppState>((set, get) => {
 
     salvaTutto: async () => {
       // Anche le DELETE che aspettano un salvataggio in volo: prima di «Esci» devono partire con il token
-      await Promise.all([coda.svuota(), rinomina(), ...eliminazioniInAttesa]);
+      await Promise.all([coda.svuota(), rinomina(), ...eliminazioniInAttesa.values()]);
       return coda.inAttesa().length;
     },
 

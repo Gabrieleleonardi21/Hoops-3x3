@@ -73,7 +73,9 @@ function serverFinto() {
   api.putTappa.mockImplementation(server.put);
   api.addTappa.mockImplementation(server.post);
   api.get.mockImplementation(async (id) => ({ id, nome: "Lega", tappe: [...salvate.values()].map(copia) }));
-  api.removeTappa.mockImplementation(async (id) => { salvate.delete(id); });
+  api.removeTappa.mockImplementation(async (id) => {
+    if (!salvate.delete(id)) throw new ApiError(404, `Tappa non trovata: ${id}`);
+  });
   return server;
 }
 
@@ -464,6 +466,27 @@ describe("DELETE di una tappa e salvataggi della stessa tappa", () => {
     const deleteAllaFine = store().salvaTutto().then(() => api.removeTappa.mock.calls.length);
     put.ok();
     expect(await deleteAllaFine).toBe(1);                    // dopo l'uscita il token non c'è più
+  });
+
+  it("chiudendo la pagina mentre la DELETE aspetta la PUT in volo, la DELETE parte con keepalive; se la pagina resta, il 404 dopo si tollera", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1"), 3);
+    await apri();
+    const put = differita();
+    api.putTappa.mockImplementationOnce(async (t) => { await put.p; return server.put(t); });
+    store().updateTappa("t1", { nome: "Finale" });
+    await vi.advanceTimersByTimeAsync(400);                  // la PUT resta in volo (Render che riparte)
+    store().removeTappa("t1");                               // la DELETE aspetta la PUT
+    window.dispatchEvent(new Event("pagehide"));             // l'utente chiude la scheda
+    expect(api.removeTappa).toHaveBeenCalledExactlyOnceWith("t1", true);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(server.salvate.has("t1")).toBe(false);            // senza, la tappa ricomparirebbe alla prossima apertura
+    // La pagina resta viva (cache del browser): la PUT finisce con 404 e la DELETE in attesa, partita dopo, riceve 404
+    put.ok();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(api.removeTappa).toHaveBeenCalledTimes(2);
+    senzaAvvisi();
+    expect(store().tappe).toEqual([]);
   });
 
   it("409 dopo un proprio salvataggio rimasto senza risposta: la DELETE si rimanda una volta, senza avviso, e la tappa non torna", async () => {

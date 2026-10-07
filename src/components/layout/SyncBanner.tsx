@@ -6,7 +6,9 @@
  *    server), eliminata altrove, o non eliminata perché salvata nello stesso istante. Sta a parte dagli errori, così
  *    un errore arrivato dopo non nasconde che delle modifiche sono state scartate; si chiude a mano;
  *  - gli altri errori (dati rifiutati dal server, rinomina, eliminazione, caricamento), che si chiudono a mano.
- *  Lo stato in memoria resta corretto in tutti i casi. */
+ *  Lo stato in memoria resta corretto in tutti i casi.
+ *  Ogni riga ha il suo ruolo, così il lettore di schermo legge solo quella che cambia: `alert` per le righe da chiudere
+ *  (errori e conflitti), `status` per le modifiche non salvate, che cambiano spesso e da sole. */
 import { useAppStore } from "../../stores/useAppStore";
 import { tappeNonSalvate } from "../../utils/tappeNonSalvate";
 import { Button } from "../ui/Button";
@@ -15,7 +17,7 @@ import { Icon } from "../ui/Icon";
 /** Una riga della barra che si chiude a mano: `etichetta` è il nome accessibile del pulsante di chiusura */
 function RigaDaChiudere({ testo, etichetta, onChiudi }: { testo: string; etichetta: string; onChiudi: () => void }) {
   return (
-    <div className="mx-auto flex max-w-5xl items-center gap-3">
+    <div role="alert" className="mx-auto flex max-w-5xl items-center gap-3">
       <span className="flex-1">{testo}</span>
       <button type="button" onClick={onChiudi} aria-label={etichetta} className="area-tocco text-chalk-muted hover:text-chalk">
         <Icon name="close" size={16} />
@@ -36,9 +38,9 @@ export function SyncBanner() {
   const nonSalvate = motivo !== null && inSospeso > 0;
   if (!error && !nonSalvate && !conflitti) return null;
   return (
-    <div role="alert" className="space-y-1.5 border-b border-loss/40 bg-loss/10 px-4 py-2 text-[13px] font-semibold text-chalk">
+    <div className="space-y-1.5 border-b border-loss/40 bg-loss/10 px-4 py-2 text-[13px] font-semibold text-chalk">
       {nonSalvate && (
-        <div className="mx-auto flex max-w-5xl items-center gap-3">
+        <div role="status" className="mx-auto flex max-w-5xl items-center gap-3">
           <span className="flex-1">
             {tappeNonSalvate(inSospeso)}. <span className="font-normal text-chalk-muted">{motivo}</span>
           </span>
