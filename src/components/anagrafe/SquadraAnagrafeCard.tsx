@@ -2,10 +2,10 @@
  *  (niente controlli annidati), il × elimina, dopo una conferma (solo autore o ADMIN). */
 import { useConfermaPerdita } from "../../hooks/useConfermaPerdita";
 import { puoModificare } from "../../utils/permessi";
-import { safeUrl } from "../../utils/safeUrl";
 import { perditaSquadraAnagrafe } from "../../utils/testi";
 import { Icon } from "../ui/Icon";
 import type { RegGiocatore, RegSquadra, User } from "../../types";
+import { TeamLogo } from "../ui/TeamLogo";
 
 /** `disabled`: un'altra eliminazione è in corso, quindi la X aspetta (un secondo invio verrebbe scartato senza dire niente) */
 export function SquadraAnagrafeCard({ s, giocatori, user, onRemove, onOpen, disabled = false }: {
@@ -20,10 +20,7 @@ export function SquadraAnagrafeCard({ s, giocatori, user, onRemove, onOpen, disa
     <article className="hovercard block w-full rounded border border-asphalt-700 bg-asphalt-900 p-3 text-left">
       <div className="flex items-start justify-between gap-2">
         <button onClick={onOpen} className="flex min-w-0 items-center gap-2.5 text-left" title="Apri la scheda">
-          {s.logo && (
-            <img src={safeUrl(s.logo)} alt={`Logo ${s.nome}`} className="h-11 w-11 shrink-0 object-contain"
-              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-          )}
+          <TeamLogo src={s.logo} alt={`Logo ${s.nome}`} className="h-11 w-11 shrink-0" />
           <span className="min-w-0 truncate font-display text-lg text-chalk transition-colors hover:text-court">{s.nome}</span>
         </button>
         {puoModificare(user, s.autoreId) && (

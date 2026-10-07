@@ -3,9 +3,9 @@
  *  In un match `bye` (turno superato d'ufficio) la seconda riga dice «Passa il turno».
  *  I controlli di inserimento arrivano da `renderControls` così la logica resta nel chiamante. */
 import type { BracketMatch } from "../../types";
-import { safeUrl } from "../../utils/safeUrl";
 import { Badge } from "../ui/Badge";
 import { Icon } from "../ui/Icon";
+import { TeamLogo } from "../ui/TeamLogo";
 
 interface Props {
   rounds: BracketMatch[][];
@@ -21,10 +21,7 @@ function Row({ name, logo, score, winner, loser, tbd }: {
   const scoreCls = winner ? "text-court" : loser ? "text-chalk-dim" : "text-chalk-muted";
   return (
     <div className={`flex h-9 items-center gap-2 px-3 ${winner ? "bg-asphalt-800" : ""}`}>
-      {logo && (
-        <img src={safeUrl(logo)} alt="" className="h-5 w-5 shrink-0 object-contain"
-          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-      )}
+      <TeamLogo src={logo} className="h-5 w-5 shrink-0" />
       <span className={`min-w-0 flex-1 truncate font-display text-base ${nameCls}`}>{name}</span>
       {winner && <Icon name="check" size={12} className="shrink-0 text-court" />}
       <span className={`font-display text-lg ${scoreCls}`}>{score ?? "–"}</span>

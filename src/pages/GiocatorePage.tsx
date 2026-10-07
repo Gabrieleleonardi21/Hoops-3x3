@@ -10,7 +10,6 @@ import { useAnagrafe } from "../hooks/useAnagrafe";
 import { useAppStore } from "../stores/useAppStore";
 import { normalizza, statGiocatori, tabellini, type StatGiocatore } from "../utils/statGiocatori";
 import { eta } from "../utils/eta";
-import { safeUrl } from "../utils/safeUrl";
 import { Loading } from "../components/ui/Loading";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
@@ -23,6 +22,7 @@ import { Sparkline } from "../components/profile/Sparkline";
 import type { RegGiocatore, Tappa } from "../types";
 import { nomeSquadra } from "../utils/tappaInfo";
 import { fmtMedia } from "../utils/formato";
+import { TeamLogo } from "../components/ui/TeamLogo";
 
 /** true se il nome nel roster corrisponde al giocatore dell'anagrafe, in un ordine o nell'altro. Si confronta con la
  *  stessa normalizzazione della tabella di stagione */
@@ -151,7 +151,7 @@ export function GiocatorePage() {
             <h1 className="font-display text-[clamp(28px,5vw,44px)] text-chalk">{g.nome} {g.cognome}</h1>
             {g.soprannome && <div className="mt-0.5 font-display text-lg text-court">"{g.soprannome}"</div>}
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              {logo && <img src={safeUrl(logo)} alt="" className="h-6 w-6 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />}
+              <TeamLogo src={logo} className="h-6 w-6" />
               {bio.map((b) => <Badge key={b}>{b}</Badge>)}
               {g.nazionalita && <Badge>{g.nazionalita}</Badge>}
             </div>

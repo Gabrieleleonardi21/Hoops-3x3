@@ -10,10 +10,10 @@ import { Input } from "../ui/Input";
 import { REG_ROLES } from "../../constants/roles";
 import { eta } from "../../utils/eta";
 import { puoModificare } from "../../utils/permessi";
-import { safeUrl } from "../../utils/safeUrl";
 import { perditaGiocatore } from "../../utils/testi";
 import type { GiocatoreInput } from "../../services/anagrafeApi";
 import type { RegGiocatore, RegSquadra, User } from "../../types";
+import { TeamLogo } from "../ui/TeamLogo";
 
 /** I campi che il server fa scrivere (senza id, autore, autoreId e ts) */
 type EditDraft = GiocatoreInput;
@@ -82,8 +82,7 @@ export function GiocatoreModal({
       {/* Logo squadra */}
       {squadraLogo && (
         <div className="mb-4 flex justify-center">
-          <img src={safeUrl(squadraLogo)} alt="" aria-hidden className="h-20 w-20 object-contain"
-            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+          <TeamLogo src={squadraLogo} className="h-20 w-20" />
         </div>
       )}
 

@@ -5,10 +5,10 @@ import { Link } from "react-router-dom";
 import { useConfermaPerdita } from "../../hooks/useConfermaPerdita";
 import { eta } from "../../utils/eta";
 import { puoModificare } from "../../utils/permessi";
-import { safeUrl } from "../../utils/safeUrl";
 import { perditaGiocatore } from "../../utils/testi";
 import { Icon } from "../ui/Icon";
 import type { RegGiocatore, RegSquadra, User } from "../../types";
+import { TeamLogo } from "../ui/TeamLogo";
 
 /** `disabled`: un'altra eliminazione è in corso, quindi la X aspetta (un secondo invio verrebbe scartato senza dire niente) */
 export function GiocatoreCard({ g, user, squadre, onRemove, onOpen, disabled = false }: {
@@ -29,10 +29,7 @@ export function GiocatoreCard({ g, user, squadre, onRemove, onOpen, disabled = f
     <article className="hovercard flex w-full flex-col rounded border border-asphalt-700 bg-asphalt-900 p-3 text-left">
       <div className="flex items-start justify-between gap-2">
         <button onClick={onOpen} className="flex min-w-0 items-center gap-2 text-left hover:text-court" title="Apri la scheda">
-          {squadraLogo && (
-            <img src={safeUrl(squadraLogo)} alt="" aria-hidden className="h-6 w-6 shrink-0 object-contain"
-              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-          )}
+          <TeamLogo src={squadraLogo} className="h-6 w-6 shrink-0" />
           <span className="min-w-0 truncate font-display text-lg text-chalk transition-colors">
             {g.nome} {g.cognome}{g.numero ? <span className="text-court"> #{g.numero}</span> : null}
           </span>

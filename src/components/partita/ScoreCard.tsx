@@ -1,8 +1,8 @@
 /** Scoreboard riutilizzabile: due squadre, punteggio grande in Barlow Condensed, vincitore in chalk
  *  e perdente attenuato. `center` è lo slot tra i due punteggi (input, clock, "vs"),
  *  `footer` quello sotto (azioni, eventi). `size="lg"` per la vista da tavolo. */
-import { safeUrl } from "../../utils/safeUrl";
 import { Badge } from "../ui/Badge";
+import { TeamLogo } from "../ui/TeamLogo";
 
 interface Team { name: string; logo?: string; sub?: string }
 
@@ -25,10 +25,7 @@ function TeamBlock({ t, side, size }: { t: Team; side: "a" | "b"; size: "sm" | "
   const logoCls = size === "lg" ? "h-10 w-10" : "h-6 w-6";
   return (
     <div className={`flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:items-center sm:gap-3 ${align}`}>
-      {t.logo && (
-        <img src={safeUrl(t.logo)} alt="" className={`${logoCls} shrink-0 object-contain`}
-          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-      )}
+      <TeamLogo src={t.logo} className={`${logoCls} shrink-0`} />
       <div className="min-w-0">
         <div className={`font-display ${nameCls} truncate`}>{t.name}</div>
         {t.sub && <div className="text-[11px] text-chalk-muted truncate">{t.sub}</div>}

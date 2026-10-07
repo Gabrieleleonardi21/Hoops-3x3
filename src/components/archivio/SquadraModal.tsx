@@ -3,6 +3,7 @@ import { safeUrl } from "../../utils/safeUrl";
 import { focusIniziale } from "../../hooks/useFocusFinestra";
 import { Modal } from "../ui/Modal";
 import { Icon } from "../ui/Icon";
+import { TeamLogo } from "../ui/TeamLogo";
 
 /** Modale con le info ingrandite di una squadra: logo, roster cliccabile per analisi */
 export function SquadraModal({ squadra, onClose, onSelectPlayer, hasStats }: {
@@ -12,13 +13,10 @@ export function SquadraModal({ squadra, onClose, onSelectPlayer, hasStats }: {
   hasStats: boolean;
 }) {
   const giocatori = (squadra.giocatori || []).filter((p) => p.nome.trim());
-  const logo = squadra.logo ? (
-    <img src={safeUrl(squadra.logo)} alt={`Logo ${squadra.nome}`} className="h-28 w-28 object-contain"
-      onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-  ) : null;
+  const logo = <TeamLogo src={squadra.logo} alt={`Logo ${squadra.nome}`} className="h-28 w-28" />;
   // Il logo è un collegamento al sito, se la squadra ne ha uno
   let logoMostrato = logo;
-  if (logo && squadra.website) {
+  if (squadra.logo && squadra.website) {
     logoMostrato = <a href={safeUrl(squadra.website)} target="_blank" rel="noopener noreferrer" title={`Vai al sito di ${squadra.nome}`}>{logo}</a>;
   }
   // Che cosa fa il pulsante di un giocatore: apre la sua analisi, se la tappa ha statistiche

@@ -10,6 +10,7 @@ import type { RegGiocatore, RegSquadra, User } from "../../types";
 import { puoModificare } from "../../utils/permessi";
 import { safeUrl } from "../../utils/safeUrl";
 import { perditaSquadraAnagrafe } from "../../utils/testi";
+import { TeamLogo } from "../ui/TeamLogo";
 
 /** Campi modificabili (roster escluso: richiede UI dedicata) */
 type EditDraft = Pick<RegSquadra, "nome" | "citta" | "anno" | "rank" | "referente" | "logo" | "website" | "instagram" | "note">;
@@ -95,8 +96,7 @@ export function SquadraAnagrafeModal({
       <div className="mb-4 flex justify-center">
         {s.logo ? (
           <a href={logoLink} target="_blank" rel="noopener noreferrer" title={titoloLogo(s)}>
-            <img src={safeUrl(s.logo)} alt={`Logo ${s.nome}`} className="h-32 w-32 object-contain"
-              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+            <TeamLogo src={s.logo} alt={`Logo ${s.nome}`} className="h-32 w-32" />
           </a>
         ) : (
           <div className="flex h-24 w-24 items-center justify-center rounded-sm bg-asphalt-800 font-display text-3xl text-chalk-muted">3×3</div>

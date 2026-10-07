@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { standings } from "../../utils/standings";
-import { safeUrl } from "../../utils/safeUrl";
 import { ClassificaTable } from "../gironi/ClassificaTable";
 import { ScoreCard } from "../partita/ScoreCard";
 import { StatsView } from "../partita/StatsView";
@@ -16,6 +15,7 @@ import { Section } from "../ui/Section";
 import type { Tappa, SquadraTappa } from "../../types";
 import { giocatoriDi, logoSquadra, nomeGiocatore, nomeSquadra } from "../../utils/tappaInfo";
 import { letteraGirone } from "../../utils/formato";
+import { TeamLogo } from "../ui/TeamLogo";
 
 /** Vista in sola lettura di una tappa: tappe concluse e archivio del circuito */
 export function ArchivioTappaView({ t, lega, autore }: { t: Tappa; lega?: string; autore?: string }) {
@@ -47,12 +47,9 @@ export function ArchivioTappaView({ t, lega, autore }: { t: Tappa; lega?: string
           {t.squadre.map((s) => (
             <button key={s.id} type="button" onClick={() => setSelSquadra(s)}
               className="hovercard flex w-full flex-col items-center gap-2 rounded border border-asphalt-700 bg-asphalt-900 p-3 text-center">
-              {s.logo ? (
-                <img src={safeUrl(s.logo)} alt={`Logo ${s.nome}`} className="h-14 w-14 object-contain"
-                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-              ) : (
+              <TeamLogo src={s.logo} alt={`Logo ${s.nome}`} className="h-14 w-14" ripiego={
                 <span className="flex h-14 w-14 items-center justify-center rounded-sm bg-asphalt-800 font-display text-xl text-chalk-muted">3×3</span>
-              )}
+              } />
               {/* Dentro un <button> solo contenuto di testo (span), non div */}
               <span className="block">
                 <span className="block font-display text-base leading-tight text-chalk">{s.nome}</span>

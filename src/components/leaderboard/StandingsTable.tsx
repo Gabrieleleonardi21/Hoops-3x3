@@ -3,8 +3,8 @@
  *  L'ordine di default è quello ricevuto (criteri FIBA calcolati in utils/standings). */
 import { useMemo, useState } from "react";
 import type { StandingRow } from "../../utils/standings";
-import { safeUrl } from "../../utils/safeUrl";
 import { Icon } from "../ui/Icon";
+import { TeamLogo } from "../ui/TeamLogo";
 
 type SortKey = "rank" | "nome" | "g" | "v" | "p" | "pf" | "ps" | "diff";
 
@@ -89,10 +89,7 @@ export function StandingsTable({ rows, logos, caption = "Classifica", compact }:
                 <td className={`text-center font-display text-base ${first ? "text-court" : "text-chalk-muted"}`}>{r.rank}</td>
                 <td className="px-2 text-left font-semibold text-chalk">
                   <span className="flex items-center gap-2 min-w-0">
-                    {logos?.[r.id] && (
-                      <img src={safeUrl(logos[r.id]!)} alt="" className="h-5 w-5 shrink-0 object-contain"
-                        onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-                    )}
+                    <TeamLogo src={logos?.[r.id]} className="h-5 w-5 shrink-0" />
                     <span className="truncate">{r.nome}</span>
                     {first && <Icon name="trophy" size={12} className="shrink-0 text-gold" />}
                   </span>
