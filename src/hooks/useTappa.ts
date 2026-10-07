@@ -196,17 +196,16 @@ export function useTappa(id: string | undefined) {
     } catch {
       return;
     }
-    // Le voci a cui le squadre sono collegate e che il server ha entrano in cache (senza invalidarla)
-    const registrate = fresche.filter((voce) => senzaVoce.some((s) => s.regId === voce.id));
-    const anagrafe = useAnagrafeStore.getState();
-    anagrafe.registraInCache(registrate);
     // Dopo l'attesa si riparte dalla tappa di adesso (nel frattempo può essere cambiata, o conclusa) e dalla cache di adesso: la
     // lista del server, partita prima, può non avere una voce che nell'attesa è entrata (ricerca, creazione, Coach). Per i dati
     // vale la lista fresca; una voce solo in cache conta come presente.
+    const anagrafe = useAnagrafeStore.getState();
     const dopo = tappaCorrente(id);
     if (!dopo) return;
-    const soloInCache = (useAnagrafeStore.getState().squadre ?? []).filter((c) => !fresche.some((f) => f.id === c.id));
+    const soloInCache = (anagrafe.squadre ?? []).filter((c) => !fresche.some((f) => f.id === c.id));
     const conosciute = [...fresche, ...soloInCache];
+    // Le voci a cui le squadre sono collegate e che il server ha entrano in cache (senza invalidarla)
+    anagrafe.registraInCache(fresche.filter((voce) => senzaVoce.some((s) => s.regId === voce.id)));
     const sincronizzata = (t: Tappa) => scollegaSenzaVoce(allineaConAnagrafe(t, conosciute), conosciute);
     if (sincronizzata(dopo) === dopo) return;
     updateTappa(dopo.id, sincronizzata);

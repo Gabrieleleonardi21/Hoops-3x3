@@ -92,7 +92,8 @@ export const useAnagrafeStore = create<AnagrafeState>((set, get) => {
     },
 
     registraInCache: (nuove) => set((s) => {
-      if (!s.squadre) return {};
+      // Niente da fare (cache non caricata, o niente da registrare): lo stato resta lo stesso oggetto e nessuno viene notificato
+      if (!s.squadre || nuove.length === 0) return s;
       let squadre = s.squadre;
       for (const voce of nuove) {
         // Già in cache con un altro nome (rinominata dopo il caricamento): si aggiorna, non si raddoppia

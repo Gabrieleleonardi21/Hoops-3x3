@@ -250,6 +250,35 @@ describe("useAnagrafeStore (cache dell'anagrafe)", () => {
     expect(store.getState().caricata).toBe(true);
   });
 
+  it("registraInCache non è una scrittura: un caricamento in corso resta valido (scritture e caricata non cambiano)", async () => {
+    const { api, store } = await nuovoStore();
+    // Il server risponde alla lista squadre solo quando lo decide il test
+    let rispondi: (lista: RegSquadra[]) => void = () => {};
+    api.listSquadre.mockReturnValueOnce(new Promise<RegSquadra[]>((resolve) => { rispondi = resolve; }));
+    const caricamento = store.getState().load();
+    store.getState().registraInCache([squadra("s9", "Altra")]); // durante il caricamento
+    rispondi([squadra("s1", "Ballers", ["g1"])]);
+    await caricamento;
+    // Con una scrittura (come aggiorna) la cache non varrebbe: il load successivo riscaricherebbe
+    expect(store.getState().caricata).toBe(true);
+    await store.getState().load();
+    expect(api.listSquadre).toHaveBeenCalledTimes(1);
+  });
+
+  it("registraInCache senza niente da registrare, o con la cache non caricata, non cambia lo stato: nessuno viene notificato", async () => {
+    const { store } = await nuovoStore();
+    const avvisi = vi.fn();
+    store.subscribe(avvisi);
+    store.getState().registraInCache([squadra("s2", "Wildcats")]); // cache non caricata
+    expect(avvisi).not.toHaveBeenCalled();
+    await store.getState().load();
+    avvisi.mockClear(); // il caricamento ha cambiato lo stato: da qui si conta
+    store.getState().registraInCache([]);
+    expect(avvisi).not.toHaveBeenCalled();
+    store.getState().registraInCache([squadra("s2", "Wildcats")]);
+    expect(avvisi).toHaveBeenCalledTimes(1);
+  });
+
   it("registraInCache con la cache non caricata non crea una cache parziale", async () => {
     const { store } = await nuovoStore();
     store.getState().registraInCache([squadra("s2", "Wildcats")]);
