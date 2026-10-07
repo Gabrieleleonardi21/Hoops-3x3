@@ -1,7 +1,7 @@
 # Hoop 3x3 — Design system "Asphalt"
 
 Direzione visiva per la design pass (branch `ai-design-pass`). Fonte di verità per i token
-Tailwind in `src/index.css` (`@theme`). Mockup di riferimento in `reference/stitch-screens/`.
+Tailwind in `src/index.css` (`@theme`). Mockup di riferimento in `docs/design/stitch-screens/`.
 
 ## Concetto
 

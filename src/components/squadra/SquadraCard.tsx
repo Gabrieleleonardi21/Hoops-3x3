@@ -1,5 +1,4 @@
 import type { SquadraTappa } from "../../types";
-import { safeUrl } from "../../utils/safeUrl";
 import { RosterEditor } from "./RosterEditor";
 import { Input } from "../ui/Input";
 import { Badge } from "../ui/Badge";
@@ -7,6 +6,8 @@ import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
 import { useConfermaPerdita } from "../../hooks/useConfermaPerdita";
 import type { useTappa } from "../../hooks/useTappa";
+import { TeamLogo } from "../ui/TeamLogo";
+import { MIN_ROSTER } from "../../constants/rules";
 
 export function SquadraCard({ s, index, h, erroreAnagrafe, onNameCommit }: {
   s: SquadraTappa;
@@ -29,10 +30,7 @@ export function SquadraCard({ s, index, h, erroreAnagrafe, onNameCommit }: {
     <div className={`rounded border bg-asphalt-900 p-3 ${ok ? "border-asphalt-700" : "border-loss/60"}`}>
       <div className="mb-2 flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">
-          {s.logo && (
-            <img src={safeUrl(s.logo)} alt={`Logo ${s.nome}`} className="h-10 w-10 object-contain"
-              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-          )}
+          <TeamLogo src={s.logo} alt={`Logo ${s.nome}`} className="h-10 w-10" />
           <span className="font-display text-lg text-chalk-dim">#{index + 1}</span>
         </div>
         {linked && <Badge tone="court"><Icon name="check" size={11} /> Anagrafe</Badge>}
@@ -67,14 +65,14 @@ export function SquadraCard({ s, index, h, erroreAnagrafe, onNameCommit }: {
 
       {/* Giocatori: sempre editabili indipendentemente dall'anagrafe */}
       <div className={`kicker mt-3 mb-1.5 ${ok ? "text-win" : "text-loss"}`}>
-        {ok ? "Roster completo" : "Giocatori obbligatori (min. 3)"}
+        {ok ? "Roster completo" : `Giocatori obbligatori (min. ${MIN_ROSTER})`}
       </div>
       <RosterEditor giocatori={s.giocatori || []}
         onAdd={() => h.addPlayer(s.id)}
         onRename={(pid, nome) => h.renamePlayer(s.id, pid, nome)}
         onRemove={(pid) => h.removePlayer(s.id, pid)} />
 
-      {h.tappa!.squadre.length > 2 && (
+      {(h.tappa?.squadre.length ?? 0) > 2 && (
         <Button variant="link" className="mt-2 text-chalk-dim"
           onClick={() => chiedi("Rimuovere la squadra?", () => h.removeTeam(s.id))}>Rimuovi squadra</Button>
       )}

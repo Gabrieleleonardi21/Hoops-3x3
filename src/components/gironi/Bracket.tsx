@@ -3,9 +3,9 @@
  *  In un match `bye` (turno superato d'ufficio) la seconda riga dice «Passa il turno».
  *  I controlli di inserimento arrivano da `renderControls` così la logica resta nel chiamante. */
 import type { BracketMatch } from "../../types";
-import { safeUrl } from "../../utils/safeUrl";
 import { Badge } from "../ui/Badge";
 import { Icon } from "../ui/Icon";
+import { TeamLogo } from "../ui/TeamLogo";
 
 interface Props {
   rounds: BracketMatch[][];
@@ -18,13 +18,13 @@ function Row({ name, logo, score, winner, loser, tbd }: {
   name: string; logo?: string; score: number | null; winner: boolean; loser: boolean; tbd: boolean;
 }) {
   const nameCls = loser || tbd ? "text-chalk-dim" : "text-chalk";
-  const scoreCls = winner ? "text-court" : loser ? "text-chalk-dim" : "text-chalk-muted";
+  // Il punteggio di chi vince in evidenza, di chi perde attenuato
+  let scoreCls = "text-chalk-muted";
+  if (winner) scoreCls = "text-court";
+  else if (loser) scoreCls = "text-chalk-dim";
   return (
     <div className={`flex h-9 items-center gap-2 px-3 ${winner ? "bg-asphalt-800" : ""}`}>
-      {logo && (
-        <img src={safeUrl(logo)} alt="" className="h-5 w-5 shrink-0 object-contain"
-          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-      )}
+      <TeamLogo src={logo} className="h-5 w-5 shrink-0" />
       <span className={`min-w-0 flex-1 truncate font-display text-base ${nameCls}`}>{name}</span>
       {winner && <Icon name="check" size={12} className="shrink-0 text-court" />}
       <span className={`font-display text-lg ${scoreCls}`}>{score ?? "–"}</span>
@@ -44,6 +44,13 @@ function ByeRows({ id, nameOf, logoOf }: { id: string | null } & Pick<Props, "na
   );
 }
 
+/** Chi ha vinto la finale, se è stata giocata; null per gli altri match */
+function campione(m: BracketMatch): string | null {
+  if (!m.done || m.label !== "Finale") return null;
+  if (m.pA > m.pB) return m.squadraA;
+  return m.squadraB;
+}
+
 export function Bracket({ rounds, nameOf, logoOf, renderControls }: Props) {
   return (
     <div className="grid gap-4 md:grid-flow-col md:auto-cols-fr">
@@ -56,7 +63,7 @@ export function Bracket({ rounds, nameOf, logoOf, renderControls }: Props) {
             <div className="flex flex-1 flex-col justify-around gap-3">
             {round.map((m) => {
               const isFinale = m.label === "Finale";
-              const champion = m.done && isFinale ? (m.pA > m.pB ? m.squadraA : m.squadraB) : null;
+              const champion = campione(m);
               return (
                 <div key={m.id} className={`overflow-hidden rounded border bg-asphalt-900 ${isFinale ? "border-gold/50" : "border-asphalt-700"}`}>
                   <div className="flex items-center justify-between border-b border-asphalt-700 px-3 py-1">

@@ -5,11 +5,12 @@ import { focusIniziale, useFocusModifica } from "../../hooks/useFocusFinestra";
 import { Modal } from "../ui/Modal";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
-import { Input } from "../ui/Input";
+import { CampiSquadra } from "./CampiAnagrafe";
 import type { RegGiocatore, RegSquadra, User } from "../../types";
 import { puoModificare } from "../../utils/permessi";
 import { safeUrl } from "../../utils/safeUrl";
 import { perditaSquadraAnagrafe } from "../../utils/testi";
+import { TeamLogo } from "../ui/TeamLogo";
 
 /** Campi modificabili (roster escluso: richiede UI dedicata) */
 type EditDraft = Pick<RegSquadra, "nome" | "citta" | "anno" | "rank" | "referente" | "logo" | "website" | "instagram" | "note">;
@@ -95,8 +96,7 @@ export function SquadraAnagrafeModal({
       <div className="mb-4 flex justify-center">
         {s.logo ? (
           <a href={logoLink} target="_blank" rel="noopener noreferrer" title={titoloLogo(s)}>
-            <img src={safeUrl(s.logo)} alt={`Logo ${s.nome}`} className="h-32 w-32 object-contain"
-              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+            <TeamLogo src={s.logo} alt={`Logo ${s.nome}`} className="h-32 w-32" />
           </a>
         ) : (
           <div className="flex h-24 w-24 items-center justify-center rounded-sm bg-asphalt-800 font-display text-3xl text-chalk-muted">3×3</div>
@@ -136,18 +136,8 @@ export function SquadraAnagrafeModal({
       {/* ── Modalità modifica ── */}
       {editing && (
         <div ref={form} className="mb-4 flex flex-col gap-2.5">
-          <div className="grid-auto">
-            <Input label="Nome squadra" value={draft.nome} onChange={set("nome")} />
-            <Input label="Città" value={draft.citta} onChange={set("citta")} />
-            <Input label="Anno fondazione" type="number" value={draft.anno} onChange={set("anno")} />
-            <Input label="Ranking (pt)" type="number" min={0} value={draft.rank} onChange={set("rank")} />
-            <Input label="Referente / capitano" value={draft.referente} onChange={set("referente")} />
-            <Input label="Logo (URL)" value={draft.logo} onChange={set("logo")} placeholder="/logos/squadra.svg" />
-            <Input label="Sito web" value={draft.website} onChange={set("website")} placeholder="https://squadra.it" />
-            <Input label="Instagram" value={draft.instagram} onChange={set("instagram")} placeholder="https://instagram.com/squadra" />
-          </div>
-          {/* Note: 2000 caratteri come SquadraRequestDTO, oltre il server risponde 400 */}
-          <Input label="Note" value={draft.note} onChange={set("note")} placeholder="es. campioni tappa Roma 2025" maxLength={2000} />
+          {/* Gli stessi campi del form di creazione, roster escluso */}
+          <CampiSquadra valori={draft} set={set} />
           <div className="mt-1 flex gap-2">
             <Button onClick={saveEdit} disabled={invio}>Salva modifiche</Button>
             <Button variant="ghost" onClick={annullaModifica} disabled={invio}>Annulla</Button>

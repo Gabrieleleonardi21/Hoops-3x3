@@ -6,8 +6,13 @@ import { legheApi } from "../services/legheApi";
 import { archivioApi } from "../services/archivioApi";
 import { ApiError, esitoIgnoto, testoErrore } from "../services/api";
 import { createSaveQueue } from "./saveQueue";
-import { leggiLegaSalvata, type LegaSalvata } from "../utils/legaFile";
-import { impronta } from "../utils/stessaTappa";
+import {
+  ACTIVE_KEY_OSPITE, ACTIVE_KEY_REGISTRATO, INDEX_KEY, legaIllegibile, legaStorageKey, readLegaData, readSession, scrivi,
+  statoOspite,
+} from "./memoriaBrowser";
+import {
+  conflitto, creaVersioniTappe, mancaVersione, nonTrovata, riprovabile, tappaSulServer, unoDeiNostri, type TappaLetta,
+} from "./versioniTappe";
 import {
   SPAZIO_ESAURITO, SPAZIO_ESAURITO_CAMBIO, SPAZIO_ESAURITO_LEGA, eliminazioneTappaInConflitto, pubblicazioneSenzaSalvataggio,
   salvataggioRifiutato, tappaEliminataAltrove, tappaModificataAltrove,
@@ -101,80 +106,8 @@ interface AppState {
   rehydrate: () => Promise<void>;
 }
 
-export const SESSION_KEY = "hoop3x3_session";
-const NS = "hoop3x3_";
-const INDEX_KEY  = NS + "leghe_index";   // indice leghe dell'ospite
-// ID della lega aperta per ultima: una chiave per l'ospite e una per il registrato. Con una sola, chi passava da una modalità
-// all'altra su questo browser trovava l'id dell'altra (un id locale non esiste sul server e viceversa) e lo cancellava.
-// Quella dell'ospite è la storica, già nei browser di chi usa l'app senza account.
-const ACTIVE_KEY_OSPITE = NS + "active_lega_id";
-const ACTIVE_KEY_REGISTRATO = NS + "active_lega_id_registrato";
-
-const legaStorageKey = (id: string) => NS + `lega_${id}`;
-
-/* ── localStorage (ospite) ─────────────────────────────────────────────────── */
-
-function readIndex(): LegaMeta[] {
-  try {
-    const indice: unknown = JSON.parse(localStorage.getItem(INDEX_KEY) || "[]");
-    // Solo le voci con un id: un indice rovinato (non un elenco, voci vuote) non si può mostrare né aprire
-    if (Array.isArray(indice)) return indice.filter((m) => typeof m?.id === "string");
-  } catch { /* JSON rovinato */ }
-  return [];
-}
-
-/** Scrive nel localStorage. false se il browser rifiuta (spazio esaurito, archivio disattivato): chi scrive non deve andare in
- *  errore, perché lo stato in memoria resta giusto e le azioni dell'utente vanno comunque a buon fine */
-function scrivi(chiave: string, valore: string): boolean {
-  try {
-    localStorage.setItem(chiave, valore);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/** Lega dell'ospite dal browser, controllata con lo schema del file di lega (utils/legaFile): solo le tappe valide, e un avviso
- *  se ne ha scartata qualcuna. null se non c'è o non si legge. */
-function readLegaData(id: string): LegaSalvata | null {
-  try { return leggiLegaSalvata(JSON.parse(localStorage.getItem(legaStorageKey(id)) || "null")); }
-  catch { return null; }
-}
-
-/** Perché una lega dell'ospite non si apre, con la via d'uscita: eliminarla dall'elenco */
-function legaIllegibile(leghe: LegaMeta[], id: string): string {
-  const nome = leghe.find((m) => m.id === id)?.nome || "senza nome";
-  return `I dati della lega «${nome}» non ci sono più nel browser o sono danneggiati: puoi eliminarla dall'elenco delle leghe.`;
-}
-
-type StatoOspite = Pick<AppState, "leghe" | "legaId" | "legaName" | "tappe" | "syncError">;
-
-/** Stato dell'ospite letto dal browser: indice delle leghe e lega aperta per ultima. Una lega che non si legge non si apre, e
- *  l'avviso in `syncError` (la barra sotto l'intestazione) dice perché; una con tappe non valide si apre senza quelle, e
- *  l'avviso dice quali. Così all'avvio non ci sono pagine bianche né un errore che torna a ogni ricarica. */
-function statoOspite(): StatoOspite {
-  const leghe = readIndex();
-  const vuoto: StatoOspite = { leghe, legaId: null, legaName: "", tappe: [], syncError: null };
-  const activeId = localStorage.getItem(ACTIVE_KEY_OSPITE);
-  if (!activeId) return vuoto;
-  const letta = readLegaData(activeId);
-  if (letta) return { leghe, legaId: activeId, legaName: letta.lega.nome, tappe: letta.lega.tappe, syncError: letta.avviso };
-  // Non si riapre a ogni ricarica; dell'id si dice qualcosa solo se la lega è nell'elenco: se non c'è più (eliminata da un'altra
-  // scheda) è un id rimasto, non un problema
-  localStorage.removeItem(ACTIVE_KEY_OSPITE);
-  if (!leghe.some((m) => m.id === activeId)) return vuoto;
-  return { ...vuoto, syncError: legaIllegibile(leghe, activeId) };
-}
-
-function readSession(): User | null {
-  try {
-    const raw = localStorage.getItem(SESSION_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw) as User;
-  } catch {
-    return null;
-  }
-}
+// La chiave della sessione sta con gli altri dati del browser (memoriaBrowser): useAuth e i test la prendono da qui
+export { SESSION_KEY } from "./memoriaBrowser";
 
 /** Stato iniziale sincrono: l'ospite ha già tutto in localStorage, il registrato aspetta rehydrate() */
 function getInitialState(): Pick<AppState, "user" | "legaId" | "leghe" | "legaName" | "tappe" | "ready" | "syncError"> {
@@ -189,36 +122,6 @@ function getInitialState(): Pick<AppState, "user" | "legaId" | "leghe" | "legaNa
 
 /** Attesa dopo l'ultima modifica prima di salvare una tappa o rinominare la lega */
 const SAVE_DELAY = 400;
-
-/** Errori temporanei, per cui la coda riprova: rete assente (status 0), guasto del server (5xx) e JWT respinto
- *  senza un rinnovo riuscito (401). Con il 401 la modifica resta in attesa invece di essere scartata: il rinnovo
- *  può essere fallito solo per la rete e, se la sessione è finita davvero, il logout la conta tra quelle perse.
- *  Gli altri rifiuti riguardano i dati: ripetere la stessa richiesta non servirebbe. */
-function riprovabile(e: unknown): boolean {
-  return e instanceof ApiError && (e.status === 0 || e.status === 401 || e.status >= 500);
-}
-
-/** 409 del server. Sulla PUT e sulla DELETE di una tappa vuol dire che sul server è cambiata («modificata da un altro dispositivo», o
- *  il messaggio generico «I dati sono stati modificati o eliminati…»); sulla POST che esiste già (T1.6). Si distinguono dal metodo */
-const conflitto = (e: unknown): e is ApiError => e instanceof ApiError && e.status === 409;
-
-/** 404 del server: la tappa (o la sua lega) non c'è */
-const nonTrovata = (e: unknown): e is ApiError => e instanceof ApiError && e.status === 404;
-
-/** 400 della PUT senza versione: la tappa è stata caricata da una pagina aperta prima dell'aggiornamento del server (T2.7). Si
- *  riconosce dal messaggio del server, perché gli altri 400 sono dati rifiutati */
-const mancaVersione = (e: unknown): e is ApiError =>
-  e instanceof ApiError && e.status === 400 && e.message.startsWith("Manca la versione della tappa");
-
-/** Quanti corpi mandati senza risposta si ricordano per tappa. Bastano per una ripartenza di Render (circa un minuto, qualche
- *  tentativo); oltre si tengono gli ultimi: i più vecchi vengono da una lunga assenza di rete e al server non sono mai arrivati */
-const TETTO_SENZA_RISPOSTA = 20;
-
-/** Una tappa riletta dalla lega dopo un conflitto, con il posto che ha nella lega sul server */
-interface TappaLetta {
-  tappa: Tappa;
-  posizione: number;
-}
 
 const initial = getInitialState();
 
@@ -318,20 +221,9 @@ export const useAppStore = create<AppState>((set, get) => {
   const eliminatePrimaDellaCreazione = new Set<string>();
 
   /* ── Versioni delle tappe e conflitti tra dispositivi (T2.7) ──
-   * Le voci di `sulServer` e `sostituite` per una tappa eliminata restano fino all'uscita (reset): non si leggono più. */
-
-  /** Per ogni tappa del server, la sua lega e la sua versione come le ha dette l'ultima risposta (GET della lega, POST, PUT,
-   *  rilettura dopo un conflitto). È la versione su cui si basano le modifiche locali: la PUT la rimanda così com'è, senza
-   *  calcolarla, e non scende mai (versioneDaRicordare). Sta qui e non nella copia della tappa in coda, che può essere stata fatta
-   *  prima dell'ultima risposta; la tappa dello store ne tiene una copia (`versione`). undefined = il server non l'ha mandata
-   *  (backend precedente a T2.7). La lega serve a rileggere la tappa dopo un conflitto anche se intanto se ne è aperta un'altra. */
-  const sulServer = new Map<string, { legaId: string; versione: number | undefined }>();
-  /** Corpi di una tappa partiti senza che se ne sia letta la risposta (esitoIgnoto: tempo scaduto, rete caduta, 502-504; keepalive
-   *  alla chiusura della pagina), dall'ultima risposta riuscita: il server può averli salvati. Dopo un 409 (sulla PUT, sulla POST o
-   *  sulla DELETE) dicono se il conflitto l'ha causato questo client. Si tengono tutti, non solo l'ultimo: quando Render riparte le
-   *  richieste trattenute arrivano insieme, la prima salva e le altre ricevono 409, quindi il corpo salvato è il più vecchio di
-   *  quelle. Senza doppioni e al massimo TETTO_SENZA_RISPOSTA per tappa (inviataSenzaRisposta). */
-  const senzaRisposta = new Map<string, Tappa[]>();
+   * Il registro delle versioni e dei corpi mandati senza risposta è in versioniTappe.ts; qui ciò che tocca lo store. Le voci di
+   * `sostituite` per una tappa eliminata restano fino all'uscita (reset): non si leggono più. */
+  const versioni = creaVersioniTappe();
   /** Tappe sostituite dalla versione del server, o tolte perché eliminate altrove, dopo un conflitto: id → frase dell'avviso. La
    *  pubblicazione durante la quale arriva il conflitto non parte (pubblica) */
   const sostituite = new Map<string, string>();
@@ -342,89 +234,22 @@ export const useAppStore = create<AppState>((set, get) => {
    *  pagina partono con keepalive (pagehide), altrimenti si perderebbero e la tappa ricomparirebbe */
   const eliminazioniInAttesa = new Map<string, Promise<void>>();
 
-  /** Una per ogni GET di selectLega in corso: le tappe che nel frattempo sono uscite dalla coda o dallo store, perché un conflitto le
-   *  ha tolte (vale la tappa del server, o non c'è più) o perché l'utente le ha eliminate qui. La GET le ha lette prima: per loro non
-   *  vale la versione in attesa letta prima della GET, e se non sono più nello store non vale nemmeno la tappa letta (conVersioniLocali) */
-  const lettureInCorso = new Set<Set<string>>();
-  const uscitaDuranteLeLetture = (id: string) => {
-    for (const uscite of lettureInCorso) uscite.add(id);
-  };
-  /** Tappe del server messe da un conflitto mentre la loro lega non era aperta (applicaQuellaDelServer): non sono nello store, e una
-   *  GET della lega partita prima del conflitto ne avrebbe la versione superata. Le usa la prossima apertura della lega */
-  const delServerFuoriLega = new Map<string, Tappa>();
-  /** Le copie ricordate delle tappe di una lega: la lega si è aperta (ora sono nello store) o si è eliminata */
-  const dimenticaCopieDellaLega = (legaId: string) => {
-    for (const id of [...delServerFuoriLega.keys()]) {
-      if (sulServer.get(id)?.legaId === legaId) delServerFuoriLega.delete(id);
-    }
-  };
-
   /** La lega di una tappa: quella detta dal server, oppure quella in cui la tappa si sta creando, oppure la lega aperta */
-  const legaDi = (id: string): string | null => sulServer.get(id)?.legaId ?? daCreare.get(id) ?? get().legaId;
-
-  /** La versione da ricordare per una tappa: quella nuova, ma mai più bassa di una già nota. Sul server le versioni salgono
-   *  soltanto: una risposta arrivata fuori ordine (una lettura della lega partita prima di un salvataggio) non la riporta indietro */
-  const versioneDaRicordare = (id: string, versione: number | undefined): number | undefined => {
-    const nota = sulServer.get(id)?.versione;
-    if (nota === undefined) return versione;
-    if (versione === undefined || versione < nota) return nota;
-    return versione;
-  };
-
-  /** true se la tappa arriva da una lettura più vecchia della versione nota: i suoi dati sono superati da un salvataggio di qui */
-  const piuVecchiaDellaNota = (t: Tappa): boolean => {
-    const nota = sulServer.get(t.id)?.versione;
-    return nota !== undefined && t.versione !== undefined && t.versione < nota;
-  };
+  const legaDi = (id: string): string | null => versioni.legaNota(id) ?? daCreare.get(id) ?? get().legaId;
 
   /** Ricorda lega e versione di una tappa dette dal server e mette la versione anche sulla tappa dello store. Solo la versione: i
    *  dati in memoria possono essere più recenti della risposta (modifiche fatte mentre la richiesta era in volo) */
   const ricordaVersione = (legaId: string, id: string, nuova: number | undefined) => {
-    const versione = versioneDaRicordare(id, nuova);
-    sulServer.set(id, { legaId, versione });
+    const versione = versioni.ricorda(legaId, id, nuova);
     const attuale = get().tappe.find((x) => x.id === id);
     if (!attuale || attuale.versione === versione) return; // fuori dalla lega aperta, o già quella: niente da ridisegnare
     set((s) => ({ tappe: replaceById(s.tappe, { ...attuale, versione }) }));
   };
 
-  /** Le tappe appena lette dal server, con la loro versione: da qui le loro modifiche si basano su quella */
-  const ricordaTappe = (legaId: string, tappe: Tappa[]) => {
-    for (const t of tappe) sulServer.set(t.id, { legaId, versione: versioneDaRicordare(t.id, t.versione) });
-  };
-
-  /** La tappa con la versione nota (sulServer), non con quella della copia: è il corpo della PUT e la tappa da mettere nello store */
-  const conVersione = (t: Tappa): Tappa => {
-    const nota = sulServer.get(t.id);
-    if (!nota) return t;
-    return { ...t, versione: nota.versione };
-  };
-
-  /** Il corpo è partito ma la risposta non si è letta: il server può averlo salvato. La stessa copia rimandata (nuovi tentativi,
-   *  «Riprova ora», chiusura della pagina) si conta una volta; oltre il tetto escono i corpi più vecchi */
-  const inviataSenzaRisposta = (t: Tappa) => {
-    const inviate = senzaRisposta.get(t.id) ?? [];
-    if (inviate.includes(t)) return;
-    senzaRisposta.set(t.id, [...inviate, t].slice(-TETTO_SENZA_RISPOSTA));
-  };
-
-  /** I corpi senza risposta di una tappa, tolti dalla mappa: chi li prende decide il conflitto, e dopo non servono più */
-  const prendiSenzaRisposta = (id: string): Tappa[] => {
-    const inviate = senzaRisposta.get(id) ?? [];
-    senzaRisposta.delete(id);
-    return inviate;
-  };
-
-  /** true se la tappa del server è uno dei corpi mandati da questo client senza risposta. Il confronto è quello del server
-   *  (impronta), versione esclusa; l'impronta della tappa del server si calcola una volta sola */
-  const unoDeiNostri = (inviate: Tappa[], delServer: Tappa): boolean => {
-    const daServer = impronta(delServer);
-    return inviate.some((x) => impronta(x) === daServer);
-  };
-
   /** Risposta riuscita di una POST o di una PUT: da qui le modifiche locali si basano sulla sua versione, e i corpi rimasti senza
    *  risposta non contano più (il server ha la versione appena confermata) */
   const confermata = (t: Tappa, risposta: Tappa | undefined) => {
-    senzaRisposta.delete(t.id);
+    versioni.dimenticaSenzaRisposta(t.id);
     const legaId = legaDi(t.id);
     if (legaId) ricordaVersione(legaId, t.id, risposta?.versione);
   };
@@ -436,28 +261,19 @@ export const useAppStore = create<AppState>((set, get) => {
     set({ avvisoConflitti: [...avvisiConflitto.values()].join(" ") });
   };
 
-  /** La tappa com'è adesso sul server, riletta dalla lega (non c'è un GET della singola tappa), con il suo posto nella lega; null se
-   *  non c'è più. Lancia l'errore della lettura */
-  const tappaSulServer = async (legaId: string, id: string): Promise<TappaLetta | null> => {
-    const lega = await legheApi.get(legaId);
-    const posizione = lega.tappe.findIndex((x) => x.id === id);
-    if (posizione < 0) return null;
-    return { tappa: lega.tappe[posizione], posizione };
-  };
-
   /** Conflitto risolto a favore del server: la tappa riletta prende il posto di quella locale, con la sua versione, e le modifiche in
    *  sospeso nella coda si scartano (rimandarle cancellerebbe il lavoro dell'altro; una richiesta già in volo finisce da sola). Una
    *  tappa che non è più nello store (DELETE respinta) torna al posto che ha sul server. Nello store solo nella lega aperta: se intanto
-   *  se ne è aperta un'altra resta l'avviso, e la tappa si ricorda per quando la lega si riapre (delServerFuoriLega) */
+   *  se ne è aperta un'altra resta l'avviso, e la tappa si ricorda per quando la lega si riapre (versioni.ricordaCopiaFuoriLega) */
   const applicaQuellaDelServer = (legaId: string, letta: TappaLetta, frase: string) => {
     const { tappa, posizione } = letta;
-    ricordaTappe(legaId, [tappa]);
+    versioni.ricordaTappe(legaId, [tappa]);
     coda.annulla(tappa.id);
-    uscitaDuranteLeLetture(tappa.id);
-    senzaRisposta.delete(tappa.id);
+    versioni.uscitaDuranteLeLetture(tappa.id);
+    versioni.dimenticaSenzaRisposta(tappa.id);
     avvisaConflitto(tappa.id, frase);
     if (get().legaId !== legaId) {
-      delServerFuoriLega.set(tappa.id, tappa);
+      versioni.ricordaCopiaFuoriLega(tappa);
       return;
     }
     if (get().tappe.some((x) => x.id === tappa.id)) {
@@ -480,9 +296,9 @@ export const useAppStore = create<AppState>((set, get) => {
    *  modifiche non si possono più salvare, e lasciarla darebbe un 404 a ogni modifica */
   const eliminataAltrove = (legaId: string, t: Tappa) => {
     coda.annulla(t.id);
-    uscitaDuranteLeLetture(t.id);
-    delServerFuoriLega.delete(t.id);
-    senzaRisposta.delete(t.id);
+    versioni.uscitaDuranteLeLetture(t.id);
+    versioni.dimenticaCopiaFuoriLega(t.id);
+    versioni.dimenticaSenzaRisposta(t.id);
     const frase = tappaEliminataAltrove(t.nome);
     sostituite.set(t.id, frase);
     avvisaConflitto(t.id, frase);
@@ -513,7 +329,7 @@ export const useAppStore = create<AppState>((set, get) => {
       eliminataAltrove(legaId, t);
       return false;
     }
-    const inviate = prendiSenzaRisposta(t.id);
+    const inviate = versioni.prendiSenzaRisposta(t.id);
     if (!rimandata && (mancaVersione(errore) || unoDeiNostri(inviate, letta.tappa))) {
       ricordaVersione(legaId, t.id, letta.tappa.versione);
       return true;
@@ -540,9 +356,9 @@ export const useAppStore = create<AppState>((set, get) => {
    *  tranne un altro 409, dopo il quale vale la tappa del server. Dopo un 404 si rilegge la lega (eliminataSulServer) */
   const aggiornaSulServer = async (t: Tappa, rimandata = false): Promise<void> => {
     try {
-      confermata(t, await legheApi.putTappa(conVersione(t)));
+      confermata(t, await legheApi.putTappa(versioni.conVersione(t)));
     } catch (e) {
-      if (esitoIgnoto(e)) inviataSenzaRisposta(t);
+      if (esitoIgnoto(e)) versioni.inviataSenzaRisposta(t);
       // Si rilegge la lega dopo ogni 409, e dopo un 400 «Manca la versione» solo al primo invio
       if (conflitto(e) || (mancaVersione(e) && !rimandata)) {
         if (await dopoUnConflitto(t, e, rimandata)) await aggiornaSulServer(t, true);
@@ -562,7 +378,7 @@ export const useAppStore = create<AppState>((set, get) => {
     try {
       confermata(t, await legheApi.addTappa(legaId, t));
     } catch (e) {
-      if (esitoIgnoto(e)) inviataSenzaRisposta(t);
+      if (esitoIgnoto(e)) versioni.inviataSenzaRisposta(t);
       if (!conflitto(e)) throw e;
       if (await dopoUnConflitto(t, e, false)) await aggiornaSulServer(t, true);
     }
@@ -604,7 +420,7 @@ export const useAppStore = create<AppState>((set, get) => {
 
   /** Elimina la tappa sul server, con i corpi rimasti senza risposta: da qui la tappa non li usa più */
   const eliminaSulServer = (id: string, legaId: string | null): Promise<void> =>
-    mandaDelete(id, legaId, prendiSenzaRisposta(id), false);
+    mandaDelete(id, legaId, versioni.prendiSenzaRisposta(id), false);
 
   /** La DELETE parte quando è finita la richiesta in volo della tappa, se ce n'è una (coda.annulla la restituisce): arrivando
    *  insieme a un salvataggio avrebbe un 409. Senza richiesta in volo parte subito. Finché il server non la conferma resta in
@@ -665,7 +481,7 @@ export const useAppStore = create<AppState>((set, get) => {
   const rifiuta = (t: Tappa, e: unknown) => {
     if (coda.inAttesa().some((x) => x.id === t.id)) return;
     rifiutate.set(t.id, { id: t.id, nome: t.nome, motivo: testoErrore(e), legaId: legaDi(t.id), nuova: daCreare.has(t.id) });
-    uscitaDuranteLeLetture(t.id);
+    versioni.uscitaDuranteLeLetture(t.id);
     mostraRifiutate();
   };
   /** Il rifiuto della tappa non vale più; la riga si rifà solo se c'era */
@@ -714,24 +530,13 @@ export const useAppStore = create<AppState>((set, get) => {
     coda.accoda(t);
   };
 
-  /** La GET di una lega per selectLega, raccogliendo in `uscite` le tappe che escono dalla coda o dallo store mentre è in corso
-   *  (lettureInCorso) */
-  const leggiLega = async (id: string, uscite: Set<string>) => {
-    lettureInCorso.add(uscite);
-    try {
-      return await legheApi.get(id);
-    } finally {
-      lettureInCorso.delete(uscite);
-    }
-  };
-
   /** Tappe di una lega appena arrivate dal server, con sopra quelle di qui più recenti: senza, lo schermo tornerebbe a ciò che la GET
    *  ha letto e la modifica successiva cancellerebbe in silenzio quello che è cambiato nel frattempo. Per ogni tappa letta vale:
    *  - la copia dello store, se la tappa è nello store (la lega era già aperta) e ha una versione non ancora confermata o è stata letta
    *    più vecchia della versione nota. È sempre la più recente: la coda manda proprio quella (afterTappaChange), una risposta ne alza
    *    solo la versione, un conflitto la sostituisce con la tappa del server (C1, P1, P2);
    *  - niente, se è uscita durante la GET (`uscite`) e non è più nello store: eliminata, qui o altrove (P7). Se invece un conflitto con
-   *    la lega chiusa ha messo la tappa del server (delServerFuoriLega), vale quella quando la lettura è più vecchia (P6);
+   *    la lega chiusa ha messo la tappa del server (versioni.copiaFuoriLega), vale quella quando la lettura è più vecchia (P6);
    *  - la versione non confermata, se la tappa non è nello store (per esempio tornando da un'altra lega con la rete giù);
    *  - altrimenti la tappa letta, che porta le modifiche degli altri dispositivi.
    *  `locali` = le versioni in attesa lette prima della GET, tranne quelle uscite nel frattempo, e quelle non confermate a GET finita,
@@ -739,7 +544,7 @@ export const useAppStore = create<AppState>((set, get) => {
    *  locale quella su cui si basa (con quella del server cancellerebbe il lavoro di un altro dispositivo; così la sua PUT riceve il 409
    *  e decide dopoUnConflitto).
    *  `nuove` = tappe della lega non ancora create sul server, assenti dalla risposta. Una tappa dello store creata sul server durante la
-   *  GET (sulServer la dà in questa lega, ma prima della GET non c'era: `notePrima`) manca dalla risposta se la GET l'ha letta prima
+   *  GET (versioni.legaNota la dà in questa lega, ma prima della GET non c'era: `notePrima`) manca dalla risposta se la GET l'ha letta prima
    *  della POST: resta. Una che il server conosceva già prima della GET e che manca l'ha eliminata un altro dispositivo: esce. */
   const conVersioniLocali = (
     legaId: string, dalServer: Tappa[], locali: Tappa[], nuove: Tappa[], notePrima: Set<string>, uscite: Set<string>,
@@ -749,16 +554,16 @@ export const useAppStore = create<AppState>((set, get) => {
     /** La copia da tenere della tappa letta `t`, secondo le regole qui sopra; null se non deve tornare */
     const daTenere = (t: Tappa): Tappa | null => {
       const qui = nelloStore(t.id);
-      if (qui && (perId.has(t.id) || piuVecchiaDellaNota(t))) return conVersione(qui);
+      if (qui && (perId.has(t.id) || versioni.piuVecchiaDellaNota(t))) return versioni.conVersione(qui);
       if (!qui && uscite.has(t.id)) {
-        const delServer = delServerFuoriLega.get(t.id);
+        const delServer = versioni.copiaFuoriLega(t.id);
         if (!delServer) return null;
-        if (piuVecchiaDellaNota(t)) return conVersione(delServer);
+        if (versioni.piuVecchiaDellaNota(t)) return versioni.conVersione(delServer);
       }
       const locale = perId.get(t.id);
-      if (locale) return conVersione(locale);
-      ricordaTappe(legaId, [t]);
-      return conVersione(t);
+      if (locale) return versioni.conVersione(locale);
+      versioni.ricordaTappe(legaId, [t]);
+      return versioni.conVersione(t);
     };
     const tappe: Tappa[] = [];
     for (const t of dalServer) {
@@ -770,11 +575,11 @@ export const useAppStore = create<AppState>((set, get) => {
       if (manca(t.id)) tappe.push(nelloStore(t.id) ?? perId.get(t.id) ?? t);
     }
     for (const t of get().tappe) {
-      const creataDuranteLaGet = sulServer.get(t.id)?.legaId === legaId && !notePrima.has(t.id);
-      if (creataDuranteLaGet && manca(t.id)) tappe.push(conVersione(t));
+      const creataDuranteLaGet = versioni.legaNota(t.id) === legaId && !notePrima.has(t.id);
+      if (creataDuranteLaGet && manca(t.id)) tappe.push(versioni.conVersione(t));
     }
     // Da qui le tappe della lega sono nello store: le copie ricordate a lega chiusa non servono più
-    dimenticaCopieDellaLega(legaId);
+    versioni.dimenticaCopieDellaLega(legaId);
     return tappe;
   };
 
@@ -792,10 +597,10 @@ export const useAppStore = create<AppState>((set, get) => {
   if (typeof window !== "undefined") {
     window.addEventListener("pagehide", () => {
       for (const t of coda.nonConfermate()) {
-        inviataSenzaRisposta(t);
+        versioni.inviataSenzaRisposta(t);
         const legaId = daCreare.get(t.id);
         if (legaId === undefined) {
-          legheApi.putTappa(conVersione(t), true).catch(() => {});
+          legheApi.putTappa(versioni.conVersione(t), true).catch(() => {});
           continue;
         }
         legheApi.addTappa(legaId, t, true).catch(() => {});
@@ -885,10 +690,10 @@ export const useAppStore = create<AppState>((set, get) => {
         await get().salvaTutto();
         const inCoda = coda.inAttesa();
         // Le tappe della lega che il server conosce già prima della GET: se mancano dalla risposta sono state eliminate altrove
-        const notePrima = new Set(get().tappe.filter((t) => sulServer.get(t.id)?.legaId === id).map((t) => t.id));
+        const notePrima = new Set(get().tappe.filter((t) => versioni.legaNota(t.id) === id).map((t) => t.id));
         // Le tappe che durante la GET escono dalla coda per un conflitto, o dallo store perché eliminate: la GET le ha lette prima
         const uscite = new Set<string>();
-        const lega = await leggiLega(id, uscite);
+        const lega = await versioni.leggiLega(id, uscite);
         // Dopo la GET: anche le versioni in volo e le tappe aggiunte nel frattempo, con la POST ancora da confermare (C1); non quelle
         // in attesa prima della GET che un conflitto ha tolto dalla coda nel frattempo (P2, P6)
         const locali = [...inCoda.filter((t) => !uscite.has(t.id)), ...coda.nonConfermate()];
@@ -927,13 +732,13 @@ export const useAppStore = create<AppState>((set, get) => {
       if (!isRemote()) writeIndex(leghe);
       // I rifiuti delle tappe della lega non valgono più, anche se non è quella aperta: non c'è più niente da salvare
       togliRifiutateDellaLega(id);
-      dimenticaCopieDellaLega(id);
+      versioni.dimenticaCopieDellaLega(id);
       if (get().legaId === id) {
         // Le tappe se ne vanno con la lega: i loro salvataggi in attesa o in nuovo tentativo partirebbero dopo la DELETE
         // e avrebbero un 404 (la POST, su una lega che non c'è più), cioè un errore per dati eliminati apposta
         for (const t of get().tappe) {
           coda.annulla(t.id);
-          senzaRisposta.delete(t.id);
+          versioni.dimenticaSenzaRisposta(t.id);
           daCreare.delete(t.id);
         }
         localStorage.removeItem(chiaveAttiva());
@@ -971,7 +776,9 @@ export const useAppStore = create<AppState>((set, get) => {
       set((s) => ({ tappe: [...s.tappe, t] }));
       if (isRemote()) {
         touchIndex();
-        daCreare.set(t.id, get().legaId!); // il primo invio della coda sarà la POST di creazione
+        // Il primo invio della coda sarà la POST di creazione, nella lega aperta (le tappe si aggiungono solo con una lega aperta)
+        const legaId = get().legaId;
+        if (legaId) daCreare.set(t.id, legaId);
       }
       afterTappaChange(t.id);
     },
@@ -1007,7 +814,7 @@ export const useAppStore = create<AppState>((set, get) => {
         // Le tappe importate nascono sul server con la versione 0 (l'import ignora quella del corpo, contratto T2.7): la risposta
         // è solo la voce dell'indice, e la versione da mandare con la prima PUT è quella
         const importate = tappe.map((t) => ({ ...t, versione: 0 }));
-        ricordaTappe(meta.id, importate);
+        versioni.ricordaTappe(meta.id, importate);
         ricordaLega(meta.id);
         set({ legaId: meta.id, leghe: [meta, ...get().leghe], legaName: meta.nome, tappe: importate });
         return;
@@ -1032,14 +839,14 @@ export const useAppStore = create<AppState>((set, get) => {
         // Un salvataggio ancora in attesa su una tappa eliminata darebbe 404; quello già in volo finisce, e la DELETE lo aspetta.
         // I corpi senza risposta della tappa li prende la DELETE (eliminaSulServer), per decidere dopo un suo 409
         const inVolo = coda.annulla(id);
-        uscitaDuranteLeLetture(id); // una GET della lega in corso l'ha letta prima: non deve farla tornare
-        delServerFuoriLega.delete(id);
+        versioni.uscitaDuranteLeLetture(id); // una GET della lega in corso l'ha letta prima: non deve farla tornare
+        versioni.dimenticaCopiaFuoriLega(id);
         togliRifiutata(id);
         touchIndex();
         // Creazione non ancora confermata: niente DELETE, la tappa potrebbe non essere mai arrivata al server
         if (daCreare.delete(id)) {
           eliminatePrimaDellaCreazione.add(id);
-          senzaRisposta.delete(id);
+          versioni.dimenticaSenzaRisposta(id);
           return;
         }
         eliminaDopo(inVolo, id);
@@ -1054,12 +861,10 @@ export const useAppStore = create<AppState>((set, get) => {
       daCreare.clear();
       eliminatePrimaDellaCreazione.clear();
       rifiutate.clear();
-      sulServer.clear();
-      senzaRisposta.clear();
+      versioni.azzera();
       sostituite.clear();
       avvisiConflitto.clear();
       eliminazioniInAttesa.clear();
-      delServerFuoriLega.clear();
       // Chi esce dimentica la sua lega aperta; quella dell'altra modalità (ospite o registrato) resta
       localStorage.removeItem(chiaveAttiva());
       set({
@@ -1083,7 +888,7 @@ export const useAppStore = create<AppState>((set, get) => {
             set({ leghe, legaId: null, legaName: "", tappe: [], ready: true });
             return;
           }
-          ricordaTappe(attiva.id, attiva.tappe);
+          versioni.ricordaTappe(attiva.id, attiva.tappe);
           set({ leghe, legaId: attiva.id, legaName: attiva.nome, tappe: attiva.tappe, ready: true });
         } catch (e) {
           reportError(e, "Caricamento leghe non riuscito");

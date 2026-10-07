@@ -5,12 +5,11 @@
  *  righe di quella tabella con lo stesso nome, in una o più squadre: la funzione è la stessa
  *  (utils/statGiocatori), quindi i numeri coincidono. */
 import { useMemo } from "react";
-import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAnagrafe } from "../hooks/useAnagrafe";
 import { useAppStore } from "../stores/useAppStore";
 import { normalizza, statGiocatori, tabellini, type StatGiocatore } from "../utils/statGiocatori";
 import { eta } from "../utils/eta";
-import { safeUrl } from "../utils/safeUrl";
 import { Loading } from "../components/ui/Loading";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
@@ -21,6 +20,9 @@ import { StatTile } from "../components/ui/StatTile";
 import { Icon } from "../components/ui/Icon";
 import { Sparkline } from "../components/profile/Sparkline";
 import type { RegGiocatore, Tappa } from "../types";
+import { nomeSquadra } from "../utils/tappaInfo";
+import { fmtMedia } from "../utils/formato";
+import { TeamLogo } from "../components/ui/TeamLogo";
 
 /** true se il nome nel roster corrisponde al giocatore dell'anagrafe, in un ordine o nell'altro. Si confronta con la
  *  stessa normalizzazione della tabella di stagione */
@@ -50,7 +52,6 @@ const BADGE_ESITO: Record<Esito, { tone: "win" | "loss" | "neutral"; lettera: st
   pari: { tone: "neutral", lettera: "=" },
 };
 
-const f1 = (n: number) => n.toFixed(1);
 
 /** Somma le righe di stagione dello stesso giocatore: sono più d'una se il nome compare in più squadre */
 const somma = (righe: StatGiocatore[]): Totali => righe.reduce((acc, r) => ({
@@ -59,7 +60,6 @@ const somma = (righe: StatGiocatore[]): Totali => righe.reduce((acc, r) => ({
 
 export function GiocatorePage() {
   const { id } = useParams();
-  const user = useAppStore((s) => s.user);
   const tappe = useAppStore((s) => s.tappe);
   const navigate = useNavigate();
   const { giocatori, squadre, errore, load } = useAnagrafe();
@@ -102,7 +102,7 @@ export function GiocatorePage() {
     if (!g) return [];
     const out: GameRow[] = [];
     for (const t of tappe) {
-      const nameOf = (tid: string) => t.squadre.find((s) => s.id === tid)?.nome ?? tid;
+      const nameOf = (tid: string) => nomeSquadra(t.squadre, tid);
       for (const { nome, stat, partita: m, lato } of tabellini(t)) {
         if (!sameName(nome, g)) continue;
         // Punti fatti, punti subiti e squadra avversaria, dal lato della scheda in cui sta il tabellino
@@ -114,7 +114,6 @@ export function GiocatorePage() {
     return out;
   }, [g, tappe]);
 
-  if (!user) return <Navigate to="/" replace />;
   if (giocatori === null && errore) {
     return <ErroreCaricamento cosa="Non è stato possibile caricare l'anagrafe." motivo={errore} onRiprova={() => { void load(); }} />;
   }
@@ -129,7 +128,7 @@ export function GiocatorePage() {
   // Le squadre da cui vengono i totali, ognuna una volta: lo stesso nome scritto nei due ordini nella stessa squadra sono due
   // righe di stagione, ma una squadra sola. Vale la grafia dell'ultima riga
   const squadreStat = [...new Map(stagione.map((row): [string, string] => [normalizza(row.squadra), row.squadra])).values()];
-  const avg = (v: number) => (tot.g ? `(${f1(v / tot.g)}/g)` : undefined);
+  const avg = (v: number) => (tot.g ? `(${fmtMedia(v / tot.g)}/g)` : undefined);
   const age = eta(g.nascita);
   const bio = [g.ruolo, g.squadra, g.citta, age !== null ? `${age} anni` : "", g.altezza ? `${g.altezza} cm` : "", g.peso ? `${g.peso} kg` : ""].filter(Boolean);
   // Vinte e perse si contano sulle stesse partite dell'elenco; una parità non è nessuna delle due, quindi V e P possono non sommare G
@@ -150,7 +149,7 @@ export function GiocatorePage() {
             <h1 className="font-display text-[clamp(28px,5vw,44px)] text-chalk">{g.nome} {g.cognome}</h1>
             {g.soprannome && <div className="mt-0.5 font-display text-lg text-court">"{g.soprannome}"</div>}
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              {logo && <img src={safeUrl(logo)} alt="" className="h-6 w-6 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />}
+              <TeamLogo src={logo} className="h-6 w-6" />
               {bio.map((b) => <Badge key={b}>{b}</Badge>)}
               {g.nazionalita && <Badge>{g.nazionalita}</Badge>}
             </div>

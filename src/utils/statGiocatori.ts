@@ -4,6 +4,7 @@
  *  così i loro numeri coincidono. */
 import type { Partita, StatLine, Tappa } from "../types";
 import { STAT_KEYS } from "../constants/rules";
+import { toStatLine } from "./statLine";
 
 /** Nome o squadra confrontabili: spazi ai lati tolti, spazi interni ridotti a uno (ma non tolti: «De Rossi» e «DeRossi»
  *  restano diversi), maiuscole e accenti ignorati («Nicolò  Rossi» e «nicolo rossi» sono lo stesso giocatore), apostrofi
@@ -26,8 +27,7 @@ const numero = (valore: unknown) => Number(valore) || 0;
 
 /** Il tabellino di un giocatore in una partita, in numeri. Il formato vecchio è un numero: i soli punti */
 function conteggi(raw: StatLine | number): Conteggi {
-  let stat: StatLine = { pt: raw as number };
-  if (typeof raw === "object" && raw !== null) stat = raw;
+  const stat = toStatLine(raw);
   return {
     pt: numero(stat.pt), rb: numero(stat.rb), as: numero(stat.as), ru: numero(stat.ru),
     st: numero(stat.st), pe: numero(stat.pe), fa: numero(stat.fa),

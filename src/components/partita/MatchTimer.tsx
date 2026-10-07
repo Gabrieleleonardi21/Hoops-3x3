@@ -81,10 +81,11 @@ function colorePunti(inVantaggio: boolean): string {
   return "text-chalk";
 }
 
-export function MatchTimer({ regole, teamA, teamB, onClose }: {
+/** Il timer non è legato a una partita: le due squadre si chiamano A e B */
+const nomi: Record<Lato, string> = { a: "Squadra A", b: "Squadra B" };
+
+export function MatchTimer({ regole, onClose }: {
   regole: Regole;
-  teamA?: string;
-  teamB?: string;
   onClose: () => void;
 }) {
   // Un possesso a 0 non avrebbe un ciclo (le regole dell'ospite, salvate da versioni vecchie, possono esserlo): almeno 1 secondo
@@ -97,7 +98,6 @@ export function MatchTimer({ regole, teamA, teamB, onClose }: {
   // Il punteggio da cui è stato avviato il supplementare (con il suo pulsante), per contare da lì i suoi punti (null: non è avviato)
   const [inizioSupplementare, setInizioSupplementare] = useState<Punti | null>(null);
 
-  const nomi: Record<Lato, string> = { a: teamA ?? "Squadra A", b: teamB ?? "Squadra B" };
   const inMarcia = "fine" in tempo.gara || "fine" in tempo.possesso;
   const restoGara = mancano(tempo.gara, tempo.ora);
   // Secondi interi: un secondo conta finché non è passato per intero (il possesso mostra 12, 11, … 1 e poi ricomincia da 12)

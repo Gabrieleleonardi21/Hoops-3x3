@@ -11,7 +11,7 @@ import { buildBracket, nextBracketSlot } from "../utils/buildBracket";
 import { replaceById } from "../utils/replaceById";
 import { uid } from "../utils/uid";
 import { conteggio } from "../utils/testi";
-import { DEFAULT_RULES } from "../constants/rules";
+import { DEFAULT_RULES, MAX_SQUADRE, MIN_SQUADRE, nomeSegnaposto } from "../constants/rules";
 
 export type ModoSorteggio = "casuale" | "ranking";
 
@@ -47,8 +47,7 @@ const CONCLUSA = "La tappa è conclusa: riaprila per modificarla.";
 const NOME_VUOTO = "Il nome della tappa non può essere vuoto.";
 
 /** Squadre ammesse in una tappa */
-const MAX_SQUADRE = 64;
-const LIMITE_SQUADRE = `Una tappa ha da 2 a ${MAX_SQUADRE} squadre.`;
+const LIMITE_SQUADRE = `Una tappa ha da ${MIN_SQUADRE} a ${MAX_SQUADRE} squadre.`;
 /** Gironi al massimo in una tappa: il limite di TappaDTO.nGironi (@Min(1) @Max(32)). Lo usa anche l'import di una lega */
 export const MAX_GIRONI = 32;
 
@@ -93,7 +92,7 @@ function erroreGironi(nSquadre: number, nGironi: number): string | null {
  *  ogni salvataggio, perché ogni salvataggio manda la tappa intera. null se vanno bene. Si controllano prima di preparare
  *  le squadre: così nessuno crea squadre (o le registra in anagrafe) per una tappa che poi verrebbe rifiutata. */
 export function erroreLimitiTappa(nSquadre: number, nGironi: number, testi: TestiTappa): string | null {
-  if (!Number.isInteger(nSquadre) || nSquadre < 2 || nSquadre > MAX_SQUADRE) return LIMITE_SQUADRE;
+  if (!Number.isInteger(nSquadre) || nSquadre < MIN_SQUADRE || nSquadre > MAX_SQUADRE) return LIMITE_SQUADRE;
   const gironi = erroreGironi(nSquadre, nGironi);
   if (gironi) return gironi;
   return erroreTestiTappa(testi);
@@ -233,7 +232,7 @@ export function perditaSquadra(tappa: Tappa, squadraId: string): string | null {
 export function aggiungiSquadra(tappa: Tappa): Esito {
   if (tappa.conclusa) return ko(CONCLUSA);
   if (tappa.squadre.length >= MAX_SQUADRE) return ko(LIMITE_SQUADRE);
-  const squadra: SquadraTappa = { id: uid(), nome: `Squadra ${tappa.squadre.length + 1}`, giocatori: [], rank: "" };
+  const squadra: SquadraTappa = { id: uid(), nome: nomeSegnaposto(tappa.squadre.length + 1), giocatori: [], rank: "" };
   return ok(senzaSorteggio({ ...tappa, squadre: [...tappa.squadre, squadra] }));
 }
 
@@ -242,7 +241,7 @@ export function aggiungiSquadra(tappa: Tappa): Esito {
 export function rimuoviSquadra(tappa: Tappa, squadraId: string): Esito {
   if (tappa.conclusa) return ko(CONCLUSA);
   if (!tappa.squadre.some((s) => s.id === squadraId)) return ko("Squadra non trovata.");
-  if (tappa.squadre.length <= 2) return ko(LIMITE_SQUADRE);
+  if (tappa.squadre.length <= MIN_SQUADRE) return ko(LIMITE_SQUADRE);
   const squadre = tappa.squadre.filter((s) => s.id !== squadraId);
   const nGironi = Math.min(tappa.nGironi, massimoGironi(squadre.length));
   return ok(senzaSorteggio({ ...tappa, squadre, nGironi }));

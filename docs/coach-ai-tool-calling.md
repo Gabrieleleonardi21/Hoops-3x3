@@ -3,21 +3,24 @@
 ## Panoramica
 
 Il Coach AI può eseguire azioni nell'app in autonomo quando l'utente lo chiede esplicitamente.
-Usa Groq (llama-3.3-70b-versatile) con il protocollo OpenAI function calling.
+Il frontend parla solo con il backend (`POST /api/coach/chat`), che tiene la chiave e chiama Groq con il modello
+configurato (`GROQ_MODEL`, predefinito `openai/gpt-oss-120b`), con il protocollo OpenAI function calling.
 
 ## File coinvolti
 
 | File | Ruolo |
 |---|---|
-| `src/services/aiService.ts` | Chiamate HTTP a Groq; gestisce il ciclo tool call → risultato → risposta finale |
-| `src/hooks/useCoachAI.ts` | Definisce i tool disponibili ed esegue le azioni: per le tappe chiama `tappaOps` e salva il risultato nello store con `replaceTappa` |
+| `src/services/aiService.ts` | Chiamate HTTP al Coach del backend (`chiamaCoach`); gestisce il ciclo tool call → risultato → risposta finale |
+| `src/coach/toolDefs.ts` | Le definizioni dei tool come le vede il modello (`COACH_TOOLS`) |
+| `src/coach/toolHandlers.ts` | Una funzione per tool, senza React, nella `Map` `ESECUTORI`; `eseguiStrumento` la cerca per nome. Per le tappe chiama `tappaOps` e salva il risultato nello store con `replaceTappa` |
+| `src/hooks/useCoachAI.ts` | La chat (messaggi, attesa, conferma in corso) e l'invio; passa ai tool navigazione, segnale della richiesta e conferma (`ContestoStrumenti`) |
 | `src/domain/tappaOps.ts` | Operazioni di tappa come funzioni pure (sorteggio, risultati, fasi dirette, conclusione): le stesse usate dall'interfaccia, testate in `tests/unit/tappaOps.test.ts` |
 
 ## Flusso di esecuzione
 
 ```
 Utente scrive → AI risponde con uno o più tool_call
-             → executeTool() esegue ogni azione IN SEQUENZA (async, legge/scrive storage)
+             → eseguiStrumento() esegue ogni azione IN SEQUENZA (async, legge/scrive storage)
              → risultati rispediti all'AI come messaggi tool
              → l'AI può richiedere altri tool (nuovo round) … oppure
              → AI risponde con messaggio di conferma in chat
@@ -155,7 +158,7 @@ Il tipo `ToolParamProp` in `aiService.ts` supporta scalari e array:
 { type: "array",  description: "...", items: { type: "string" } }
 ```
 
-### 2. Aggiungi la definizione in `COACH_TOOLS` (useCoachAI.ts)
+### 2. Aggiungi la definizione in `COACH_TOOLS` (src/coach/toolDefs.ts)
 
 ```ts
 {
@@ -174,24 +177,33 @@ Il tipo `ToolParamProp` in `aiService.ts` supporta scalari e array:
 },
 ```
 
-### 3. Aggiungi il caso in `executeTool` (useCoachAI.ts)
+### 3. Aggiungi l'esecutore in `src/coach/toolHandlers.ts`
+
+Una funzione per tool, con lo stesso nome della definizione nella `Map` `ESECUTORI` (il test `coachStrumenti.test.ts`
+controlla che definizioni ed esecutori corrispondano):
 
 ```ts
-if (name === "nome_tool") {
-  // Per tool che leggono stato potenzialmente modificato da altri tool nello stesso turno,
-  // usa getState() invece della closure per avere valori freschi:
-  const freshTappe = useAppStore.getState().tappe;
-  const valore = str(args, "param") || "default";
-  // azione sullo store o storage (può essere async)
+/** Che cosa fa il tool, e perché quando serve */
+async function eseguiNomeTool(args: Argomenti, ctx: ContestoStrumenti): Promise<string> {
+  // Lo stato si legge con getState() nel momento in cui il tool agisce: altri tool dello stesso turno possono averlo cambiato
+  const tappe = useAppStore.getState().tappe;
+  const valore = obbligatorio(args, "param", "il parametro");
+  // azione sullo store o sul server (può essere async); ctx.vai(percorso) apre una pagina, ctx.chiediConferma(...) chiede conferma
   return `Azione completata: ${valore}`;
 }
+
+const ESECUTORI = new Map<string, Esecutore>([
+  // …
+  ["nome_tool", eseguiNomeTool],
+]);
 ```
 
 > Se il tool modifica una tappa, la regola va in `src/domain/tappaOps.ts` (funzione pura `(tappa, …) → Esito`, con il suo test in `tests/unit/tappaOps.test.ts`): nel tool ci si limita a leggere la tappa fresca, chiamare la funzione e salvare con `replaceTappa`.
 >
-> `str(args, key)` è un helper interno che legge stringhe con fallback a `""`.
-> `findTappa(tappe, nome?)` è un helper interno che cerca per nome parziale o restituisce l'ultima tappa.
-> `fetchSquadre()` / `fetchGiocatori()` sono helper interni che leggono l'anagrafe condivisa dal server (lista vuota in caso di errore).
+> Gli aiuti interni di `toolHandlers.ts`:
+> `str(args, key)` legge una stringa con ripiego a `""`; `obbligatorio(args, key, cosa)` la vuole non vuota, altrimenti l'errore dice che cosa manca.
+> `tappaRichiesta(args)` trova la tappa di `tappa_nome` (nome esatto, o una parte che corrisponde a una tappa sola) oppure l'ultima.
+> `fetchSquadre()` / `fetchGiocatori()` leggono l'anagrafe condivisa dal server (lista vuota in caso di errore).
 
 ### Esempi di tool futuri possibili
 

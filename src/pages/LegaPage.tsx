@@ -15,7 +15,7 @@ import { useAppStore } from "../stores/useAppStore";
 import { leggiFileLega, testoFileLega } from "../utils/legaFile";
 
 export function LegaPage() {
-  const { user, legaName, tappe, setLegaName, createTappa } = useLega();
+  const { legaName, tappe, setLegaName, createTappa } = useLega();
   const legaId    = useAppStore((s) => s.legaId);
   const importLega = useAppStore((s) => s.importLega);
   const navigate  = useNavigate();
@@ -98,7 +98,6 @@ export function LegaPage() {
     return [...map.values()].sort((a, b) => b.rank - a.rank);
   }, [tappe]);
 
-  if (!user) return <Navigate to="/" replace />;
   // Se nessuna lega è attiva, manda alla lista per selezionarne una
   if (!legaId) return <Navigate to="/leghe" replace />;
 

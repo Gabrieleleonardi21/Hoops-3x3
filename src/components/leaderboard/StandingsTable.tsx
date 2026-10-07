@@ -3,8 +3,8 @@
  *  L'ordine di default è quello ricevuto (criteri FIBA calcolati in utils/standings). */
 import { useMemo, useState } from "react";
 import type { StandingRow } from "../../utils/standings";
-import { safeUrl } from "../../utils/safeUrl";
 import { Icon } from "../ui/Icon";
+import { TeamLogo } from "../ui/TeamLogo";
 
 type SortKey = "rank" | "nome" | "g" | "v" | "p" | "pf" | "ps" | "diff";
 
@@ -22,13 +22,25 @@ const COLS: { key: SortKey; label: string; title: string; num?: boolean }[] = [
 interface Props {
   rows: StandingRow[];
   logos?: Record<string, string | undefined>; // id squadra → url logo
-  highlightId?: string;                        // riga con rail arancio (es. squadra dell'utente)
   caption?: string;                            // testo per screen reader
   compact?: boolean;                           // nasconde PF/PS su schermi stretti
-  onRowClick?: (row: StandingRow) => void;
 }
 
-export function StandingsTable({ rows, logos, highlightId, caption = "Classifica", compact, onRowClick }: Props) {
+/** aria-sort di una colonna: l'ordine se è quella attiva, altrimenti «none» */
+function ordineAria(attiva: boolean, desc: boolean): "ascending" | "descending" | "none" {
+  if (!attiva) return "none";
+  if (desc) return "descending";
+  return "ascending";
+}
+
+/** Il colore della differenza canestri: positiva in verde, negativa in rosso, zero neutra */
+function coloreDiff(diff: number): string {
+  if (diff > 0) return "text-win";
+  if (diff < 0) return "text-loss";
+  return "text-chalk-muted";
+}
+
+export function StandingsTable({ rows, logos, caption = "Classifica", compact }: Props) {
   const [sort, setSort] = useState<{ key: SortKey; desc: boolean } | null>(null);
 
   // Rango FIBA fissato sull'ordine in ingresso, così resta corretto anche riordinando per altre colonne
@@ -65,7 +77,7 @@ export function StandingsTable({ rows, logos, highlightId, caption = "Classifica
           <tr className="bg-asphalt-900">
             {COLS.map((c) => {
               const active = sort?.key === c.key;
-              const ariaSort = active ? (sort.desc ? "descending" : "ascending") : "none";
+              const ariaSort = ordineAria(active, sort?.desc ?? false);
               const align = c.key === "nome" ? "text-left" : "text-center";
               const extra = c.key === "pf" || c.key === "ps" ? hideCls : "";
               return (
@@ -84,19 +96,14 @@ export function StandingsTable({ rows, logos, highlightId, caption = "Classifica
         <tbody>
           {sorted.map((r) => {
             const first = r.rank === 1 && r.g > 0;
-            const hl = r.id === highlightId;
-            const diffCls = r.diff > 0 ? "text-win" : r.diff < 0 ? "text-loss" : "text-chalk-muted";
-            const rowCls = `h-9 border-b border-asphalt-700 last:border-b-0 ${hl ? "bg-court/10 shadow-[inset_3px_0_0_var(--color-court)]" : "hover:bg-asphalt-900"}${
-              onRowClick ? " cursor-pointer" : ""}`;
+            const diffCls = coloreDiff(r.diff);
+            const rowCls = "h-9 border-b border-asphalt-700 last:border-b-0 hover:bg-asphalt-900";
             return (
-              <tr key={r.id} className={rowCls} onClick={onRowClick ? () => onRowClick(r) : undefined}>
+              <tr key={r.id} className={rowCls}>
                 <td className={`text-center font-display text-base ${first ? "text-court" : "text-chalk-muted"}`}>{r.rank}</td>
                 <td className="px-2 text-left font-semibold text-chalk">
                   <span className="flex items-center gap-2 min-w-0">
-                    {logos?.[r.id] && (
-                      <img src={safeUrl(logos[r.id]!)} alt="" className="h-5 w-5 shrink-0 object-contain"
-                        onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-                    )}
+                    <TeamLogo src={logos?.[r.id]} className="h-5 w-5 shrink-0" />
                     <span className="truncate">{r.nome}</span>
                     {first && <Icon name="trophy" size={12} className="shrink-0 text-gold" />}
                   </span>

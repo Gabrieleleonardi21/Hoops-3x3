@@ -1,7 +1,6 @@
 /** Pagina dell'anagrafe condivisa del circuito: due tab (giocatori / squadre) con
  *  ricerca testuale, form di registrazione e modale di dettaglio squadra. */
 import { useState } from "react";
-import { Navigate } from "react-router-dom";
 import { useAppStore } from "../stores/useAppStore";
 import { useAnagrafe } from "../hooks/useAnagrafe";
 import { useInvio } from "../hooks/useInvio";
@@ -18,9 +17,10 @@ import { Loading } from "../components/ui/Loading";
 import { Button } from "../components/ui/Button";
 import { Icon } from "../components/ui/Icon";
 import type { RegGiocatore, RegSquadra } from "../types";
+import { useUtente } from "../hooks/useUtente";
 
 export function AnagrafePage() {
-  const user  = useAppStore((s) => s.user);
+  const user  = useUtente();
   const tappe = useAppStore((s) => s.tappe);
   const [tab, setTab] = useState<"g" | "s" | "stats">("g");
   const [query, setQuery] = useState("");
@@ -32,7 +32,6 @@ export function AnagrafePage() {
   const [selSquadra, setSelSquadra] = useState<RegSquadra | null>(null);
   const [selGiocatore, setSelGiocatore] = useState<RegGiocatore | null>(null);
   const anagrafe = useAnagrafe();
-  if (!user) return <Navigate to="/" replace />;
   const { giocatori, squadre, errore, load, saveGiocatore, saveSquadra, removeGiocatore, removeSquadra, updateSquadra, updateGiocatore } = anagrafe;
 
   // Filtra un array su più campi testuali con la query di ricerca

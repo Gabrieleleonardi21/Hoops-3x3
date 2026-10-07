@@ -27,6 +27,8 @@ import { Card } from "../components/ui/Card";
 import { Icon } from "../components/ui/Icon";
 import { Section } from "../components/ui/Section";
 import { Badge } from "../components/ui/Badge";
+import { useUtente } from "../hooks/useUtente";
+import { MAX_ROSTER, MIN_ROSTER } from "../constants/rules";
 
 /** Riga d'errore sopra il contenuto della tappa: role="alert", così il lettore di schermo la annuncia appena compare */
 function Avviso({ children }: { children: ReactNode }) {
@@ -36,6 +38,7 @@ function Avviso({ children }: { children: ReactNode }) {
 export function TappaPage() {
   const { id } = useParams();
   const h = useTappa(id);
+  const user = useUtente();
   const navigate = useNavigate();
   const [editOpen,    setEditOpen]    = useState(false);
   const [timerOpen,   setTimerOpen]   = useState(false);
@@ -62,7 +65,6 @@ export function TappaPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [squadreAnagrafe]);
 
-  if (!h.user) return <Navigate to="/" replace />;
   if (!h.tappa) return <Navigate to="/lega" replace />;
   const t = h.tappa;
 
@@ -163,7 +165,7 @@ export function TappaPage() {
         )}
 
         <Card className="mb-4"><VideoForm compact onAdd={h.addVideo} /></Card>
-        <ArchivioTappaView t={t} lega={h.legaName} autore={h.user.name} />
+        <ArchivioTappaView t={t} lega={h.legaName} autore={user.name} />
         {riapri.finestra}
       </div>
     );
@@ -199,8 +201,8 @@ export function TappaPage() {
 
       <Section title="Le squadre iscritte" kicker={`${t.squadre.length} squadre`}>
         <p className="mb-3 text-[13px] text-chalk-muted">
-          Ogni squadra deve inserire i propri giocatori (minimo 3, massimo 4): senza roster completi non si possono sorteggiare i gironi.
-          {h.user.guest ? " In modalità Ospite il controllo è disattivato per le prove." : ""}
+          Ogni squadra deve inserire i propri giocatori (minimo {MIN_ROSTER}, massimo {MAX_ROSTER}): senza roster completi non si possono sorteggiare i gironi.
+          {user.guest && " In modalità Ospite il controllo è disattivato per le prove."}
         </p>
         <div className="mb-4 grid gap-3 grid-cols-[repeat(auto-fill,minmax(240px,1fr))]">
           {t.squadre.map((s, i) => (

@@ -1,11 +1,14 @@
 /** Form di autenticazione: usa react-hook-form + Zod per la validazione dei campi.
  *  Registrazione e login passano dal backend (JWT); la modalità Ospite resta locale al browser. */
 import { useEffect, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuth } from "../../hooks/useAuth";
 import { ApiError } from "../../services/api";
+import { Input } from "../ui/Input";
+import { Button } from "../ui/Button";
 
 const ACCOUNT_HINT = "hoop3x3_has_account";
 function hasAccountHint(): boolean {
@@ -25,9 +28,6 @@ function messaggioRicevuto(stato: unknown): string | null {
   if (typeof messaggio === "string") return messaggio;
   return null;
 }
-import { useLocation, useNavigate } from "react-router-dom";
-import { Input } from "../ui/Input";
-import { Button } from "../ui/Button";
 
 const registerSchema = z.object({
   // Da 2 a 80 caratteri come RegisterRequestDTO (gli 80 sono il maxLength del campo); il campo vuoto ha il suo messaggio

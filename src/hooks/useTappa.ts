@@ -1,14 +1,14 @@
-import { useEffect, useState } from "react";
 import { useAppStore, tappaCorrente } from "../stores/useAppStore";
-import { archivioApi } from "../services/archivioApi";
-import { ApiError, esitoIgnoto, testoErrore } from "../services/api";
+import { useStatoArchivio } from "./useStatoArchivio";
 import { anagrafeApi } from "../services/anagrafeApi";
 import { useAnagrafeStore } from "../stores/useAnagrafeStore";
 import { uid } from "../utils/uid";
 import { PERDITA_RIAPERTURA } from "../utils/testi";
+import { giocatoriDi, nomeGiocatore, nomeSquadra } from "../utils/tappaInfo";
 import * as ops from "../domain/tappaOps";
 import type { Esito, ModoSorteggio } from "../domain/tappaOps";
 import type { EventoGara, Partita, RegSquadra, SquadraTappa, StatLine, StatSheet, Tappa } from "../types";
+import { MAX_ROSTER, MIN_ROSTER } from "../constants/rules";
 
 export interface MatchDraft {
   sa: string;
@@ -32,11 +32,7 @@ function numify(sheet: MatchDraft["pa"]): StatSheet {
 }
 
 /* Letture su una tappa qualsiasi: l'hook le applica alla tappa del render, le operazioni a quella di adesso */
-const nomeSquadra = (t: Tappa | null, teamId: string) => t?.squadre.find((s) => s.id === teamId)?.nome || "?";
-/** Giocatori con il nome compilato: sono quelli che contano per il roster */
-const giocatoriConNome = (t: Tappa | null, teamId: string) =>
-  (t?.squadre.find((s) => s.id === teamId)?.giocatori || []).filter((p) => p.nome.trim());
-const rosterCompleto = (t: Tappa | null, teamId: string) => giocatoriConNome(t, teamId).length >= 3;
+const rosterCompleto = (t: Tappa | null, teamId: string) => giocatoriDi(t?.squadre, teamId).length >= MIN_ROSTER;
 
 /* Sincronizzazione con l'anagrafe: funzioni pure, che si applicano alla tappa com'è adesso nello store */
 
@@ -85,62 +81,12 @@ function scollegaSenzaVoce(t: Tappa, regs: RegSquadra[]): Tappa {
   };
 }
 
-/** Che cosa si sa della pubblicazione di una tappa conclusa nell'Archivio circuito: la pagina dice «pubblicata» solo se lo è davvero */
-export interface StatoArchivio {
-  /** true = è in archivio (l'ultima pubblicazione è riuscita, o la verifica l'ha trovata); false = non c'è; null = non si sa
-   *  (la verifica non è ancora finita o non è riuscita, oppure l'ospite, che non pubblica) */
-  pubblicata: boolean | null;
-  /** Perché l'ultima pubblicazione non è riuscita; null se non ce ne sono state di fallite */
-  errore: string | null;
-}
-const SCONOSCIUTO: StatoArchivio = { pubblicata: null, errore: null };
-
-/** La pubblicazione è fallita e si sa che la copia non c'è: o il server ha risposto con un errore suo, oppure la richiesta non è
- *  nemmeno partita (412 locale: la tappa non era salvata). Non si sa con rete assente o tempo scaduto (status 0), né con un 502, 503 o
- *  504: dietro un proxy (Render) la PUT può essere stata eseguita dal server anche se la risposta è andata persa o il proxy ha
- *  risposto al suo posto. Dire «non pubblicata» farebbe riaprire la tappa lasciando la copia pubblica; nel dubbio «Riapri» ritira
- *  (la PUT è un upsert e la DELETE tollera il 404). L'elenco degli status di esito ignoto sta in api.ts (esitoIgnoto). */
-function nonPubblicataSicuro(e: unknown): boolean {
-  return e instanceof ApiError && !esitoIgnoto(e);
-}
-
-/** Lo stato della pubblicazione di una tappa, per `setArchivio` */
-const registra = (tappaId: string, stato: StatoArchivio) =>
-  (tutti: Record<string, StatoArchivio>): Record<string, StatoArchivio> => ({ ...tutti, [tappaId]: stato });
-
 export function useTappa(id: string | undefined) {
-  const { user, legaName, tappe, updateTappa, replaceTappa, removeTappa, pubblica } = useAppStore();
+  const { user, legaName, tappe, updateTappa, replaceTappa, removeTappa } = useAppStore();
   const tappa = tappe.find((t) => t.id === id) || null;
-  /** Stato della pubblicazione per tappa. Sta qui e non nella sezione «Concludi», che sparisce appena la tappa è conclusa. */
-  const [archivio, setArchivio] = useState<Record<string, StatoArchivio>>({});
-  const statoArchivio = archivio[id ?? ""] ?? SCONOSCIUTO;
-  /** Pubblicazioni in corso: finché ce n'è una la pagina non lascia riaprire la tappa (la copia nascerebbe dopo, su una tappa riaperta) */
-  const [inCorso, setInCorso] = useState(0);
-
-  // Aprendo una tappa già conclusa si chiede all'archivio se c'è: dopo un ricaricamento, o dopo una pubblicazione non riuscita (anche
-  // del Coach), la pagina non può saperlo da sola. Solo il 404 dice che non c'è: rete assente o guasto del server non dicono niente,
-  // e lo stato resta «non si sa».
-  useEffect(() => {
-    if (!id || !user || user.guest || !tappaCorrente(id)?.conclusa) return;
-    let attuale = true; // una risposta arrivata dopo che la tappa o l'utente sono cambiati non si applica
-    const verifica = async () => {
-      let trovata = true;
-      try {
-        await archivioApi.get(id);
-      } catch (e) {
-        if (!(e instanceof ApiError && e.status === 404)) return;
-        trovata = false;
-      }
-      if (!attuale) return;
-      // Se per la tappa c'è già uno stato (riaperta, conclusa di nuovo, pubblicata) la risposta è di una domanda fatta prima: non vale più
-      setArchivio((tutti) => {
-        if (tutti[id]) return tutti;
-        return registra(id, { pubblicata: trovata, errore: null })(tutti);
-      });
-    };
-    void verifica();
-    return () => { attuale = false; };
-  }, [id, user]);
+  // La pubblicazione nell'Archivio circuito: che cosa se ne sa e quelle in corso
+  const archivio = useStatoArchivio(id, user);
+  const { statoArchivio } = archivio;
 
   /** Per i campi il cui nuovo valore non dipende dalla tappa (un testo scritto, un valore fisso) */
   const patch = (p: Partial<Tappa>) => tappa && updateTappa(tappa.id, p);
@@ -179,15 +125,9 @@ export function useTappa(id: string | undefined) {
   };
 
   /* ── helper di lettura ── */
-  const nameOf = (teamId: string) => nomeSquadra(tappa, teamId);
-  const playersOf = (teamId: string) => giocatoriConNome(tappa, teamId);
-  const playerNameById = (pid: string) => {
-    for (const s of tappa?.squadre || []) {
-      const p = (s.giocatori || []).find((x) => x.id === pid);
-      if (p) return p.nome;
-    }
-    return null;
-  };
+  const nameOf = (teamId: string) => nomeSquadra(tappa?.squadre, teamId);
+  const playersOf = (teamId: string) => giocatoriDi(tappa?.squadre, teamId);
+  const playerNameById = (pid: string) => nomeGiocatore(tappa?.squadre, pid);
   const teamComplete = (teamId: string) => rosterCompleto(tappa, teamId);
 
   /* ── modifica tappa ── */
@@ -279,7 +219,7 @@ export function useTappa(id: string | undefined) {
   const addPlayer = (teamId: string) =>
     aggiornaSquadra(teamId, (s) => {
       const giocatori = s.giocatori || [];
-      if (giocatori.length >= 4) return s;
+      if (giocatori.length >= MAX_ROSTER) return s;
       return { ...s, giocatori: [...giocatori, { id: uid(), nome: "" }] };
     });
   const renamePlayer = (teamId: string, pid: string, nome: string) =>
@@ -325,14 +265,14 @@ export function useTappa(id: string | undefined) {
     if (!user.guest) {
       const sides: ["pa" | "pb", string, number][] = [["pa", m.a, sa], ["pb", m.b, sb]];
       for (const [side, teamId, total] of sides) {
-        const pls = giocatoriConNome(corrente, teamId);
-        if (pls.length < 3) return `${nomeSquadra(corrente, teamId)} non ha un roster valido (minimo 3 giocatori).`;
+        const pls = giocatoriDi(corrente.squadre, teamId);
+        if (pls.length < MIN_ROSTER) return `${nomeSquadra(corrente.squadre, teamId)} non ha un roster valido (minimo ${MIN_ROSTER} giocatori).`;
         const vals = pls.map((p) => parseInt(String(draft[side]?.[p.id]?.pt ?? ""), 10));
         if (vals.some((v) => isNaN(v) || v < 0))
-          return `Inserisci i punti (PT) di OGNI giocatore di ${nomeSquadra(corrente, teamId)} (anche 0).`;
+          return `Inserisci i punti (PT) di OGNI giocatore di ${nomeSquadra(corrente.squadre, teamId)} (anche 0).`;
         const sum = vals.reduce((t, v) => t + v, 0);
         if (sum !== total)
-          return `I punti dei giocatori di ${nomeSquadra(corrente, teamId)} sommano ${sum}, ma il totale è ${total}.`;
+          return `I punti dei giocatori di ${nomeSquadra(corrente.squadre, teamId)} sommano ${sum}, ma il totale è ${total}.`;
       }
     }
     replaceTappa(esito.tappa);
@@ -349,24 +289,10 @@ export function useTappa(id: string | undefined) {
     aggiornaPartita(matchId, (m) => ({ ...m, eventi: (m.eventi || []).filter((e) => e.id !== evId) }));
 
   /* ── video + pubblicazione ── */
+  /** Una tappa conclusa con i video cambiati si ripubblica (solo chi ha un account pubblica) */
   const republish = async (t: Tappa) => {
     if (!t.conclusa || !user || user.guest) return;
-    setInCorso((n) => n + 1);
-    try {
-      // Prima il server riceve la tappa col video, poi la copia pubblica si ricostruisce da lì
-      await pubblica(t.id);
-      setArchivio(registra(t.id, { pubblicata: true, errore: null }));
-    } catch (e) {
-      // La copia pubblica resta com'era: se la tappa era in archivio ci resta, ma senza il video, e il motivo compare nella pagina.
-      // Un vecchio «non pubblicata» non vale più se l'esito di questa PUT è ignoto: potrebbe aver pubblicato
-      setArchivio((tutti) => {
-        let pubblicata = (tutti[t.id] ?? SCONOSCIUTO).pubblicata;
-        if (pubblicata === false && !nonPubblicataSicuro(e)) pubblicata = null;
-        return registra(t.id, { pubblicata, errore: testoErrore(e) })(tutti);
-      });
-    } finally {
-      setInCorso((n) => n - 1);
-    }
+    await archivio.ripubblica(t.id);
   };
   const addVideo = (titolo: string, url: string) => {
     const corrente = tappaCorrente(id);
@@ -393,46 +319,25 @@ export function useTappa(id: string | undefined) {
     const esito = ops.concludi(corrente);
     if (!esito.ok) return esito.errore;
     if (user.guest) return "La pubblicazione nell'Archivio circuito richiede un account registrato.";
-    setInCorso((n) => n + 1); // prima della conclusione: la pagina cambia con «Riapri» già disattivato
-    try {
-      replaceTappa(esito.tappa);
-      // Da qui la pagina è un'altra (la sezione «Concludi» non c'è più): se la pubblicazione non riesce, il messaggio che si
-      // restituisce non lo leggerebbe nessuno. L'esito sta nello stato, e la pagina lo mostra accanto alla tappa. La tappa resta
-      // conclusa e una tappa conclusa non si conclude di nuovo: per ripubblicare va riaperta. «Non pubblicata» solo se si sa; se
-      // l'esito è ignoto (rete assente, tempo scaduto, errore del proxy) lo stato resta «non si sa» e «Riapri» ritira la copia, se c'è
-      try {
-        await pubblica(esito.tappa.id);
-        setArchivio(registra(esito.tappa.id, { pubblicata: true, errore: null }));
-      } catch (e) {
-        let pubblicata: boolean | null = null;
-        if (nonPubblicataSicuro(e)) pubblicata = false;
-        setArchivio(registra(esito.tappa.id, { pubblicata, errore: testoErrore(e) }));
-      }
-    } finally {
-      setInCorso((n) => n - 1);
-    }
+    // Da qui la pagina è un'altra (la sezione «Concludi» non c'è più): se la pubblicazione non riesce, il messaggio che si
+    // restituisce non lo leggerebbe nessuno. L'esito sta nello stato dell'archivio. La tappa resta conclusa e una tappa conclusa non
+    // si conclude di nuovo: per ripubblicare va riaperta
+    await archivio.concludiEPubblica(esito.tappa.id, () => replaceTappa(esito.tappa));
     return null;
   };
 
   /** «Riapri»: prima la tappa esce dall'archivio, poi si riapre. Se il server non riesce a toglierla, la tappa resta conclusa e
    *  l'errore arriva a chi chiama (la pagina lo mostra): riaprirla lasciando la copia pubblica, e senza più il pulsante per
-   *  ritirarla, sarebbe peggio. Il 404 vuol dire che non c'era più: si riapre lo stesso. Una tappa che si sa non pubblicata non ha
-   *  niente da togliere, e l'ospite non pubblica: niente chiamata al server. */
+   *  ritirarla, sarebbe peggio. Se non c'è niente da ritirare si riapre subito, senza attese */
   const riapri = async () => {
     if (!tappa) return;
-    if (user && !user.guest && statoArchivio.pubblicata !== false) {
-      try {
-        await archivioApi.rimuovi(tappa.id);
-      } catch (e) {
-        if (!(e instanceof ApiError && e.status === 404)) throw e;
-      }
-    }
+    if (archivio.daRitirare(tappa.id)) await archivio.ritira(tappa.id);
     updateTappa(tappa.id, { conclusa: false });
-    setArchivio(registra(tappa.id, SCONOSCIUTO));
+    archivio.dimentica(tappa.id);
   };
 
   return {
-    user, legaName, tappa, statoArchivio, pubblicando: inCorso > 0,
+    user, legaName, tappa, statoArchivio, pubblicando: archivio.pubblicando,
     nameOf, playersOf, playerNameById, teamComplete,
     setInfo, rinomina, perditaRisultati, perditaTappa, perditaSquadra, perditaRiapertura, setNGironi, setRule, addTeam, removeTeam,
     renameTeam, setTeamRank, setTeamWebsite, setTeamLogo, applyReg, syncFromAnagrafe,

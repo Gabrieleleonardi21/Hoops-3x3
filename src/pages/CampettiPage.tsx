@@ -2,8 +2,6 @@
  *  ATTENZIONE: usa i DATI DI ESEMPIO di src/data/campetti.ts (nessuna persistenza né geolocalizzazione);
  *  la mappa è un SVG stilizzato, non una mappa reale. L'UI è pronta per collegare dati veri. */
 import { useMemo, useState } from "react";
-import { Navigate } from "react-router-dom";
-import { useAppStore } from "../stores/useAppStore";
 import { CAMPETTI_DEMO, type Campetto } from "../data/campetti";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
@@ -46,7 +44,6 @@ function MappaSchematica({ campetti, selected, onSelect }: { campetti: Campetto[
 }
 
 export function CampettiPage() {
-  const user = useAppStore((s) => s.user);
   const [q, setQ] = useState("");
   const [filtri, setFiltri] = useState<Set<Filtro>>(new Set());
   const [ordine, setOrdine] = useState<"distanza" | "rating">("distanza");
@@ -63,7 +60,6 @@ export function CampettiPage() {
       .sort((a, b) => (ordine === "distanza" ? a.distanzaKm - b.distanzaKm : b.rating - a.rating));
   }, [q, filtri, ordine]);
 
-  if (!user) return <Navigate to="/" replace />;
 
   const toggle = (f: Filtro) => setFiltri((prev) => {
     const next = new Set(prev);

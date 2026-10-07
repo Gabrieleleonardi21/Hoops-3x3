@@ -156,13 +156,14 @@ src/
 │   ├── tappa/        # Gestione tappa
 │   ├── ui/           # Componenti base (Button, Input, Card, Badge, StatTile, Section, Modal, Icon…)
 │   └── video/        # Galleria video
+├── coach/            # Coach AI: definizioni dei tool (toolDefs) ed esecutori (toolHandlers)
 ├── constants/        # Regole, ruoli, tipi di evento
 ├── data/             # Dati di esempio (campetti)
 ├── domain/           # Operazioni di tappa come funzioni pure (sorteggio, risultati, fasi dirette, conclusione)
 ├── hooks/            # Custom hooks
 ├── pages/            # Pagine dell'app
 ├── services/         # Client HTTP (api.ts), servizi REST (leghe, anagrafe, archivio, auth) e AI
-├── stores/           # Store Zustand: stato globale (useAppStore) e cache dell'anagrafe (useAnagrafeStore)
+├── stores/           # Store Zustand: stato globale (useAppStore, con memoriaBrowser e versioniTappe) e cache dell'anagrafe (useAnagrafeStore)
 ├── types/            # Definizioni TypeScript
 └── utils/            # Funzioni di utilità (gironi, classifica, ecc.)
 ```
@@ -171,7 +172,7 @@ src/
 
 Tema unico dark "Asphalt": palette, font (Barlow Condensed + IBM Plex Sans), scala e regole di
 accessibilità sono in [`docs/design-system.md`](docs/design-system.md). I mockup di riferimento
-(Stitch) sono in `reference/stitch-screens/`, la hero in `reference/hero/`.
+(Stitch) sono in `docs/design/stitch-screens/`; la foto della hero è `public/hero-court.jpg`.
 
 ## Dati e persistenza
 

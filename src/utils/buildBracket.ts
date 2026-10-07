@@ -1,6 +1,7 @@
 import type { BracketMatch, Partita, SquadraTappa } from "../types";
 import { standings } from "./standings";
 import { uid } from "./uid";
+import { nomeSquadra } from "./tappaInfo";
 
 /** Squadra qualificata alla fase finale, con i dati che servono a ordinarla tra le teste di serie */
 interface Qualificata {
@@ -102,7 +103,7 @@ function ordinaPerGirone(posti: (Qualificata | null)[]): void {
  */
 export function buildBracket(gironi: string[][], partite: Partita[], squadre: SquadraTappa[], nPass = 2): BracketMatch[] {
   if (gironi.length < 2) return [];
-  const nameOf = (id: string) => squadre.find((s) => s.id === id)?.nome ?? id;
+  const nameOf = (id: string) => nomeSquadra(squadre, id);
   const teste = qualificate(gironi, partite, nameOf, nPass);
   if (teste.length < 2) return [];
 

@@ -1,8 +1,8 @@
 /** Scoreboard riutilizzabile: due squadre, punteggio grande in Barlow Condensed, vincitore in chalk
  *  e perdente attenuato. `center` è lo slot tra i due punteggi (input, clock, "vs"),
  *  `footer` quello sotto (azioni, eventi). `size="lg"` per la vista da tavolo. */
-import { safeUrl } from "../../utils/safeUrl";
 import { Badge } from "../ui/Badge";
+import { TeamLogo } from "../ui/TeamLogo";
 
 interface Team { name: string; logo?: string; sub?: string }
 
@@ -25,10 +25,7 @@ function TeamBlock({ t, side, size }: { t: Team; side: "a" | "b"; size: "sm" | "
   const logoCls = size === "lg" ? "h-10 w-10" : "h-6 w-6";
   return (
     <div className={`flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:items-center sm:gap-3 ${align}`}>
-      {t.logo && (
-        <img src={safeUrl(t.logo)} alt="" className={`${logoCls} shrink-0 object-contain`}
-          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-      )}
+      <TeamLogo src={t.logo} className={`${logoCls} shrink-0`} />
       <div className="min-w-0">
         <div className={`font-display ${nameCls} truncate`}>{t.name}</div>
         {t.sub && <div className="text-[11px] text-chalk-muted truncate">{t.sub}</div>}
@@ -38,11 +35,22 @@ function TeamBlock({ t, side, size }: { t: Team; side: "a" | "b"; size: "sm" | "
 }
 
 export function ScoreCard({ a, b, sa, sb, done, live, label, center, footer, size = "sm", accent, className = "" }: Props) {
-  const played = done && sa != null && sb != null;
-  const aWins = !!played && sa! > sb!;
-  const bWins = !!played && sb! > sa!;
+  // Vince chi ha più punti, solo a partita conclusa con tutti e due i punteggi
+  let played = false;
+  let aWins = false;
+  let bWins = false;
+  if (done && sa != null && sb != null) {
+    played = true;
+    aWins = sa > sb;
+    bWins = sb > sa;
+  }
   const scoreCls = size === "lg" ? "text-6xl sm:text-7xl" : "text-3xl";
-  const tone = (win: boolean) => (played ? (win ? "text-chalk" : "text-chalk-dim") : "text-chalk-muted");
+  /** Il colore di un punteggio: chi vince in chalk, chi perde attenuato; a partita non giocata tutti e due neutri */
+  const tone = (win: boolean) => {
+    if (!played) return "text-chalk-muted";
+    if (win) return "text-chalk";
+    return "text-chalk-dim";
+  };
   const accentCls = accent ? " border-t-[3px] border-t-court" : "";
 
   return (

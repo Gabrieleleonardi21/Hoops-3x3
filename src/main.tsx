@@ -9,7 +9,11 @@ import "./index.css";
 // Prima ancora del render: il backend (se era in pausa) inizia a ripartire mentre si carica la pagina
 svegliaServer();
 
-createRoot(document.getElementById("root")!).render(
+// index.html ha sempre #root: se manca la pagina è rotta, e l'errore lo dice invece di un TypeError su null
+const radice = document.getElementById("root");
+if (!radice) throw new Error("Manca l'elemento #root in index.html");
+
+createRoot(radice).render(
   <StrictMode>
     <App />
   </StrictMode>

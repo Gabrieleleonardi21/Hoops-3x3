@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { standings } from "../../utils/standings";
-import { safeUrl } from "../../utils/safeUrl";
 import { ClassificaTable } from "../gironi/ClassificaTable";
 import { ScoreCard } from "../partita/ScoreCard";
 import { StatsView } from "../partita/StatsView";
@@ -14,6 +13,9 @@ import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
 import { Section } from "../ui/Section";
 import type { Tappa, SquadraTappa } from "../../types";
+import { giocatoriDi, logoSquadra, nomeGiocatore, nomeSquadra } from "../../utils/tappaInfo";
+import { letteraGirone } from "../../utils/formato";
+import { TeamLogo } from "../ui/TeamLogo";
 
 /** Vista in sola lettura di una tappa: tappe concluse e archivio del circuito */
 export function ArchivioTappaView({ t, lega, autore }: { t: Tappa; lega?: string; autore?: string }) {
@@ -21,18 +23,11 @@ export function ArchivioTappaView({ t, lega, autore }: { t: Tappa; lega?: string
   const [selPid, setSelPid] = useState<string | null>(null);
   const [selSquadra, setSelSquadra] = useState<SquadraTappa | null>(null);
   const hasStats = t.partite.some((m) => m.done && (Object.keys(m.pa || {}).length > 0 || Object.keys(m.pb || {}).length > 0));
-  const nameOf = (id: string) => t.squadre.find((s) => s.id === id)?.nome || "?";
-  const logoOf = (id: string) => t.squadre.find((s) => s.id === id)?.logo;
+  const nameOf = (id: string) => nomeSquadra(t.squadre, id);
+  const logoOf = (id: string) => logoSquadra(t.squadre, id);
   const logos = Object.fromEntries(t.squadre.map((s) => [s.id, s.logo]));
-  const playersOf = (teamId: string) =>
-    (t.squadre.find((s) => s.id === teamId)?.giocatori || []).filter((p) => p.nome.trim());
-  const playerNameById = (pid: string) => {
-    for (const s of t.squadre) {
-      const p = (s.giocatori || []).find((x) => x.id === pid);
-      if (p) return p.nome;
-    }
-    return null;
-  };
+  const playersOf = (teamId: string) => giocatoriDi(t.squadre, teamId);
+  const playerNameById = (pid: string) => nomeGiocatore(t.squadre, pid);
 
   return (
     <div>
@@ -52,12 +47,9 @@ export function ArchivioTappaView({ t, lega, autore }: { t: Tappa; lega?: string
           {t.squadre.map((s) => (
             <button key={s.id} type="button" onClick={() => setSelSquadra(s)}
               className="hovercard flex w-full flex-col items-center gap-2 rounded border border-asphalt-700 bg-asphalt-900 p-3 text-center">
-              {s.logo ? (
-                <img src={safeUrl(s.logo)} alt={`Logo ${s.nome}`} className="h-14 w-14 object-contain"
-                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-              ) : (
+              <TeamLogo src={s.logo} alt={`Logo ${s.nome}`} className="h-14 w-14" ripiego={
                 <span className="flex h-14 w-14 items-center justify-center rounded-sm bg-asphalt-800 font-display text-xl text-chalk-muted">3×3</span>
-              )}
+              } />
               {/* Dentro un <button> solo contenuto di testo (span), non div */}
               <span className="block">
                 <span className="block font-display text-base leading-tight text-chalk">{s.nome}</span>
@@ -72,7 +64,7 @@ export function ArchivioTappaView({ t, lega, autore }: { t: Tappa; lega?: string
       {t.gironi && t.gironi.map((g, gi) => {
         const matches = t.partite.filter((m) => m.g === gi);
         const rows = standings(g, matches, nameOf);
-        const letter = String.fromCharCode(65 + gi);
+        const letter = letteraGirone(gi);
         return (
           <Section key={gi} title={`Girone ${letter}`} kicker={g.map(nameOf).join(" · ")}>
             <div className="flex flex-col gap-2">

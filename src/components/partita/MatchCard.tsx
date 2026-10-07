@@ -10,15 +10,15 @@ import { EventForm } from "./EventForm";
 import { Button } from "../ui/Button";
 import type { Partita, StatLine } from "../../types";
 import type { MatchDraft, useTappa } from "../../hooks/useTappa";
+import { logoSquadra } from "../../utils/tappaInfo";
+import { toStatLine } from "../../utils/statLine";
 
 /** normalizza una scheda salvata (anche formato legacy) in bozza modificabile */
 function toDraftSheet(sheet: Partita["pa"]): SheetDraft {
   return Object.fromEntries(
     Object.entries(sheet || {}).map(([pid, v]) => [
       pid,
-      typeof v === "object" && v !== null
-        ? Object.fromEntries(Object.entries(v).map(([k, n]) => [k, String(n)]))
-        : { pt: String(v) },
+      Object.fromEntries(Object.entries(toStatLine(v)).map(([k, n]) => [k, String(n)])),
     ])
   );
 }
@@ -43,9 +43,8 @@ export function MatchCard({ m, h, label }: { m: Partita; h: ReturnType<typeof us
   const hasSheets = Object.keys(m.pa || {}).length > 0 || Object.keys(m.pb || {}).length > 0;
 
   // Compatibilità con il formato legacy (solo punti come numero anziché oggetto StatLine)
-  const ptOf = (raw: StatLine | number | undefined) =>
-    raw === undefined ? 0 : typeof raw === "object" ? raw.pt ?? 0 : raw;
-  const logoOf = (id: string) => h.tappa?.squadre.find((s) => s.id === id)?.logo;
+  const ptOf = (raw: StatLine | number | undefined) => toStatLine(raw).pt ?? 0;
+  const logoOf = (id: string) => logoSquadra(h.tappa?.squadre, id);
 
   /* Riepilogo punti per giocatore in una riga (solo a partita conclusa) */
   const summary = [[m.a, m.pa], [m.b, m.pb]]

@@ -25,6 +25,7 @@ import { GiocatorePage } from "./pages/GiocatorePage";
 import { CampettiPage } from "./pages/CampettiPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import type { User } from "./types";
+import { RequireAuth } from "./components/auth/RequireAuth";
 
 /** Messaggio del form di accesso quando la sessione finisce: dice anche quante tappe avevano modifiche che non è
  *  stato più possibile salvare, così nessuna si perde in silenzio */
@@ -124,14 +125,17 @@ function Pagine() {
     <ErrorBoundary resetKey={pathname}>
       <Routes>
         <Route path="/" element={<HomePage />} />
-        <Route path="/leghe" element={<LegheListPage />} />
-        <Route path="/lega" element={<LegaPage />} />
-        <Route path="/lega/tappa/:id" element={<TappaPage />} />
         <Route path="/tappa/:id" element={<TappaViewPage />} /> {/* pubblica */}
-        <Route path="/anagrafe" element={<AnagrafePage />} />
-        <Route path="/giocatore/:id" element={<GiocatorePage />} />
         <Route path="/archivio" element={<ArchivioPage />} />
-        <Route path="/campetti" element={<CampettiPage />} />
+        {/* Riservate a chi è entrato, anche come ospite: senza utente si torna alla home */}
+        <Route element={<RequireAuth />}>
+          <Route path="/leghe" element={<LegheListPage />} />
+          <Route path="/lega" element={<LegaPage />} />
+          <Route path="/lega/tappa/:id" element={<TappaPage />} />
+          <Route path="/anagrafe" element={<AnagrafePage />} />
+          <Route path="/giocatore/:id" element={<GiocatorePage />} />
+          <Route path="/campetti" element={<CampettiPage />} />
+        </Route>
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </ErrorBoundary>
