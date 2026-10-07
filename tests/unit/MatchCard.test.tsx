@@ -82,8 +82,6 @@ function salva(punteggioA: string, punteggioB: string) {
   scrivi("Punti Beta", punteggioB);
   premi("Salva risultato");
 }
-/** Il punteggio è in evidenza (chi vince) e non attenuato (chi perde) */
-const inEvidenza = (punti: string) => screen.getByText(punti).classList.contains("text-chalk");
 
 describe("MatchCard: partita da giocare", () => {
   it("mostra le squadre, l'etichetta, i due campi dei punti vuoti e «Salva risultato»", () => {
@@ -126,25 +124,12 @@ describe("MatchCard: registrare il risultato (ospite, senza tabellino)", () => {
     mostra(tappa());
     salva("21", "15");
     expect(nelloStore()).toMatchObject({ sa: 21, sb: 15, done: true });
+    expect(screen.getByText("21")).toBeTruthy(); // i due punteggi sono sulla scheda (chi vince lo fa vedere ScoreCard)
+    expect(screen.getByText("15")).toBeTruthy();
     expect(screen.queryByLabelText("Punti Alfa")).toBeNull(); // i campi non ci sono più
     expect(screen.queryByRole("button", { name: "Salva risultato" })).toBeNull();
     expect(screen.getByRole("button", { name: "Correggi" })).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
-  });
-
-  it("chi ha vinto ha il punteggio in evidenza, chi ha perso attenuato", () => {
-    mostra(tappa());
-    salva("21", "15");
-    expect(inEvidenza("21")).toBe(true);
-    expect(inEvidenza("15")).toBe(false);
-    expect(screen.getByText("15").classList.contains("text-chalk-dim")).toBe(true);
-  });
-
-  it("vale anche quando vince la seconda squadra", () => {
-    mostra(tappa());
-    salva("12", "21");
-    expect(inEvidenza("21")).toBe(true);
-    expect(screen.getByText("12").classList.contains("text-chalk-dim")).toBe(true);
   });
 
   it("0 è un punteggio valido", () => {
@@ -156,6 +141,7 @@ describe("MatchCard: registrare il risultato (ospite, senza tabellino)", () => {
   it("senza tabellini la vista del risultato non ha riepilogo né «Statistiche complete»", () => {
     mostra(tappa());
     salva("21", "15");
+    expect(screen.queryByText(/Alfa:/)).toBeNull(); // il riepilogo dei punti per giocatore («Alfa: Anna 10, …»)
     expect(screen.queryByRole("button", { name: /Statistiche complete/ })).toBeNull();
   });
 });
@@ -286,7 +272,6 @@ describe("MatchCard: partita conclusa", () => {
     mostra(tappa(giocata));
     expect(screen.getByText("21")).toBeTruthy();
     expect(screen.getByText("15")).toBeTruthy();
-    expect(inEvidenza("21")).toBe(true);
     expect(screen.queryByLabelText("Punti Alfa")).toBeNull();
     expect(screen.queryByText(/Statistiche — Alfa/)).toBeNull(); // niente tabelle di inserimento
     expect(screen.getByRole("button", { name: "Correggi" })).toBeTruthy();
