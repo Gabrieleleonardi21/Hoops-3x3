@@ -46,6 +46,7 @@ export function GiocatoreAnalisi({ tappa, pid, onClose }: { tappa: Tappa; pid: s
         <>
           <div className="mb-4 overflow-x-auto">
             <table className="statstable">
+              <caption className="sr-only">Medie a partita di {a.nome} nella tappa</caption>
               <thead>
                 <tr><th scope="col">PT</th><th scope="col">RIMB</th><th scope="col">AST</th><th scope="col">RUB</th><th scope="col">STO</th><th scope="col">PER</th><th scope="col">FALLI</th></tr>
               </thead>

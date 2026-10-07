@@ -21,6 +21,7 @@ export function StatsEditor({ teamName, players, sheet, guest, onChange }: Props
       {players.length > 0 && (
         <div className="overflow-x-auto">
           <table className="statstable">
+            <caption className="sr-only">Statistiche da inserire per i giocatori di {teamName}</caption>
             <thead>
               <tr>
                 <th className="text-left" scope="col">Giocatore</th>

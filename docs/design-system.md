@@ -120,9 +120,10 @@ Lo stato reale, con dove è garantito:
   `tests/e2e/area-di-tocco.spec.ts` a 390px di larghezza.
 - **Movimento.** `prefers-reduced-motion` azzera transizioni e animazioni (`index.css`).
 - **Icone e colore.** Icone SVG, mai emoji (`ui/Icon.tsx`); il colore non è l'unico indicatore (W/L come lettera, DIFF con segno).
-- **Tabelle.** `<th scope="col">` in tutte; `<caption>` (anche solo per i lettori di schermo) nelle classifiche (`StandingsTable`, classifica
-  del circuito) e nelle statistiche di stagione, non ancora nei tabellini, nell'analisi del giocatore e nello storico tappe del profilo.
-  `StandingsTable` ordina per colonna con `aria-sort`.
+- **Tabelle.** `<th scope="col">` e `<caption className="sr-only">` (visibile solo ai lettori di schermo, che con quello annunciano la
+  tabella) in tutte e sette: classifiche (`StandingsTable`, classifica del circuito), statistiche di stagione, tabellini
+  (`StatsView`, `StatsEditor`), analisi del giocatore (`GiocatoreAnalisi`) e storico tappe del profilo. Provato in
+  `tests/unit/captionTabelle.test.tsx` e `tests/unit/statisticheStagione.test.tsx`. `StandingsTable` ordina per colonna con `aria-sort`.
 - **Pulsanti con la sola icona** hanno `aria-label`.
 - **Finestre.** Le finestre modali (`Modal`: schede, timer, conferme) trattengono il focus con Tab e Maiusc+Tab, lo restituiscono a ciò
   che le ha aperte e si chiudono con Esc una alla volta (`usePilaFinestre`); le conferme hanno ruolo `alertdialog`, le altre `dialog`.
