@@ -139,16 +139,18 @@ export function GiocatoreModal({
 
       {errore && <p className="mb-3 text-[13px] font-semibold text-loss" role="alert">{errore}</p>}
 
-      {/* Footer: autore + azioni */}
-      <div className="mt-1 flex flex-wrap items-center justify-between gap-2 border-t border-asphalt-700 pt-3">
-        <span className="text-[10.5px] text-chalk-dim">Registrato da {g.autore}</span>
-        {canEdit && !editing && (
-          <div ref={azioni} className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={iniziaModifica} disabled={invio}><Icon name="edit" size={14} /> Modifica</Button>
-            <Button variant="ghost" size="sm" className="text-loss" onClick={() => chiedi("Eliminare il giocatore?", handleRemove)} disabled={invio}><Icon name="trash" size={14} /> Elimina</Button>
-          </div>
-        )}
-      </div>
+      {/* Footer: autore + azioni. Senza account il server non manda l'autore e le azioni non ci sono: niente da mostrare, nemmeno la riga */}
+      {(g.autore || canEdit) && (
+        <div className="mt-1 flex flex-wrap items-center justify-between gap-2 border-t border-asphalt-700 pt-3">
+          {g.autore && <span className="text-[10.5px] text-chalk-dim">Registrato da {g.autore}</span>}
+          {canEdit && !editing && (
+            <div ref={azioni} className="ml-auto flex gap-2">
+              <Button variant="outline" size="sm" onClick={iniziaModifica} disabled={invio}><Icon name="edit" size={14} /> Modifica</Button>
+              <Button variant="ghost" size="sm" className="text-loss" onClick={() => chiedi("Eliminare il giocatore?", handleRemove)} disabled={invio}><Icon name="trash" size={14} /> Elimina</Button>
+            </div>
+          )}
+        </div>
+      )}
       {finestra}
     </Modal>
   );

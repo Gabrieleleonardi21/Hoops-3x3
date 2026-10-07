@@ -13,9 +13,10 @@ test("anagrafe con il server in errore: messaggio con «Riprova», non «Nessun 
   await page.route("**/api/anagrafe/**", (route) => {
     if (giu) return route.fulfill(errore503);
     if (route.request().url().endsWith("/giocatori")) {
+      // Chi apre l'anagrafe da ospite riceve la forma pubblica: dati personali e autore vuoti, autoreId null
       return route.fulfill(json([{
-        id: "g1", nome: "Mario", cognome: "Rossi", soprannome: "", nascita: "", citta: "", nazionalita: "Italia", altezza: "",
-        peso: "", ruolo: "Guardia", numero: "", squadra: "", esperienza: "", note: "", autore: "Anna", autoreId: "u1", ts: 1,
+        id: "g1", nome: "Mario", cognome: "Rossi", soprannome: "", nascita: "", citta: "", nazionalita: "", altezza: "",
+        peso: "", ruolo: "Guardia", numero: "", squadra: "", esperienza: "", note: "", autore: "", autoreId: null, ts: 1,
       }]));
     }
     return route.fulfill(json([]));

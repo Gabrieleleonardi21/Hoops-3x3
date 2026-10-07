@@ -50,8 +50,9 @@ export function GiocatoreCard({ g, user, squadre, onRemove, onOpen, disabled = f
       </div>
       {g.note && <p className="mt-1.5 text-[13px] text-chalk-muted">{g.note}</p>}
       <div className="mt-auto flex items-center justify-between pt-2">
-        <span className="text-[10.5px] text-chalk-dim">Registrato da {g.autore}</span>
-        <Link to={`/giocatore/${g.id}`} className="area-tocco inline-flex items-center gap-1 text-xs font-semibold text-court hover:underline">
+        {/* Senza account il server non manda l'autore: l'etichetta c'è solo con il nome. «Profilo» resta a destra (ml-auto) */}
+        {g.autore && <span className="text-[10.5px] text-chalk-dim">Registrato da {g.autore}</span>}
+        <Link to={`/giocatore/${g.id}`} className="area-tocco ml-auto inline-flex items-center gap-1 text-xs font-semibold text-court hover:underline">
           Profilo <Icon name="chevron" size={12} />
         </Link>
       </div>

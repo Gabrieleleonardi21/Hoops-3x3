@@ -1,12 +1,15 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { GiocatoreCard } from "../../src/components/anagrafe/GiocatoreCard";
 import { GiocatoreForm } from "../../src/components/anagrafe/GiocatoreForm";
 import { GiocatoreModal } from "../../src/components/anagrafe/GiocatoreModal";
 import { SquadraAnagrafeCard } from "../../src/components/anagrafe/SquadraAnagrafeCard";
 import { SquadraAnagrafeModal } from "../../src/components/anagrafe/SquadraAnagrafeModal";
+import { GiocatorePage } from "../../src/pages/GiocatorePage";
+import { useAnagrafeStore } from "../../src/stores/useAnagrafeStore";
+import { useAppStore } from "../../src/stores/useAppStore";
 import type { RegGiocatore, RegSquadra, User } from "../../src/types";
 
 // Le due voci le ha scritte Anna (id "u1")
@@ -204,5 +207,106 @@ describe("Anagrafe: il focus nelle schede (modali)", () => {
     expect((await screen.findByRole("alert")).textContent).toContain("Modifica non riuscita");
     expect(screen.getByRole("button", { name: "Salva modifiche" })).toBe(salva); // il form c'è ancora
     expect(document.activeElement).toBe(salva);
+  });
+});
+
+// ── Voci in forma pubblica (T2.15): lette senza account, con i dati personali vuoti e autoreId null ──
+// Il server manda le stesse chiavi: restano nome, cognome, soprannome, ruolo, numero e squadra (per la squadra, anche roster, città e note)
+const giocatorePubblico: RegGiocatore = { ...giocatore, soprannome: "Il Mago", nazionalita: "", autore: "", autoreId: null };
+const squadraPubblica: RegSquadra = { ...squadra, autore: "", autoreId: null };
+
+/** Un componente dell'anagrafe che mostra la voce in forma pubblica, e le righe che con i dati nascosti non devono comparire */
+interface CasoPubblico {
+  nome: string;
+  mostra: (user: User) => void;
+  /** Etichette delle righe dei dati personali: senza valore la riga non c'è, nemmeno con la sola etichetta */
+  righe: string[];
+}
+const casiPubblici: CasoPubblico[] = [
+  {
+    nome: "GiocatoreCard",
+    mostra: (user) => render(<MemoryRouter><GiocatoreCard g={giocatorePubblico} user={user} onRemove={nulla} onOpen={nulla} /></MemoryRouter>),
+    righe: ["Nato il", "cm", "kg", "anni di esperienza"],
+  },
+  {
+    nome: "GiocatoreModal",
+    mostra: (user) => render(<MemoryRouter><GiocatoreModal g={giocatorePubblico} user={user} onClose={nulla} onRemove={riuscita} onUpdate={riuscita} /></MemoryRouter>),
+    righe: ["Nato il", "Città", "Nazionalità", "Fisico", "Esperienza"],
+  },
+  {
+    nome: "SquadraAnagrafeCard",
+    mostra: (user) => render(<SquadraAnagrafeCard s={squadraPubblica} giocatori={[]} user={user} onRemove={nulla} onOpen={nulla} />),
+    righe: ["Referente"],
+  },
+  {
+    nome: "SquadraAnagrafeModal",
+    mostra: (user) => render(<SquadraAnagrafeModal s={squadraPubblica} giocatori={[]} user={user} onClose={nulla} onRemove={riuscita} onUpdate={riuscita} />),
+    righe: ["Referente"],
+  },
+];
+
+describe.each(casiPubblici)("$nome: la voce in forma pubblica", ({ mostra, righe }) => {
+  it("non mostra «Registrato da» senza il nome, né righe con la sola etichetta", () => {
+    mostra(autore);
+    expect(screen.queryByText(/Registrat[oa] da/)).toBeNull();
+    for (const etichetta of righe) expect(document.body.textContent, etichetta).not.toContain(etichetta);
+  });
+
+  it("non mostra niente di strano al posto dei dati nascosti (NaN, undefined, null, età)", () => {
+    mostra(autore);
+    expect(document.body.textContent).not.toMatch(/NaN|undefined|null|\d+ anni(?! di esperienza)/);
+  });
+
+  it("nemmeno l'ADMIN può modificarla o eliminarla: il form partirebbe da campi vuoti e li scriverebbe sul server", () => {
+    mostra(admin);
+    for (const nome of ["Modifica", "Elimina", "Elimina Mario Rossi", "Elimina Ballers"]) expect(pulsante(nome), nome).toBeNull();
+  });
+
+  it("l'autore (anche con la cache vecchia) non vede i comandi: senza autoreId non si è autori di niente", () => {
+    mostra(autore);
+    for (const nome of ["Modifica", "Elimina", "Elimina Mario Rossi", "Elimina Ballers"]) expect(pulsante(nome), nome).toBeNull();
+  });
+});
+
+describe("Anagrafe: «Registrato da» c'è solo se c'è l'autore", () => {
+  it("con la forma completa l'etichetta compare con il nome (giocatore e squadra, scheda e modale)", () => {
+    for (const mostra of [mostraGiocatoreCard, mostraGiocatoreModal]) {
+      mostra(autore);
+      expect(screen.getByText("Registrato da Anna")).toBeTruthy();
+      cleanup();
+    }
+    for (const mostra of [mostraSquadraCard, mostraSquadraModal]) {
+      mostra(autore);
+      expect(screen.getByText("Registrata da Anna")).toBeTruthy();
+      cleanup();
+    }
+  });
+
+  it("le modali in forma pubblica non hanno nemmeno la striscia del piede, vuota: senza autore e senza comandi non c'è niente da mostrarci", () => {
+    for (const { mostra } of casiPubblici.filter((c) => c.nome.endsWith("Modal"))) {
+      mostra(admin);
+      expect(screen.getByRole("dialog").querySelector(".border-t")).toBeNull();
+      cleanup();
+    }
+  });
+});
+
+describe("GiocatorePage: il giocatore in forma pubblica", () => {
+  afterEach(() => {
+    useAppStore.getState().reset();
+    useAnagrafeStore.setState({ giocatori: null, squadre: null, errore: null, caricata: false });
+  });
+
+  it("non mostra «Registrato da» senza il nome, né età, altezza o peso al posto dei dati nascosti", () => {
+    useAppStore.setState({ user: autore, tappe: [] });
+    useAnagrafeStore.setState({ giocatori: [giocatorePubblico], squadre: [], errore: null, caricata: true });
+    render(
+      <MemoryRouter initialEntries={["/giocatore/g1"]}>
+        <Routes><Route path="/giocatore/:id" element={<GiocatorePage />} /></Routes>
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole("heading", { name: /Mario Rossi/ })).toBeTruthy();
+    expect(screen.queryByText(/Registrato da/)).toBeNull();
+    expect(document.body.textContent).not.toMatch(/NaN|undefined|null|\d+ anni|\d+ cm|\d+ kg/);
   });
 });

@@ -156,7 +156,7 @@ export function GiocatorePage() {
             </div>
             {g.note && <p className="mt-3 text-[13px] text-chalk-muted">{g.note}</p>}
           </div>
-          <div className="text-xs text-chalk-dim">Registrato da {g.autore}</div>
+          {g.autore && <div className="text-xs text-chalk-dim">Registrato da {g.autore}</div>}
         </div>
       </Card>
 

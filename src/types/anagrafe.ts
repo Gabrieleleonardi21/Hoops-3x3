@@ -17,7 +17,7 @@ export interface RegGiocatore {
   esperienza: string;
   note: string;
   autore: string;   // nome visualizzato dell'autore (non è unico: non decide i permessi)
-  autoreId: string; // id dell'autore: decide chi può modificare (utils/permessi)
+  autoreId: string | null; // id dell'autore: decide chi può modificare (utils/permessi); null nella forma pubblica, letta senza account
   ts: number;
 }
 
@@ -35,7 +35,7 @@ export interface RegSquadra {
   instagram: string; // URL pagina Instagram (usato come link del logo se manca il sito)
   note: string;
   autore: string;   // nome visualizzato dell'autore (non è unico: non decide i permessi)
-  autoreId: string; // id dell'autore: decide chi può modificare (utils/permessi)
+  autoreId: string | null; // id dell'autore: decide chi può modificare (utils/permessi); null nella forma pubblica, letta senza account
   ts: number;
 }
 
