@@ -348,7 +348,11 @@ describe("leggiLegaSalvata: la lega dell'ospite nel browser, controllata all'avv
     const rotta = { ...tappaCompleta("b", "Tappa rotta"), squadre: undefined };
     const letta = leggiLegaSalvata(dati("Estate", [tappaCompleta("a", "Buona"), rotta]))!;
     expect(letta.lega.tappe.map((t) => t.id)).toEqual(["a"]);
-    expect(letta.avviso).toBe("La lega «Estate» ha una tappa non valida, che non è stata caricata: «Tappa rotta» (manca il campo «squadre»).");
+    // L'avviso dice anche che cosa succede dopo: il primo salvataggio della lega riscrive il browser senza la tappa scartata
+    expect(letta.avviso).toBe(
+      "La lega «Estate» ha una tappa non valida, che non è stata caricata: «Tappa rotta» (manca il campo «squadre»). "
+      + "Alla prossima modifica della lega sarà cancellata per sempre dal browser.",
+    );
   });
 
   it("una tappa senza nome si indica con il suo numero, e più tappe scartate stanno nello stesso avviso", () => {
@@ -358,7 +362,8 @@ describe("leggiLegaSalvata: la lega dell'ospite nel browser, controllata all'avv
     expect(letta.lega.tappe).toHaveLength(1);
     expect(letta.avviso).toBe(
       "La lega «Estate» ha 2 tappe non valide, che non sono state caricate: "
-      + "n. 2 (manca il campo «nome»); «Seconda» (squadre: deve essere un elenco).",
+      + "n. 2 (manca il campo «nome»); «Seconda» (squadre: deve essere un elenco). "
+      + "Alla prossima modifica della lega saranno cancellate per sempre dal browser.",
     );
   });
 

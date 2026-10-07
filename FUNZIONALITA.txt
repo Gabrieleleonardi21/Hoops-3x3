@@ -389,11 +389,11 @@ utenti registrati.
   si controlla con gli stessi campi dell'import, ma senza i limiti del
   server (nome vuoto, numero di gironi e regole fuori limite si tengono: si
   correggono dall'app): le tappe con la forma sbagliata non si caricano e un
-  avviso dice quali e perché (spariscono dal browser al primo salvataggio
-  della lega); una lega illeggibile non si apre e si può eliminare
-  dall'elenco delle leghe. Se il browser rifiuta una scrittura (spazio
-  esaurito) la modifica resta in memoria e una barra avvisa che non è salvata
-  (esportare la lega o eliminarne altre libera spazio). L'avviso sparisce
+  avviso dice quali, perché e che alla prossima modifica della lega saranno
+  cancellate per sempre dal browser; una lega illeggibile non si apre e si
+  può eliminare dall'elenco delle leghe. Se il browser rifiuta una scrittura
+  (spazio esaurito) la modifica resta in memoria e una barra avvisa che non è
+  salvata (esportare la lega o eliminarne altre libera spazio). L'avviso sparisce
   quando torna a riuscire una scrittura che contiene la lega aperta (non
   basta l'indice, scritto eliminando un'altra lega: le modifiche della lega
   aperta potrebbero essere ancora solo in memoria) o quando la lega aperta

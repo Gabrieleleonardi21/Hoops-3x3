@@ -270,11 +270,16 @@ export function leggiLegaSalvata(dati: unknown): LegaSalvata | null {
   return { lega: { nome: nomeLega, tappe: valide }, avviso: avvisoScartate(nomeLega, scartate) };
 }
 
-/** Il testo per l'utente sulle tappe scartate; null se non ce ne sono */
+/** Il testo per l'utente sulle tappe scartate; null se non ce ne sono. Dice anche che la prossima modifica della lega (ogni
+ *  salvataggio riscrive la lega intera, senza le scartate) le cancella per sempre dal browser */
 function avvisoScartate(nomeLega: string, scartate: string[]): string | null {
   if (scartate.length === 0) return null;
   const lega = `La lega «${nomeLega.trim() || "senza nome"}»`;
   const elenco = scartate.join("; ");
-  if (scartate.length === 1) return `${lega} ha una tappa non valida, che non è stata caricata: ${elenco}.`;
-  return `${lega} ha ${scartate.length} tappe non valide, che non sono state caricate: ${elenco}.`;
+  const dopo = "Alla prossima modifica della lega";
+  if (scartate.length === 1) {
+    return `${lega} ha una tappa non valida, che non è stata caricata: ${elenco}. ${dopo} sarà cancellata per sempre dal browser.`;
+  }
+  return `${lega} ha ${scartate.length} tappe non valide, che non sono state caricate: ${elenco}. `
+    + `${dopo} saranno cancellate per sempre dal browser.`;
 }

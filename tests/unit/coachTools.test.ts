@@ -868,6 +868,30 @@ describe("Coach AI: la chat appartiene a chi l'ha scritta", () => {
     expect(c.current.msgs).toEqual([]);
   });
 
+  it("una cronologia della scheda con messaggi malformati: restano solo quelli giusti, e il pannello si disegna", async () => {
+    // La sessionStorage si può cambiare a mano: un content che non è testo farebbe uscire la pagina bianca (il pannello sta fuori
+    // dall'ErrorBoundary delle pagine)
+    sessionStorage.setItem("coach_chat", JSON.stringify({
+      autore: "u1",
+      msgs: [
+        { role: "user", content: "Ciao coach" },
+        { role: "assistant", content: { testo: "un oggetto" } },
+        null,
+        { content: "senza ruolo" },
+        { role: "system", content: "un ruolo che la chat non ha" },
+        { role: "assistant", content: "Ciao Anna!", tools: "sorteggia_gironi" }, // tools non è un elenco: si toglie
+        { role: "assistant", content: "Sorteggio fatto.", tools: ["sorteggia_gironi"] },
+      ],
+    }));
+    localStorage.setItem(SESSION_KEY, JSON.stringify(registrato));
+    vi.resetModules();
+    const { CoachPanel: pannelloDopoLaRicarica } = await import("../../src/components/coach/CoachPanel");
+    render(createElement(MemoryRouter, null, createElement(pannelloDopoLaRicarica, { onClose: vi.fn() })));
+    const messaggi = [...screen.getByRole("log").querySelectorAll(".bubble-u, .bubble-a")].map((m) => m.textContent);
+    expect(messaggi).toEqual(["Ciao coach", "Ciao Anna!", "Sorteggio fatto."]);
+    expect(screen.getAllByTitle("Azione eseguita dal Coach AI").map((b) => b.textContent)).toEqual([" Gironi sorteggiati"]);
+  });
+
   it("quando entra qualcuno, la chat scritta prima senza utente si cancella", async () => {
     act(() => { useAppStore.setState({ user: null }); });
     const c = coach();

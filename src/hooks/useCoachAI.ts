@@ -48,12 +48,30 @@ function autore(u: User | null): string | null {
   return u.id ?? u.email ?? u.name;
 }
 
+/** Un messaggio della cronologia salvata, se ha la forma giusta; altrimenti null. La sessionStorage si può cambiare a mano, e il
+ *  pannello del Coach sta fuori dall'ErrorBoundary delle pagine: un messaggio senza `role` o con un `content` che non è testo
+ *  farebbe uscire la pagina bianca. `tools` si tiene solo se è un elenco di nomi */
+function messaggioValido(m: unknown): ChatMsg | null {
+  if (typeof m !== "object" || m === null) return null;
+  const { role, content, tools } = m as Record<string, unknown>;
+  if ((role !== "user" && role !== "assistant") || typeof content !== "string") return null;
+  if (Array.isArray(tools) && tools.every((t) => typeof t === "string")) return { role, content, tools };
+  return { role, content };
+}
+
 /** Cronologia della scheda (sessionStorage, si azzera chiudendola), solo se l'ha scritta chi c'è adesso: dopo una
- *  ricarica senza utente (sessione chiusa in un'altra scheda) o con un altro account la chat di prima non si mostra */
+ *  ricarica senza utente (sessione chiusa in un'altra scheda) o con un altro account la chat di prima non si mostra.
+ *  Dei messaggi restano solo quelli con la forma giusta (messaggioValido) */
 function cronologiaSalvata(): ChatMsg[] {
   try {
-    const salvata = JSON.parse(sessionStorage.getItem(CHAT_KEY) ?? "null") as { autore?: string | null; msgs?: ChatMsg[] } | null;
-    if (salvata && Array.isArray(salvata.msgs) && salvata.autore === autore(useAppStore.getState().user)) return salvata.msgs;
+    const salvata = JSON.parse(sessionStorage.getItem(CHAT_KEY) ?? "null") as { autore?: string | null; msgs?: unknown } | null;
+    if (salvata && Array.isArray(salvata.msgs) && salvata.autore === autore(useAppStore.getState().user)) {
+      return salvata.msgs.flatMap((m: unknown) => {
+        const valido = messaggioValido(m);
+        if (valido) return [valido];
+        return [];
+      });
+    }
     sessionStorage.removeItem(CHAT_KEY);
     return [];
   } catch {
