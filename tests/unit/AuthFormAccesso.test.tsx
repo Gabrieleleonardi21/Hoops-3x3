@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { AuthForm } from "../../src/components/auth/AuthForm";
 import { ApiError } from "../../src/services/api";
 import * as authService from "../../src/services/authService";
@@ -39,6 +39,11 @@ afterEach(() => {
   localStorage.clear();
 });
 
+/** Mostra lo stato della navigazione di adesso (JSON): «null» quando il form lo ha tolto dalla cronologia */
+function StatoNavigazione() {
+  return <output>{JSON.stringify(useLocation().state)}</output>;
+}
+
 /** Mostra il form su «/», con la pagina delle leghe su «/lega» per vedere dove porta. `stato` è quello della navigazione */
 function monta(stato?: unknown) {
   render(
@@ -47,6 +52,7 @@ function monta(stato?: unknown) {
         <Route path="/" element={<AuthForm />} />
         <Route path="/lega" element={<p>Elenco delle leghe</p>} />
       </Routes>
+      <StatoNavigazione />
     </MemoryRouter>,
   );
 }
@@ -227,12 +233,14 @@ describe("AuthForm: ospite e avvisi", () => {
     expect(login).not.toHaveBeenCalled();
   });
 
-  it("il messaggio arrivato con la navigazione (sessione scaduta) compare sopra il form", async () => {
-    monta({ messaggio: "La sessione è scaduta: accedi di nuovo." });
-    const avviso = await screen.findByRole("alert");
-    expect(avviso.textContent).toBe("La sessione è scaduta: accedi di nuovo.");
-    // Lo stato della navigazione si toglie dalla cronologia (ricaricando non ricompare) ma il messaggio resta finché si è sul form
-    await waitFor(() => expect(screen.getByRole("alert").textContent).toBe("La sessione è scaduta: accedi di nuovo."));
+  it("il messaggio arrivato con la navigazione (sessione scaduta) compare sopra il form e resta anche dopo che lo stato è stato tolto dalla cronologia", async () => {
+    const messaggio = "La sessione è scaduta: accedi di nuovo.";
+    monta({ messaggio });
+    expect((await screen.findByRole("alert")).textContent).toBe(messaggio);
+    // Il form toglie lo stato dalla cronologia (ricaricando la pagina il messaggio non ricompare): si aspetta che l'abbia fatto
+    await waitFor(() => expect(screen.getByRole("status").textContent).toBe("null"));
+    // ...e il messaggio c'è ancora: il form se n'è tenuto una copia finché si sta sul form
+    expect(screen.getByRole("alert").textContent).toBe(messaggio);
   });
 
   it("uno stato della navigazione senza messaggio testuale non mostra nessun avviso", () => {
