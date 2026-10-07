@@ -10,6 +10,8 @@
  *  Il cookie viaggia solo se pagina e API hanno la stessa origine (proxy di Vite o reverse proxy):
  *  per origini diverse vedi «Sessioni e refresh token» nel README del backend. */
 
+import { SPAZIO_ESAURITO_ACCESSO } from "../utils/testi";
+
 const BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? "";
 const TOKEN_KEY = "hoop3x3_token";
 /** Secondi prima della scadenza entro cui il JWT viene rinnovato in anticipo */
@@ -22,6 +24,23 @@ export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
   }
+}
+
+/** Testo dell'errore per l'utente: il messaggio del server o della rete (ApiError), altrimenti uno generico. Lo usano lo store
+ *  delle leghe e le pagine che mostrano un errore, così il testo di un errore è lo stesso ovunque. */
+export function testoErrore(e: unknown): string {
+  if (e instanceof ApiError) return e.message;
+  return "errore imprevisto";
+}
+
+/** Status dopo i quali non si sa se il server ha eseguito la richiesta: nessuna risposta (0: rete assente, tempo massimo scaduto)
+ *  oppure una risposta del proxy al posto del server (502, 503, 504: dietro Render la richiesta può essere arrivata lo stesso) */
+const ESITO_IGNOTO = [0, 502, 503, 504];
+
+/** true se dopo questo errore non si sa se il server ha eseguito la richiesta. Lo usano la pubblicazione (useTappa: non si dice
+ *  «non pubblicata») e la coda delle tappe (useAppStore: il corpo mandato può essere stato salvato) */
+export function esitoIgnoto(e: unknown): boolean {
+  return e instanceof ApiError && ESITO_IGNOTO.includes(e.status);
 }
 
 /** La richiesta non ha avuto risposta: tempo massimo scaduto, rete assente o server spento */
@@ -38,7 +57,15 @@ export const token = {
   get: (): string | null => {
     try { return localStorage.getItem(TOKEN_KEY); } catch { return null; }
   },
-  set: (t: string) => { localStorage.setItem(TOKEN_KEY, t); },
+  /** Salva il JWT. Se il browser rifiuta la scrittura (spazio esaurito) lancia un ApiError 507 con il motivo, che il modulo d'accesso
+   *  mostra com'è: il JWT non si tiene solo in memoria, perché la sessione non sopravvivrebbe al ricaricamento né alle altre schede. */
+  set: (t: string) => {
+    try {
+      localStorage.setItem(TOKEN_KEY, t);
+    } catch {
+      throw new ApiError(507, SPAZIO_ESAURITO_ACCESSO);
+    }
+  },
   clear: () => { localStorage.removeItem(TOKEN_KEY); },
 };
 
@@ -142,18 +169,41 @@ async function conLock(fn: () => Promise<boolean>): Promise<boolean> {
   return fn();
 }
 
+/** Un gestore a uno solo posto, registrato dall'app: `imposta` ne mette uno nuovo al posto del precedente e restituisce la funzione
+ *  che lo toglie (solo se è ancora lui); `chiama` lo esegue, se c'è */
+function gestoreSingolo() {
+  let gestore: (() => void) | null = null;
+  return {
+    imposta(fn: () => void): () => void {
+      gestore = fn;
+      return () => {
+        if (gestore === fn) gestore = null;
+      };
+    },
+    chiama() { gestore?.(); },
+  };
+}
+
 /** Gestore della fine della sessione registrato dall'app (vedi suSessioneFinita) */
-let gestoreFineSessione: (() => void) | null = null;
+const gestoreFineSessione = gestoreSingolo();
+/** Gestore del cambio di sessione fatto in un'altra scheda (vedi suSessioneCambiataAltrove) */
+const gestoreSessioneCambiata = gestoreSingolo();
 
 /** Registra il gestore della fine della sessione. Lo chiamano il rinnovo respinto dal server (refresh token scaduto o
  *  revocato) e, in ogni scheda, la cancellazione del token fatta da un'altra (uscita o sessione finita lì). Ce n'è uno
  *  solo: uno nuovo sostituisce il precedente.
  *  @returns la funzione che lo toglie */
 export function suSessioneFinita(fn: () => void): () => void {
-  gestoreFineSessione = fn;
-  return () => {
-    if (gestoreFineSessione === fn) gestoreFineSessione = null;
-  };
+  return gestoreFineSessione.imposta(fn);
+}
+
+/** Registra il gestore del token che compare o sparisce per mano di un'altra scheda (accesso o uscita lì): le richieste di questa
+ *  scheda cambiano senza che la scheda l'abbia deciso (da quel momento portano il Bearer, o non lo portano più), e ciò che
+ *  dipende dal token, come i dati personali dell'anagrafe, va riletto. Un token solo rinnovato non conta: la sessione è la stessa.
+ *  Ce n'è uno solo: uno nuovo sostituisce il precedente.
+ *  @returns la funzione che lo toglie */
+export function suSessioneCambiataAltrove(fn: () => void): () => void {
+  return gestoreSessioneCambiata.imposta(fn);
 }
 
 /** Sveglia il backend all'apertura dell'app, senza aspettare la risposta. Sul piano free di Render il server si spegne
@@ -164,11 +214,14 @@ export function svegliaServer(): void {
   fetch(`${BASE}/actuator/health`, { cache: "no-store" }).catch(() => {});
 }
 
-// Token cancellato da un'altra scheda: l'evento storage arriva solo alle altre schede dello stesso browser, e per
-// tutte la sessione è finita. Un token appena rinnovato o salvato da un accesso non chiude niente
+// Token cambiato da un'altra scheda: l'evento storage arriva solo alle altre schede dello stesso browser.
+// - Token comparso o sparito (accesso o uscita lì): la sessione del browser è cambiata, e chi dipende dal token lo deve sapere.
+// - Token cancellato: per tutte la sessione è finita. Un token appena rinnovato o salvato da un accesso non chiude niente
 if (typeof window !== "undefined") {
   window.addEventListener("storage", (e) => {
-    if (e.key === TOKEN_KEY && !token.get()) gestoreFineSessione?.();
+    if (e.key !== TOKEN_KEY) return;
+    if ((e.oldValue === null) !== (e.newValue === null)) gestoreSessioneCambiata.chiama();
+    if (!token.get()) gestoreFineSessione.chiama();
   });
 }
 
@@ -209,7 +262,7 @@ function rinnova(): Promise<boolean> {
         // chiusa in un'altra scheda arriva l'evento storage
         if (e instanceof ApiError && e.status === 401 && dopo) {
           token.clear();
-          gestoreFineSessione?.();
+          gestoreFineSessione.chiama();
         }
         return false;
       }

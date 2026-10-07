@@ -41,12 +41,28 @@ describe("puoModificare (come sul server: autore o ADMIN)", () => {
   });
 
   it("due id mancanti non fanno un autore: un registrato senza id non modifica una voce arrivata senza autoreId", () => {
-    // Il tipo dice string e il server la manda sempre, ma a runtime può mancare (risposta di una versione vecchia o malformata)
+    // Il tipo dice string o null e il server la manda sempre, ma a runtime può mancare (risposta di una versione vecchia o malformata)
     const senzaAutoreId = undefined as unknown as string;
     expect(puoModificare({ name: "Anna", guest: false }, senzaAutoreId)).toBe(false);
   });
 
   it("l'ADMIN resta abilitato anche senza id: il controllo dell'id viene dopo quello del ruolo", () => {
     expect(puoModificare({ name: "Responsabile", guest: false, ruolo: "ADMIN" }, AUTORE_ID)).toBe(true);
+  });
+
+  // autoreId null = la voce arriva dalla forma pubblica dell'anagrafe (T2.15), con i dati personali nascosti: il form di modifica
+  // partirebbe da campi vuoti e il salvataggio li sovrascriverebbe sul server. Nessuno la modifica da lì, nemmeno l'ADMIN
+  describe("autoreId null (forma pubblica dell'anagrafe)", () => {
+    it("non dà il permesso a nessuno: né all'autore di altre voci, né all'ADMIN, né all'ospite", () => {
+      expect(puoModificare(autore, null)).toBe(false);
+      expect(puoModificare(admin, null)).toBe(false);
+      expect(puoModificare(ospite, null)).toBe(false);
+      expect(puoModificare(null, null)).toBe(false);
+    });
+
+    it("nemmeno a un registrato senza id, né a una sessione con id mancante (null non è uguale a «nessun id»)", () => {
+      expect(puoModificare({ name: "Anna", guest: false }, null)).toBe(false);
+      expect(puoModificare({ name: "Anna", guest: false, id: null as unknown as string }, null)).toBe(false);
+    });
   });
 });

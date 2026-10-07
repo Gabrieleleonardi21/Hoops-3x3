@@ -1,16 +1,20 @@
 /** Card di un giocatore registrato nell'anagrafe. Il nome è un pulsante che apre la modale
  *  di dettaglio (niente controlli annidati: card = <article>), "Profilo" porta alla pagina con
- *  le statistiche; solo l'autore o un ADMIN può eliminarlo. */
+ *  le statistiche; solo l'autore o un ADMIN può eliminarlo, dopo una conferma. */
 import { Link } from "react-router-dom";
+import { useConfermaPerdita } from "../../hooks/useConfermaPerdita";
 import { eta } from "../../utils/eta";
 import { puoModificare } from "../../utils/permessi";
 import { safeUrl } from "../../utils/safeUrl";
+import { perditaGiocatore } from "../../utils/testi";
 import { Icon } from "../ui/Icon";
 import type { RegGiocatore, RegSquadra, User } from "../../types";
 
-export function GiocatoreCard({ g, user, squadre, onRemove, onOpen }: {
-  g: RegGiocatore; user: User; squadre?: RegSquadra[]; onRemove: () => void; onOpen: () => void;
+/** `disabled`: un'altra eliminazione è in corso, quindi la X aspetta (un secondo invio verrebbe scartato senza dire niente) */
+export function GiocatoreCard({ g, user, squadre, onRemove, onOpen, disabled = false }: {
+  g: RegGiocatore; user: User; squadre?: RegSquadra[]; onRemove: () => void; onOpen: () => void; disabled?: boolean;
 }) {
+  const { chiedi, finestra } = useConfermaPerdita(() => perditaGiocatore(g, squadre));
   // Cerca il logo della squadra abbinando il nome del giocatore con la lista squadre
   const squadraLogo = squadre?.find((s) => s.nome === g.squadra)?.logo ?? null;
   const age = eta(g.nascita);
@@ -34,7 +38,7 @@ export function GiocatoreCard({ g, user, squadre, onRemove, onOpen }: {
           </span>
         </button>
         {puoModificare(user, g.autoreId) && (
-          <button onClick={onRemove} className="shrink-0 text-chalk-dim hover:text-loss" aria-label={`Elimina ${g.nome} ${g.cognome}`}>
+          <button onClick={() => chiedi("Eliminare il giocatore?", onRemove)} disabled={disabled} className="area-tocco shrink-0 text-chalk-dim hover:text-loss" aria-label={`Elimina ${g.nome} ${g.cognome}`}>
             <Icon name="close" size={14} />
           </button>
         )}
@@ -46,11 +50,13 @@ export function GiocatoreCard({ g, user, squadre, onRemove, onOpen }: {
       </div>
       {g.note && <p className="mt-1.5 text-[13px] text-chalk-muted">{g.note}</p>}
       <div className="mt-auto flex items-center justify-between pt-2">
-        <span className="text-[10.5px] text-chalk-dim">Registrato da {g.autore}</span>
-        <Link to={`/giocatore/${g.id}`} className="inline-flex items-center gap-1 text-xs font-semibold text-court hover:underline">
+        {/* Senza account il server non manda l'autore: l'etichetta c'è solo con il nome. «Profilo» resta a destra (ml-auto) */}
+        {g.autore && <span className="text-[10.5px] text-chalk-dim">Registrato da {g.autore}</span>}
+        <Link to={`/giocatore/${g.id}`} className="area-tocco ml-auto inline-flex items-center gap-1 text-xs font-semibold text-court hover:underline">
           Profilo <Icon name="chevron" size={12} />
         </Link>
       </div>
+      {finestra}
     </article>
   );
 }

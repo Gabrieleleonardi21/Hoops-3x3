@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { tappaLeaders } from "../../src/utils/tappaLeaders";
 import { DEFAULT_RULES } from "../../src/constants/rules";
+import { tappaDiProva } from "./tappeDiProva";
 import type { Tappa } from "../../src/types";
 
 const tappa: Tappa = {
@@ -35,5 +36,44 @@ describe("tappaLeaders (statistiche aggregate)", () => {
     const anna = rows.find((r) => r.nome === "Anna")!;
     expect(anna.pt).toBe(39);
     expect(anna.squadra).toBe("Beta");
+  });
+});
+
+describe("tappaLeaders: quali tabellini contano", () => {
+  it("una partita non giocata non conta, nemmeno con un tabellino provvisorio", () => {
+    // «Annulla risultato» rimette la partita da giocare e lascia il tabellino come bozza
+    const t = tappaDiProva("t1", { Alfa: ["Mario Rossi", "Luca Bianchi"], Beta: ["Anna Verdi"] }, [
+      { a: "Alfa", b: "Beta", pa: { "Mario Rossi": { pt: 12 } } },
+      { a: "Alfa", b: "Beta", done: false, sa: 0, sb: 0, pa: { "Mario Rossi": { pt: 30 }, "Luca Bianchi": { pt: 8 } } },
+    ]);
+    expect(tappaLeaders(t).map(({ nome, g, pt }) => ({ nome, g, pt }))).toEqual([{ nome: "Mario Rossi", g: 1, pt: 12 }]);
+  });
+
+  it("una partita giocata in parità conta: la parità riguarda la classifica, non i punti dei giocatori", () => {
+    const t = tappaDiProva("t1", { Alfa: ["Mario Rossi"], Beta: ["Anna Verdi"] }, [
+      { a: "Alfa", b: "Beta", sa: 15, sb: 15, pa: { "Mario Rossi": { pt: 15 } }, pb: { "Anna Verdi": { pt: 15 } } },
+    ]);
+    expect(tappaLeaders(t).map(({ nome, g, pt }) => ({ nome, g, pt }))).toEqual([
+      { nome: "Mario Rossi", g: 1, pt: 15 },
+      { nome: "Anna Verdi", g: 1, pt: 15 },
+    ]);
+  });
+
+  it("salta i tabellini di chi non è nel roster e di chi non ha un nome (un posto vuoto del roster)", () => {
+    const t = tappaDiProva("t1", { Alfa: ["Mario Rossi", ""], Beta: ["Anna Verdi"] }, [
+      { a: "Alfa", b: "Beta", pa: { "Mario Rossi": { pt: 12 }, "": { pt: 9 }, Sconosciuto: { pt: 3 } } },
+    ]);
+    expect(tappaLeaders(t).map((r) => r.nome)).toEqual(["Mario Rossi"]);
+  });
+
+  it("somma tutte e sette le statistiche, anche palle perse e falli; un valore mancante o non numerico vale 0", () => {
+    const t = tappaDiProva("t1", { Alfa: ["Mario Rossi"], Beta: ["Anna Verdi"] }, [
+      { a: "Alfa", b: "Beta", pa: { "Mario Rossi": { pt: 12, rb: 3, as: 2, ru: 1, st: 1, pe: 4, fa: 3 } } },
+      { a: "Alfa", b: "Beta", pa: { "Mario Rossi": { pt: 3, rb: NaN } } },
+    ]);
+    // `pid` è l'id del roster: ogni giocatore di tappa ha il suo, anche se un altro porta lo stesso nome
+    expect(tappaLeaders(t)).toEqual([
+      { pid: "t1:Alfa:Mario Rossi", nome: "Mario Rossi", squadra: "Alfa", g: 2, pt: 15, rb: 3, as: 2, ru: 1, st: 1, pe: 4, fa: 3 },
+    ]);
   });
 });

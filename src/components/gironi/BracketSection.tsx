@@ -6,7 +6,8 @@ import { Button } from "../ui/Button";
 import { Section } from "../ui/Section";
 import type { BracketMatch, Tappa } from "../../types";
 import { useAppStore, tappaCorrente } from "../../stores/useAppStore";
-import { generaFasiDirette, registraRisultatoBracket } from "../../domain/tappaOps";
+import { useConfermaPerdita } from "../../hooks/useConfermaPerdita";
+import { generaFasiDirette, perditaTabellone, registraRisultatoBracket } from "../../domain/tappaOps";
 import { splitRounds } from "../../utils/buildBracket";
 
 interface Props {
@@ -24,6 +25,9 @@ export function BracketSection({ tappa, readOnly = false }: Props) {
   const [scores, setScores] = useState<Record<string, { a: string; b: string }>>({});
   // Perché l'ultimo «Salva» è stato rifiutato, e per quale match: il messaggio compare sotto i suoi punteggi
   const [errore, setErrore] = useState<{ matchId: string; testo: string } | null>(null);
+  // «Elimina bracket e ricomincia» chiede sempre conferma. Il testo conta i risultati sulla tappa di adesso (come le operazioni
+  // qui sotto): quella della prop può essere vecchia
+  const { chiedi, finestra } = useConfermaPerdita(() => perditaTabellone(tappaCorrente(tappa.id) ?? tappa));
 
   const allGironiDone = tappa.gironi !== null &&
     tappa.partite.every((m) => m.done);
@@ -112,11 +116,13 @@ export function BracketSection({ tappa, readOnly = false }: Props) {
   return (
     <Section title="Fase finale" kicker="Eliminazione diretta"
       actions={!readOnly && (
-        <Button variant="link" className="text-chalk-muted" onClick={() => updateTappa(tappa.id, { bracket: undefined })}>
+        <Button variant="link" className="text-chalk-muted"
+          onClick={() => chiedi("Eliminare il tabellone?", () => updateTappa(tappa.id, { bracket: undefined }))}>
           Elimina bracket e ricomincia
         </Button>
       )}>
       <Bracket rounds={rounds} nameOf={nameOf} logoOf={logoOf} renderControls={readOnly ? undefined : renderControls} />
+      {finestra}
     </Section>
   );
 }

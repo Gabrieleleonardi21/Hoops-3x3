@@ -6,8 +6,12 @@ import { useTappa } from "../../src/hooks/useTappa";
 import type { MatchDraft } from "../../src/hooks/useTappa";
 import { legheApi } from "../../src/services/legheApi";
 import { archivioApi } from "../../src/services/archivioApi";
+import { anagrafeApi } from "../../src/services/anagrafeApi";
+import { useAnagrafeStore } from "../../src/stores/useAnagrafeStore";
+import { ApiError } from "../../src/services/api";
+import { PERDITA_RIAPERTURA } from "../../src/utils/testi";
 import { DEFAULT_RULES } from "../../src/constants/rules";
-import type { Partita, RegSquadra, SquadraTappa, Tappa, User } from "../../src/types";
+import type { Partita, PubTappa, RegSquadra, SquadraTappa, Tappa, User } from "../../src/types";
 
 // Si sostituisce solo la rete delle leghe: store, coda dei salvataggi e hook sono quelli veri
 vi.mock("../../src/services/legheApi", () => ({
@@ -22,7 +26,14 @@ vi.mock("../../src/services/archivioApi", () => ({
   archivioApi: { list: vi.fn(), get: vi.fn(), pubblica: vi.fn(), rimuovi: vi.fn() },
 }));
 
+// Anche l'anagrafe: lo scollegamento di una squadra si verifica con la lista fresca del server
+vi.mock("../../src/services/anagrafeApi", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../src/services/anagrafeApi")>()),
+  anagrafeApi: { listSquadre: vi.fn() },
+}));
+
 const api = vi.mocked(legheApi);
+const anagrafe = vi.mocked(anagrafeApi);
 const archivio = vi.mocked(archivioApi);
 const store = () => useAppStore.getState();
 const registrato: User = { id: "u1", name: "Anna", email: "anna@example.it", guest: false };
@@ -89,8 +100,10 @@ async function nienteSalvato(prima: Tappa) {
 beforeEach(() => {
   vi.useFakeTimers();
   vi.resetAllMocks();
+  // La cache dell'anagrafe è stato di modulo: ogni test riparte da non caricata
+  useAnagrafeStore.setState({ giocatori: null, squadre: null, caricata: false });
   api.putTappa.mockImplementation(async (t) => t);
-  archivio.pubblica.mockImplementation(async (t, lega) => ({ tappa: t, lega, autore: "Anna", autoreId: "u1", ts: 1 }));
+  archivio.pubblica.mockImplementation(async (id) => ({ tappa: { ...tappa(), id }, lega: "Lega", autore: "Anna", autoreId: "u1", ts: 1 }));
   useAppStore.setState({
     user: registrato, legaId: "l1", leghe: [{ id: "l1", nome: "Lega", ts: 1, nTappe: 1 }], tappe: [tappa()],
   });
@@ -278,6 +291,174 @@ describe("useTappa: le modifiche partono dalla tappa com'è adesso, non da quell
       expect(api.putTappa).not.toHaveBeenCalled();
     });
 
+    describe("una squadra collegata a una voce che la cache non ha (FS-9)", () => {
+      // La cache dell'anagrafe non vede le voci create da altri dopo il suo caricamento: prima di scollegare una squadra si chiede
+      // la lista fresca al server, e si scollega solo se la voce manca anche lì
+      const voceNuova: RegSquadra = { ...regAlfa, id: "r-nuova" };
+      const collegata = (): SquadraTappa => ({
+        ...squadra("s1", "Alfa"), regId: "r-nuova", rank: "40", logo: "/logos/alfa.svg", website: "https://alfa.it",
+      });
+      const conSquadraCollegata = (extra: Partial<Tappa> = {}) =>
+        useAppStore.setState({ tappe: [{ ...tappa(), squadre: [collegata(), squadra("s2", "Squadra 2")], ...extra }] });
+      /** Sincronizza con questa cache e aspetta anche la verifica sul server */
+      async function sincronizza(cache: RegSquadra[]) {
+        const { result } = renderHook(() => useTappa("t1"));
+        await act(async () => { await result.current.syncFromAnagrafe(cache); });
+      }
+
+      it("la voce c'è sul server (creata da un altro dopo il caricamento della cache): la squadra resta collegata e non si salva niente", async () => {
+        conSquadraCollegata();
+        const prima = store().tappe[0];
+        anagrafe.listSquadre.mockResolvedValue([voceNuova]);
+        await sincronizza([{ ...regAlfa, id: "r2", nome: "Beta" }]);
+        expect(anagrafe.listSquadre).toHaveBeenCalledTimes(1);
+        await nienteSalvato(prima);
+        expect(squadre()[0].regId).toBe("r-nuova");
+      });
+
+      it("la voce non c'è nemmeno sul server (eliminata): la squadra si scollega e tiene i suoi dati, il nome torna modificabile", async () => {
+        conSquadraCollegata();
+        anagrafe.listSquadre.mockResolvedValue([{ ...regAlfa, id: "r2", nome: "Beta" }]);
+        await sincronizza([{ ...regAlfa, id: "r2", nome: "Beta" }]);
+        expect(squadre()[0]).toMatchObject({ id: "s1", nome: "Alfa", rank: "40", logo: "/logos/alfa.svg", website: "https://alfa.it" });
+        expect(squadre()[0].regId).toBeUndefined();
+        expect(squadre()[1]).toEqual(squadra("s2", "Squadra 2")); // le altre squadre non cambiano
+      });
+
+      it("se mentre si aspetta il server la squadra si collega alla voce (la cache la riceve) e la lista arriva senza, resta collegata", async () => {
+        conSquadraCollegata();
+        const prima = store().tappe[0];
+        const risposta = differita<RegSquadra[]>();
+        anagrafe.listSquadre.mockReturnValue(risposta.p);
+        useAnagrafeStore.setState({ giocatori: [], squadre: [], caricata: true });
+        const { result } = renderHook(() => useTappa("t1"));
+        let sincronizzazione = Promise.resolve();
+        act(() => { sincronizzazione = result.current.syncFromAnagrafe([]); });
+        // La richiesta è partita prima che qualcuno registrasse la voce (ricerca, creazione o Coach): la cache la riceve nell'attesa
+        act(() => { useAnagrafeStore.setState({ squadre: [voceNuova] }); });
+        await act(async () => {
+          risposta.ok([{ ...regAlfa, id: "r2", nome: "Beta" }]); // la lista del server, più vecchia, non la contiene
+          await sincronizzazione;
+        });
+        await nienteSalvato(prima);
+        expect(squadre()[0].regId).toBe("r-nuova");
+      });
+
+      describe("la lista fresca letta prima di un accesso o di un'uscita non entra in una cache che non è la sua (T2.15)", () => {
+        // La richiesta parte con il token di prima: la lista ha la forma di prima (pubblica senza token, completa con). Se nel frattempo
+        // la cache è stata svuotata e riempita di nuovo, registrare quelle voci la farebbe tornare alla forma sbagliata
+        const completa: RegSquadra = { ...voceNuova, referente: "Luigi Bianchi", autore: "Anna", autoreId: "u1" };
+        const pubblica: RegSquadra = { ...voceNuova, referente: "", autore: "", autoreId: null };
+
+        it("accesso durante l'attesa: la voce pubblica non sostituisce quella completa della cache nuova", async () => {
+          conSquadraCollegata();
+          const risposta = differita<RegSquadra[]>();
+          anagrafe.listSquadre.mockReturnValue(risposta.p);
+          useAnagrafeStore.setState({ giocatori: [], squadre: [], caricata: true });
+          const { result } = renderHook(() => useTappa("t1"));
+          let sincronizzazione = Promise.resolve();
+          act(() => { sincronizzazione = result.current.syncFromAnagrafe([]); });
+          // L'utente accede: la cache si svuota e il caricamento con il token la riempie con i dati completi
+          act(() => {
+            useAnagrafeStore.getState().svuota();
+            useAnagrafeStore.setState({ giocatori: [], squadre: [completa], caricata: true });
+          });
+          await act(async () => {
+            risposta.ok([pubblica]); // la lista del server, partita senza token
+            await sincronizzazione;
+          });
+          expect(useAnagrafeStore.getState().squadre).toEqual([completa]);
+        });
+
+        it("uscita durante l'attesa: la voce completa non sostituisce quella pubblica della cache nuova", async () => {
+          conSquadraCollegata();
+          const risposta = differita<RegSquadra[]>();
+          anagrafe.listSquadre.mockReturnValue(risposta.p);
+          useAnagrafeStore.setState({ giocatori: [], squadre: [completa], caricata: true });
+          const { result } = renderHook(() => useTappa("t1"));
+          let sincronizzazione = Promise.resolve();
+          act(() => { sincronizzazione = result.current.syncFromAnagrafe([]); });
+          // L'utente esce: la cache si svuota e una nuova lettura, senza token, la riempie con la forma pubblica
+          act(() => {
+            useAnagrafeStore.getState().svuota();
+            useAnagrafeStore.setState({ giocatori: [], squadre: [pubblica], caricata: true });
+          });
+          await act(async () => {
+            risposta.ok([completa]); // la lista del server, partita con il token
+            await sincronizzazione;
+          });
+          expect(useAnagrafeStore.getState().squadre).toEqual([pubblica]);
+        });
+
+        it("senza cambi nell'attesa la voce entra in cache come prima", async () => {
+          conSquadraCollegata();
+          anagrafe.listSquadre.mockResolvedValue([completa]);
+          useAnagrafeStore.setState({ giocatori: [], squadre: [], caricata: true });
+          await sincronizza([]);
+          expect(useAnagrafeStore.getState().squadre).toEqual([completa]);
+        });
+      });
+
+      it("se la verifica sul server non riesce non si scollega niente", async () => {
+        conSquadraCollegata();
+        const prima = store().tappe[0];
+        anagrafe.listSquadre.mockRejectedValue(new ApiError(0, "Server non raggiungibile"));
+        await sincronizza([]);
+        expect(anagrafe.listSquadre).toHaveBeenCalledTimes(1);
+        await nienteSalvato(prima);
+      });
+
+      it("eliminata ma sostituita da una voce con lo stesso nome sul server: la squadra si collega a quella", async () => {
+        conSquadraCollegata();
+        anagrafe.listSquadre.mockResolvedValue([regAlfa]); // id r1: stesso nome, un'altra voce
+        await sincronizza([]);
+        expect(squadre()[0]).toMatchObject({ nome: "Alfa", regId: "r1" });
+      });
+
+      it("le voci trovate sul server entrano nella cache, senza toccare scritture e caricamento", async () => {
+        conSquadraCollegata();
+        anagrafe.listSquadre.mockResolvedValue([voceNuova, { ...regAlfa, id: "r9", nome: "Altra" }]);
+        useAnagrafeStore.setState({ giocatori: [], squadre: [], caricata: true });
+        await sincronizza([]);
+        // Solo la voce a cui la squadra è collegata, non tutta la lista; la cache resta valida
+        expect(useAnagrafeStore.getState().squadre?.map((s) => s.id)).toEqual(["r-nuova"]);
+        expect(useAnagrafeStore.getState().caricata).toBe(true);
+      });
+
+      it("se la cache ha già la voce, o la squadra non ha un collegamento, il server non si interroga", async () => {
+        conSquadraCollegata();
+        await sincronizza([voceNuova]);
+        useAppStore.setState({ tappe: [{ ...tappa(), squadre: [squadra("s1", "Gamma"), squadra("s2", "Squadra 2")] }] });
+        await sincronizza([regAlfa]);
+        expect(anagrafe.listSquadre).not.toHaveBeenCalled();
+      });
+
+      it("una tappa conclusa non si scollega e il server non si interroga: è pubblicata così com'era", async () => {
+        conSquadraCollegata({ conclusa: true });
+        const prima = store().tappe[0];
+        await sincronizza([]);
+        expect(anagrafe.listSquadre).not.toHaveBeenCalled();
+        await nienteSalvato(prima);
+      });
+    });
+
+    it("una voce eliminata ma un'altra con lo stesso nome nella cache: la squadra si collega a quella, senza chiedere al server", () => {
+      const collegata = { ...squadra("s1", "Alfa"), regId: "r-eliminata" };
+      useAppStore.setState({ tappe: [{ ...tappa(), squadre: [collegata, squadra("s2", "Squadra 2")] }] });
+      const { result } = renderHook(() => useTappa("t1"));
+      fai(() => result.current.syncFromAnagrafe([regAlfa]));
+      expect(squadre()[0]).toMatchObject({ nome: "Alfa", regId: "r1" });
+      expect(anagrafe.listSquadre).not.toHaveBeenCalled();
+    });
+
+    it("una squadra mai collegata e senza una voce con il suo nome resta com'è: non parte nessun salvataggio", async () => {
+      useAppStore.setState({ tappe: [{ ...tappa(), squadre: [squadra("s1", "Gamma"), squadra("s2", "Squadra 2")] }] });
+      const prima = store().tappe[0];
+      const { result } = renderHook(() => useTappa("t1"));
+      fai(() => result.current.syncFromAnagrafe([regAlfa]));
+      await nienteSalvato(prima);
+    });
+
     it("R5: salta una tappa conclusa, pubblicata così com'era", async () => {
       useAppStore.setState({ tappe: [{ ...tappa(), squadre: [squadra("s1", "Alfa"), squadra("s2", "Squadra 2")], conclusa: true }] });
       const prima = store().tappe[0];
@@ -341,7 +522,10 @@ describe("useTappa: le operazioni di tappaOps si applicano alla tappa di adesso"
     await act(async () => { errore = await h.concludi(); });
     expect(errore).toBeNull();
     expect(store().tappe[0].conclusa).toBe(true);
-    expect(archivio.pubblica).toHaveBeenCalledWith(expect.objectContaining({ id: "t1", conclusa: true }), expect.anything());
+    // Prima la tappa conclusa arriva al server, poi si pubblica per id: la copia la costruisce il server
+    expect(api.putTappa).toHaveBeenLastCalledWith(expect.objectContaining({ id: "t1", conclusa: true }));
+    expect(archivio.pubblica).toHaveBeenCalledExactlyOnceWith("t1");
+    expect(api.putTappa.mock.invocationCallOrder.at(-1)).toBeLessThan(archivio.pubblica.mock.invocationCallOrder[0]);
   });
 
   it("R1: aggiungere una squadra cancella anche il tabellone", () => {
@@ -385,14 +569,15 @@ describe("useTappa: le operazioni di tappaOps si applicano alla tappa di adesso"
     expect(store().tappe[0].video.map((v) => v.titolo)).toEqual(["Semifinale"]);
   });
 
-  it("su una tappa conclusa il video aggiunto viene ripubblicato nell'archivio", () => {
+  it("su una tappa conclusa il video aggiunto viene ripubblicato nell'archivio, dopo il salvataggio della tappa col video", async () => {
     useAppStore.setState({ tappe: [{ ...tappa(), conclusa: true }] });
     const { result } = renderHook(() => useTappa("t1"));
-    fai(() => result.current.addVideo("Finale", "https://youtu.be/a"));
-    expect(archivio.pubblica).toHaveBeenCalledWith(
+    await act(async () => { result.current.addVideo("Finale", "https://youtu.be/a"); });
+    expect(api.putTappa).toHaveBeenLastCalledWith(
       expect.objectContaining({ id: "t1", conclusa: true, video: [expect.objectContaining({ titolo: "Finale" })] }),
-      expect.anything(),
     );
+    expect(archivio.pubblica).toHaveBeenCalledExactlyOnceWith("t1");
+    expect(api.putTappa.mock.invocationCallOrder.at(-1)).toBeLessThan(archivio.pubblica.mock.invocationCallOrder[0]);
   });
 });
 
@@ -457,26 +642,289 @@ describe("useTappa: sorteggio, punteggio e conclusione rifiutati restituiscono i
   });
 });
 
-describe("useTappa: «Concludi» con la pubblicazione non riuscita", () => {
-  it("il messaggio dice come ripubblicare, e la strada indicata funziona: «Riapri» e poi «Concludi»", async () => {
+describe("useTappa: pubblicazione nell'archivio di una tappa conclusa", () => {
+  /** La tappa già conclusa, come quando si apre la pagina dopo un ricaricamento */
+  const conclusa = (): Tappa => ({ ...sorteggiata([giocata("m1")]), conclusa: true });
+  /** Monta l'hook e lascia finire la verifica che parte all'apertura di una tappa conclusa */
+  async function apri() {
+    const hook = renderHook(() => useTappa("t1"));
+    await act(async () => {});
+    return hook;
+  }
+
+  it("«Concludi» riuscita: la tappa risulta pubblicata, senza errori, e «Riapri» avverte che la toglie dall'archivio", async () => {
     useAppStore.setState({ tappe: [sorteggiata([giocata("m1")])] });
-    archivio.pubblica.mockRejectedValueOnce(new Error("rete assente"));
+    const { result } = renderHook(() => useTappa("t1"));
+    expect(result.current.statoArchivio).toEqual({ pubblicata: null, errore: null }); // tappa aperta: niente da dire
+    await act(async () => { await result.current.concludi(); });
+    expect(result.current.statoArchivio).toEqual({ pubblicata: true, errore: null });
+    expect(result.current.perditaRiapertura()).toBe(PERDITA_RIAPERTURA);
+  });
+
+  it("«Concludi» con la pubblicazione rifiutata dal server: la tappa resta conclusa e NON è pubblicata (esito certo), col motivo; «Riapri» non ha niente da perdere", async () => {
+    useAppStore.setState({ tappe: [sorteggiata([giocata("m1")])] });
+    archivio.pubblica.mockRejectedValueOnce(new ApiError(500, "Errore interno del server"));
+    const { result } = renderHook(() => useTappa("t1"));
+    let errore: string | null = "non eseguito";
+    await act(async () => { errore = await result.current.concludi(); });
+    // La conclusione è riuscita (il messaggio di «Concludi» riguarda solo ciò che la impedisce): l'esito della pubblicazione
+    // sta nello stato, perché la sezione «Concludi» sparisce appena la tappa è conclusa e un messaggio lì non lo vedrebbe nessuno
+    expect(errore).toBeNull();
+    expect(store().tappe[0].conclusa).toBe(true);
+    expect(result.current.statoArchivio).toEqual({ pubblicata: false, errore: "Errore interno del server" });
+    expect(result.current.perditaRiapertura()).toBeNull();
+  });
+
+  it("«Concludi» con la PUT dell'archivio senza risposta (rete assente, tempo scaduto): l'esito è ignoto, non «non pubblicata»", async () => {
+    useAppStore.setState({ tappe: [sorteggiata([giocata("m1")])] });
+    // Con status 0 il server può aver pubblicato lo stesso: dirlo «non pubblicata» farebbe riaprire senza ritirare la copia
+    archivio.pubblica.mockRejectedValueOnce(new ApiError(0, "Il server non risponde: controlla la connessione e riprova."));
     archivio.rimuovi.mockResolvedValue(undefined);
+    const { result } = renderHook(() => useTappa("t1"));
+    await act(async () => { await result.current.concludi(); });
+    expect(result.current.statoArchivio).toEqual({ pubblicata: null, errore: "Il server non risponde: controlla la connessione e riprova." });
+    // Nel dubbio «Riapri» avverte, e riaprendo ritira la copia (se c'è)
+    expect(result.current.perditaRiapertura()).toBe(PERDITA_RIAPERTURA);
+    await act(async () => { await result.current.riapri(); });
+    expect(archivio.rimuovi).toHaveBeenCalledExactlyOnceWith("t1");
+    expect(store().tappe[0].conclusa).toBe(false);
+  });
+
+  // Dietro un proxy (Render) un 502, 503 o 504 può nascondere una PUT già eseguita dal server: l'esito è ignoto come con lo status 0
+  it.each([0, 502, 503, 504])("«Concludi» con la PUT dell'archivio che finisce con %i: l'esito è ignoto, non «non pubblicata»", async (status) => {
+    useAppStore.setState({ tappe: [sorteggiata([giocata("m1")])] });
+    archivio.pubblica.mockRejectedValueOnce(new ApiError(status, "Errore del proxy"));
+    const { result } = renderHook(() => useTappa("t1"));
+    await act(async () => { await result.current.concludi(); });
+    expect(result.current.statoArchivio).toEqual({ pubblicata: null, errore: "Errore del proxy" });
+  });
+
+  it.each([400, 401, 403, 404, 409, 500])("«Concludi» con la PUT dell'archivio che finisce con %i: l'esito è certo, «non pubblicata»", async (status) => {
+    useAppStore.setState({ tappe: [sorteggiata([giocata("m1")])] });
+    archivio.pubblica.mockRejectedValueOnce(new ApiError(status, "Rifiutata dal server"));
+    const { result } = renderHook(() => useTappa("t1"));
+    await act(async () => { await result.current.concludi(); });
+    expect(result.current.statoArchivio).toEqual({ pubblicata: false, errore: "Rifiutata dal server" });
+  });
+
+  it("la via d'uscita funziona: «Riapri» (senza toccare l'archivio, la tappa non c'è) e poi «Concludi»", async () => {
+    useAppStore.setState({ tappe: [sorteggiata([giocata("m1")])] });
+    // Esito certo: il server rifiuta la tappa conclusa (400) e la pubblicazione non parte (412)
+    api.putTappa.mockRejectedValueOnce(new ApiError(400, "Dati non validi"));
+    const { result } = renderHook(() => useTappa("t1"));
+    await act(async () => { await result.current.concludi(); });
+    expect(result.current.statoArchivio.pubblicata).toBe(false);
+    // «Concludi» da solo non ripubblica: la tappa è già conclusa (R5)
+    let errore: string | null = null;
+    await act(async () => { errore = await result.current.concludi(); });
+    expect(errore).toBe("La tappa è conclusa: riaprila per modificarla.");
+    // «Riapri» e poi «Concludi»: il salvataggio e la pubblicazione ripartono e questa volta riescono
+    await act(async () => { await result.current.riapri(); });
+    expect(archivio.rimuovi).not.toHaveBeenCalled();
+    expect(store().tappe[0].conclusa).toBe(false);
+    await act(async () => { errore = await result.current.concludi(); });
+    expect(errore).toBeNull();
+    expect(archivio.pubblica).toHaveBeenCalledExactlyOnceWith("t1");
+    expect(result.current.statoArchivio).toEqual({ pubblicata: true, errore: null });
+  });
+
+  it("con la tappa che non arriva al server «Concludi» non pubblica e dice perché", async () => {
+    useAppStore.setState({ tappe: [sorteggiata([giocata("m1")])] });
+    api.putTappa.mockRejectedValue(new ApiError(0, "Server non raggiungibile"));
+    const { result } = renderHook(() => useTappa("t1"));
+    await act(async () => { await result.current.concludi(); });
+    expect(archivio.pubblica).not.toHaveBeenCalled();
+    expect(result.current.statoArchivio.pubblicata).toBe(false);
+    expect(result.current.statoArchivio.errore).toContain("salvata sul server");
+    expect(result.current.statoArchivio.errore).toContain("Server non raggiungibile");
+  });
+
+  describe("all'apertura di una tappa conclusa si chiede all'archivio se c'è", () => {
+    beforeEach(() => { useAppStore.setState({ tappe: [conclusa()] }); });
+
+    it("c'è: risulta pubblicata", async () => {
+      const { result } = await apri();
+      expect(archivio.get).toHaveBeenCalledExactlyOnceWith("t1");
+      expect(result.current.statoArchivio).toEqual({ pubblicata: true, errore: null });
+      expect(result.current.perditaRiapertura()).toBe(PERDITA_RIAPERTURA);
+    });
+
+    it("404: non è pubblicata, e «Riapri» non ha niente da perdere", async () => {
+      archivio.get.mockRejectedValue(new ApiError(404, "Tappa non presente in archivio"));
+      const { result } = await apri();
+      expect(result.current.statoArchivio).toEqual({ pubblicata: false, errore: null });
+      expect(result.current.perditaRiapertura()).toBeNull();
+    });
+
+    it("rete assente o guasto del server: non si sa, e non si dice né «pubblicata» né «non pubblicata»", async () => {
+      archivio.get.mockRejectedValue(new ApiError(503, "Servizio non disponibile"));
+      const { result } = await apri();
+      expect(result.current.statoArchivio).toEqual({ pubblicata: null, errore: null });
+      // Nel dubbio «Riapri» avverte, come prima
+      expect(result.current.perditaRiapertura()).toBe(PERDITA_RIAPERTURA);
+    });
+
+    it("una tappa aperta (non conclusa) non chiede niente", async () => {
+      useAppStore.setState({ tappe: [tappa()] });
+      await apri();
+      expect(archivio.get).not.toHaveBeenCalled();
+    });
+
+    it("l'ospite non pubblica: niente verifica, niente da dire sull'archivio", async () => {
+      useAppStore.setState({ user: ospite });
+      const { result } = await apri();
+      expect(archivio.get).not.toHaveBeenCalled();
+      expect(result.current.statoArchivio).toEqual({ pubblicata: null, errore: null });
+      expect(result.current.perditaRiapertura()).toBeNull();
+    });
+  });
+
+  describe("una verifica lenta non sovrascrive un esito arrivato dopo", () => {
+    it("GET lenta, poi «Riapri» e «Concludi» rifiutato: quando arriva il 200 la tappa non diventa «pubblicata»", async () => {
+      useAppStore.setState({ tappe: [conclusa()] });
+      archivio.rimuovi.mockResolvedValue(undefined);
+      const lenta = differita<PubTappa>();
+      archivio.get.mockReturnValue(lenta.p);
+      const { result } = renderHook(() => useTappa("t1"));
+      await act(async () => { await result.current.riapri(); });
+      archivio.pubblica.mockRejectedValueOnce(new ApiError(500, "Errore interno del server"));
+      await act(async () => { await result.current.concludi(); });
+      expect(result.current.statoArchivio).toEqual({ pubblicata: false, errore: "Errore interno del server" });
+      // Il 200 è la risposta di una domanda fatta prima di riaprire: non vale più
+      await act(async () => { lenta.ok({ tappa: conclusa(), lega: "Lega", autore: "Anna", autoreId: "u1", ts: 1 }); });
+      expect(result.current.statoArchivio).toEqual({ pubblicata: false, errore: "Errore interno del server" });
+    });
+
+    it("GET lenta, poi «Riapri»: la risposta tardiva non rimette uno stato su una tappa riaperta", async () => {
+      useAppStore.setState({ tappe: [conclusa()] });
+      archivio.rimuovi.mockResolvedValue(undefined);
+      const lenta = differita<PubTappa>();
+      archivio.get.mockReturnValue(lenta.p);
+      const { result } = renderHook(() => useTappa("t1"));
+      await act(async () => { await result.current.riapri(); });
+      await act(async () => { lenta.ok({ tappa: conclusa(), lega: "Lega", autore: "Anna", autoreId: "u1", ts: 1 }); });
+      expect(result.current.statoArchivio).toEqual({ pubblicata: null, errore: null });
+    });
+  });
+
+  it("mentre la pubblicazione di «Concludi» è in corso lo dice (la pagina disattiva «Riapri»), poi smette", async () => {
+    useAppStore.setState({ tappe: [sorteggiata([giocata("m1")])] });
+    const risposta = differita<PubTappa>();
+    archivio.pubblica.mockReturnValue(risposta.p);
+    const { result } = renderHook(() => useTappa("t1"));
+    expect(result.current.pubblicando).toBe(false);
+    let fine!: Promise<string | null>;
+    await act(async () => { fine = result.current.concludi(); });
+    expect(result.current.pubblicando).toBe(true);
+    await act(async () => { risposta.ok({ tappa: tappa(), lega: "Lega", autore: "Anna", autoreId: "u1", ts: 1 }); await fine; });
+    expect(result.current.pubblicando).toBe(false);
+  });
+
+  describe("«Riapri»", () => {
+    beforeEach(() => {
+      useAppStore.setState({ tappe: [conclusa()] });
+      archivio.rimuovi.mockResolvedValue(undefined);
+    });
+
+    it("toglie la tappa dall'archivio e poi la riapre", async () => {
+      const { result } = await apri();
+      await act(async () => { await result.current.riapri(); });
+      expect(archivio.rimuovi).toHaveBeenCalledExactlyOnceWith("t1");
+      expect(store().tappe[0].conclusa).toBe(false);
+      expect(result.current.statoArchivio).toEqual({ pubblicata: null, errore: null });
+    });
+
+    it("se la DELETE fallisce l'errore arriva a chi chiama e la tappa resta conclusa e in archivio", async () => {
+      archivio.rimuovi.mockRejectedValue(new ApiError(0, "Server non raggiungibile"));
+      const { result } = await apri();
+      let errore: unknown = null;
+      await act(async () => { await result.current.riapri().catch((e: unknown) => { errore = e; }); });
+      expect(errore).toMatchObject({ status: 0, message: "Server non raggiungibile" });
+      expect(store().tappe[0].conclusa).toBe(true);
+      expect(result.current.statoArchivio.pubblicata).toBe(true);
+    });
+
+    it("404 sulla DELETE: la tappa non era più in archivio, si riapre lo stesso", async () => {
+      archivio.rimuovi.mockRejectedValue(new ApiError(404, "Tappa non presente in archivio"));
+      const { result } = await apri();
+      await act(async () => { await result.current.riapri(); });
+      expect(store().tappe[0].conclusa).toBe(false);
+    });
+
+    it("verifica non riuscita (non si sa): «Riapri» prova comunque la DELETE", async () => {
+      archivio.get.mockRejectedValue(new ApiError(503, "Servizio non disponibile"));
+      const { result } = await apri();
+      expect(result.current.statoArchivio.pubblicata).toBeNull();
+      await act(async () => { await result.current.riapri(); });
+      expect(archivio.rimuovi).toHaveBeenCalledExactlyOnceWith("t1");
+      expect(store().tappe[0].conclusa).toBe(false);
+    });
+
+    it("già verificata come non pubblicata: niente DELETE, si riapre subito", async () => {
+      archivio.get.mockRejectedValue(new ApiError(404, "Tappa non presente in archivio"));
+      const { result } = await apri();
+      await act(async () => { await result.current.riapri(); });
+      expect(archivio.rimuovi).not.toHaveBeenCalled();
+      expect(store().tappe[0].conclusa).toBe(false);
+    });
+
+    it("ospite: si riapre senza nessuna chiamata all'archivio (prima partiva una DELETE senza JWT, che falliva sempre in silenzio)", async () => {
+      useAppStore.setState({ user: ospite });
+      const { result } = await apri();
+      await act(async () => { await result.current.riapri(); });
+      expect(archivio.rimuovi).not.toHaveBeenCalled();
+      expect(store().tappe[0].conclusa).toBe(false);
+    });
+  });
+
+  describe("un video aggiunto a una tappa conclusa si ripubblica", () => {
+    beforeEach(() => { useAppStore.setState({ tappe: [conclusa()] }); });
+
+    it("riuscito: pubblicata, senza errori", async () => {
+      const { result } = await apri();
+      await act(async () => { result.current.addVideo("Finale", "https://youtu.be/a"); });
+      expect(result.current.statoArchivio).toEqual({ pubblicata: true, errore: null });
+    });
+
+    it("fallito: la copia pubblica resta com'era (la tappa resta «pubblicata») e il motivo non va perso", async () => {
+      const { result } = await apri();
+      archivio.pubblica.mockRejectedValueOnce(new ApiError(0, "Server non raggiungibile"));
+      await act(async () => { result.current.addVideo("Finale", "https://youtu.be/a"); });
+      expect(result.current.statoArchivio).toEqual({ pubblicata: true, errore: "Server non raggiungibile" });
+    });
+
+    it("la tappa risultava non pubblicata (404) e la PUT del video non ha risposta: l'esito è ignoto, «Riapri» ritira la copia che potrebbe esserci", async () => {
+      archivio.get.mockRejectedValue(new ApiError(404, "Tappa non presente in archivio"));
+      archivio.rimuovi.mockResolvedValue(undefined);
+      const { result } = await apri();
+      expect(result.current.statoArchivio.pubblicata).toBe(false);
+      archivio.pubblica.mockRejectedValueOnce(new ApiError(0, "Il server non risponde: controlla la connessione e riprova."));
+      await act(async () => { result.current.addVideo("Finale", "https://youtu.be/a"); });
+      // Il vecchio «non pubblicata» non vale più: la PUT può essere arrivata e aver pubblicato
+      expect(result.current.statoArchivio).toEqual({ pubblicata: null, errore: "Il server non risponde: controlla la connessione e riprova." });
+      expect(result.current.perditaRiapertura()).toBe(PERDITA_RIAPERTURA);
+      await act(async () => { await result.current.riapri(); });
+      expect(archivio.rimuovi).toHaveBeenCalledExactlyOnceWith("t1");
+      expect(store().tappe[0].conclusa).toBe(false);
+    });
+
+    it("la tappa risultava non pubblicata (404) e il server rifiuta la PUT del video con un errore certo: resta «non pubblicata»", async () => {
+      archivio.get.mockRejectedValue(new ApiError(404, "Tappa non presente in archivio"));
+      const { result } = await apri();
+      archivio.pubblica.mockRejectedValueOnce(new ApiError(500, "Errore interno del server"));
+      await act(async () => { result.current.addVideo("Finale", "https://youtu.be/a"); });
+      expect(result.current.statoArchivio).toEqual({ pubblicata: false, errore: "Errore interno del server" });
+    });
+  });
+
+  it("ospite: «Concludi» non conclude e non chiama l'archivio (come prima)", async () => {
+    useAppStore.setState({ user: ospite, tappe: [sorteggiata([giocata("m1")])] });
     const { result } = renderHook(() => useTappa("t1"));
     let errore: string | null = null;
     await act(async () => { errore = await result.current.concludi(); });
-    expect(errore).toBe("Tappa conclusa, ma pubblicazione non riuscita: riprova con «Riapri» e poi «Concludi».");
-    expect(store().tappe[0].conclusa).toBe(true);
-
-    // «Concludi» da solo non ripubblica: la tappa è già conclusa (R5)
-    await act(async () => { errore = await result.current.concludi(); });
-    expect(errore).toBe("La tappa è conclusa: riaprila per modificarla.");
-
-    // «Riapri» e poi «Concludi»: la pubblicazione riparte e questa volta riesce
-    await act(async () => { await result.current.riapri(); });
-    await act(async () => { errore = await result.current.concludi(); });
-    expect(errore).toBeNull();
-    expect(archivio.pubblica).toHaveBeenCalledTimes(2);
-    expect(store().tappe[0].conclusa).toBe(true);
+    expect(errore).toBe("La pubblicazione nell'Archivio circuito richiede un account registrato.");
+    expect(store().tappe[0].conclusa).toBeFalsy();
+    expect(archivio.pubblica).not.toHaveBeenCalled();
+    expect(archivio.get).not.toHaveBeenCalled();
   });
 });

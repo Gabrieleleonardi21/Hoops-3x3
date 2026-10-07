@@ -98,7 +98,7 @@ Il ciclo è un **loop agentico**: ripete finché l'AI smette di chiedere tool o 
 - **Azione:**
   1. Chiama `concludi(tappa)` di `tappaOps`, che valida che tutte le partite dei gironi siano registrate e che, se esiste il `bracket`, tutti i suoi match siano `done` (altrimenti blocca: la finale non può restare aperta). È la stessa regola del bottone "Concludi" dell'interfaccia
   2. Salva la tappa con `conclusa: true` tramite `replaceTappa`
-  3. La pubblica nell'Archivio circuito con `archivioApi.pubblica`
+  3. Aspetta che la coda dei salvataggi sia vuota (la tappa conclusa deve essere arrivata al server) e la pubblica con `pubblica` dello store, che manda al server solo l'id (`PUT /api/archivio/{tappaId}`): la copia la costruisce il server da ciò che ha salvato. È la stessa funzione della pagina della tappa. Se la tappa non arriva al server o la pubblicazione non riesce, la tappa resta conclusa e il risultato dello strumento dice il motivo e indica «Riapri» e poi «Concludi» nella pagina della tappa. Se invece un conflitto con un altro dispositivo ha rimesso nello store la tappa del server, non conclusa (o l'ha tolta, perché lì è stata eliminata), il risultato dice che la tappa non è pubblicata e che nella lega aperta non risulta conclusa, con il motivo. Il motivo passa da `senzaTag` (`<` e `>` diventano ‹ ›), perché può riportare il nome della tappa scritto sul server. Una rinomina della lega ancora in attesa parte prima della pubblicazione, ma non si controlla: se la PATCH fallisce l'errore compare solo nella barra degli avvisi e la copia pubblica porta il nome che il server ha
 - **Esempio:** *"Concludi la tappa Roma Open"*
 
 ---

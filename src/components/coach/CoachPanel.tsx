@@ -1,10 +1,15 @@
 /** Pannello chat del Coach AI: input utente, lista messaggi, bottone "Cancella chat".
- *  La chat sta nello store di useCoachAI, non qui: chiudendo il pannello durante l'attesa la risposta non si perde. */
+ *  La chat sta nello store di useCoachAI, non qui: chiudendo il pannello durante l'attesa la risposta non si perde.
+ *  Non è una finestra modale (niente sfondo, la pagina sotto resta usabile): il focus non si trattiene. All'apertura va nel campo di
+ *  scrittura e alla chiusura torna al pulsante che l'ha aperta (useFocusFinestra). Si chiude con Esc solo se nessuna finestra gli sta
+ *  sopra, grazie alla pila delle finestre (usePilaFinestre). */
 import { useEffect, useRef, useState } from "react";
 import { RED, ORANGE } from "../../constants/colors";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
 import { useCoachAI } from "../../hooks/useCoachAI";
+import { useFocusFinestra } from "../../hooks/useFocusFinestra";
+import { usePilaFinestre } from "../../hooks/usePilaFinestre";
 
 /** Etichette leggibili (al passato) per i tool eseguiti dal Coach AI. */
 const TOOL_LABELS: Record<string, string> = {
@@ -41,9 +46,13 @@ function riepilogoTool(tools: string[]): Array<{ label: string; count: number; c
 }
 
 export function CoachPanel({ onClose }: { onClose: () => void }) {
-  const { msgs, loading, conferma, send, clearChat } = useCoachAI();
+  const { msgs, scartati, loading, conferma, send, clearChat } = useCoachAI();
   const [input, setInput] = useState("");
   const richiestaRef = useRef<HTMLDivElement>(null);
+  const campoRef = useRef<HTMLInputElement>(null);
+  // Senza contenitore: la finestra è nella pila solo per l'Esc, Tab non è trattenuto
+  usePilaFinestre(onClose);
+  useFocusFinestra(() => campoRef.current);
 
   // D4: la lista non scorre da sola e, con una chat lunga, la richiesta di conferma resterebbe sotto il bordo visibile
   // mentre «Invia» è disattivato: la si porta in vista
@@ -64,19 +73,22 @@ export function CoachPanel({ onClose }: { onClose: () => void }) {
         <span className="flex items-center gap-2 font-display text-base text-chalk"><Icon name="ball" size={16} className="text-court" /> Coach AI · 3x3</span>
         <div className="flex items-center gap-2">
           {msgs.length > 0 && (
-            <button onClick={clearChat} className="text-xs text-chalk-muted hover:text-chalk" aria-label="Cancella chat">Cancella</button>
+            <button onClick={clearChat} className="area-tocco text-xs text-chalk-muted hover:text-chalk" aria-label="Cancella chat">Cancella</button>
           )}
-          <button onClick={onClose} className="text-chalk-muted hover:text-chalk" aria-label="Chiudi"><Icon name="close" size={18} /></button>
+          <button onClick={onClose} className="area-tocco text-chalk-muted hover:text-chalk" aria-label="Chiudi"><Icon name="close" size={18} /></button>
         </div>
       </div>
-      <div className="flex flex-1 flex-col gap-2 overflow-y-auto p-3">
+      {/* role="log": i messaggi nuovi si annunciano da soli ai lettori di schermo, senza dover spostare il focus */}
+      <div role="log" aria-label="Conversazione con il Coach" className="flex flex-1 flex-col gap-2 overflow-y-auto p-3">
         {msgs.length === 0 && (
           <p className="m-0 text-sm text-chalk-muted">
             Chiedimi delle regole 3x3, come organizzare la tua tappa o come funziona il circuito FIBA 3x3.
           </p>
         )}
+        {/* La chiave è il numero del messaggio nella conversazione, non la posizione: a chat piena (30 messaggi) quelli nuovi spingono
+            fuori i primi, e con l'indice ogni nodo cambierebbe messaggio e il lettore di schermo rileggerebbe tutto il log */}
         {msgs.map((m, i) => (
-          <div key={i} className="flex flex-col">
+          <div key={scartati + i} className="flex flex-col">
             <div className={m.role === "user" ? "bubble-u" : "bubble-a"}>{m.content}</div>
             {/* Badge delle azioni eseguite, solo sui messaggi assistant che hanno usato tool */}
             {m.role === "assistant" && m.tools && m.tools.length > 0 && (
@@ -105,7 +117,7 @@ export function CoachPanel({ onClose }: { onClose: () => void }) {
         {loading && !conferma && <div className="bubble-a pulse">Il coach sta pensando…</div>}
       </div>
       <div className="flex gap-2 border-t border-asphalt-700 p-2.5">
-        <input className="statin flex-1" value={input}
+        <input ref={campoRef} className="statin flex-1" value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && submit()}
           placeholder="Scrivi al coach…" aria-label="Messaggio per il coach" />

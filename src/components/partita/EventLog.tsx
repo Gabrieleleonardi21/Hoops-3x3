@@ -21,7 +21,7 @@ export function EventLog({ eventi, nameOf, playerNameById, onRemove }: Props) {
             {nameOf(ev.teamId)}{ev.pid ? ` — ${playerNameById(ev.pid) || ""}` : ""}{ev.nota ? ` · ${ev.nota}` : ""}
           </span>
           {onRemove && (
-            <button onClick={() => onRemove(ev.id)} className="text-chalk-dim hover:text-loss" aria-label="Rimuovi evento">
+            <button onClick={() => onRemove(ev.id)} className="area-tocco text-chalk-dim hover:text-loss" aria-label="Rimuovi evento">
               <Icon name="close" size={12} />
             </button>
           )}

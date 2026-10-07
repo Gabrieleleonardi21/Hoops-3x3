@@ -37,6 +37,10 @@ export interface Tappa {
   conclusa?: boolean;
   /** Fase a eliminazione diretta, generata dopo i gironi */
   bracket?: BracketMatch[];
+  /** Numero di versione della tappa sul server (T2.7): lo decide il server, che lo fa salire quando un salvataggio la cambia, e
+   *  la PUT lo rimanda per dire su quale versione si basano le modifiche (409 se nel frattempo un altro dispositivo ha salvato).
+   *  È uno stato del server: manca per l'ospite, per una tappa non ancora creata e nel file della lega (export e import). */
+  versione?: number;
 }
 
 export interface Lega {

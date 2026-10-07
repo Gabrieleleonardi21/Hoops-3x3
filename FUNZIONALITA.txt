@@ -29,6 +29,8 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
 - Modalità Ospite: accesso immediato senza credenziali per provare l'app;
   i dati vengono salvati solo localmente, i controlli obbligatori su roster
   e punteggi sono disattivati, la pubblicazione nell'archivio è bloccata.
+  «Esci» dall'Ospite chiude solo l'Ospite: se un'altra scheda del browser ha
+  una sessione registrata, il suo token resta e quella scheda non esce.
 - Solo utenti registrati possono scrivere nell'anagrafe condivisa e
   concludere/pubblicare una tappa.
 
@@ -58,10 +60,17 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
 - Aggiunta e rimozione squadre iscritte (minimo 3 giocatori per squadra
   obbligatori per il sorteggio, controllo disattivato in modalità Ospite).
 - Modifica dei dati della tappa in qualsiasi momento prima della conclusione.
-- Eliminazione tappa con conferma.
+- Eliminazione tappa con conferma: la finestra dice che cosa si perde (le squadre,
+  il sorteggio, i risultati).
 - Collegamento automatico all'anagrafe: quando si digita il nome di una squadra,
   l'app cerca in anagrafe e, se trovata, importa logo, sito, rank e roster.
-  Se non trovata, crea automaticamente la scheda in anagrafe.
+  Se non trovata, crea automaticamente la scheda in anagrafe. Una squadra
+  collegata a una voce poi eliminata dall'anagrafe si scollega all'apertura
+  della tappa (tiene nome, logo e ranking che ha) e il suo nome torna
+  modificabile. Lo scollegamento si decide sulla lista fresca del server,
+  non sulla cache (che non vede le voci create da altri dopo il suo
+  caricamento): se il server non risponde non si scollega niente. Le tappe
+  concluse non vengono toccate.
 - Regole di gara personalizzabili per tappa:
     • Punteggio target (default 21)
     • Durata massima in minuti (default 10)
@@ -70,8 +79,17 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
 - Conclusione e pubblicazione della tappa nell'Archivio circuito (richiede
   account registrato; la tappa passa in sola lettura). Servono tutti i
   risultati dei gironi e, se è stata generata la fase a eliminazione
-  diretta, anche tutti i suoi match.
-- Riapertura di una tappa conclusa per correzioni.
+  diretta, anche tutti i suoi match. La pubblicazione parte dopo l'ultimo
+  salvataggio (il server costruisce la copia da ciò che ha salvato): se la
+  tappa non arriva al server non si pubblica. La pagina della tappa conclusa
+  dice «pubblicata» solo se lo è (aprendola lo chiede all'archivio); se la
+  pubblicazione non è riuscita lo dice col motivo e indica «Riapri» e poi
+  «Concludi».
+- Riapertura di una tappa conclusa per correzioni. Se è pubblicata chiede
+  conferma: esce dall'Archivio circuito e il suo link pubblico non funziona
+  finché non la si conclude di nuovo. La tappa esce dall'archivio prima di
+  riaprirsi: se il server non ci riesce resta conclusa e la pagina dice
+  perché. Una tappa che non è in archivio si riapre senza conferma.
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -93,11 +111,21 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
 
 - Visualizzazione di tutti i gironi con le rispettive partite.
 - Inserimento del punteggio per ogni partita (i pareggi non sono consentiti
-  in accordo alle regole FIBA 3x3).
+  in accordo alle regole FIBA 3x3). Ogni risultato registrato o corretto
+  porta il momento in cui è stato salvato: «Ultimo risultato» della home è
+  l'ultimo registrato, non l'ultimo del calendario (per i risultati salvati
+  prima che il momento esistesse vale l'ordine del calendario). Con il
+  tabellone già generato un risultato di girone non si corregge: il messaggio
+  rimanda a «Elimina bracket e ricomincia».
 - Classifica girone aggiornata in tempo reale dopo ogni risultato:
     • Vittorie, sconfitte, punti fatti/subiti, differenza canestri.
-    • Gestione dei pareggi in classifica tramite scontri diretti e
-      differenza canestri.
+    • Ordine, come nel regolamento FIBA 3x3 (un criterio alla volta, una
+      volta sola: chi resta a pari passa al successivo): prima le vittorie;
+      tra le squadre a pari vittorie, le vittorie negli scontri diretti,
+      cioè nelle sole partite giocate tra loro, calcolate una volta su tutto
+      il gruppo (non si rifanno tra le squadre rimaste a pari); poi i punti
+      fatti in tutto il girone (per esempio con tre squadre che si battono a
+      cerchio); poi la differenza canestri.
 - Statistiche individuali per partita (tabellino):
     • Punti (PT), Rimbalzi (RIMB), Assist (AST), Palle rubate (RUB),
       Stoppate (STO), Palle perse (PER), Falli (FALLI).
@@ -125,13 +153,45 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
 7. TIMER DI GARA
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-- Modale a schermo intero utilizzabile dal tavolo durante la partita.
-- Countdown del tempo di gara (10:00 minuti FIBA 3x3).
-- Shot clock separato (12 secondi) con reset automatico a 0 e reset manuale.
+- Finestra utilizzabile dal tavolo durante la partita: si chiude con la X, con
+  Esc o con un clic sullo sfondo, come le altre finestre, e la pagina sotto non
+  scorre. Il timer non salva niente nella tappa: se la partita è cominciata
+  (cronometro partito o punteggio diverso da 0 a 0), chiuderlo chiede conferma e
+  dice che cosa si perde, il punteggio e il tempo; con la conferma aperta Esc
+  chiude solo quella. Senza niente da perdere si chiude subito.
+- Usa le regole della tappa: durata, punteggio di vittoria, secondi del possesso
+  e punti del supplementare (di default 10 minuti, 21 punti, 12 secondi e 2 punti).
+- Countdown del tempo di gara e shot clock separato, che ricomincia da solo a
+  ogni scadenza e si può azzerare a mano. Il tempo si calcola dall'orologio e
+  non dal numero di scatti del timer: con la scheda in secondo piano o il
+  telefono bloccato il cronometro non rallenta.
 - Punteggio live per entrambe le squadre con tasti +1, +2 e correzione −.
-- Rilevamento automatico del "game over":
-    • Tempo scaduto → passa in modalità supplementare (OT).
-    • Una squadra raggiunge 21 punti → partita conclusa.
+  Da tastiera il focus entra su START; per i lettori di schermo i tasti dei
+  punti dicono la squadra («+1 a Squadra A») e a partita decisa l'esito
+  («Squadra A — Partita conclusa») prende il focus (con l'anello da tastiera)
+  e viene annunciato. Se in quel momento il focus è nella conferma «Chiudere il
+  timer?», aperta sopra il timer, resta lì; chiusa la conferma, passa
+  all'esito solo se è finito nel vuoto.
+- Rilevamento automatico della fine della partita (i cronometri si fermano):
+    • Una squadra raggiunge il punteggio di vittoria → vince subito.
+    • Tempo scaduto → vince chi è avanti.
+    • Tempo scaduto in parità → serve il supplementare: il timer lo dice
+      («Pareggio: serve il supplementare») e mostra il pulsante «Avvia
+      supplementare». Il supplementare non parte da solo: nel 3x3 c'è una pausa,
+      in cui si può ancora registrare un canestro del tempo regolamentare. Fino
+      al pulsante, un canestro in ritardo o una correzione che rompe la parità
+      dà la vittoria a tempo a chi è avanti.
+    • Supplementare (OT): parte dal punteggio del momento in cui si preme il
+      pulsante, senza cronometro di gara. Lo shot clock riparte da un possesso
+      nuovo (i secondi della regola della tappa, non quelli rimasti dal tempo
+      regolamentare) e resta fermo fino a «START», che fa correre solo lui.
+      Vince chi per primo fa i punti previsti da allora; il punteggio di
+      vittoria non vale più, e a vittoria ottenuta il timer scrive «Vinta al
+      supplementare». Togliere un punto del supplementare non lo annulla;
+      scendere sotto il punteggio di partenza sì (la parità che lo giustificava
+      è stata corretta): si giudica di nuovo il tempo regolamentare e per
+      ripartire serve di nuovo il pulsante.
+  Togliendo un punto per errore la partita si riapre.
 - Indicatori visivi di urgenza: il contatore diventa rosso sotto i 60 secondi,
   lo shot clock rosso sotto i 4 secondi.
 - Il vincitore del team viene evidenziato in arancione durante la partita.
@@ -176,14 +236,21 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
 11. ARCHIVIO CIRCUITO (PAGINA PUBBLICA)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-- Elenco di tutte le tappe concluse e pubblicate del circuito.
+- Elenco di tutte le tappe concluse e pubblicate del circuito, dalla più
+  recente (l'ordine lo decide il server). Ogni riga mostra nome, lega,
+  luogo, data, numero di squadre e autore: l'elenco è sintetico e la
+  tappa intera si carica solo aprendola. Se il server risponde con una
+  forma che l'app non riconosce, compare l'errore con «Riprova».
 - Ogni tappa mostra: squadre e roster, risultati per girone, classifica
   finale, dettaglio statistiche e log eventi per ogni partita,
   bracket playoff (se generato), leaderboard, video.
 - La vista dell'Archivio è accessibile anche senza login.
 - Condivisione via link pubblico:
     • URL univoco per ogni tappa (es. /tappa/<id>) navigabile da chiunque.
-    • Bottone "Copia link" con conferma visiva "Copiato!".
+    • Bottone "Copia link" con conferma visiva "Copiato!". Se gli appunti non
+      sono disponibili (pagina su http in rete locale) o il browser nega il
+      permesso, compare un messaggio che invita a copiare a mano il link, che
+      resta sullo schermo.
 - Stampa / Export PDF:
     • Bottone "Stampa / PDF" che apre la finestra di stampa del browser.
     • CSS dedicato: nasconde header, navigazione, Coach AI e tutti i bottoni;
@@ -196,11 +263,18 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 L'anagrafe è uno spazio condiviso tra tutti gli utenti del circuito.
-I dati inseriti sono visibili a chiunque abbia accesso all'app.
+I dati personali sono riservati a chi ha un account: senza un token il server
+manda solo nome, cognome, soprannome, ruolo, numero e squadra del giocatore
+(della squadra: nome, città, anno, ranking, roster, logo, sito, Instagram e
+note); data di nascita, città, nazionalità, altezza, peso, esperienza, note e
+autore del giocatore, referente e autore della squadra arrivano vuoti, e le
+schede nascondono le righe vuote («Registrato da» compreso). Una voce letta
+così non si può modificare né eliminare, nemmeno da un ADMIN.
 
 Scheda GIOCATORE
-  - Dati anagrafici: nome, cognome, soprannome, data di nascita, città,
-    nazionalità, altezza, peso, numero di maglia.
+  - Dati anagrafici: nome, cognome, soprannome, data di nascita (l'età si
+    mostra solo per una data passata), città, nazionalità, altezza, peso,
+    numero di maglia.
   - Dati sportivi: ruolo (Playmaker / Ala / Centro / ecc.), anni di
     esperienza nel 3x3, squadra di appartenenza, note libere.
   - Ricerca per nome, cognome, soprannome, città, squadra, ruolo.
@@ -217,10 +291,18 @@ Scheda SQUADRA
 
 Statistiche stagione (tab dedicato)
   - Tabella aggregata di tutti i giocatori su tutte le tappe della lega.
+  - Lo stesso giocatore in più tappe è una sola riga con i totali: si
+    riconosce dal nome e dalla squadra (maiuscole, spazi in più, accenti e
+    tipo di apostrofo non contano: «De Rossi» e «DeRossi» sono diversi).
+    Due giocatori con lo stesso nome in squadre diverse sono due righe.
+    Limite: chi cambia squadra compare su due righe, perché i giocatori di
+    tappa non sono collegati all'anagrafe.
   - Colonne: posizione, giocatore, squadra, partite giocate, punti totali,
     media punti/partita, rimbalzi totali, media rimbalzi, assist, recuperi,
     stoppate.
   - Ordinata per media punti decrescente.
+  - La scheda del giocatore (dall'anagrafe) somma le sue statistiche per
+    nome, anche di squadre diverse, ed elenca le squadre da cui vengono.
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -228,7 +310,13 @@ Statistiche stagione (tab dedicato)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Il Coach AI è un assistente conversazionale (LLM Llama 3.3 70B via Groq)
-integrato in un pannello flottante accessibile da qualsiasi pagina.
+integrato in un pannello flottante accessibile da qualsiasi pagina. Il
+pannello non blocca la pagina: all'apertura il focus va nel campo di
+scrittura e alla chiusura torna al pulsante che l'ha aperto (se nel frattempo
+l'utente l'ha portato altrove, resta lì); si chiude con Esc, ma solo se non
+c'è una finestra aperta sopra di lui (prima si chiude quella). I messaggi sono
+una regione che il lettore di schermo annuncia da sola; a chat piena (30
+messaggi) quelli già mostrati non vengono riscritti quando ne arriva uno nuovo.
 Risponde in italiano, conosce le regole FIBA 3x3 e ha visibilità in tempo
 reale sui dati della lega (tappe, squadre, risultati, classifica circuito).
 
@@ -258,8 +346,12 @@ Contesto fornito al Coach AI:
     partite giocate/mancanti, classifica di ogni girone.
   - Classifica circuito aggregata (vittorie/partite totali per squadra).
 
-La cronologia della chat è in sessionStorage: sopravvive al reload della
-pagina e si azzera alla chiusura della scheda. Il Coach passa dal backend
+La chat vive nello store, non nel pannello: chiudendo il pannello durante
+l'attesa la risposta arriva lo stesso e si trova alla riapertura; si tengono
+gli ultimi 30 messaggi, e premere Invio durante l'attesa lascia il testo nel
+campo. La cronologia è in sessionStorage: sopravvive al reload della pagina,
+si azzera alla chiusura della scheda e a ogni cambio di utente (uscita
+compresa). Il Coach passa dal backend
 (POST /api/coach/chat) che inoltra a Groq con la chiave GROQ_API_KEY di
 env.properties del backend: la chiave non arriva mai al browser. Riservato agli
 utenti registrati.
@@ -272,7 +364,9 @@ utenti registrati.
 - Nessun uso di innerHTML: tutti i contenuti dinamici usano createElement /
   textContent / React JSX per prevenire attacchi XSS.
 - URL dinamici validati con safeUrl() che blocca schemi javascript: e data:.
-- ID generati con crypto.randomUUID() (CSPRNG, non indovinabili).
+- ID generati con crypto.randomUUID() (CSPRNG, non indovinabili); dove non
+  esiste (http fuori da localhost, come da un telefono in rete locale) con
+  crypto.getRandomValues, che dà lo stesso UUID v4.
 - Il testo proveniente dall'utente e dall'AI nel prompt del Coach è
   racchiuso in tag <dati_lega> con istruzione esplicita a ignorare qualsiasi
   comando al loro interno (prompt injection mitigation).
@@ -281,12 +375,106 @@ utenti registrati.
   JSONB), anagrafe in anagrafe_giocatori/anagrafe_squadre (+ tabella ponte
   per il roster), archivio in archivio_tappe. Lo store aggiorna subito la
   UI e salva in background (debounce 400 ms per tappa); un salvataggio
-  fallito è segnalato da una barra in alto.
+  fallito è segnalato da una barra in alto. Un salvataggio rifiutato dal
+  server (dati non validi) ha una riga sua, che un errore arrivato dopo non
+  copre e che vale finché la versione rifiutata è l'ultima della tappa:
+  sparisce quando la tappa si salva, si modifica di nuovo, si elimina o la
+  lega si riapre. La riga dice che cosa fare: correggere la tappa, oppure
+  riaprire la lega per tornare alla versione salvata sul server; per una
+  tappa nuova, che sul server non c'è, dice di correggerla, perché
+  riaprendo la lega sparirebbe. Se la tappa è della lega aperta «Esci» la
+  conta tra le modifiche non salvate e chiede conferma; se è di un'altra
+  lega la riga la nomina e dice che quella versione non è più in memoria
+  (una tappa nuova è andata persa), e «Esci» non la conta. Ogni tappa ha
+  una versione decisa dal server: se un altro dispositivo l'ha salvata nel
+  frattempo (409), l'app mostra la tappa del server e lo dice nella stessa
+  barra, invece di sovrascriverne il lavoro; se l'ha eliminata (la PUT
+  riceve 404 o 409), rilegge la lega e, se la tappa non c'è più, la toglie
+  con lo stesso avviso.
 - Persistenza (ospite): localStorage per la lega (multi-lega con indice);
-  anagrafe e archivio in sola lettura dal server.
+  anagrafe e archivio in sola lettura dal server. All'avvio la lega aperta
+  si controlla con gli stessi campi dell'import, ma senza i limiti del
+  server (nome vuoto, numero di gironi e regole fuori limite si tengono: si
+  correggono dall'app): le tappe con la forma sbagliata non si caricano e un
+  avviso dice quali, perché e che alla prossima modifica della lega saranno
+  cancellate per sempre dal browser; una lega illeggibile non si apre e si
+  può eliminare dall'elenco delle leghe. Se il browser rifiuta una scrittura
+  dei dati (spazio esaurito) la modifica resta in memoria e una barra avvisa
+  che non è salvata (esportare la lega o eliminarne altre libera spazio);
+  ricordare la lega aperta per la prossima visita è solo una comodità, e se
+  non si scrive non si dice niente. L'avviso sparisce
+  quando torna a riuscire una scrittura che contiene la lega aperta (non
+  basta l'indice, scritto eliminando un'altra lega: le modifiche della lega
+  aperta potrebbero essere ancora solo in memoria) o quando la lega aperta
+  viene eliminata. La X chiude il testo dell'avviso ma non la protezione:
+  finché le modifiche restano solo in memoria, aprire, creare o importare
+  un'altra lega prova prima a salvare quella aperta (se riesce l'avviso
+  sparisce e si procede, se no non cambia niente e un messaggio dice di
+  esportarla o di liberare spazio: le modifiche non si perdono in silenzio)
+  e «Esci» chiede conferma («Uscire senza salvare?»). Creare o
+  importare una lega senza spazio non crea niente (dati e indice entrano
+  insieme, o nessuno dei due) e il messaggio dice «spazio esaurito». Un
+  messaggio analogo compare nel modulo d'accesso se il JWT non si può
+  scrivere dopo una registrazione o un accesso. La lega aperta per ultima ha
+  una chiave nel browser per l'ospite e una per il registrato: passando da
+  una modalità all'altra non si cancellano a vicenda.
 - Anagrafe in cache nello store (useAnagrafeStore): scaricata una volta e
   aggiornata a ogni scrittura, non a ogni apertura di pagina; le modifiche
-  di altri utenti si vedono ricaricando la pagina.
+  di altri utenti si vedono ricaricando la pagina; fanno eccezione le voci
+  che l'app trova sul server per conto suo (la ricerca per nome di una
+  squadra, la verifica di una tappa con squadre collegate), che entrano in
+  cache. La cache si svuota quando cambia chi la guarda: accesso,
+  registrazione, uscita (anche dell'ospite) e accesso o uscita in un'altra
+  scheda del browser (il token compare o sparisce nel localStorage); le
+  pagine aperte la riscaricano da sole, e la risposta di una richiesta
+  partita prima del cambio si scarta quando arriva, così la forma pubblica
+  non finisce nella cache di chi ha appena fatto l'accesso.
+- Errori visibili: una pagina che non si riesce a disegnare mostra un
+  messaggio con «Ricarica» e il resto dell'app resta usabile; anagrafe e
+  archivio che non si caricano dicono perché e offrono «Riprova» (mai un
+  elenco vuoto al posto dell'errore); la pagina pubblica di una tappa dice
+  «non trovata» solo per un 404, per gli altri errori mostra il motivo con
+  «Riprova»; creare, aprire ed eliminare una lega e i form e le modali
+  dell'anagrafe mostrano il motivo del rifiuto, tengono ciò che l'utente ha
+  scritto e disattivano i pulsanti durante l'invio; se una squadra di tappa
+  non si riesce a collegare all'anagrafe il motivo compare sotto il suo nome,
+  con «Riprova».
+- Conferme: ciò che fa perdere qualcosa apre una finestra che lo dice, con i
+  numeri veri («Verranno eliminati il sorteggio e 12 risultati.»). Sempre:
+  elimina tappa, elimina bracket, elimina lega, eliminazioni dell'anagrafe
+  (dalla card e dalla scheda). Quando si perde qualcosa: nuovo sorteggio e
+  cambio del numero di gironi o delle squadre con dei risultati registrati;
+  rimuovi squadra con un nome scritto, dei giocatori o dei risultati nella
+  tappa (una squadra appena aggiunta si toglie subito); riapri una tappa
+  pubblicata. «Annulla», Esc e la X non cambiano niente. Per i lettori di
+  schermo la finestra di conferma è un avviso che chiede una decisione
+  (ruolo alertdialog), non una finestra qualsiasi.
+- Finestre e tastiera: le finestre (schede, conferme, timer) stanno in una
+  pila. Il focus entra nella finestra all'apertura e torna, alla chiusura, a
+  ciò che l'aveva aperta, se c'è ancora (dopo «Elimina» e «Conferma» la voce
+  eliminata non c'è più, e il focus va su body); Tab e Maiusc+Tab restano
+  dentro la finestra in primo piano; Esc chiude solo quella (la conferma sopra
+  una scheda, poi la scheda), e tenuto premuto ne chiude una sola. Il Coach AI
+  si chiude con Esc solo se nessuna finestra gli sta sopra. Le schede
+  dell'anagrafe (giocatore e squadra) e quella di una squadra dell'archivio si
+  aprono con il focus sul blocco dei dati, con l'anello visibile da tastiera, e
+  non sul primo collegamento (il profilo, il logo, il sito). Una squadra senza
+  dati (nell'anagrafe né città, anno, referente, sito, Instagram, note né
+  roster; nell'archivio né giocatori, logo o collegamenti) non ha il blocco: il
+  focus va al primo elemento raggiungibile o, se non c'è, alla finestra stessa,
+  anche lì con l'anello da tastiera.
+  Premuto «Modifica» il focus va al primo campo del form, e uscendone con
+  «Annulla» o con un salvataggio riuscito torna a «Modifica». Nel timer il
+  focus passa all'esito a partita decisa (vedi la sezione 7).
+- Pulsanti: le classi passate a un pulsante vincono sempre su quelle della
+  sua variante (tailwind-merge). Per chi usa il dito (schermi sotto i 640 px e
+  puntatori grossolani: telefoni anche in orizzontale, tablet) tutti i
+  pulsanti fatti con Button (collegamenti compresi), quelli con la sola icona
+  (X, cestini) e «Scheda», «Profilo» ed «Esci» hanno un'area di tocco di
+  almeno 44×44 px, senza cambiare la grandezza dell'icona o del testo. Restano
+  come erano le voci della navigazione, le schede dell'anagrafe (Giocatori,
+  Squadre, Statistiche) e i nomi delle card. Con il mouse l'aspetto è lo
+  stesso di sempre.
 - Operazioni di tappa (sorteggio, risultati, fasi dirette, conclusione) come
   funzioni pure in src/domain/tappaOps.ts: le stesse per l'interfaccia e per
   il Coach AI, coperte da test unitari.

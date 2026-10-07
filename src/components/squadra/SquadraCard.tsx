@@ -8,19 +8,22 @@ import { Icon } from "../ui/Icon";
 import { useConfermaPerdita } from "../../hooks/useConfermaPerdita";
 import type { useTappa } from "../../hooks/useTappa";
 
-export function SquadraCard({ s, index, h, onNameCommit }: {
+export function SquadraCard({ s, index, h, erroreAnagrafe, onNameCommit }: {
   s: SquadraTappa;
   index: number;
   h: ReturnType<typeof useTappa>;
-  /** Chiamato onBlur del nome: collega o crea la squadra nell'anagrafe */
+  /** Perché l'ultimo collegamento all'anagrafe non è riuscito: compare sotto il nome, con «Riprova» */
+  erroreAnagrafe?: string | null;
+  /** Chiamato onBlur del nome (e da «Riprova»): collega o crea la squadra nell'anagrafe */
   onNameCommit?: (nome: string) => void;
 }) {
   const ok = h.teamComplete(s.id);
   const linked = !!s.regId; // collegata all'anagrafe
   const small = "h-8 py-0 text-[13px]";
-  // Togliere una squadra azzera il sorteggio: con risultati registrati si chiede prima conferma.
+  // Togliere una squadra cancella ciò che vi è stato scritto (nome, giocatori) e azzera il sorteggio: si chiede prima conferma,
+  // tranne per una squadra appena aggiunta e vuota, che si toglie subito.
   // Il rifiuto di removeTeam non serve mostrarlo: il pulsante c'è solo con più di 2 squadre.
-  const { chiedi, finestra } = useConfermaPerdita(h.perditaRisultati);
+  const { chiedi, finestra } = useConfermaPerdita(() => h.perditaSquadra(s.id));
 
   return (
     <div className={`rounded border bg-asphalt-900 p-3 ${ok ? "border-asphalt-700" : "border-loss/60"}`}>
@@ -42,6 +45,12 @@ export function SquadraCard({ s, index, h, onNameCommit }: {
           onChange={linked ? undefined : (e) => h.renameTeam(s.id, e.target.value)}
           onBlur={linked ? undefined : () => onNameCommit?.(s.nome)} />
       </label>
+      {erroreAnagrafe && !linked && (
+        <div className="mt-1.5" role="alert">
+          <p className="m-0 text-[12px] font-semibold text-loss">{erroreAnagrafe}</p>
+          <Button variant="link" onClick={() => onNameCommit?.(s.nome)}>Riprova</Button>
+        </div>
+      )}
 
       {/* Logo, rank, sito: visibili e modificabili solo se non collegata all'anagrafe.
           Se collegata, questi dati vengono dall'anagrafe e si modificano lì. */}

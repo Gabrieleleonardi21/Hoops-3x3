@@ -17,6 +17,7 @@ import { LEADER_CATS } from "../constants/rules";
 import { useAppStore } from "../stores/useAppStore";
 import { standings } from "../utils/standings";
 import { tappaLeaders } from "../utils/tappaLeaders";
+import { ultimoRisultato } from "../utils/ultimoRisultato";
 import type { Tappa } from "../types";
 
 /** Tappa "in corso": la più recente non conclusa con gironi sorteggiati, altrimenti l'ultima creata */
@@ -46,7 +47,7 @@ export function HomePage() {
   }, [t]);
   const rows = t?.gironi && gi >= 0 ? standings(t.gironi[gi], t.partite.filter((m) => m.g === gi), nameOf) : [];
   const prossime = (t?.partite ?? []).filter((m) => !m.done).slice(0, 3);
-  const ultima = (t?.partite ?? []).filter((m) => m.done).at(-1) ?? null;
+  const ultima = ultimoRisultato(t?.partite ?? []);
   const live = !!t && !t.conclusa && !!t.gironi && t.partite.some((m) => m.done) && t.partite.some((m) => !m.done);
   const leaders = t ? tappaLeaders(t) : [];
 

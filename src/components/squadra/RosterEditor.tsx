@@ -17,7 +17,7 @@ export function RosterEditor({ giocatori, onAdd, onRename, onRemove }: Props) {
         <div key={p.id} className="flex items-center gap-1.5">
           <input className="statin h-8 py-0 text-[13px]" placeholder={`Giocatore ${pi + 1}`} value={p.nome}
             onChange={(e) => onRename(p.id, e.target.value)} aria-label={`Nome giocatore ${pi + 1}`} />
-          <button onClick={() => onRemove(p.id)} className="p-1 text-chalk-dim hover:text-loss" aria-label="Rimuovi giocatore">
+          <button onClick={() => onRemove(p.id)} className="area-tocco p-1 text-chalk-dim hover:text-loss" aria-label="Rimuovi giocatore">
             <Icon name="close" size={14} />
           </button>
         </div>

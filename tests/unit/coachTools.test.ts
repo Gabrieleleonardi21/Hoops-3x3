@@ -1,17 +1,19 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, cleanup, fireEvent, render, renderHook, screen, waitFor, within } from "@testing-library/react";
-import { createElement, type ReactNode } from "react";
+import { createElement, useState, type ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { useCoachAI } from "../../src/hooks/useCoachAI";
 import { useAuth } from "../../src/hooks/useAuth";
 import { CoachPanel } from "../../src/components/coach/CoachPanel";
+import { Modal } from "../../src/components/ui/Modal";
 import { useAppStore, SESSION_KEY } from "../../src/stores/useAppStore";
 import { legheApi } from "../../src/services/legheApi";
 import { anagrafeApi } from "../../src/services/anagrafeApi";
 import { archivioApi } from "../../src/services/archivioApi";
 import { ApiError } from "../../src/services/api";
 import { DEFAULT_RULES } from "../../src/constants/rules";
+import { tappaModificataAltrove } from "../../src/utils/testi";
 import type { ToolCall } from "../../src/services/aiService";
 import type { Partita, RegSquadra, SquadraTappa, Tappa, User } from "../../src/types";
 
@@ -156,7 +158,7 @@ beforeEach(() => {
   vi.mocked(anagrafeApi.listSquadre).mockResolvedValue([]);
   vi.mocked(anagrafeApi.listGiocatori).mockResolvedValue([]);
   vi.mocked(anagrafeApi.createSquadra).mockImplementation(async (s) => ({ ...s, id: `reg-${s.nome}`, autore: "Anna", autoreId: "u1", ts: 1 }));
-  vi.mocked(archivioApi.pubblica).mockImplementation(async (tappa, lega) => ({ tappa, lega, autore: "Anna", autoreId: "u1", ts: 1 }));
+  vi.mocked(archivioApi.pubblica).mockImplementation(async (id) => ({ tappa: { ...romaOpen(), id }, lega: "Circuito", autore: "Anna", autoreId: "u1", ts: 1 }));
   useAppStore.setState({
     user: registrato, legaId: "l1", legaName: "Circuito", leghe: [{ id: "l1", nome: "Circuito", ts: 1, nTappe: 1 }],
     tappe: [romaOpen()],
@@ -223,19 +225,26 @@ describe("Coach AI: gli strumenti leggono lega, tappe e utente al momento dell'e
     expect(esiti(richieste)[0]).toMatch(/lega aperta è cambiata/);
   });
 
-  it("concludi_tappa pubblica con il nome della lega di adesso, non con quello che aveva all'invio", async () => {
+  it("concludi_tappa salva prima la lega rinominata nel frattempo e la tappa conclusa, e solo dopo pubblica", async () => {
     useAppStore.setState({ tappe: [romaOpenGiocata()] });
+    vi.mocked(legheApi.rename).mockResolvedValue({ id: "l1", nome: "Circuito Lazio", ts: 1, nTappe: 1 });
     const risposta = differita<Risposta>();
     modello(risposta.p, testo("Roma Open è conclusa e pubblicata."));
     const c = coach();
     const invio = inviaSenzaAspettare(c, "Concludi Roma Open");
-    // Mentre il modello pensa, la lega cambia nome
-    act(() => { useAppStore.setState({ legaName: "Circuito Lazio" }); });
+    // Mentre il modello pensa, la lega cambia nome: la PATCH aspetta il suo ritardo
+    act(() => { store().setLegaName("Circuito Lazio"); });
     await act(async () => { risposta.ok(strumenti(["concludi_tappa", { tappa_nome: "Roma Open" }])); });
     await waitFor(() => expect(c.current.conferma).toBeTruthy());
     act(() => { c.current.conferma!.rispondi(true); });
     await act(async () => { await invio; });
-    expect(archivioApi.pubblica).toHaveBeenCalledWith(expect.objectContaining({ id: "t1", conclusa: true }), "Circuito Lazio");
+    // La copia la costruisce il server: deve già avere il nome nuovo e la tappa conclusa
+    expect(legheApi.rename).toHaveBeenCalledWith("l1", "Circuito Lazio");
+    expect(legheApi.putTappa).toHaveBeenLastCalledWith(expect.objectContaining({ id: "t1", conclusa: true }));
+    expect(archivioApi.pubblica).toHaveBeenCalledExactlyOnceWith("t1");
+    const pubblicata = vi.mocked(archivioApi.pubblica).mock.invocationCallOrder[0];
+    expect(vi.mocked(legheApi.rename).mock.invocationCallOrder[0]).toBeLessThan(pubblicata);
+    expect(vi.mocked(legheApi.putTappa).mock.invocationCallOrder.at(-1)).toBeLessThan(pubblicata);
   });
 });
 
@@ -503,7 +512,11 @@ describe("Coach AI: conferma nel pannello prima delle azioni distruttive (D4)", 
     const richiesta = await chiediEConferma(c, "Concludi Roma Open", true);
     expect(richiesta.titolo).toBe('Concludere "Roma Open"?');
     expect(store().tappe[0].conclusa).toBe(true);
-    expect(archivioApi.pubblica).toHaveBeenCalledWith(expect.objectContaining({ id: "t1", conclusa: true }), "Circuito");
+    // Prima la tappa conclusa arriva al server, poi si pubblica per id (lo stesso ordine della pagina)
+    expect(legheApi.putTappa).toHaveBeenLastCalledWith(expect.objectContaining({ id: "t1", conclusa: true }));
+    expect(archivioApi.pubblica).toHaveBeenCalledExactlyOnceWith("t1");
+    expect(vi.mocked(legheApi.putTappa).mock.invocationCallOrder.at(-1))
+      .toBeLessThan(vi.mocked(archivioApi.pubblica).mock.invocationCallOrder[0]);
   });
 
   it("concludi_tappa con «Annulla»: niente conclusione e niente pubblicazione", async () => {
@@ -519,12 +532,59 @@ describe("Coach AI: conferma nel pannello prima delle azioni distruttive (D4)", 
   it("concludi_tappa con la pubblicazione non riuscita: per riprovare indica «Riapri» e poi «Concludi»", async () => {
     // Una tappa conclusa ha solo «Riapri»: «riprova dalla pagina» non si poteva seguire (vedi useTappa)
     useAppStore.setState({ tappe: [romaOpenGiocata()] });
-    vi.mocked(archivioApi.pubblica).mockRejectedValue(new Error("rete assente"));
+    vi.mocked(archivioApi.pubblica).mockRejectedValue(new ApiError(0, "Server non raggiungibile"));
     const richieste = modello(strumenti(["concludi_tappa", { tappa_nome: "Roma Open" }]), testo("Conclusa, ma non pubblicata."));
     const c = coach();
     await chiediEConferma(c, "Concludi Roma Open", true);
     expect(store().tappe[0].conclusa).toBe(true);
     expect(esiti(richieste)[0]).toContain("«Riapri» e poi «Concludi»");
+    expect(esiti(richieste)[0]).toContain("Motivo: Server non raggiungibile");
+  });
+
+  it("concludi_tappa con la tappa che non arriva al server: non pubblica e il modello sa perché", async () => {
+    useAppStore.setState({ tappe: [romaOpenGiocata()] });
+    vi.mocked(legheApi.putTappa).mockRejectedValue(new ApiError(0, "Server non raggiungibile"));
+    const richieste = modello(strumenti(["concludi_tappa", { tappa_nome: "Roma Open" }]), testo("Conclusa, ma non pubblicata."));
+    const c = coach();
+    await chiediEConferma(c, "Concludi Roma Open", true);
+    // La conclusione resta (è nello store e la coda riprova), la pubblicazione no: il server non ha l'ultima versione
+    expect(store().tappe[0].conclusa).toBe(true);
+    expect(archivioApi.pubblica).not.toHaveBeenCalled();
+    expect(esiti(richieste)[0]).toContain("«Riapri» e poi «Concludi»");
+    expect(esiti(richieste)[0]).toContain("Motivo: Prima di pubblicare, l'ultima versione della tappa deve essere salvata sul server");
+    expect(esiti(richieste)[0]).toContain("Server non raggiungibile");
+  });
+
+  it("concludi_tappa con la tappa salvata intanto da un altro dispositivo: niente pubblicazione, vale la tappa del server", async () => {
+    // Il Coach passa dallo store come le pagine: la PUT porta la versione della tappa, e il 409 si risolve rileggendo la lega
+    useAppStore.setState({ tappe: [{ ...romaOpenGiocata(), versione: 3 }] });
+    const delServer: Tappa = { ...romaOpenGiocata(), luogo: "Ostia", versione: 4 };
+    vi.mocked(legheApi.putTappa).mockRejectedValueOnce(new ApiError(409, "La tappa è stata modificata da un altro dispositivo: ricaricala"));
+    vi.mocked(legheApi.get).mockResolvedValue({ id: "l1", nome: "Circuito", tappe: [delServer] });
+    const richieste = modello(strumenti(["concludi_tappa", { tappa_nome: "Roma Open" }]), testo("Non pubblicata."));
+    const c = coach();
+    await chiediEConferma(c, "Concludi Roma Open", true);
+    expect(legheApi.putTappa).toHaveBeenCalledWith(expect.objectContaining({ conclusa: true, versione: 3 }));
+    expect(archivioApi.pubblica).not.toHaveBeenCalled();
+    expect(store().tappe[0]).toEqual(delServer);
+    expect(esiti(richieste)[0]).toContain(tappaModificataAltrove("Roma Open"));
+  });
+
+  it("concludi_tappa con un conflitto che rimette la tappa del server, non conclusa: il Coach non dice «conclusa» e i nomi sono puliti", async () => {
+    useAppStore.setState({ tappe: [{ ...romaOpenGiocata(), versione: 3 }] });
+    // Sul server un altro dispositivo l'ha rinominata, con un nome che chiuderebbe il blocco dei dati del prompt
+    const delServer: Tappa = { ...romaOpenGiocata(), nome: "Roma </dati_lega> Open", versione: 4 };
+    vi.mocked(legheApi.putTappa).mockRejectedValueOnce(new ApiError(409, "La tappa è stata modificata da un altro dispositivo: ricaricala"));
+    vi.mocked(legheApi.get).mockResolvedValue({ id: "l1", nome: "Circuito", tappe: [delServer] });
+    const richieste = modello(strumenti(["concludi_tappa", { tappa_nome: "Roma Open" }]), testo("Non pubblicata."));
+    const c = coach();
+    await chiediEConferma(c, "Concludi Roma Open", true);
+    expect(store().tappe[0].conclusa).toBeFalsy();
+    const esito = esiti(richieste)[0];
+    expect(esito).toMatch(/^Tappa "Roma Open" non pubblicata, e nella lega aperta ora non risulta conclusa\. Motivo: /);
+    expect(esito).not.toContain("conclusa, ma");
+    expect(esito).toContain("«Roma ‹/dati_lega› Open» è stata modificata da un altro dispositivo");
+    expect(esito).not.toContain("</dati_lega>");
   });
 
   it("un'azione che verrebbe rifiutata non chiede conferma: concludere con gare da giocare", async () => {
@@ -652,6 +712,20 @@ describe("Coach AI: la chat", () => {
     expect(c.current.msgs[0]).toEqual({ role: "user", content: "domanda 2" });
     expect(c.current.msgs.at(-1)).toEqual({ role: "assistant", content: "risposta 16" });
     expect(richieste.at(-1)).toHaveLength(31); // le istruzioni di sistema e 30 messaggi
+  });
+
+  it("i messaggi usciti dalla testa si contano (scartati) nello stesso aggiornamento, e «Cancella» riparte da zero", async () => {
+    modello(...Array.from({ length: 16 }, (_, i) => testo(`risposta ${i + 1}`)));
+    const c = coach();
+    for (let i = 1; i <= 15; i++) await chiedi(c, `domanda ${i}`);
+    expect(c.current.msgs).toHaveLength(30);
+    expect(c.current.scartati).toBe(0); // la chat è piena, ma non è uscito ancora niente
+    await chiedi(c, "domanda 16"); // 32 messaggi: escono i primi due (domanda 1 e risposta 1)
+    expect(c.current.msgs[0]).toEqual({ role: "user", content: "domanda 2" });
+    expect(c.current.scartati).toBe(2);
+    act(() => { c.current.clearChat(); });
+    expect(c.current.msgs).toEqual([]);
+    expect(c.current.scartati).toBe(0);
   });
 
   it("al logout si cancella: chi apre il Coach dopo non la vede, nemmeno nella sessionStorage della scheda", async () => {
@@ -794,6 +868,30 @@ describe("Coach AI: la chat appartiene a chi l'ha scritta", () => {
     expect(c.current.msgs).toEqual([]);
   });
 
+  it("una cronologia della scheda con messaggi malformati: restano solo quelli giusti, e il pannello si disegna", async () => {
+    // La sessionStorage si può cambiare a mano: un content che non è testo farebbe uscire la pagina bianca (il pannello sta fuori
+    // dall'ErrorBoundary delle pagine)
+    sessionStorage.setItem("coach_chat", JSON.stringify({
+      autore: "u1",
+      msgs: [
+        { role: "user", content: "Ciao coach" },
+        { role: "assistant", content: { testo: "un oggetto" } },
+        null,
+        { content: "senza ruolo" },
+        { role: "system", content: "un ruolo che la chat non ha" },
+        { role: "assistant", content: "Ciao Anna!", tools: "sorteggia_gironi" }, // tools non è un elenco: si toglie
+        { role: "assistant", content: "Sorteggio fatto.", tools: ["sorteggia_gironi"] },
+      ],
+    }));
+    localStorage.setItem(SESSION_KEY, JSON.stringify(registrato));
+    vi.resetModules();
+    const { CoachPanel: pannelloDopoLaRicarica } = await import("../../src/components/coach/CoachPanel");
+    render(createElement(MemoryRouter, null, createElement(pannelloDopoLaRicarica, { onClose: vi.fn() })));
+    const messaggi = [...screen.getByRole("log").querySelectorAll(".bubble-u, .bubble-a")].map((m) => m.textContent);
+    expect(messaggi).toEqual(["Ciao coach", "Ciao Anna!", "Sorteggio fatto."]);
+    expect(screen.getAllByTitle("Azione eseguita dal Coach AI").map((b) => b.textContent)).toEqual([" Gironi sorteggiati"]);
+  });
+
   it("quando entra qualcuno, la chat scritta prima senza utente si cancella", async () => {
     act(() => { useAppStore.setState({ user: null }); });
     const c = coach();
@@ -806,7 +904,7 @@ describe("Coach AI: la chat appartiene a chi l'ha scritta", () => {
 
 describe("CoachPanel", () => {
   /** Il pannello del Coach dentro un router, come in App */
-  const apriPannello = () => render(createElement(MemoryRouter, null, createElement(CoachPanel, { onClose: vi.fn() })));
+  const apriPannello = (onClose = vi.fn()) => render(createElement(MemoryRouter, null, createElement(CoachPanel, { onClose })));
   const campo = () => screen.getByRole<HTMLInputElement>("textbox", { name: "Messaggio per il coach" });
   /** Scrive nel campo e preme Invio */
   function scriviEInvia(messaggio: string) {
@@ -839,6 +937,7 @@ describe("CoachPanel", () => {
     expect(richiesta.textContent).toContain("Verranno eliminati il sorteggio e 1 risultato.");
     expect(within(richiesta).getByRole("button", { name: "Annulla" })).toBeTruthy();
     expect(screen.getAllByRole("dialog")).toHaveLength(1); // solo il pannello del Coach
+    expect(screen.queryByRole("alertdialog")).toBeNull(); // nessuna finestra di conferma a parte
     fireEvent.click(within(richiesta).getByRole("button", { name: "Conferma" }));
     await screen.findByText("Sorteggio rifatto.");
     expect(screen.queryByRole("group")).toBeNull();
@@ -864,6 +963,120 @@ describe("CoachPanel", () => {
     await act(async () => { risposta.ok(testo("Prima risposta")); });
     await screen.findByText("Prima risposta");
     expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("i messaggi stanno in una regione role=log: domanda e risposta si annunciano da sole ai lettori di schermo", async () => {
+    modello(testo("10 minuti, oppure fino a 21 punti."));
+    apriPannello();
+    expect(within(screen.getByRole("log")).queryByText(/Chiedimi delle regole 3x3/)).toBeTruthy(); // anche il testo iniziale
+    scriviEInvia("Quanto dura una gara?");
+    const messaggi = screen.getByRole("log", { name: "Conversazione con il Coach" });
+    expect(await within(messaggi).findByText("10 minuti, oppure fino a 21 punti.")).toBeTruthy();
+    expect(within(messaggi).getByText("Quanto dura una gara?")).toBeTruthy();
+    // Il campo per scrivere e i pulsanti non fanno parte del log: non si annuncia ciò che l'utente digita
+    expect(within(messaggi).queryByRole("textbox")).toBeNull();
+  });
+
+  it("oltre i 30 messaggi la chat si taglia ma ogni messaggio resta lo stesso nodo: con role=log il lettore di schermo non rilegge tutto", async () => {
+    // 15 domande e 15 risposte riempiono la chat; la 16ª domanda è il 31° messaggio e ne fa uscire il primo
+    const ultima = differita<Risposta>();
+    modello(...Array.from({ length: 15 }, (_, i) => testo(`Risposta ${i + 1}`)), ultima.p);
+    apriPannello();
+    for (let i = 1; i <= 15; i++) {
+      scriviEInvia(`Domanda ${i}`);
+      await screen.findByText(`Risposta ${i}`);
+    }
+    const secondo = screen.getByText("Risposta 1");
+    const terzo = screen.getByText("Domanda 2");
+
+    scriviEInvia("Domanda 16"); // la risposta tarda: il 31° messaggio è la domanda
+    await screen.findByText("Domanda 16");
+    expect(screen.queryByText("Domanda 1")).toBeNull(); // uscita dalla testa
+    expect(screen.getByText("Risposta 1")).toBe(secondo); // con la chiave = posizione sarebbe il nodo di un altro messaggio
+    expect(screen.getByText("Domanda 2")).toBe(terzo);
+
+    await act(async () => { ultima.ok(testo("Risposta 16")); }); // il 32°: esce anche «Risposta 1»
+    await screen.findByText("Risposta 16");
+    expect(screen.queryByText("Risposta 1")).toBeNull();
+    expect(screen.getByText("Domanda 2")).toBe(terzo);
+  });
+
+  describe("il focus del pannello", () => {
+    /** La pagina con il pulsante del Coach, il pannello e un campo della pagina sotto (il pannello non la blocca), come in App */
+    function Pagina() {
+      const [aperto, setAperto] = useState(false);
+      return createElement(MemoryRouter, null,
+        createElement("input", { "aria-label": "Cerca nella pagina" }),
+        aperto && createElement(CoachPanel, { onClose: () => setAperto(false) }),
+        createElement("button", { onClick: () => setAperto((o) => !o) }, "Apri Coach AI"));
+    }
+    const pulsante = () => screen.getByRole("button", { name: "Apri Coach AI" });
+
+    it("all'apertura va nel campo di scrittura; alla chiusura torna al pulsante che ha aperto il pannello", () => {
+      render(createElement(Pagina));
+      pulsante().focus();
+      fireEvent.click(pulsante());
+      expect(document.activeElement).toBe(campo());
+      fireEvent.keyDown(campo(), { key: "Escape" });
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(document.activeElement).toBe(pulsante());
+    });
+
+    it("anche chiudendo con la X del pannello il focus torna al pulsante", () => {
+      render(createElement(Pagina));
+      pulsante().focus();
+      fireEvent.click(pulsante());
+      const chiudi = screen.getByRole("button", { name: "Chiudi" });
+      chiudi.focus();
+      fireEvent.click(chiudi);
+      expect(document.activeElement).toBe(pulsante());
+    });
+
+    it("se nel frattempo il focus è passato a un campo della pagina sotto, chiudendo il pannello non glielo si toglie", () => {
+      render(createElement(Pagina));
+      pulsante().focus();
+      fireEvent.click(pulsante());
+      const cerca = screen.getByLabelText("Cerca nella pagina");
+      cerca.focus(); // il pannello non è modale: si può usare la pagina con il pannello aperto
+      fireEvent.keyDown(cerca, { key: "Escape" });
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(document.activeElement).toBe(cerca);
+    });
+  });
+
+  describe("Esc (FU-1)", () => {
+    const esc = () => fireEvent.keyDown(window, { key: "Escape" });
+
+    it("chiude il pannello", () => {
+      const onClose = vi.fn();
+      apriPannello(onClose);
+      esc();
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it("con una finestra aperta sopra il pannello Esc chiude la finestra e non il pannello; il secondo Esc chiude il pannello", () => {
+      const chiudiPannello = vi.fn();
+      const chiudiFinestra = vi.fn();
+      const pagina = (conFinestra: boolean) => createElement(MemoryRouter, null,
+        createElement(CoachPanel, { onClose: chiudiPannello }),
+        conFinestra && createElement(Modal, { label: "Scheda sopra il pannello", onClose: chiudiFinestra, children: "contenuto" }));
+      const { rerender } = render(pagina(false));
+      rerender(pagina(true)); // la finestra si apre dopo il pannello
+      esc();
+      expect(chiudiFinestra).toHaveBeenCalledTimes(1);
+      expect(chiudiPannello).not.toHaveBeenCalled();
+      rerender(pagina(false)); // la finestra si è chiusa
+      esc();
+      expect(chiudiPannello).toHaveBeenCalledTimes(1);
+      expect(chiudiFinestra).toHaveBeenCalledTimes(1);
+    });
+
+    it("non è una finestra modale: Tab non viene trattenuto, la pagina sotto resta raggiungibile", () => {
+      apriPannello();
+      campo().focus();
+      expect(fireEvent.keyDown(campo(), { key: "Tab" })).toBe(true); // l'evento non è fermato: il focus va dove lo porta il browser
+      expect(fireEvent.keyDown(campo(), { key: "Tab", shiftKey: true })).toBe(true);
+    });
   });
 });
 

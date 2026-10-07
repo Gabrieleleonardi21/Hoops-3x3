@@ -107,6 +107,20 @@ describe("buildBracket (fase a eliminazione diretta)", () => {
     const b = buildBracket(t.gironi, t.partite, t.squadre);
     expect(new Set(b.map((m) => m.id)).size).toBe(b.length);
   });
+
+  it("le qualificate seguono gli scontri diretti: a pari vittorie passa chi ha vinto la partita diretta", () => {
+    // Girone A completo da 4: a e b hanno 2 vittorie; a ha battuto b ma ha segnato meno (52 contro 62), e prima passava b
+    const gara = (g: number, a: string, b: string, sa: number, sb: number): Partita => ({ id: a + b, g, a, b, sa, sb, done: true });
+    const partite = [
+      gara(0, "a", "b", 21, 20), gara(0, "a", "c", 21, 19), gara(0, "d", "a", 21, 10),
+      gara(0, "b", "c", 21, 2), gara(0, "b", "d", 21, 5), gara(0, "c", "d", 21, 18),
+      gara(1, "e", "f", 21, 10),
+    ];
+    const gironi = [["a", "b", "c", "d"], ["e", "f"]];
+    // Una sola qualificata per girone: la finale è tra le due prime
+    const b = buildBracket(gironi, partite, gironi.flat().map(sq), 1);
+    expect(new Set(inGara(b))).toEqual(new Set(["a", "e"]));
+  });
 });
 
 describe("nextBracketSlot (avanzamento per posizione)", () => {

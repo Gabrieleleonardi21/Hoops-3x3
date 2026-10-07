@@ -1,15 +1,17 @@
 /** Radice dell'applicazione: configura il router e inserisce Coach AI (FAB + pannello)
  *  fuori dal flusso di pagine così resta visibile su tutte le rotte. */
-import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useAppStore } from "./stores/useAppStore";
+import { useAnagrafeStore } from "./stores/useAnagrafeStore";
 import { useAuth, saveSession } from "./hooks/useAuth";
 import * as authService from "./services/authService";
-import { avviaRinnovoAutomatico, suSessioneFinita } from "./services/api";
+import { avviaRinnovoAutomatico, suSessioneCambiataAltrove, suSessioneFinita } from "./services/api";
 import { Header } from "./components/layout/Header";
 import { SyncBanner } from "./components/layout/SyncBanner";
 import { Loading } from "./components/ui/Loading";
-import { Button } from "./components/ui/Button";
+import { ErrorBoundary } from "./components/ui/ErrorBoundary";
+import { ErroreCaricamento } from "./components/ui/ErroreCaricamento";
 import { CoachFAB } from "./components/coach/CoachFAB";
 import { CoachPanel } from "./components/coach/CoachPanel";
 import { HomePage } from "./pages/HomePage";
@@ -36,6 +38,8 @@ function messaggioFineSessione(nonSalvate: number): string {
 /** Sessione dell'utente registrato, per tutta la vita della pagina:
  *  - fine della sessione (rinnovo respinto, token cancellato da un'altra scheda, sessione scaduta all'avvio): uscita
  *    senza conferma, perché salvare non è più possibile, e ritorno al form con il messaggio;
+ *  - accesso o uscita in un'altra scheda (il token compare o sparisce): la cache dell'anagrafe si svuota, perché le richieste di
+ *    questa scheda cambiano insieme al token e con esse la forma dei dati (personali solo con un account);
  *  - rinnovo automatico del JWT finché c'è un utente registrato, fermato all'uscita;
  *  - verifica della sessione all'avvio (verifica).
  *  @returns `nonVerificata` = la verifica all'avvio non ha avuto risposta dal server; `riprova` la ripete */
@@ -83,6 +87,7 @@ function useSessione() {
   // Effect Event: il gestore registrato una volta sola usa sempre il logout e la navigate più recenti
   const alFineSessione = useEffectEvent(() => { void fineSessione(); });
   useEffect(() => suSessioneFinita(() => alFineSessione()), []);
+  useEffect(() => suSessioneCambiataAltrove(() => useAnagrafeStore.getState().svuota()), []);
 
   useEffect(() => {
     if (!registrato) return;
@@ -101,33 +106,35 @@ function useSessione() {
 /** Avviso all'avvio quando il server non risponde: la sessione resta aperta e «Riprova» ripete la verifica */
 function AvvisoServer({ onRiprova }: { onRiprova: () => void }) {
   return (
-    <div role="alert" className="rounded border border-loss/40 bg-loss/10 p-4 text-[13px] text-chalk">
-      <p className="m-0 font-semibold">Server non raggiungibile: non è stato possibile caricare le tue leghe.</p>
-      <p className="mt-1 mb-3 text-chalk-muted">La sessione resta aperta: riprova quando la connessione torna.</p>
-      <Button size="sm" onClick={onRiprova}>Riprova</Button>
-    </div>
+    <ErroreCaricamento cosa="Server non raggiungibile: non è stato possibile caricare le tue leghe."
+      motivo="La sessione resta aperta: riprova quando la connessione torna." onRiprova={onRiprova} />
   );
 }
 
-/** Contenuto della pagina. Sta dentro il router perché la fine della sessione riporta al form con navigate */
+/** Contenuto della pagina. Sta dentro il router perché la fine della sessione riporta al form con navigate.
+ *  Le pagine stanno dentro un ErrorBoundary: se una non si riesce a disegnare compare un messaggio con «Ricarica» e il resto
+ *  dell'app (intestazione, navigazione) resta; cambiando pagina dal menu il messaggio sparisce. */
 function Pagine() {
   const ready = useAppStore((s) => s.ready);
   const { nonVerificata, riprova } = useSessione();
+  const { pathname } = useLocation();
   if (nonVerificata) return <AvvisoServer onRiprova={riprova} />;
   if (!ready) return <Loading>Caricamento delle tue leghe…</Loading>;
   return (
-    <Routes>
-      <Route path="/" element={<HomePage />} />
-      <Route path="/leghe" element={<LegheListPage />} />
-      <Route path="/lega" element={<LegaPage />} />
-      <Route path="/lega/tappa/:id" element={<TappaPage />} />
-      <Route path="/tappa/:id" element={<TappaViewPage />} /> {/* pubblica */}
-      <Route path="/anagrafe" element={<AnagrafePage />} />
-      <Route path="/giocatore/:id" element={<GiocatorePage />} />
-      <Route path="/archivio" element={<ArchivioPage />} />
-      <Route path="/campetti" element={<CampettiPage />} />
-      <Route path="*" element={<NotFoundPage />} />
-    </Routes>
+    <ErrorBoundary resetKey={pathname}>
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/leghe" element={<LegheListPage />} />
+        <Route path="/lega" element={<LegaPage />} />
+        <Route path="/lega/tappa/:id" element={<TappaPage />} />
+        <Route path="/tappa/:id" element={<TappaViewPage />} /> {/* pubblica */}
+        <Route path="/anagrafe" element={<AnagrafePage />} />
+        <Route path="/giocatore/:id" element={<GiocatorePage />} />
+        <Route path="/archivio" element={<ArchivioPage />} />
+        <Route path="/campetti" element={<CampettiPage />} />
+        <Route path="*" element={<NotFoundPage />} />
+      </Routes>
+    </ErrorBoundary>
   );
 }
 

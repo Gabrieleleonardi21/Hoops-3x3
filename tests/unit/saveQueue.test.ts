@@ -123,6 +123,26 @@ describe("saveQueue (salvataggi delle tappe verso il server)", () => {
     expect(salva).not.toHaveBeenCalled();
   });
 
+  it("annulla() restituisce la richiesta in volo, che finisce senza ripartire con le modifiche annullate; senza richiesta, null", async () => {
+    const prima = differita();
+    const salva = vi.fn<(t: Tappa) => Promise<unknown>>().mockReturnValueOnce(prima.p).mockResolvedValue(undefined);
+    const q = nuova(salva);
+    expect(q.annulla("t1")).toBeNull();
+    q.accoda(tappa("t1", "v1"));
+    await vi.advanceTimersByTimeAsync(400);       // v1 in volo
+    q.accoda(tappa("t1", "v2"));
+    const inVolo = q.annulla("t1");
+    expect(inVolo).toBeInstanceOf(Promise);
+    let finita = false;
+    void inVolo!.then(() => { finita = true; });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(finita).toBe(false);                   // chi aspetta (la DELETE della tappa) parte solo alla fine
+    prima.ok();
+    await inVolo;
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(salva.mock.calls.map((c) => c[0].nome)).toEqual(["v1"]);
+  });
+
   it("onInSospeso segue il numero di tappe con modifiche non confermate", async () => {
     const stati: number[] = [];
     const q = createSaveQueue({ salva: async () => undefined, riprovabile: () => false, onErrore: vi.fn(), onInSospeso: (n) => stati.push(n) });

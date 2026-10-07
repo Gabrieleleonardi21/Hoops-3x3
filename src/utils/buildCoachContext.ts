@@ -1,5 +1,5 @@
 import type { Tappa } from "../types";
-import { standings } from "./standings";
+import { giocateConVincitore, standings, vincitore } from "./standings";
 import { tappaLeaders } from "./tappaLeaders";
 
 /** Lunghezza massima di un nome nel contesto */
@@ -11,21 +11,29 @@ const MAX_NOME = 80;
  *  La usano anche i risultati degli strumenti del Coach, che riportano gli stessi nomi.
  *  String(): una tappa salvata da una versione vecchia può non avere tutti i campi. */
 export function pulisci(valore: string): string {
-  return String(valore).replace(/</g, "‹").replace(/>/g, "›").slice(0, MAX_NOME);
+  return senzaTag(valore).slice(0, MAX_NOME);
 }
 
-/** Classifica cumulativa del circuito: aggrega vittorie e partite su tutte le tappe. */
+/** Come pulisci, ma senza accorciare: per un testo lungo che può contenere nomi scritti dagli utenti, come il motivo di un errore
+ *  (un conflitto riporta il nome della tappa salvato sul server) */
+export function senzaTag(valore: string): string {
+  return String(valore).replace(/</g, "‹").replace(/>/g, "›");
+}
+
+/** Classifica cumulativa del circuito: aggrega vittorie e partite su tutte le tappe. Le partite che contano sono
+ *  le stesse della classifica del girone (giocateConVincitore): una in parità non conta per niente. */
 function circuitStandings(tappe: Tappa[]): string {
   const wins: Record<string, { nome: string; v: number; g: number }> = {};
   for (const t of tappe) {
     for (const sq of t.squadre) {
       if (!wins[sq.id]) wins[sq.id] = { nome: sq.nome, v: 0, g: 0 };
     }
-    for (const m of t.partite) {
-      if (!m.done) continue;
-      const vincitore = m.sa > m.sb ? m.a : m.b;
-      const perdente  = m.sa > m.sb ? m.b : m.a;
-      if (wins[vincitore]) { wins[vincitore].v++; wins[vincitore].g++; }
+    for (const m of giocateConVincitore(t.partite)) {
+      const vince = vincitore(m);
+      // la perdente è l'altra squadra della partita
+      let perdente = m.a;
+      if (vince === m.a) perdente = m.b;
+      if (wins[vince]) { wins[vince].v++; wins[vince].g++; }
       if (wins[perdente])  { wins[perdente].g++; }
     }
   }
@@ -52,8 +60,9 @@ export function buildCoachContext(legaName: string, tappe: Tappa[]): string {
     .join("; ");
   lines.push(`Tappe (${tappe.length}): ${tappeResume}`);
 
-  // Classifica cumulativa del circuito (solo se ci sono partite concluse)
-  const tappeConPartite = tappe.filter((t) => t.partite.some((m) => m.done));
+  // Classifica cumulativa del circuito (solo se ci sono partite giocate con un vincitore, come in circuitStandings:
+  // una tappa con sole partite in parità non porterebbe che squadre a zeri)
+  const tappeConPartite = tappe.filter((t) => giocateConVincitore(t.partite).length > 0);
   if (tappeConPartite.length > 0) {
     lines.push(`Classifica circuito: ${circuitStandings(tappeConPartite)}`);
   }

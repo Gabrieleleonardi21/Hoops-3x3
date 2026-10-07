@@ -109,13 +109,16 @@ export function createSaveQueue(opz: Opzioni) {
       return [...voci.values()].every((v) => v.ultima === null);
     },
 
-    /** La tappa è stata eliminata: niente più salvataggi per lei */
-    annulla(id: string) {
+    /** La tappa è stata eliminata, oppure dopo un conflitto valgono i dati del server: niente più salvataggi per le sue
+     *  modifiche in attesa. Una richiesta già in volo finisce da sola, e non riparte con quelle.
+     *  @returns la richiesta in volo, per chi deve aspettarne la fine (la DELETE della tappa); null se non ce n'è */
+    annulla(id: string): Promise<void> | null {
       const v = voci.get(id);
-      if (!v) return;
+      if (!v) return null;
       fermaTimer(v);
       voci.delete(id);
       notifica();
+      return v.inVolo;
     },
 
     /** Versioni non ancora inviate */

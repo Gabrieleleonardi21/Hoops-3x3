@@ -4,10 +4,10 @@ import { askCoachWithTools, AiError, type ChatMsg, type ToolDef } from "../servi
 import { useAppStore, tappaCorrente } from "../stores/useAppStore";
 import { useAnagrafeStore } from "../stores/useAnagrafeStore";
 import { anagrafeApi } from "../services/anagrafeApi";
-import { archivioApi } from "../services/archivioApi";
+import { testoErrore } from "../services/api";
 import { uid } from "../utils/uid";
 import { DEFAULT_RULES } from "../constants/rules";
-import { buildCoachContext, pulisci } from "../utils/buildCoachContext";
+import { buildCoachContext, pulisci, senzaTag } from "../utils/buildCoachContext";
 import {
   annullaRisultato, concludi, creaTappa, erroreLimitiTappa, generaFasiDirette, perditaRisultati, registraRisultato,
   registraRisultatoBracket, sorteggia, type Esito, type ModoSorteggio,
@@ -30,6 +30,11 @@ export interface RichiestaConferma {
 
 interface StatoChat {
   msgs: ChatMsg[];
+  /** Quanti messaggi sono usciti dalla testa della chat (se ne tengono MAX_MESSAGGI) da quando è stata cancellata l'ultima volta.
+   *  Il messaggio in posizione `i` è il numero `scartati + i` della conversazione e non cambia più: il pannello lo usa come chiave
+   *  della riga. Con la posizione, a chat piena ogni messaggio nuovo sposta tutti gli altri e React riscrive tutti i nodi, e un
+   *  lettore di schermo (role="log") rilegge la chat intera. Non si salva nella sessionStorage: dopo una ricarica la pagina riparte. */
+  scartati: number;
   loading: boolean;
   conferma: RichiestaConferma | null;
 }
@@ -43,12 +48,30 @@ function autore(u: User | null): string | null {
   return u.id ?? u.email ?? u.name;
 }
 
+/** Un messaggio della cronologia salvata, se ha la forma giusta; altrimenti null. La sessionStorage si può cambiare a mano, e il
+ *  pannello del Coach sta fuori dall'ErrorBoundary delle pagine: un messaggio senza `role` o con un `content` che non è testo
+ *  farebbe uscire la pagina bianca. `tools` si tiene solo se è un elenco di nomi */
+function messaggioValido(m: unknown): ChatMsg | null {
+  if (typeof m !== "object" || m === null) return null;
+  const { role, content, tools } = m as Record<string, unknown>;
+  if ((role !== "user" && role !== "assistant") || typeof content !== "string") return null;
+  if (Array.isArray(tools) && tools.every((t) => typeof t === "string")) return { role, content, tools };
+  return { role, content };
+}
+
 /** Cronologia della scheda (sessionStorage, si azzera chiudendola), solo se l'ha scritta chi c'è adesso: dopo una
- *  ricarica senza utente (sessione chiusa in un'altra scheda) o con un altro account la chat di prima non si mostra */
+ *  ricarica senza utente (sessione chiusa in un'altra scheda) o con un altro account la chat di prima non si mostra.
+ *  Dei messaggi restano solo quelli con la forma giusta (messaggioValido) */
 function cronologiaSalvata(): ChatMsg[] {
   try {
-    const salvata = JSON.parse(sessionStorage.getItem(CHAT_KEY) ?? "null") as { autore?: string | null; msgs?: ChatMsg[] } | null;
-    if (salvata && Array.isArray(salvata.msgs) && salvata.autore === autore(useAppStore.getState().user)) return salvata.msgs;
+    const salvata = JSON.parse(sessionStorage.getItem(CHAT_KEY) ?? "null") as { autore?: string | null; msgs?: unknown } | null;
+    if (salvata && Array.isArray(salvata.msgs) && salvata.autore === autore(useAppStore.getState().user)) {
+      return salvata.msgs.flatMap((m: unknown) => {
+        const valido = messaggioValido(m);
+        if (valido) return [valido];
+        return [];
+      });
+    }
     sessionStorage.removeItem(CHAT_KEY);
     return [];
   } catch {
@@ -58,12 +81,13 @@ function cronologiaSalvata(): ChatMsg[] {
 
 /** La chat vive qui e non nel pannello: il pannello si smonta quando si chiude, e una risposta arrivata nel frattempo
  *  andava persa */
-const useChat = create<StatoChat>(() => ({ msgs: cronologiaSalvata(), loading: false, conferma: null }));
+const useChat = create<StatoChat>(() => ({ msgs: cronologiaSalvata(), scartati: 0, loading: false, conferma: null }));
 
-/** Scrive la chat (solo gli ultimi MAX_MESSAGGI) nello store e nella sessionStorage, con chi l'ha scritta */
+/** Scrive la chat (solo gli ultimi MAX_MESSAGGI) nello store e nella sessionStorage, con chi l'ha scritta. `msgs` è la chat intera,
+ *  quella di adesso più ciò che si aggiunge: quelli che escono dalla testa si contano nello stesso aggiornamento dei messaggi */
 function salvaChat(msgs: ChatMsg[]) {
   const ultimi = msgs.slice(-MAX_MESSAGGI);
-  useChat.setState({ msgs: ultimi });
+  useChat.setState((s) => ({ msgs: ultimi, scartati: s.scartati + msgs.length - ultimi.length }));
   try {
     sessionStorage.setItem(CHAT_KEY, JSON.stringify({ autore: autore(useAppStore.getState().user), msgs: ultimi }));
   } catch { /* quota exceeded: ignora */ }
@@ -79,7 +103,7 @@ function cancellaChat() {
   richiestaInCorso?.abort();
   richiestaInCorso = null;
   useChat.getState().conferma?.rispondi(false);
-  useChat.setState({ msgs: [], loading: false, conferma: null });
+  useChat.setState({ msgs: [], scartati: 0, loading: false, conferma: null });
   try {
     sessionStorage.removeItem(CHAT_KEY);
   } catch { /* storage non disponibile */ }
@@ -466,6 +490,7 @@ async function fetchGiocatori(): Promise<RegGiocatore[]> {
 
 export function useCoachAI() {
   const msgs = useChat((s) => s.msgs);
+  const scartati = useChat((s) => s.scartati);
   const loading = useChat((s) => s.loading);
   const conferma = useChat((s) => s.conferma);
   // Lega, tappe e utente NON si leggono qui: una copia presa al render è vecchia quando lo strumento parte (dopo
@@ -797,12 +822,20 @@ export function useCoachAI() {
       );
       const conclusa = applica(tappa, concludi);
       try {
-        // Il nome della lega di adesso: può essere cambiato dopo l'invio del messaggio
-        await archivioApi.pubblica(conclusa, useAppStore.getState().legaName);
+        // Come la pagina della tappa: prima la tappa conclusa arriva al server (e parte la rinomina della lega in attesa, che non si
+        // controlla: se fallisce la copia porta il nome che il server ha), poi si pubblica per id
+        await useAppStore.getState().pubblica(conclusa.id);
         return `Tappa "${pulisci(tappa.nome)}" conclusa e pubblicata nell'Archivio circuito.`;
-      } catch {
+      } catch (e) {
+        // Il motivo può riportare il nome della tappa salvato sul server (un conflitto): passa da senzaTag come ogni nome nel prompt
+        const motivo = senzaTag(testoErrore(e));
+        // Un conflitto con un altro dispositivo può aver rimesso nello store la tappa del server, non conclusa, o averla tolta (eliminata
+        // altrove): allora la conclusione non c'è più, e il Coach non deve dire «conclusa»
+        if (!tappaCorrente(conclusa.id)?.conclusa) {
+          return `Tappa "${pulisci(tappa.nome)}" non pubblicata, e nella lega aperta ora non risulta conclusa. Motivo: ${motivo}`;
+        }
         // Una tappa conclusa non si conclude di nuovo (R5): per ripubblicare va riaperta, come dice anche la pagina
-        return `Tappa "${pulisci(tappa.nome)}" conclusa, ma la pubblicazione non è riuscita: per riprovare, nella pagina della tappa usa «Riapri» e poi «Concludi».`;
+        return `Tappa "${pulisci(tappa.nome)}" conclusa, ma la pubblicazione non è riuscita: per riprovare, nella pagina della tappa usa «Riapri» e poi «Concludi». Motivo: ${motivo}`;
       }
     }
 
@@ -813,20 +846,20 @@ export function useCoachAI() {
     const t = text.trim();
     const chat = useChat.getState();
     if (!t || chat.loading) return;
-    // Gli ultimi MAX_MESSAGGI compreso il nuovo: sono anche quelli che arrivano al modello
     const domanda: ChatMsg = { role: "user", content: t };
-    const history = [...chat.msgs, domanda].slice(-MAX_MESSAGGI);
 
     const { user, legaName, tappe } = useAppStore.getState();
     if (!user || user.guest) {
-      salvaChat([...history, {
+      salvaChat([...chat.msgs, domanda, {
         role: "assistant",
         content: "Coach AI è riservato agli utenti registrati: crea un account gratuito dalla home per usarlo.",
       }]);
       return;
     }
 
-    salvaChat(history);
+    // La domanda entra nella chat, che tiene gli ultimi MAX_MESSAGGI: sono anche quelli che arrivano al modello
+    salvaChat([...chat.msgs, domanda]);
+    const history = useChat.getState().msgs;
     useChat.setState({ loading: true });
     // Se intanto la chat viene cancellata (anche dal logout) la richiesta si interrompe: niente altre chiamate al
     // modello, niente altri strumenti, e la risposta non riempie di nuovo la chat
@@ -864,5 +897,5 @@ export function useCoachAI() {
     }
   };
 
-  return { msgs, loading, conferma, send, clearChat: cancellaChat };
+  return { msgs, scartati, loading, conferma, send, clearChat: cancellaChat };
 }

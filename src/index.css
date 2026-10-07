@@ -63,6 +63,20 @@
   grid-template-columns: repeat(auto-fit, minmax(var(--min, 150px), 1fr));
 }
 
+/* Area di tocco di almeno 44×44 px per chi usa il dito (design system: «touch target ≥ 44px su mobile»), da dare ai pulsanti con la
+   sola icona e a quelli piccoli. L'icona o il testo restano della grandezza di prima: cresce solo il pulsante, con il contenuto al
+   centro. Vale sotto i 640 px, dove l'app passa alla disposizione per mobile (breakpoint sm), e con un puntatore grossolano
+   (pointer: coarse: i telefoni in orizzontale, i tablet); con il mouse e sopra i 640 px non cambia niente. */
+@utility area-tocco {
+  @media (width < 40rem), (pointer: coarse) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
 /* ── Classi componente condivise ─────────────────────────────────────────────
    Pattern ripetuti in più file (input, tabelle, chat, modali): il resto usa
    direttamente le utility Tailwind nei componenti. */

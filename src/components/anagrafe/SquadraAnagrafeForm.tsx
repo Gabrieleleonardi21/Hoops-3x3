@@ -1,4 +1,7 @@
+/** Form per registrare una nuova squadra nell'anagrafe condivisa. Si svuota solo se il salvataggio riesce: `onSave` rifiuta la
+ *  promessa se il server non accetta, e allora il motivo compare sotto i pulsanti e i dati restano. */
 import { useState } from "react";
+import { useInvio } from "../../hooks/useInvio";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import { Icon } from "../ui/Icon";
@@ -13,7 +16,7 @@ const EMPTY: Draft = { nome: "", citta: "", anno: "", rank: "", referente: "", r
 export function SquadraAnagrafeForm({ giocatori, onSave }: { giocatori: RegGiocatore[]; onSave: (d: Draft) => Promise<void> }) {
   const [d, setD] = useState<Draft>(EMPTY);
   const [pick, setPick] = useState("");
-  const [err, setErr] = useState<string | null>(null);
+  const { invio, errore, setErrore, esegui } = useInvio();
   const set = (k: keyof Draft) => (e: React.ChangeEvent<HTMLInputElement>) => setD({ ...d, [k]: e.target.value });
   const gName = (id: string) => {
     const g = giocatori.find((x) => x.id === id);
@@ -27,10 +30,9 @@ export function SquadraAnagrafeForm({ giocatori, onSave }: { giocatori: RegGioca
   };
 
   const save = async () => {
-    if (!d.nome.trim()) { setErr("Il nome della squadra è obbligatorio."); return; }
-    setErr(null);
-    await onSave(d);
-    setD(EMPTY);
+    if (!d.nome.trim()) { setErrore("Il nome della squadra è obbligatorio."); return; }
+    // Si svuota solo se il server ha accettato: altrimenti chi scrive ritrova ciò che aveva scritto
+    if (await esegui(() => onSave(d), "Salvataggio non riuscito")) setD(EMPTY);
   };
 
   return (
@@ -58,7 +60,7 @@ export function SquadraAnagrafeForm({ giocatori, onSave }: { giocatori: RegGioca
         {d.roster.map((id) => (
           <span key={id} className="inline-flex items-center gap-1.5 rounded-sm border border-asphalt-600 bg-asphalt-800 px-2 py-1 text-xs font-semibold text-chalk">
             {gName(id)}
-            <button onClick={() => setD({ ...d, roster: d.roster.filter((x) => x !== id) })} className="text-chalk-dim hover:text-loss" aria-label={`Rimuovi ${gName(id)}`}>
+            <button onClick={() => setD({ ...d, roster: d.roster.filter((x) => x !== id) })} className="area-tocco text-chalk-dim hover:text-loss" aria-label={`Rimuovi ${gName(id)}`}>
               <Icon name="close" size={12} />
             </button>
           </span>
@@ -66,8 +68,8 @@ export function SquadraAnagrafeForm({ giocatori, onSave }: { giocatori: RegGioca
       </div>
       <Input label="Note" labelStyle={{ marginTop: 10 }} value={d.note} onChange={set("note")}
         placeholder="es. campioni tappa di Roma 2025" maxLength={500} />
-      {err && <p className="mt-2 text-[13px] font-semibold text-loss" role="alert">{err}</p>}
-      <Button className="mt-3" onClick={save}>Salva nell'anagrafe</Button>
+      {errore && <p className="mt-2 text-[13px] font-semibold text-loss" role="alert">{errore}</p>}
+      <Button className="mt-3" onClick={save} disabled={invio}>Salva nell'anagrafe</Button>
     </Card>
   );
 }

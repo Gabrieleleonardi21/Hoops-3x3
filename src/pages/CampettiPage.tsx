@@ -73,12 +73,15 @@ export function CampettiPage() {
 
   return (
     <>
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="font-display text-4xl">Campetti</h1>
-          <p className="mt-1 text-[13px] text-chalk-muted">Trova un campo, organizza la prossima tappa.</p>
-        </div>
-        <Badge tone="court">Dati di esempio</Badge>
+      {/* I dati sono inventati (src/data/campetti.ts): la pagina resta nella navigazione, e lo dice chiaramente in cima */}
+      <p role="note" className="mb-4 rounded border border-court/40 bg-court/10 px-3.5 py-2.5 text-[13px] font-medium text-chalk">
+        <span className="font-semibold text-court">Dati di esempio.</span> I campetti, le valutazioni e le distanze qui sotto sono
+        inventati per mostrare come sarà la pagina: non sono campi reali.
+      </p>
+
+      <div className="mb-4">
+        <h1 className="font-display text-4xl">Campetti</h1>
+        <p className="mt-1 text-[13px] text-chalk-muted">Trova un campo, organizza la prossima tappa.</p>
       </div>
 
       {/* Filtri */}

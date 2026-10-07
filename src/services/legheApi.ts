@@ -31,5 +31,7 @@ export const legheApi = {
   /** Sostituzione completa; keepalive per il flush in chiusura pagina */
   putTappa: (t: Tappa, keepalive = false) =>
     api<Tappa>(`/api/tappe/${t.id}`, { method: "PUT", body: t, ...invio(keepalive) }),
-  removeTappa: (id: string) => api<void>(`/api/tappe/${id}`, { method: "DELETE" }),
+  /** keepalive per la DELETE ancora in attesa alla chiusura della pagina */
+  removeTappa: (id: string, keepalive = false) =>
+    api<void>(`/api/tappe/${id}`, { method: "DELETE", ...invio(keepalive) }),
 };

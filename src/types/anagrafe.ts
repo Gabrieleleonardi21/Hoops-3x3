@@ -17,7 +17,7 @@ export interface RegGiocatore {
   esperienza: string;
   note: string;
   autore: string;   // nome visualizzato dell'autore (non è unico: non decide i permessi)
-  autoreId: string; // id dell'autore: decide chi può modificare (utils/permessi)
+  autoreId: string | null; // id dell'autore: decide chi può modificare (utils/permessi); null nella forma pubblica, letta senza account
   ts: number;
 }
 
@@ -35,7 +35,7 @@ export interface RegSquadra {
   instagram: string; // URL pagina Instagram (usato come link del logo se manca il sito)
   note: string;
   autore: string;   // nome visualizzato dell'autore (non è unico: non decide i permessi)
-  autoreId: string; // id dell'autore: decide chi può modificare (utils/permessi)
+  autoreId: string | null; // id dell'autore: decide chi può modificare (utils/permessi); null nella forma pubblica, letta senza account
   ts: number;
 }
 
@@ -46,4 +46,17 @@ export interface PubTappa {
   autore: string;   // nome visualizzato dell'autore
   autoreId: string; // id dell'autore
   ts: number;
+}
+
+/** Una voce dell'elenco dell'archivio (GET /api/archivio): solo ciò che serve a disegnare la riga, senza la tappa intera. Il server la
+ *  estrae dalla pubblicazione e l'elenco è già ordinato dalla più recente: il client non lo riordina. Il dettaglio è `PubTappa`. */
+export interface PubTappaMeta {
+  tappaId: string;  // apre la tappa (/tappa/:id) ed è la chiave della riga
+  nome: string;
+  luogo: string;    // "" se la tappa non ha un luogo
+  data: string;     // aaaa-mm-gg oppure ""
+  nSquadre: number; // squadre iscritte alla tappa
+  lega: string;     // nome della lega al momento della pubblicazione
+  autore: string;   // nome visualizzato dell'autore (non è unico)
+  ts: number;       // pubblicazione, ms dall'epoca
 }

@@ -1,12 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { logout, me } from "../../src/services/authService";
-import { token } from "../../src/services/api";
+import { login, logout, me, register } from "../../src/services/authService";
+import { ApiError, token } from "../../src/services/api";
 
 /** localStorage e fetch non esistono nell'ambiente node: si sostituiscono con versioni in memoria */
 const memoria = new Map<string, string>();
+/** true = il browser rifiuta ogni scrittura (spazio esaurito) */
+let spazioFinito = false;
 vi.stubGlobal("localStorage", {
   getItem: (k: string) => memoria.get(k) ?? null,
-  setItem: (k: string, v: string) => { memoria.set(k, v); },
+  setItem: (k: string, v: string) => {
+    if (spazioFinito) throw new DOMException("The quota has been exceeded.", "QuotaExceededError");
+    memoria.set(k, v);
+  },
   removeItem: (k: string) => { memoria.delete(k); },
 });
 const fetchFinto = vi.fn();
@@ -14,7 +19,34 @@ vi.stubGlobal("fetch", fetchFinto);
 
 beforeEach(() => {
   memoria.clear();
+  spazioFinito = false;
   fetchFinto.mockReset();
+});
+
+describe("registrazione e accesso con lo spazio del browser finito (FS-9)", () => {
+  /** Il server risponde che l'accesso è riuscito, con il JWT da salvare */
+  const accessoRiuscito = () => fetchFinto.mockImplementation(async () => new Response(
+    JSON.stringify({ token: "jwt-nuovo", user: { id: "u1", name: "Anna", email: "anna@example.it", ruolo: "USER" } }),
+    { status: 200, headers: { "Content-Type": "application/json" } },
+  ));
+
+  it.each([
+    ["la registrazione", () => register("Anna", "anna@example.it", "password-lunga")],
+    ["l'accesso", () => login("anna@example.it", "password-lunga")],
+  ])("%s: se il JWT non si può scrivere l'errore dice «spazio esaurito», non «errore imprevisto»", async (_caso, accesso) => {
+    accessoRiuscito();
+    spazioFinito = true;
+    const errore = await accesso().catch((e: unknown) => e);
+    expect(errore).toBeInstanceOf(ApiError);
+    expect(errore).toMatchObject({ status: 507, message: expect.stringMatching(/spazio esaurito/i) });
+    expect(token.get()).toBeNull();
+  });
+
+  it("con lo spazio a disposizione il JWT si salva", async () => {
+    accessoRiuscito();
+    await login("anna@example.it", "password-lunga");
+    expect(token.get()).toBe("jwt-nuovo");
+  });
 });
 
 describe("authService.logout", () => {

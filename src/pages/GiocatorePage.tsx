@@ -1,56 +1,89 @@
 /** Profilo giocatore (route /giocatore/:id): anagrafica dalla RegGiocatore + statistiche
  *  aggregate sulle tappe della lega attiva. Il roster di tappa non ha un legame con l'anagrafe,
- *  quindi l'abbinamento avviene per nome ("Nome Cognome" o "Cognome Nome", case-insensitive):
- *  è lo stesso criterio usato altrove nell'app per collegare squadre e giocatori. */
+ *  quindi l'abbinamento avviene per nome ("Nome Cognome" o "Cognome Nome"; maiuscole, spazi in
+ *  più, accenti e tipo di apostrofo non contano, come nella tabella «Statistiche stagione»). I totali sono la somma delle
+ *  righe di quella tabella con lo stesso nome, in una o più squadre: la funzione è la stessa
+ *  (utils/statGiocatori), quindi i numeri coincidono. */
 import { useMemo } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { useAnagrafe } from "../hooks/useAnagrafe";
 import { useAppStore } from "../stores/useAppStore";
-import { tappaLeaders, type LeaderRow } from "../utils/tappaLeaders";
+import { normalizza, statGiocatori, tabellini, type StatGiocatore } from "../utils/statGiocatori";
 import { eta } from "../utils/eta";
 import { safeUrl } from "../utils/safeUrl";
 import { Loading } from "../components/ui/Loading";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
+import { ErroreCaricamento } from "../components/ui/ErroreCaricamento";
 import { Section } from "../components/ui/Section";
 import { StatTile } from "../components/ui/StatTile";
 import { Icon } from "../components/ui/Icon";
 import { Sparkline } from "../components/profile/Sparkline";
-import type { RegGiocatore, StatLine, Tappa } from "../types";
+import type { RegGiocatore, Tappa } from "../types";
 
-/** true se il nome nel roster corrisponde al giocatore dell'anagrafe */
+/** true se il nome nel roster corrisponde al giocatore dell'anagrafe, in un ordine o nell'altro. Si confronta con la
+ *  stessa normalizzazione della tabella di stagione */
 function sameName(rosterName: string, g: RegGiocatore): boolean {
-  const n = rosterName.trim().toLowerCase();
-  const a = `${g.nome} ${g.cognome}`.trim().toLowerCase();
-  const b = `${g.cognome} ${g.nome}`.trim().toLowerCase();
-  return n === a || n === b;
+  const n = normalizza(rosterName);
+  return n === normalizza(`${g.nome} ${g.cognome}`) || n === normalizza(`${g.cognome} ${g.nome}`);
 }
 
-interface TappaRow { tappa: Tappa; row: LeaderRow; piazzamento: number | null }
-interface GameRow { tappa: string; avversario: string; mio: number; suo: number; pt: number; rb: number; as: number }
+/** Gare e statistiche sommate di una o più righe di stagione */
+interface Totali { g: number; pt: number; rb: number; as: number; ru: number; st: number }
+interface TappaRow { tappa: Tappa; row: Totali; piazzamento: number | null }
+/** Come finisce una partita per il giocatore. La parità c'è solo in un file di lega importato (tappaOps la rifiuta): non è né
+ *  una vittoria né una sconfitta */
+type Esito = "vinta" | "persa" | "pari";
+interface GameRow { tappa: string; avversario: string; mio: number; suo: number; esito: Esito; pt: number; rb: number; as: number }
+
+const esitoDi = (mio: number, suo: number): Esito => {
+  if (mio > suo) return "vinta";
+  if (mio < suo) return "persa";
+  return "pari";
+};
+
+/** Come l'elenco delle ultime partite mostra l'esito */
+const BADGE_ESITO: Record<Esito, { tone: "win" | "loss" | "neutral"; lettera: string }> = {
+  vinta: { tone: "win", lettera: "W" },
+  persa: { tone: "loss", lettera: "L" },
+  pari: { tone: "neutral", lettera: "=" },
+};
 
 const f1 = (n: number) => n.toFixed(1);
+
+/** Somma le righe di stagione dello stesso giocatore: sono più d'una se il nome compare in più squadre */
+const somma = (righe: StatGiocatore[]): Totali => righe.reduce((acc, r) => ({
+  g: acc.g + r.g, pt: acc.pt + r.pt, rb: acc.rb + r.rb, as: acc.as + r.as, ru: acc.ru + r.ru, st: acc.st + r.st,
+}), { g: 0, pt: 0, rb: 0, as: 0, ru: 0, st: 0 });
 
 export function GiocatorePage() {
   const { id } = useParams();
   const user = useAppStore((s) => s.user);
   const tappe = useAppStore((s) => s.tappe);
   const navigate = useNavigate();
-  const { giocatori, squadre } = useAnagrafe();
+  const { giocatori, squadre, errore, load } = useAnagrafe();
 
   const g = giocatori?.find((x) => x.id === id) ?? null;
   const logo = g ? squadre?.find((s) => s.nome === g.squadra)?.logo : undefined;
+
+  // Le righe della tabella di stagione di questo giocatore: lo stesso nome (normalizzato) in una o più squadre. I totali
+  // sono la loro somma e le squadre sono quelle da cui vengono. Anche lo storico per tappa usa la stessa funzione
+  const stagione = useMemo(() => {
+    if (!g) return [];
+    return statGiocatori(tappe).filter((r) => sameName(r.nome, g));
+  }, [g, tappe]);
 
   // Statistiche per tappa: una riga per ogni tappa in cui il giocatore ha giocato
   const perTappa = useMemo<TappaRow[]>(() => {
     if (!g) return [];
     const out: TappaRow[] = [];
     for (const t of tappe) {
-      const row = tappaLeaders(t).find((r) => sameName(r.nome, g));
-      if (!row) continue;
-      // piazzamento: dalla finale del bracket se disponibile (1° o 2°), altrimenti sconosciuto
-      const team = t.squadre.find((s) => s.nome === row.squadra);
+      const righe = statGiocatori([t]).filter((r) => sameName(r.nome, g));
+      if (righe.length === 0) continue;
+      // piazzamento: dalla finale del bracket se disponibile (1° o 2°), altrimenti sconosciuto. Con più squadre nella
+      // stessa tappa vale la prima
+      const team = t.squadre.find((s) => s.nome === righe[0].squadra);
       const finale = t.bracket?.find((m) => m.label === "Finale" && m.done);
       let piazzamento: number | null = null;
       if (finale && team) {
@@ -58,38 +91,33 @@ export function GiocatorePage() {
         if (winner === team.id) piazzamento = 1;
         else if (finale.squadraA === team.id || finale.squadraB === team.id) piazzamento = 2;
       }
-      out.push({ tappa: t, row, piazzamento });
+      out.push({ tappa: t, row: somma(righe), piazzamento });
     }
     return out;
   }, [g, tappe]);
 
-  // Partite singole (per sparkline e "ultime partite"), in ordine cronologico di inserimento
+  // Partite singole (per sparkline e "ultime partite"), nell'ordine in cui le partite sono state inserite. Sono i tabellini di
+  // tabellini(), gli stessi dei totali: comprendono tutte le squadre della tappa che hanno un giocatore con questo nome
   const games = useMemo<GameRow[]>(() => {
     if (!g) return [];
     const out: GameRow[] = [];
     for (const t of tappe) {
-      const team = t.squadre.find((s) => (s.giocatori || []).some((p) => sameName(p.nome, g)));
-      const pid = team?.giocatori.find((p) => sameName(p.nome, g))?.id;
-      if (!team || !pid) continue;
       const nameOf = (tid: string) => t.squadre.find((s) => s.id === tid)?.nome ?? tid;
-      for (const m of t.partite) {
-        if (!m.done) continue;
-        const mine = m.a === team.id ? m.pa : m.b === team.id ? m.pb : undefined;
-        if (!mine || mine[pid] === undefined) continue;
-        const raw = mine[pid];
-        const st: StatLine = typeof raw === "object" && raw !== null ? raw : { pt: raw as number };
-        const isA = m.a === team.id;
-        out.push({
-          tappa: t.nome, avversario: nameOf(isA ? m.b : m.a),
-          mio: isA ? m.sa : m.sb, suo: isA ? m.sb : m.sa,
-          pt: st.pt ?? 0, rb: st.rb ?? 0, as: st.as ?? 0,
-        });
+      for (const { nome, stat, partita: m, lato } of tabellini(t)) {
+        if (!sameName(nome, g)) continue;
+        // Punti fatti, punti subiti e squadra avversaria, dal lato della scheda in cui sta il tabellino
+        let mio = m.sa, suo = m.sb, avversario = m.b;
+        if (lato === "b") { mio = m.sb; suo = m.sa; avversario = m.a; }
+        out.push({ tappa: t.nome, avversario: nameOf(avversario), mio, suo, esito: esitoDi(mio, suo), pt: stat.pt, rb: stat.rb, as: stat.as });
       }
     }
     return out;
   }, [g, tappe]);
 
   if (!user) return <Navigate to="/" replace />;
+  if (giocatori === null && errore) {
+    return <ErroreCaricamento cosa="Non è stato possibile caricare l'anagrafe." motivo={errore} onRiprova={() => { void load(); }} />;
+  }
   if (giocatori === null) return <Loading>Sto aprendo la scheda…</Loading>;
   if (!g) {
     return (
@@ -97,13 +125,16 @@ export function GiocatorePage() {
     );
   }
 
-  const tot = perTappa.reduce((acc, { row }) => ({
-    g: acc.g + row.g, pt: acc.pt + row.pt, rb: acc.rb + row.rb, as: acc.as + row.as, ru: acc.ru + row.ru, st: acc.st + row.st,
-  }), { g: 0, pt: 0, rb: 0, as: 0, ru: 0, st: 0 });
+  const tot = somma(stagione);
+  // Le squadre da cui vengono i totali, ognuna una volta: lo stesso nome scritto nei due ordini nella stessa squadra sono due
+  // righe di stagione, ma una squadra sola. Vale la grafia dell'ultima riga
+  const squadreStat = [...new Map(stagione.map((row): [string, string] => [normalizza(row.squadra), row.squadra])).values()];
   const avg = (v: number) => (tot.g ? `(${f1(v / tot.g)}/g)` : undefined);
   const age = eta(g.nascita);
   const bio = [g.ruolo, g.squadra, g.citta, age !== null ? `${age} anni` : "", g.altezza ? `${g.altezza} cm` : "", g.peso ? `${g.peso} kg` : ""].filter(Boolean);
-  const wins = games.filter((x) => x.mio > x.suo).length;
+  // Vinte e perse si contano sulle stesse partite dell'elenco; una parità non è nessuna delle due, quindi V e P possono non sommare G
+  const wins = games.filter((x) => x.esito === "vinta").length;
+  const losses = games.filter((x) => x.esito === "persa").length;
 
   return (
     <>
@@ -125,7 +156,7 @@ export function GiocatorePage() {
             </div>
             {g.note && <p className="mt-3 text-[13px] text-chalk-muted">{g.note}</p>}
           </div>
-          <div className="text-xs text-chalk-dim">Registrato da {g.autore}</div>
+          {g.autore && <div className="text-xs text-chalk-dim">Registrato da {g.autore}</div>}
         </div>
       </Card>
 
@@ -136,7 +167,13 @@ export function GiocatorePage() {
         <StatTile label="Assist" value={tot.as} sub={avg(tot.as)} />
         <StatTile label="Rubate" value={tot.ru} sub={avg(tot.ru)} />
         <StatTile label="Stoppate" value={tot.st} sub={avg(tot.st)} />
-        <StatTile label="Gare" value={tot.g} sub={tot.g ? `${wins}V · ${tot.g - wins}P` : undefined} />
+        <StatTile label="Gare" value={tot.g} sub={tot.g > 0 && `${wins}V · ${losses}P`} />
+        {/* Le squadre di tappa da cui vengono i totali: il legame è solo il nome, e chi legge deve vedere che cosa è stato sommato */}
+        {squadreStat.length > 0 && (
+          <p className="col-span-full text-[13px] text-chalk-muted">
+            Statistiche sommate per nome sulle squadre di tappa: {squadreStat.join(", ")}.
+          </p>
+        )}
       </div>
 
       {tot.g === 0 && (
@@ -180,10 +217,10 @@ export function GiocatorePage() {
         <Section title="Ultime partite" kicker="Dalla più recente" className="mt-8">
           <ol className="m-0 list-none divide-y divide-asphalt-700 rounded border border-asphalt-700 bg-asphalt-900 p-0">
             {[...games].reverse().slice(0, 6).map((x, i) => {
-              const win = x.mio > x.suo;
+              const { tone, lettera } = BADGE_ESITO[x.esito];
               return (
                 <li key={i} className="flex flex-wrap items-center gap-3 px-3 py-2 text-[13px]">
-                  <Badge tone={win ? "win" : "loss"}>{win ? "W" : "L"}</Badge>
+                  <Badge tone={tone}>{lettera}</Badge>
                   <span className="min-w-0 flex-1 truncate"><span className="text-chalk-muted">vs</span> <span className="font-display text-base">{x.avversario}</span> <span className="text-chalk-dim">· {x.tappa}</span></span>
                   <span className="font-display text-lg">{x.mio}–{x.suo}</span>
                   <span className="text-chalk-muted">{x.pt} PT · {x.rb} REB · {x.as} AST</span>

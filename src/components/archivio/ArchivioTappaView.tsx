@@ -50,23 +50,21 @@ export function ArchivioTappaView({ t, lega, autore }: { t: Tappa; lega?: string
       <Section title="Squadre e roster" kicker={`Clicca una squadra per vedere il roster${hasStats ? " e l'analisi dei giocatori" : ""}`}>
         <div className="grid gap-2.5 grid-cols-[repeat(auto-fill,minmax(160px,1fr))]">
           {t.squadre.map((s) => (
-            /* div invece di button per poter inserire <a> del logo all'interno */
-            <div key={s.id} role="button" tabIndex={0}
-              onClick={() => setSelSquadra(s)}
-              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setSelSquadra(s); }}
-              className="hovercard flex cursor-pointer flex-col items-center gap-2 rounded border border-asphalt-700 bg-asphalt-900 p-3 text-center">
+            <button key={s.id} type="button" onClick={() => setSelSquadra(s)}
+              className="hovercard flex w-full flex-col items-center gap-2 rounded border border-asphalt-700 bg-asphalt-900 p-3 text-center">
               {s.logo ? (
                 <img src={safeUrl(s.logo)} alt={`Logo ${s.nome}`} className="h-14 w-14 object-contain"
                   onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
               ) : (
-                <div className="flex h-14 w-14 items-center justify-center rounded-sm bg-asphalt-800 font-display text-xl text-chalk-muted">3×3</div>
+                <span className="flex h-14 w-14 items-center justify-center rounded-sm bg-asphalt-800 font-display text-xl text-chalk-muted">3×3</span>
               )}
-              <div>
-                <div className="font-display text-base leading-tight text-chalk">{s.nome}</div>
-                {Number(s.rank) > 0 && <div className="mt-0.5 text-[11px] font-semibold text-court">{s.rank} pt ranking</div>}
-                <div className="mt-0.5 text-[11px] text-chalk-muted">{(s.giocatori || []).filter((p) => p.nome.trim()).length} giocatori</div>
-              </div>
-            </div>
+              {/* Dentro un <button> solo contenuto di testo (span), non div */}
+              <span className="block">
+                <span className="block font-display text-base leading-tight text-chalk">{s.nome}</span>
+                {Number(s.rank) > 0 && <span className="mt-0.5 block text-[11px] font-semibold text-court">{s.rank} pt ranking</span>}
+                <span className="mt-0.5 block text-[11px] text-chalk-muted">{(s.giocatori || []).filter((p) => p.nome.trim()).length} giocatori</span>
+              </span>
+            </button>
           ))}
         </div>
       </Section>

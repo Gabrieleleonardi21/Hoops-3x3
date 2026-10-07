@@ -3,6 +3,9 @@
 import { useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useAppStore } from "../stores/useAppStore";
+import { useInvio } from "../hooks/useInvio";
+import { useConfermaPerdita } from "../hooks/useConfermaPerdita";
+import { conteggio, perditaLega } from "../utils/testi";
 import { GuestBanner } from "../components/auth/GuestBanner";
 import { Input } from "../components/ui/Input";
 import { Button } from "../components/ui/Button";
@@ -10,21 +13,25 @@ import { Icon } from "../components/ui/Icon";
 import { Section } from "../components/ui/Section";
 import type { LegaMeta } from "../types";
 
-function LegaCard({ m, onOpen, onDelete }: { m: LegaMeta; onOpen: () => void; onDelete: () => void }) {
+/** `disabled`: un'altra azione sulle leghe è in corso, quindi i pulsanti aspettano */
+function LegaCard({ m, disabled, onOpen, onDelete }: { m: LegaMeta; disabled: boolean; onOpen: () => void; onDelete: () => void }) {
+  // Eliminare una lega cancella tutte le sue tappe e non si recupera: si chiede sempre conferma, dicendo quante sono
+  const { chiedi, finestra } = useConfermaPerdita(() => perditaLega(m));
   const date = m.ts ? new Date(m.ts).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" }) : null;
 
   return (
     <div className="flex flex-col gap-2 rounded border border-asphalt-700 bg-asphalt-900 p-4 transition-colors hover:border-asphalt-500">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1 font-display text-2xl text-chalk">{m.nome}</div>
-        <button onClick={onDelete} className="shrink-0 text-chalk-dim hover:text-loss" title="Elimina lega" aria-label={`Elimina lega ${m.nome}`}>
+        <button onClick={() => chiedi("Eliminare la lega?", onDelete)} disabled={disabled} className="area-tocco shrink-0 text-chalk-dim hover:text-loss" title="Elimina lega" aria-label={`Elimina lega ${m.nome}`}>
           <Icon name="trash" size={16} />
         </button>
       </div>
       <div className="text-xs text-chalk-muted">
-        {m.nTappe} {m.nTappe === 1 ? "tappa" : "tappe"}{date ? ` · ${date}` : ""}
+        {conteggio(m.nTappe, "tappa", "tappe")}{date ? ` · ${date}` : ""}
       </div>
-      <Button size="sm" className="mt-1 self-start" onClick={onOpen}>Apri <Icon name="chevron" size={14} /></Button>
+      <Button size="sm" className="mt-1 self-start" onClick={onOpen} disabled={disabled}>Apri <Icon name="chevron" size={14} /></Button>
+      {finestra}
     </div>
   );
 }
@@ -37,24 +44,24 @@ export function LegheListPage() {
   const deleteLega  = useAppStore((s) => s.deleteLega);
   const navigate  = useNavigate();
   const [nome, setNome] = useState("");
+  // Una sola azione alla volta (crea, apri, elimina): finché una è in corso i pulsanti aspettano, così un doppio clic non crea due
+  // leghe; se fallisce il motivo compare sotto il campo del nome, e il nome scritto resta
+  const { invio, errore, esegui } = useInvio();
 
   if (!user) return <Navigate to="/" replace />;
 
   const handleCreate = async () => {
     if (!nome.trim()) return;
-    await createLega(nome);
-    navigate("/lega");
+    if (await esegui(() => createLega(nome), "Creazione non riuscita")) navigate("/lega");
   };
 
   const handleOpen = async (id: string) => {
-    await selectLega(id);
-    navigate("/lega");
+    if (await esegui(() => selectLega(id), "Apertura non riuscita")) navigate("/lega");
   };
 
-  const handleDelete = (m: LegaMeta) => {
-    // Conferma prima di eliminare: i dati non sono recuperabili
-    if (!window.confirm(`Eliminare la lega "${m.nome}" con tutte le sue tappe? L'operazione non è reversibile.`)) return;
-    deleteLega(m.id);
+  // La conferma l'ha già chiesta la card (LegaCard): qui si elimina
+  const handleDelete = async (m: LegaMeta) => {
+    await esegui(() => deleteLega(m.id), "Eliminazione non riuscita");
   };
 
   return (
@@ -73,17 +80,18 @@ export function LegheListPage() {
             placeholder="Es. Roma Streetball 2025"
             onKeyDown={(e: React.KeyboardEvent) => { if (e.key === "Enter") handleCreate(); }} />
         </div>
-        <Button onClick={handleCreate}><Icon name="plus" size={16} /> Crea lega</Button>
+        <Button onClick={handleCreate} disabled={invio}><Icon name="plus" size={16} /> Crea lega</Button>
       </div>
+      {errore && <p className="-mt-4 mb-6 text-[13px] font-semibold text-loss" role="alert">{errore}</p>}
 
       {/* Lista leghe esistenti */}
-      <Section title="Leghe" kicker={`${leghe.length} ${leghe.length === 1 ? "lega" : "leghe"}`}>
+      <Section title="Leghe" kicker={conteggio(leghe.length, "lega", "leghe")}>
         {leghe.length === 0 ? (
           <p className="text-[15px] text-chalk-muted">Nessuna lega ancora: crea la prima qui sopra.</p>
         ) : (
           <div className="grid gap-3 grid-cols-[repeat(auto-fill,minmax(240px,1fr))]">
             {leghe.map((m) => (
-              <LegaCard key={m.id} m={m} onOpen={() => handleOpen(m.id)} onDelete={() => handleDelete(m)} />
+              <LegaCard key={m.id} m={m} disabled={invio} onOpen={() => handleOpen(m.id)} onDelete={() => handleDelete(m)} />
             ))}
           </div>
         )}

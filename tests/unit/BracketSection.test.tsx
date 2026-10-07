@@ -119,3 +119,50 @@ describe("BracketSection: punteggio non valido (R4)", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 });
+
+describe("BracketSection: «Elimina bracket e ricomincia» chiede conferma (FD-2)", () => {
+  const elimina = () => screen.getByRole("button", { name: "Elimina bracket e ricomincia" });
+
+  it("apre la finestra e dice che cosa si perde; finché non si risponde il tabellone c'è", () => {
+    mostra(tappaConTabellone());
+    fireEvent.click(elimina());
+    expect(screen.getByRole("alertdialog", { name: "Eliminare il tabellone?" }).textContent)
+      .toContain("Verrà eliminato il tabellone. I risultati dei gironi restano.");
+    expect(nelloStore().bracket).toHaveLength(3);
+  });
+
+  it("i risultati si contano sulla tappa di adesso, non su quella che la sezione ha letto, e sono solo quelli del tabellone", () => {
+    // La sezione ha ancora il tabellone senza risultati; nello store la prima semifinale è già registrata (per esempio dal Coach)
+    const vista = tappaConTabellone();
+    const esito = registraRisultatoBracket(vista, vista.bracket?.[0].id ?? "", 21, 15);
+    if (!esito.ok) throw new Error(esito.errore);
+    mostra(vista, esito.tappa);
+    fireEvent.click(elimina());
+    expect(screen.getByRole("alertdialog", { name: "Eliminare il tabellone?" }).textContent)
+      .toContain("Verranno eliminati il tabellone e 1 risultato. I risultati dei gironi restano.");
+  });
+
+  it("«Annulla» non cambia niente: il tabellone e i suoi risultati restano", () => {
+    mostra(tappaConTabellone());
+    const prima = nelloStore();
+    fireEvent.click(elimina());
+    fireEvent.click(screen.getByRole("button", { name: "Annulla" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(nelloStore()).toBe(prima);
+  });
+
+  it("«Conferma» elimina il tabellone; i risultati dei gironi restano e il tabellone si può generare di nuovo", () => {
+    mostra(tappaConTabellone());
+    fireEvent.click(elimina());
+    fireEvent.click(screen.getByRole("button", { name: "Conferma" }));
+    expect(nelloStore().bracket).toBeUndefined();
+    expect(nelloStore().partite.every((m) => m.done)).toBe(true);
+    expect(generaFasiDirette(nelloStore()).ok).toBe(true);
+  });
+
+  it("in sola lettura (archivio, pagina pubblica) il pulsante non c'è", () => {
+    useAppStore.setState({ user: ospite, tappe: [tappaConTabellone()] });
+    render(<BracketSection tappa={tappaConTabellone()} readOnly />);
+    expect(screen.queryByRole("button", { name: "Elimina bracket e ricomincia" })).toBeNull();
+  });
+});

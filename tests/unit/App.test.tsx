@@ -3,10 +3,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import App from "../../src/App";
 import { useAppStore, SESSION_KEY } from "../../src/stores/useAppStore";
+import { useAnagrafeStore } from "../../src/stores/useAnagrafeStore";
 import { legheApi } from "../../src/services/legheApi";
 import { api, ApiError, token } from "../../src/services/api";
 import { DEFAULT_RULES } from "../../src/constants/rules";
-import type { Tappa, User } from "../../src/types";
+import type { RegGiocatore, Tappa, User } from "../../src/types";
 
 // Si sostituisce la rete delle leghe; le chiamate di autenticazione passano dal vero api.ts e arrivano a fetch
 vi.mock("../../src/services/legheApi", () => ({
@@ -83,6 +84,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup(); // senza le globali di Vitest, Testing Library non smonta da sola
   store().reset();
+  useAnagrafeStore.getState().svuota(); // la cache dell'anagrafe è stato di modulo: ogni test riparte da «non ancora caricata»
   vi.unstubAllGlobals();
   vi.useRealTimers();
   localStorage.clear();
@@ -138,7 +140,7 @@ describe("App: sessione che finisce mentre l'utente lavora", () => {
     await act(async () => { await api("/api/leghe").catch(() => {}); });
     expect(await screen.findByText(`${MESSAGGIO}. 2 tappe avevano modifiche non salvate.`)).toBeTruthy();
     // Senza conferma: a sessione finita non c'è più modo di salvare
-    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
   });
 
   it("uscita in un'altra scheda (token cancellato, evento storage): anche questa torna al form con il messaggio", async () => {
@@ -270,5 +272,117 @@ describe("App: rinnovo automatico del JWT", () => {
     } finally {
       Reflect.deleteProperty(document, "visibilityState"); // torna il getter di jsdom
     }
+  });
+});
+
+describe("App: anagrafe e sessione cambiata in un'altra scheda (T2.15)", () => {
+  const ospite: User = { name: "Ospite", guest: true };
+  // La stessa voce com'è per chi non ha un account (forma pubblica) e com'è con un account (forma completa)
+  const pubblico: RegGiocatore = {
+    id: "g1", nome: "Mario", cognome: "Rossi", soprannome: "", nascita: "", citta: "", nazionalita: "", altezza: "", peso: "",
+    ruolo: "Guardia", numero: "7", squadra: "", esperienza: "", note: "", autore: "", autoreId: null, ts: 1,
+  };
+  const completo: RegGiocatore = { ...pubblico, nascita: "1998-03-15", note: "Tiratore da tre", autore: "Anna", autoreId: "u1" };
+
+  /** Evento che un'altra scheda fa arrivare a questa quando cambia il token nel localStorage condiviso */
+  const tokenCambiato = (vecchio: string | null, nuovo: string | null) =>
+    act(() => { window.dispatchEvent(new StorageEvent("storage", { key: "hoop3x3_token", oldValue: vecchio, newValue: nuovo })); });
+
+  /** Mette in cache un'anagrafe già caricata, senza passare dalla rete */
+  const anagrafeInCache = (g: RegGiocatore) =>
+    useAnagrafeStore.setState({ giocatori: [g], squadre: [], errore: null, caricata: true });
+
+  it("accesso in un'altra scheda (il token compare): la cache dell'anagrafe, in forma pubblica, si svuota", async () => {
+    token.clear();
+    avvia(ospite);
+    await screen.findByText("Si parte dal campetto");
+    anagrafeInCache(pubblico);
+    // L'altra scheda accede: il token arriva nel localStorage condiviso
+    token.set(jwt(3600));
+    tokenCambiato(null, token.get());
+    expect(useAnagrafeStore.getState().giocatori).toBeNull();
+    expect(useAnagrafeStore.getState().caricata).toBe(false);
+    // Questa scheda resta quella che era: nessuna uscita, nessun cambio di utente
+    expect(store().user).toEqual(ospite);
+  });
+
+  it("con l'anagrafe aperta, l'accesso in un'altra scheda la ricarica da sola con i dati completi", async () => {
+    token.clear();
+    // Senza token il server manda la forma pubblica, con il token quella completa
+    risposte["/api/anagrafe/giocatori"] = () => {
+      if (token.get()) return json(200, [completo]);
+      return json(200, [pubblico]);
+    };
+    risposte["/api/anagrafe/squadre"] = () => json(200, []);
+    window.history.replaceState(null, "", "/anagrafe");
+    avvia(ospite);
+    await screen.findByText("Mario Rossi");
+    expect(screen.queryByText(/1998-03-15/)).toBeNull();
+    expect(chiamateA("/api/anagrafe/giocatori")).toBe(1);
+
+    token.set(jwt(3600));
+    tokenCambiato(null, token.get());
+    expect(await screen.findByText(/1998-03-15/)).toBeTruthy();
+    expect(screen.getByText("Tiratore da tre")).toBeTruthy();
+    expect(chiamateA("/api/anagrafe/giocatori")).toBe(2);
+  });
+
+  it("uscita in un'altra scheda (il token sparisce) mentre questa è ospite: la cache si svuota, e l'ospite resta dov'è", async () => {
+    avvia(ospite); // il token c'è: l'ha salvato l'altra scheda, e questa lo usa per le richieste
+    await screen.findByText("Si parte dal campetto");
+    anagrafeInCache(completo);
+    const vecchio = token.get();
+    token.clear();
+    tokenCambiato(vecchio, null);
+    expect(useAnagrafeStore.getState().giocatori).toBeNull();
+    expect(useAnagrafeStore.getState().caricata).toBe(false);
+    expect(store().user).toEqual(ospite); // la fine della sessione riguarda solo chi è registrato
+  });
+
+  it("uscita in un'altra scheda mentre questa è registrata: l'anagrafe con i dati riservati non resta in memoria", async () => {
+    await dentro();
+    anagrafeInCache(completo);
+    const vecchio = token.get();
+    token.clear();
+    tokenCambiato(vecchio, null);
+    expect(await screen.findByText(MESSAGGIO)).toBeTruthy();
+    expect(store().user).toBeNull();
+    expect(useAnagrafeStore.getState().giocatori).toBeNull();
+    expect(useAnagrafeStore.getState().caricata).toBe(false);
+  });
+
+  it("«Esci» da ospite con il token di un'altra scheda: il token resta e la sessione dell'altra scheda non viene revocata", async () => {
+    avvia(ospite); // il token c'è: l'ha salvato l'altra scheda, registrata
+    await screen.findByText("Si parte dal campetto");
+    anagrafeInCache(completo);
+    const tokenAltraScheda = token.get();
+    expect(tokenAltraScheda).not.toBeNull();
+    fireEvent.click(esci()[0]);
+    await screen.findByRole("button", { name: /Continua come Ospite/ });
+    // L'ospite è uscito e la sua cache con i dati completi non c'è più...
+    expect(store().user).toBeNull();
+    expect(useAnagrafeStore.getState().giocatori).toBeNull();
+    // ...ma il token è dell'altra scheda: non si cancella e il server non revoca niente (l'altra scheda uscirebbe senza conferma)
+    expect(token.get()).toBe(tokenAltraScheda);
+    expect(chiamateA("/api/auth/logout")).toBe(0);
+  });
+
+  it("un token rinnovato da un'altra scheda non svuota la cache: i dati sono gli stessi", async () => {
+    await dentro();
+    anagrafeInCache(completo);
+    const vecchio = token.get();
+    token.set(jwt(1800));
+    tokenCambiato(vecchio, token.get());
+    await act(async () => {});
+    expect(useAnagrafeStore.getState().caricata).toBe(true);
+    expect(useAnagrafeStore.getState().giocatori).toEqual([completo]);
+  });
+
+  it("un altro dato del localStorage che cambia (la sessione salvata, una lega) non svuota la cache", async () => {
+    await dentro();
+    anagrafeInCache(completo);
+    act(() => { window.dispatchEvent(new StorageEvent("storage", { key: SESSION_KEY, oldValue: null, newValue: "{}" })); });
+    act(() => { window.dispatchEvent(new StorageEvent("storage", { key: null, oldValue: null, newValue: null })); });
+    expect(useAnagrafeStore.getState().caricata).toBe(true);
   });
 });

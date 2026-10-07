@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { leggiFileLega, testoFileLega } from "../../src/utils/legaFile";
+import { leggiFileLega, leggiLegaSalvata, testoFileLega } from "../../src/utils/legaFile";
 import type { EsitoLettura } from "../../src/utils/legaFile";
 import { DEFAULT_RULES } from "../../src/constants/rules";
 import { isUuid, uid } from "../../src/utils/uid";
@@ -22,7 +22,7 @@ const tappaCompleta = (id: string, nome = "Tappa di Roma"): Tappa => ({
   gironi: [["a", "b"], ["c", "d"]],
   partite: [
     {
-      id: "m1", g: 0, a: "a", b: "b", sa: 21, sb: 15, done: true,
+      id: "m1", g: 0, a: "a", b: "b", sa: 21, sb: 15, done: true, ts: 1781000000000,
       // la scheda di "a-p2" è nel formato vecchio: solo i punti, come numero
       pa: { "a-p1": { pt: 12, rb: 3, as: 2, ru: 1, st: 0, pe: 2, fa: 1 }, "a-p2": 9 },
       pb: { "b-p1": { pt: 15 } },
@@ -319,5 +319,133 @@ describe("testoFileLega", () => {
     const testo = testoFileLega("Roma", tappe);
     expect(JSON.parse(testo)).toEqual({ nome: "Roma", tappe });
     expect(testo).toContain("\n  \"nome\": \"Roma\"");
+  });
+
+  it("la versione delle tappe non entra nel file: è uno stato del server, e l'import la fa ripartire da 0", () => {
+    const testo = testoFileLega("Roma", [{ ...tappaCompleta("a"), versione: 7 }]);
+    expect(JSON.parse(testo).tappe[0]).not.toHaveProperty("versione");
+    expect(JSON.parse(testo)).toEqual({ nome: "Roma", tappe: [tappaCompleta("a")] });
+  });
+});
+
+describe("leggiFileLega: la versione delle tappe", () => {
+  it("una versione nel file (scritto da un'altra app o a mano) si ignora: la tappa importata non ne ha", () => {
+    const [t] = lega(leggi({ nome: "L", tappe: [{ ...tappaCompleta("a"), versione: 5 }] })).tappe;
+    expect(t).not.toHaveProperty("versione");
+  });
+});
+
+describe("leggiLegaSalvata: la lega dell'ospite nel browser, controllata all'avvio", () => {
+  const dati = (nome: string | undefined, tappe: unknown) => ({ nome, tappe });
+
+  it("una lega valida si legge com'è, con gli id che le sue tappe già avevano e nessun avviso", () => {
+    const tappe = [tappaCompleta("a", "Prima"), tappaCompleta("b", "Seconda")];
+    const letta = leggiLegaSalvata(dati("Roma", tappe));
+    expect(letta).toEqual({ lega: { nome: "Roma", tappe }, avviso: null });
+  });
+
+  it("una tappa senza squadre è scartata, le altre restano usabili e l'avviso dice quale e perché", () => {
+    const rotta = { ...tappaCompleta("b", "Tappa rotta"), squadre: undefined };
+    const letta = leggiLegaSalvata(dati("Estate", [tappaCompleta("a", "Buona"), rotta]))!;
+    expect(letta.lega.tappe.map((t) => t.id)).toEqual(["a"]);
+    // L'avviso dice anche che cosa succede dopo: il primo salvataggio della lega riscrive il browser senza la tappa scartata
+    expect(letta.avviso).toBe(
+      "La lega «Estate» ha una tappa non valida, che non è stata caricata: «Tappa rotta» (manca il campo «squadre»). "
+      + "Alla prossima modifica della lega sarà cancellata per sempre dal browser.",
+    );
+  });
+
+  it("una tappa senza nome si indica con il suo numero, e più tappe scartate stanno nello stesso avviso", () => {
+    const senzaNome = { squadre: tappaMinima().squadre };
+    const senzaSquadre = { ...tappaMinima("Seconda"), squadre: null };
+    const letta = leggiLegaSalvata(dati("Estate", [tappaCompleta("a"), senzaNome, senzaSquadre]))!;
+    expect(letta.lega.tappe).toHaveLength(1);
+    expect(letta.avviso).toBe(
+      "La lega «Estate» ha 2 tappe non valide, che non sono state caricate: "
+      + "n. 2 (manca il campo «nome»); «Seconda» (squadre: deve essere un elenco). "
+      + "Alla prossima modifica della lega saranno cancellate per sempre dal browser.",
+    );
+  });
+
+  it("un elemento che non è nemmeno un oggetto è una tappa scartata", () => {
+    const letta = leggiLegaSalvata(dati("Estate", [null, 7, tappaCompleta("a")]))!;
+    expect(letta.lega.tappe.map((t) => t.id)).toEqual(["a"]);
+    expect(letta.avviso).toContain("n. 1 (non è una tappa)");
+    expect(letta.avviso).toContain("n. 2 (non è una tappa)");
+  });
+
+  it("un problema dentro una squadra dice dov'è", () => {
+    const squadre = [{ id: "s1", nome: "Uno" }, { nome: "Due" }];
+    const letta = leggiLegaSalvata(dati("Estate", [{ nome: "T", squadre }]))!;
+    expect(letta.avviso).toContain("«T» (squadre[1]: manca il campo «id»)");
+  });
+
+  it("dati che non sono una lega non si leggono: non un oggetto, oppure senza l'elenco delle tappe", () => {
+    for (const non of [null, "testo", 42, [], { nome: "Estate" }, { nome: "Estate", tappe: { a: 1 } }]) {
+      expect(leggiLegaSalvata(non), JSON.stringify(non)).toBeNull();
+    }
+  });
+
+  it("una tappa salvata da una versione vecchia, a cui mancano dei campi, prende i valori predefiniti", () => {
+    const letta = leggiLegaSalvata(dati("Estate", [{ id: "vecchia", nome: "Tappa vecchia", squadre: tappaMinima().squadre }]))!;
+    expect(letta.avviso).toBeNull();
+    expect(letta.lega.tappe[0]).toMatchObject({
+      id: "vecchia", nGironi: 1, regole: DEFAULT_RULES, gironi: null, partite: [], video: [],
+    });
+  });
+
+  it("i limiti del server non scartano una tappa del browser: un ospite non ha un server", () => {
+    const lunga = { id: "x", ...tappaMinima("N".repeat(130)), data: "14/06/2026" };
+    const letta = leggiLegaSalvata(dati("Estate", [lunga]))!;
+    expect(letta.avviso).toBeNull();
+    expect(letta.lega.tappe[0]).toMatchObject({ id: "x", data: "14/06/2026" });
+  });
+
+  it.each([[2.5], [0], [-1], [33]])(
+    "nGironi %s non scarta la tappa: compare solo come testo, il sorteggio risponde con un messaggio e si corregge da «Modifica»",
+    (nGironi) => {
+      const letta = leggiLegaSalvata(dati("Estate", [{ id: "x", ...tappaMinima(), nGironi }]))!;
+      expect(letta.avviso).toBeNull();
+      expect(letta.lega.tappe).toHaveLength(1);
+      expect(letta.lega.tappe[0].nGironi).toBe(nGironi);
+    },
+  );
+
+  it("una regola a 0 o non intera non scarta la tappa: resta com'è, e quelle che mancano prendono il valore predefinito", () => {
+    const regole = { target: 0, shot: 12.5, ot: 2 };
+    const letta = leggiLegaSalvata(dati("Estate", [{ id: "x", ...tappaMinima(), regole }]))!;
+    expect(letta.avviso).toBeNull();
+    expect(letta.lega.tappe[0].regole).toEqual({ target: 0, durata: 10, ot: 2, shot: 12.5 });
+  });
+
+  it.each([[""], ["   "]])("una tappa con il nome vuoto (%j) si disegna: resta, e il nome è vuoto", (nome) => {
+    const letta = leggiLegaSalvata(dati("Estate", [{ id: "x", ...tappaMinima(), nome }]))!;
+    expect(letta.avviso).toBeNull();
+    expect(letta.lega.tappe).toHaveLength(1);
+    expect(letta.lega.tappe[0].nome).toBe("");
+  });
+
+  it("dei campi allentati conta ancora il tipo: un testo al posto del numero di gironi, di una regola o del nome scarta la tappa", () => {
+    const letta = leggiLegaSalvata(dati("Estate", [
+      { id: "a", ...tappaMinima("Gironi"), nGironi: "due" },
+      { id: "b", ...tappaMinima("Regola"), regole: { target: "ventuno" } },
+      { id: "c", ...tappaMinima("Nome"), nome: 5 },
+    ]))!;
+    expect(letta.lega.tappe).toEqual([]);
+    expect(letta.avviso).toContain("«Gironi» (nGironi: deve essere un numero)");
+    expect(letta.avviso).toContain("«Regola» (regole.target: deve essere un numero)");
+    expect(letta.avviso).toContain("n. 3 (nome: deve essere un testo)");
+  });
+
+  it("l'import da file resta com'era, con tutti i limiti: gli stessi valori lì sono rifiutati", () => {
+    expect(errore(leggi({ nome: "L", tappe: [{ ...tappaMinima(), nGironi: 2.5 }] }))).toBe("tappe[0].nGironi: deve essere un numero intero da 1 a 32");
+    expect(errore(leggi({ nome: "L", tappe: [{ ...tappaMinima(), regole: { target: 0 } }] }))).toBe("tappe[0].regole.target: deve essere un numero intero da 1 in su");
+    expect(errore(leggi({ nome: "L", tappe: [tappaMinima("   ")] }))).toBe("tappe[0].nome: non può essere vuoto");
+  });
+
+  it("senza nome la lega si legge lo stesso (nome vuoto), e l'avviso la chiama «senza nome»", () => {
+    const letta = leggiLegaSalvata(dati(undefined, [{ nome: "T" }]))!;
+    expect(letta.lega.nome).toBe("");
+    expect(letta.avviso).toContain("La lega «senza nome»");
   });
 });
