@@ -76,16 +76,23 @@ test("accesso e salvataggio: dal modulo di accesso a lega e tappa, e ogni modifi
   expect(nonPreviste).toEqual([]);
 });
 
-test("rete assente al salvataggio: l'avviso dice quante tappe aspettano e perché, «Riprova ora» le salva e l'avviso sparisce", async ({ page }) => {
-  let reteGiu = true;
+test("rete assente al salvataggio: l'avviso dice quante tappe aspettano e perché, e dopo il nuovo tentativo sparisce con la tappa salvata", async ({ page }) => {
+  // L'orologio della pagina parte da un istante noto e si ferma prima della modifica: la coda ritenterebbe da sola dopo 2 secondi, e
+  // l'avviso potrebbe sparire prima che il test lo guardi. Così il tempo lo muove solo il test, e il nuovo tentativo è il clic
+  await page.clock.install({ time: new Date("2026-10-07T10:00:00Z") });
+  let tentativi = 0;
   const { inviate, nonPreviste } = await serverConTappa(page, {
     salva: (route) => {
-      if (reteGiu) return route.abort("failed");
+      // Il primo tentativo non trova il server, dal secondo risponde
+      tentativi++;
+      if (tentativi === 1) return route.abort("failed");
       return route.fulfill(json(tappaSulServer("Testaccio", 4)));
     },
   });
   await apriModifica(page);
+  await page.clock.pauseAt(new Date("2026-10-07T10:10:00Z"));
   await page.getByLabel("Luogo").fill("Testaccio");
+  await page.clock.runFor(400); // l'attesa prima del salvataggio: 400 ms senza altre modifiche
 
   // Il server non risponde: l'avviso dice che la tappa non è salvata e il motivo, e ciò che si è scritto resta sullo schermo
   const avviso = page.getByRole("status");
@@ -93,20 +100,21 @@ test("rete assente al salvataggio: l'avviso dice quante tappe aspettano e perch�
   await expect(avviso).toContainText("Server non raggiungibile: controlla la connessione o avvia il backend.");
   await expect(page.getByLabel("Luogo")).toHaveValue("Testaccio");
 
-  // La rete torna: un nuovo tentativo salva la tappa e l'avviso scompare
-  reteGiu = false;
+  // Un nuovo tentativo salva la tappa e l'avviso scompare
   await avviso.getByRole("button", { name: "Riprova ora" }).click();
   await expect(avviso).toHaveCount(0);
 
-  // Ogni tentativo, anche quelli andati male, ha mandato la stessa tappa con la versione letta: niente si è perso né cambiato
-  expect(inviate.length).toBeGreaterThanOrEqual(2);
+  // I due tentativi hanno mandato la stessa tappa con la versione letta: niente si è perso né cambiato
+  expect(inviate).toHaveLength(2);
   expect(inviate[0]).toMatchObject({ id: "t1", luogo: "Testaccio", versione: 3 });
-  expect(inviate.at(-1)).toEqual(inviate[0]);
+  expect(inviate[1]).toEqual(inviate[0]);
   await expect(page.getByLabel("Luogo")).toHaveValue("Testaccio");
   expect(nonPreviste).toEqual([]);
 });
 
-test("sessione scaduta durante una modifica: si torna al modulo di accesso e il messaggio dice quante tappe non erano salvate", async ({ page }) => {
+test("sessione scaduta durante una modifica: si torna al modulo di accesso, il messaggio dice quante tappe non erano salvate e la coda non riprova", async ({ page }) => {
+  // L'orologio della pagina si può spostare avanti: serve a far passare le attese dei ritentativi della coda senza aspettarle
+  await page.clock.install();
   // Il server respinge il JWT della PUT e, al rinnovo, anche il refresh token: la sessione è finita
   const { inviate, nonPreviste } = await serverConTappa(page, { salva: (route) => route.fulfill(errore(401, "Token non valido")) });
   let rinnovi = 0;
@@ -114,6 +122,7 @@ test("sessione scaduta durante una modifica: si torna al modulo di accesso e il 
     rinnovi++;
     return route.fulfill(errore(401, "Sessione scaduta"));
   });
+  await page.route("**/api/barriera", (route) => route.fulfill(json({})));
   await apriModifica(page);
   await page.getByLabel("Luogo").fill("Testaccio");
 
@@ -121,9 +130,14 @@ test("sessione scaduta durante una modifica: si torna al modulo di accesso e il 
   await expect(page.getByRole("alert")).toHaveText("Sessione scaduta: accedi di nuovo. 1 tappa aveva modifiche non salvate.");
   await expect(page).toHaveURL(/\/$/);
   await expect(page.getByRole("button", { name: /Continua come Ospite/i })).toBeVisible();
-  // Una sola prova di rinnovo, poi basta: nessun nuovo tentativo di salvare, e non resta niente della sessione nel browser
-  expect(rinnovi).toBe(1);
+
+  // La coda avrebbe ritentato dopo 2, 5 e 15 secondi se l'uscita non l'avesse azzerata: l'orologio va oltre tutte le attese. Una
+  // richiesta fatta dopo (la «barriera») passa dalle rotte dopo quelle già partite, quindi un ritentativo si sarebbe già visto
+  await page.clock.runFor(30_000);
+  await page.evaluate(() => fetch("/api/barriera"));
   expect(inviate).toHaveLength(1);
+  expect(rinnovi).toBe(1); // una sola prova di rinnovo, poi basta
+  // Non resta niente della sessione nel browser
   expect(await page.evaluate(() => [localStorage.getItem("hoop3x3_token"), localStorage.getItem("hoop3x3_session")])).toEqual([null, null]);
   expect(nonPreviste).toEqual([]);
 });
