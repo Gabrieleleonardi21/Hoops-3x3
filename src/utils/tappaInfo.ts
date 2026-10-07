@@ -26,10 +26,11 @@ export function giocatoriDi(squadre: readonly SquadraTappa[] | undefined, id: st
   return (squadraDi(squadre, id)?.giocatori ?? []).filter((p) => p.nome.trim());
 }
 
-/** Il nome di un giocatore della tappa, cercato in tutte le squadre */
+/** Il nome di un giocatore della tappa, cercato in tutte le squadre. Una squadra di dati vecchi o importati può non avere
+ *  l'elenco `giocatori`: vale come vuoto */
 export function nomeGiocatore(squadre: readonly SquadraTappa[] | undefined, pid: string): string {
   for (const s of squadre ?? []) {
-    const p = s.giocatori.find((g) => g.id === pid);
+    const p = (s.giocatori ?? []).find((g) => g.id === pid);
     if (p) return p.nome || SCONOSCIUTO;
   }
   return SCONOSCIUTO;

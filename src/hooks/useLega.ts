@@ -14,7 +14,7 @@ export interface NuovaTappaInput {
 }
 
 export function useLega() {
-  const { user, legaName, tappe, setLegaName, addTappa } = useAppStore();
+  const { legaName, tappe, setLegaName, addTappa } = useAppStore();
 
   /** Crea la tappa con squadre segnaposto «Squadra N». Limiti uguali a quelli del Coach (tappaOps): da 2 a 64 squadre,
    *  un numero di gironi intero tra 1 e metà delle squadre e i limiti del server per nome, luogo e data; fuori dai
@@ -39,5 +39,5 @@ export function useLega() {
     return esito;
   };
 
-  return { user, legaName, tappe, setLegaName, createTappa };
+  return { legaName, tappe, setLegaName, createTappa };
 }

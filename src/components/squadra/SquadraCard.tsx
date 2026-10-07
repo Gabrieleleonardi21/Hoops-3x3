@@ -7,6 +7,7 @@ import { Icon } from "../ui/Icon";
 import { useConfermaPerdita } from "../../hooks/useConfermaPerdita";
 import type { useTappa } from "../../hooks/useTappa";
 import { TeamLogo } from "../ui/TeamLogo";
+import { MIN_ROSTER } from "../../constants/rules";
 
 export function SquadraCard({ s, index, h, erroreAnagrafe, onNameCommit }: {
   s: SquadraTappa;
@@ -64,7 +65,7 @@ export function SquadraCard({ s, index, h, erroreAnagrafe, onNameCommit }: {
 
       {/* Giocatori: sempre editabili indipendentemente dall'anagrafe */}
       <div className={`kicker mt-3 mb-1.5 ${ok ? "text-win" : "text-loss"}`}>
-        {ok ? "Roster completo" : "Giocatori obbligatori (min. 3)"}
+        {ok ? "Roster completo" : `Giocatori obbligatori (min. ${MIN_ROSTER})`}
       </div>
       <RosterEditor giocatori={s.giocatori || []}
         onAdd={() => h.addPlayer(s.id)}

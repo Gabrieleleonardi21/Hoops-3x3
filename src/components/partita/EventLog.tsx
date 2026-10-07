@@ -5,7 +5,8 @@ import { Icon } from "../ui/Icon";
 interface Props {
   eventi: EventoGara[];
   nameOf: (id: string) => string;
-  playerNameById: (pid: string) => string | null;
+  /** Il nome del giocatore, o «?» se non c'è più (tappaInfo) */
+  playerNameById: (pid: string) => string;
   onRemove?: (evId: string) => void;
 }
 
@@ -18,7 +19,7 @@ export function EventLog({ eventi, nameOf, playerNameById, onRemove }: Props) {
           <span className="w-10 shrink-0 font-display text-sm text-court">{ev.min ? `${ev.min}'` : "—"}</span>
           <span className="shrink-0 font-semibold text-chalk">{ev.tipo}</span>
           <span className="min-w-0 flex-1 truncate text-chalk-muted">
-            {nameOf(ev.teamId)}{ev.pid ? ` — ${playerNameById(ev.pid) || ""}` : ""}{ev.nota ? ` · ${ev.nota}` : ""}
+            {nameOf(ev.teamId)}{ev.pid ? ` — ${playerNameById(ev.pid)}` : ""}{ev.nota ? ` · ${ev.nota}` : ""}
           </span>
           {onRemove && (
             <button onClick={() => onRemove(ev.id)} className="area-tocco text-chalk-dim hover:text-loss" aria-label="Rimuovi evento">

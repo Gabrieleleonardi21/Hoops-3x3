@@ -39,4 +39,11 @@ describe("tappaInfo: squadre e giocatori di una tappa, con un solo valore di rip
     expect(nomeGiocatore(squadre, "a3")).toBe("Aldo");
     expect(nomeGiocatore(squadre, "zz")).toBe(SCONOSCIUTO);
   });
+
+  it("una squadra arrivata senza `giocatori` (dati vecchi o importati) non fa cadere la pagina", () => {
+    const senzaGiocatori = [{ id: "c", nome: "Gamma", rank: "" } as unknown as SquadraTappa, ...squadre];
+    expect(nomeGiocatore(senzaGiocatori, "a3")).toBe("Aldo");
+    expect(nomeGiocatore(senzaGiocatori, "zz")).toBe(SCONOSCIUTO);
+    expect(giocatoriDi(senzaGiocatori, "c")).toEqual([]);
+  });
 });

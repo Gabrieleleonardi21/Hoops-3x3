@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { SquadraTappa } from "../../types";
 import { safeUrl } from "../../utils/safeUrl";
 import { focusIniziale } from "../../hooks/useFocusFinestra";
@@ -13,11 +14,13 @@ export function SquadraModal({ squadra, onClose, onSelectPlayer, hasStats }: {
   hasStats: boolean;
 }) {
   const giocatori = (squadra.giocatori || []).filter((p) => p.nome.trim());
-  const logo = <TeamLogo src={squadra.logo} alt={`Logo ${squadra.nome}`} className="h-28 w-28" />;
-  // Il logo è un collegamento al sito, se la squadra ne ha uno
-  let logoMostrato = logo;
-  if (squadra.logo && squadra.website) {
-    logoMostrato = <a href={safeUrl(squadra.website)} target="_blank" rel="noopener noreferrer" title={`Vai al sito di ${squadra.nome}`}>{logo}</a>;
+  // Il logo solo se la squadra ne ha uno (senza, niente contenitore vuoto); è un collegamento al sito, se la squadra ne ha uno
+  let logoMostrato: ReactNode = null;
+  if (squadra.logo) {
+    logoMostrato = <TeamLogo src={squadra.logo} alt={`Logo ${squadra.nome}`} className="h-28 w-28" />;
+    if (squadra.website) {
+      logoMostrato = <a href={safeUrl(squadra.website)} target="_blank" rel="noopener noreferrer" title={`Vai al sito di ${squadra.nome}`}>{logoMostrato}</a>;
+    }
   }
   // Che cosa fa il pulsante di un giocatore: apre la sua analisi, se la tappa ha statistiche
   const titoloGiocatore = (nome: string) => {

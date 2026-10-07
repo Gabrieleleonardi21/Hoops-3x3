@@ -156,13 +156,14 @@ src/
 │   ├── tappa/        # Gestione tappa
 │   ├── ui/           # Componenti base (Button, Input, Card, Badge, StatTile, Section, Modal, Icon…)
 │   └── video/        # Galleria video
+├── coach/            # Coach AI: definizioni dei tool (toolDefs) ed esecutori (toolHandlers)
 ├── constants/        # Regole, ruoli, tipi di evento
 ├── data/             # Dati di esempio (campetti)
 ├── domain/           # Operazioni di tappa come funzioni pure (sorteggio, risultati, fasi dirette, conclusione)
 ├── hooks/            # Custom hooks
 ├── pages/            # Pagine dell'app
 ├── services/         # Client HTTP (api.ts), servizi REST (leghe, anagrafe, archivio, auth) e AI
-├── stores/           # Store Zustand: stato globale (useAppStore) e cache dell'anagrafe (useAnagrafeStore)
+├── stores/           # Store Zustand: stato globale (useAppStore, con memoriaBrowser e versioniTappe) e cache dell'anagrafe (useAnagrafeStore)
 ├── types/            # Definizioni TypeScript
 └── utils/            # Funzioni di utilità (gironi, classifica, ecc.)
 ```

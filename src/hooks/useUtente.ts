@@ -4,8 +4,10 @@ import { useState } from "react";
 import { useAppStore } from "../stores/useAppStore";
 import type { User } from "../types";
 
-/** All'uscita la pagina può ridisegnarsi un'ultima volta prima che RequireAuth la tolga: vale l'utente con cui si è aperta, non un
- *  errore. Una pagina che non ha mai avuto un utente è fuori da RequireAuth: è un errore di programmazione, e lo si dice subito */
+/** Se l'utente se ne va mentre la pagina è ancora montata (un'uscita che la pagina vede prima di essere tolta; nei test, lo store
+ *  azzerato con la pagina ancora aperta: senza il ripiego anagrafe.test chiude con un errore non gestito) vale l'utente con cui la
+ *  pagina si è aperta, non un errore. Una pagina che non ha mai avuto un utente è fuori da RequireAuth: è un errore di
+ *  programmazione, e lo si dice subito */
 export function useUtente(): User {
   const user = useAppStore((s) => s.user);
   const [allApertura] = useState(user);

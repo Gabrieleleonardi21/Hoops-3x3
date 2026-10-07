@@ -1,5 +1,6 @@
 /** I campi di un giocatore e di una squadra dell'anagrafe, gli stessi nel form di creazione e nella scheda in modifica (FP-5).
- *  I maxLength sono quelli di GiocatoreRequestDTO e SquadraRequestDTO: oltre, il server risponde 400. */
+ *  I campi di testo hanno i maxLength di GiocatoreRequestDTO e SquadraRequestDTO: oltre, il server risponde 400. Sui campi numerici
+ *  il browser ignora maxLength: il limite di caratteri lo controlla solo il server, che lo dice nel messaggio di errore. */
 import { useId, type ChangeEvent, type CSSProperties, type ReactNode } from "react";
 import { REG_ROLES } from "../../constants/roles";
 import { Input } from "../ui/Input";
