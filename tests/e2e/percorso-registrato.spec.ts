@@ -45,6 +45,8 @@ async function apriModifica(page: Page) {
 }
 
 test("accesso e salvataggio: dal modulo di accesso a lega e tappa, e ogni modifica arriva al server con il suo corpo, senza avvisi", async ({ page }) => {
+  // Accesso, lega, tappa e modifica in un test solo: i 15 secondi della configurazione bastano a un passo, non a una macchina carica
+  test.setTimeout(30_000);
   const nonPreviste = await bloccaApiNonPreviste(page);
   await rispondiAlRisveglio(page);
   // Il server finto ricorda ciò che riceve
