@@ -375,10 +375,6 @@ const ESECUTORI = new Map<string, Esecutore>([
 
 `TOOL_LABELS` (al passato: «Squadra aggiornata») dà il testo del badge sotto la risposta; senza, il badge mostra il nome del tool.
 
-### 5. Documenta lo strumento in questo file
-
-Una sezione `` ### `nome_tool` `` in «Tool disponibili», come le altre: `coachStrumenti.test.ts` controlla che ogni strumento ne abbia una.
-
 > Se il tool modifica una tappa, la regola va in `src/domain/tappaOps.ts` (funzione pura `(tappa, …) → Esito`, con il suo test in `tests/unit/tappaOps.test.ts`): nel tool ci si limita a leggere la tappa fresca, chiamare la funzione e salvare con `applica`.
 >
 > Se l'azione cancella o rende definitivo qualcosa, **chiedi conferma** (D4): prima `prova(tappa, operazione)` (così l'utente non conferma un'azione che verrebbe rifiutata), poi `await confermata(ctx, titolo, testo)`, poi `applica`. Un titolo che dice «Annullare…» è da evitare: confonde con il pulsante «Annulla».
@@ -389,6 +385,10 @@ Una sezione `` ### `nome_tool` `` in «Tool disponibili», come le altre: `coach
 > `prova(tappa, operazione)` / `applica(tappa, operazione)` eseguono una funzione di `tappaOps` senza salvare / salvando sulla tappa di adesso.
 > `fetchSquadre()` / `fetchGiocatori()` leggono l'anagrafe condivisa dal server; se non risponde lanciano l'errore di `anagrafeNonRisponde` (non una lista vuota, che farebbe registrare doppioni).
 > Un nome scritto dagli utenti che entra nel testo restituito al modello passa da `pulisci` (o `senzaTag` per un testo lungo).
+
+### 5. Documenta lo strumento in questo file
+
+Una sezione `` ### `nome_tool` `` in «Tool disponibili», come le altre: `coachStrumenti.test.ts` controlla che ogni strumento ne abbia una.
 
 ### Idee per tool futuri (non implementati)
 
