@@ -208,12 +208,19 @@ function squadraDellaPartita(tappa: Tappa, id: string | null): SquadraTappa {
   return squadra;
 }
 
-/** Anagrafe dal backend; in caso di errore lista vuota (il tool risponde comunque). */
+/** L'anagrafe non ha risposto: lo strumento si ferma con il motivo vero. Una lista vuota al suo posto farebbe passare per nuove
+ *  le squadre che esistono già (crea_tappa le registrerebbe due volte nell'anagrafe condivisa) e per assenti quelle da
+ *  aggiornare (aggiorna_squadra direbbe «non trovata» anche se il server non ha risposto) */
+function anagrafeNonRisponde(e: unknown): never {
+  throw new Error(`L'anagrafe condivisa non risponde (${senzaTag(testoErrore(e))}): non ho registrato né modificato niente, riprova tra poco.`);
+}
+
+/** Anagrafe dal backend, sempre fresca; se il server non risponde lancia un errore (anagrafeNonRisponde). */
 async function fetchSquadre(): Promise<RegSquadra[]> {
-  return anagrafeApi.listSquadre().catch(() => []);
+  return anagrafeApi.listSquadre().catch(anagrafeNonRisponde);
 }
 async function fetchGiocatori(): Promise<RegGiocatore[]> {
-  return anagrafeApi.listGiocatori().catch(() => []);
+  return anagrafeApi.listGiocatori().catch(anagrafeNonRisponde);
 }
 
 /* ── Gli strumenti ── */

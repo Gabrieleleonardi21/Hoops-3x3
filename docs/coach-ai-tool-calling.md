@@ -105,12 +105,12 @@ Tutti gli strumenti di tappa accettano `tappa_nome` (facoltativo):
 - **Parametri opzionali:** `luogo`, `data` (YYYY-MM-DD), `nGironi` (intero da 1 a metà delle squadre, al massimo 32; se manca: 2, oppure 1 con meno di 4 squadre)
 - **Azione:**
   1. Controlla i limiti (`erroreLimitiTappa` di `tappaOps`: numero di squadre e di gironi, nome fino a 120 caratteri, luogo fino a 160, data vuota o aaaa-mm-gg) **prima** di toccare l'anagrafe: una tappa rifiutata non lascia squadre registrate
-  2. Carica in parallelo squadre e giocatori dell'anagrafe condivisa dal server (`anagrafeApi`: lettura sempre fresca, per non registrare doppioni; se la lettura fallisce la lista è vuota)
+  2. Carica in parallelo squadre e giocatori dell'anagrafe condivisa dal server (`anagrafeApi`: lettura sempre fresca, per non registrare doppioni). Se una delle due letture non riesce lo strumento si ferma con l'errore «L'anagrafe condivisa non risponde (<motivo>): non ho registrato né modificato niente, riprova tra poco.»: non registra niente, perché con un elenco vuoto passerebbero per nuove squadre che esistono già
   3. Abbina **tutti** i nomi richiesti alle squadre dell'anagrafe con la regola di «Come si sceglie la squadra dell'anagrafe» (nome esatto, altrimenti una parte che corrisponde a una squadra sola); un nome che ne corrisponde a più ferma lo strumento con un errore, prima di registrare qualsiasi squadra
   4. Per le squadre trovate: popola `giocatori` con il roster dell'anagrafe (tutti, senza il tetto di 4 giocatori dell'interfaccia) e copia `regId`, `logo`, `rank`, `website`, `instagram`
   5. Per le squadre non trovate: le registra in anagrafe con i dati minimi (`saveSquadra` di `useAnagrafeStore`, così si aggiorna anche la cache letta dalle pagine); il roster resta vuoto, da completare a mano
   6. Se intanto la chat è stata cancellata o si è aperta un'altra lega non crea la tappa (le squadre già registrate restano in anagrafe, e con un'altra lega aperta l'errore le elenca); altrimenti `creaTappa` di `tappaOps` + `addTappa` sullo store, poi apre `/lega/tappa/:id`
-- **Errori:** nessuna lega attiva; esiste già una tappa con lo stesso nome nella lega (il modello che lo richiama non crea doppioni); elenco squadre mancante o con un nome vuoto; un nome che corrisponde a più squadre dell'anagrafe
+- **Errori:** nessuna lega attiva; esiste già una tappa con lo stesso nome nella lega (il modello che lo richiama non crea doppioni); elenco squadre mancante o con un nome vuoto; un nome che corrisponde a più squadre dell'anagrafe; anagrafe che non risponde
 - **Nota:** Deve essere chiamato **UNA SOLA VOLTA** con tutte le squadre nell'array `squadre`.
 - **Esempio:** *"Crea la tappa Roma Open con le squadre Ballers Roma, Street Kings e Wildcats"*
 
@@ -213,7 +213,7 @@ Tutti gli strumenti di tappa accettano `tappa_nome` (facoltativo):
 - **Parametro obbligatorio:** `nome` (nome attuale, per trovarla: il nome esatto, maiuscole a parte, o una parte del nome che corrisponde a una squadra sola; se ne corrispondono più d'una è un errore che chiede il nome completo, vedi «Come si sceglie la squadra dell'anagrafe»)
 - **Parametri opzionali:** `citta`, `referente`, `logo`, `website`, `instagram`, `anno`, `rank`, `note`
 - **Azione:**
-  1. Legge l'anagrafe dal server (se la lettura fallisce la lista è vuota e lo strumento risponde «non trovata»)
+  1. Legge l'anagrafe dal server e trova la squadra (vedi «Come si sceglie la squadra dell'anagrafe»). Se il server non risponde l'errore dice il motivo vero («L'anagrafe condivisa non risponde (<motivo>)…»), non «non trovata»
   2. Aggiorna **solo** i campi passati e non vuoti (con nessun campo: errore «Nessun campo da aggiornare»; un campo non si può svuotare da qui); gli altri e il roster restano invariati
   3. `updateSquadra` di `useAnagrafeStore`: `PUT /api/anagrafe/squadre/{id}` e aggiornamento della cache. Il server accetta solo l'autore della voce o un ADMIN: con un altro utente la risposta è 403 e il modello lo legge come errore
 - **Esempio:** *"Metti il logo https://… alla squadra Street Kings"*
@@ -382,7 +382,7 @@ const ESECUTORI = new Map<string, Esecutore>([
 > `str(args, key)` legge una stringa con ripiego a `""`; `obbligatorio(args, key, cosa)` la vuole non vuota, altrimenti l'errore dice che cosa manca; `numero(args, key)` legge un numero (o un testo che lo contiene).
 > `tappaRichiesta(args)` trova la tappa di `tappa_nome` (nome esatto, o una parte che corrisponde a una tappa sola) oppure l'ultima; `findSquadra(squadre, nome)` fa lo stesso con le squadre dell'anagrafe. Tutte e due usano `trovaPerNome`: una regola sola per scegliere per nome.
 > `prova(tappa, operazione)` / `applica(tappa, operazione)` eseguono una funzione di `tappaOps` senza salvare / salvando sulla tappa di adesso.
-> `fetchSquadre()` / `fetchGiocatori()` leggono l'anagrafe condivisa dal server (lista vuota in caso di errore).
+> `fetchSquadre()` / `fetchGiocatori()` leggono l'anagrafe condivisa dal server; se non risponde lanciano l'errore di `anagrafeNonRisponde` (non una lista vuota, che farebbe registrare doppioni).
 > Un nome scritto dagli utenti che entra nel testo restituito al modello passa da `pulisci` (o `senzaTag` per un testo lungo).
 
 ### Idee per tool futuri (non implementati)
