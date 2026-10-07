@@ -11,8 +11,8 @@ export function ClassificaTable({ rows, logos, caption }: {
       <StandingsTable rows={rows} logos={logos} caption={caption} compact />
       <p className="mt-1.5 text-[11px] text-chalk-dim">
         Ordinamento: vittorie; a pari vittorie contano le vittorie negli scontri diretti (le partite giocate tra le
-        squadre in parità); poi decidono i punti fatti in tutto il girone, poi la differenza punti (criteri FIBA 3x3
-        semplificati).
+        squadre in parità); chi resta a pari passa ai punti fatti in tutto il girone, poi alla differenza punti
+        (regolamento FIBA 3x3: ogni criterio una volta sola).
       </p>
     </div>
   );

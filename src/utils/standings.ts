@@ -33,24 +33,22 @@ function fasce(righe: StandingRow[], chiave: (r: StandingRow) => number): Standi
   return out;
 }
 
-/** Ordina le squadre a pari vittorie con gli scontri diretti: una mini-classifica che conta solo le vittorie
- *  nelle partite giocate tra loro. Se separa solo in parte, la si ricalcola solo tra le squadre rimaste a pari,
- *  finché il gruppo si riduce. Se non separa nessuno (es. tre squadre in cerchio) decidono i punti fatti, poi la
- *  differenza punti e, a parità completa, l'ordine d'ingresso: sono i punti di tutto il girone, non dei soli
- *  scontri diretti, e dopo i punti non si torna agli scontri diretti */
+/** Ordina le squadre a pari vittorie come il regolamento FIBA 3x3: i criteri si applicano nell'ordine, ciascuno una volta
+ *  sola, e chi resta a pari dopo uno passa al successivo.
+ *  1. Scontri diretti, calcolati una volta su tutto il gruppo: le vittorie nelle sole partite giocate tra le squadre del
+ *     gruppo (contano vittorie e sconfitte, non i punti). Non si rifanno tra le squadre rimaste a pari.
+ *  2. Punti fatti in tutto il girone, non nei soli scontri diretti.
+ *  3. Differenza punti in tutto il girone.
+ *  4. A parità completa, l'ordine d'ingresso (il sort è stabile). */
 function risolviParita(gruppo: StandingRow[], giocate: Partita[]): StandingRow[] {
-  if (gruppo.length < 2) return gruppo;
   const ids = new Set(gruppo.map((r) => r.id));
   const tra = giocate.filter((m) => ids.has(m.a) && ids.has(m.b));
-  const livelli = fasce(gruppo, (r) => tra.filter((m) => vincitore(m) === r.id).length);
-  if (livelli.length === 1) {
-    return [...gruppo].sort((x, y) => (y.pf - x.pf) || ((y.pf - y.ps) - (x.pf - x.ps)));
-  }
-  return livelli.flatMap((livello) => risolviParita(livello, giocate));
+  return fasce(gruppo, (r) => tra.filter((m) => vincitore(m) === r.id).length)
+    .flatMap((livello) => [...livello].sort((x, y) => (y.pf - x.pf) || ((y.pf - y.ps) - (x.pf - x.ps))));
 }
 
-/** Classifica di un girone: vittorie; a pari vittorie gli scontri diretti; poi punti fatti e differenza punti
- *  (criteri FIBA 3x3 semplificati). Tutte le classifiche di girone dell'app (tabella, home, archivio, tabellone,
+/** Classifica di un girone: vittorie; a pari vittorie gli scontri diretti, una volta sola; poi punti fatti e differenza punti
+ *  (regolamento FIBA 3x3, vedi risolviParita). Tutte le classifiche di girone dell'app (tabella, home, archivio, tabellone,
  *  Coach AI) passano da qui: il criterio sta in questo solo punto */
 export function standings(
   girone: string[],

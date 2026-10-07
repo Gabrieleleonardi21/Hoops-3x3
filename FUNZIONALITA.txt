@@ -119,12 +119,13 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
   rimanda a «Elimina bracket e ricomincia».
 - Classifica girone aggiornata in tempo reale dopo ogni risultato:
     • Vittorie, sconfitte, punti fatti/subiti, differenza canestri.
-    • Ordine: prima le vittorie. Tra le squadre a pari vittorie contano le
-      vittorie negli scontri diretti, cioè nelle sole partite giocate tra
-      loro (se restano squadre ancora pari, si rifà il confronto solo tra
-      quelle). Se gli scontri diretti non bastano, per esempio con tre
-      squadre che si battono a cerchio, decidono i punti fatti in tutto il
-      girone e poi la differenza canestri.
+    • Ordine, come nel regolamento FIBA 3x3 (un criterio alla volta, una
+      volta sola: chi resta a pari passa al successivo): prima le vittorie;
+      tra le squadre a pari vittorie, le vittorie negli scontri diretti,
+      cioè nelle sole partite giocate tra loro, calcolate una volta su tutto
+      il gruppo (non si rifanno tra le squadre rimaste a pari); poi i punti
+      fatti in tutto il girone (per esempio con tre squadre che si battono a
+      cerchio); poi la differenza canestri.
 - Statistiche individuali per partita (tabellino):
     • Punti (PT), Rimbalzi (RIMB), Assist (AST), Palle rubate (RUB),
       Stoppate (STO), Palle perse (PER), Falli (FALLI).

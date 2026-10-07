@@ -89,13 +89,32 @@ describe("standings (classifica girone)", () => {
     expect(rows.map((r) => r.id)).toEqual(["b", "a", "c"]);
   });
 
-  it("se la mini-classifica separa solo in parte, si ricalcola solo tra le squadre ancora pari", () => {
-    // Girone a metà (in uno completo da 4 la mini-classifica non può separare solo in parte): a>b, b>c, c>d, quindi
-    // a, b e c hanno 1 vittoria. Tra loro a 1, b 1, c 0: c scende dietro; a e b restano pari e si ricalcola solo tra
-    // loro, dove a ha battuto b. Con un solo passaggio avrebbero deciso i punti fatti (b 40, a 21) e b sarebbe davanti
+  it("se lo scontro diretto separa solo in parte, chi resta a pari passa ai punti fatti: non si rifà tra loro (FIBA)", () => {
+    // Girone a metà (in uno completo da 4 lo scontro diretto non può separare solo in parte): a>b, b>c, c>d, quindi
+    // a, b e c hanno 1 vittoria. Tra loro a 1, b 1, c 0: c scende dietro. a e b restano pari e il regolamento FIBA 3x3
+    // passa al criterio successivo, i punti fatti (b 40, a 21): b davanti, anche se a ha vinto la loro partita
     const partite = [match("a", "b", 21, 19), match("b", "c", 21, 5), match("c", "d", 15, 12)];
-    expect(standings(["a", "b", "c", "d"], partite, nameOf).map((r) => r.id)).toEqual(["a", "b", "c", "d"]);
+    expect(standings(["a", "b", "c", "d"], partite, nameOf).map((r) => r.id)).toEqual(["b", "a", "c", "d"]);
   });
+
+  // Il girone si prova in due ordini d'ingresso: l'esito non deve dipendere da come le squadre sono elencate
+  for (const girone of [["a", "b", "c", "d", "e", "f"], ["f", "e", "d", "c", "b", "a"]]) {
+    it(`quattro squadre a pari: due restano pari dopo lo scontro diretto e le decidono i punti fatti, non la loro partita (girone ${girone.join(", ")})`, () => {
+      // Girone a metà da 6. a, b, c e d hanno 2 vittorie. Scontri diretti tra loro: a>b, a>d, b>c, c>d, cioè a 2, b 1,
+      // c 1, d 0. b e c restano pari: b ha battuto c, ma c ha più punti fatti (62 contro 56). Con lo scontro diretto
+      // rifatto tra loro due sarebbe b, c; per FIBA si passa ai punti fatti: c, b. La differenza (b +15, c +6) darebbe
+      // b, c: il test isola i punti fatti. e e f, 0 vittorie e nessuna partita tra loro, li ordinano i punti fatti (f 20, e 0)
+      const partite = [
+        match("a", "b", 21, 20), match("a", "d", 21, 19), match("b", "c", 21, 20), match("c", "d", 21, 15),
+        match("d", "e", 21, 0), match("d", "f", 21, 0), match("b", "e", 15, 0), match("c", "f", 21, 20),
+      ];
+      const rows = standings(girone, partite, nameOf);
+      expect(rows.map((r) => r.v)).toEqual([2, 2, 2, 2, 0, 0]);
+      expect(rows.map((r) => r.id)).toEqual(["a", "c", "b", "d", "f", "e"]);
+      expect(rows.find((r) => r.id === "c")).toMatchObject({ pf: 62, ps: 56 });
+      expect(rows.find((r) => r.id === "b")).toMatchObject({ pf: 56, ps: 41 });
+    });
+  }
 
   it("girone completo da 4: due coppie a pari vittorie, ognuna decisa dalla propria partita diretta", () => {
     // a e b hanno 2 vittorie, c e d 1. a ha battuto b e c ha battuto d, ma b e d hanno segnato di più
