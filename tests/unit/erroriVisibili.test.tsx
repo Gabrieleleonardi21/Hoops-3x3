@@ -22,7 +22,7 @@ import { legheApi } from "../../src/services/legheApi";
 import { archivioApi } from "../../src/services/archivioApi";
 import { ApiError } from "../../src/services/api";
 import { DEFAULT_RULES } from "../../src/constants/rules";
-import type { PubTappa, RegGiocatore, RegSquadra, Tappa, User } from "../../src/types";
+import type { PubTappa, PubTappaMeta, RegGiocatore, RegSquadra, Tappa, User } from "../../src/types";
 
 // Si sostituisce solo la rete (leghe, anagrafe, archivio): pagine, store e componenti sono quelli veri
 vi.mock("../../src/services/legheApi", () => ({
@@ -358,6 +358,11 @@ describe("Anagrafe non caricata: l'errore si distingue dal «vuoto» (FS-4)", ()
 /** Una tappa pubblicata nell'archivio del circuito */
 const pubblicata = (nome = "Finale di Roma"): PubTappa => ({ tappa: { ...tappaValida("p1", nome) }, lega: "Estate", autore: "Anna", autoreId: "u1", ts: 1 });
 
+/** La voce dell'elenco dell'archivio: la forma sintetica, senza la tappa intera */
+const voceElenco = (nome = "Finale di Roma"): PubTappaMeta => ({
+  tappaId: "p1", nome, luogo: "Roma", data: "2026-10-01", nSquadre: 4, lega: "Estate", autore: "Anna", ts: 1,
+});
+
 describe("Archivio non caricato: l'errore si distingue dal «vuoto» (FS-4)", () => {
   it("server che risponde errore: compare il messaggio con «Riprova», non «L'archivio è vuoto»", async () => {
     archivio.list.mockRejectedValue(new ApiError(500, "Errore interno del server"));
@@ -373,7 +378,7 @@ describe("Archivio non caricato: l'errore si distingue dal «vuoto» (FS-4)", ()
     archivio.list.mockRejectedValueOnce(rete());
     apri("/archivio");
     await screen.findByRole("alert");
-    archivio.list.mockResolvedValue([pubblicata()]);
+    archivio.list.mockResolvedValue([voceElenco()]);
     fireEvent.click(screen.getByRole("button", { name: "Riprova" }));
     expect(await screen.findByText("Finale di Roma")).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();

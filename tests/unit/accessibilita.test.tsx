@@ -8,7 +8,7 @@ import { ArchivioList } from "../../src/components/archivio/ArchivioList";
 import { ArchivioTappaView } from "../../src/components/archivio/ArchivioTappaView";
 import { SquadraModal } from "../../src/components/archivio/SquadraModal";
 import { tappaDiProva } from "./tappeDiProva";
-import type { PubTappa, SquadraTappa } from "../../src/types";
+import type { PubTappaMeta, SquadraTappa } from "../../src/types";
 
 afterEach(cleanup); // senza le globali di Vitest, Testing Library non smonta da sola
 
@@ -52,20 +52,19 @@ describe("ArchivioTappaView: le squadre sono pulsanti veri", () => {
 });
 
 describe("ArchivioList: chiavi stabili", () => {
-  /** Una tappa pubblicata, con il nome per riconoscerla */
-  const pub = (id: string, nome: string): PubTappa => ({
-    tappa: { ...tappaDiProva(id, { Alfa: ["Mario"], Beta: ["Luigi"] }, []), nome },
-    lega: "Estate", autore: "Anna", autoreId: "u1", ts: 1,
+  /** Una voce dell'elenco (la forma sintetica del server), con il nome per riconoscerla */
+  const voce = (tappaId: string, nome: string): PubTappaMeta => ({
+    tappaId, nome, luogo: "Roma", data: "2025-09-13", nSquadre: 2, lega: "Estate", autore: "Anna", ts: 1,
   });
-  const lista = (pubs: PubTappa[]) => <ArchivioList pubs={pubs} errore={null} onRiprova={() => {}} onOpen={() => {}} />;
+  const lista = (pubs: PubTappaMeta[]) => <ArchivioList pubs={pubs} errore={null} onRiprova={() => {}} onOpen={() => {}} />;
   /** La riga di una tappa, trovata dal suo nome */
   const riga = (nome: string) => screen.getByText(nome).closest("button")!;
 
   it("se in testa all'elenco arriva una tappa nuova, ogni riga resta la sua: stesso elemento per la stessa tappa", () => {
-    const { rerender } = render(lista([pub("a", "Tappa A"), pub("b", "Tappa B")]));
+    const { rerender } = render(lista([voce("a", "Tappa A"), voce("b", "Tappa B")]));
     const rigaA = riga("Tappa A");
     const rigaB = riga("Tappa B");
-    rerender(lista([pub("c", "Tappa C"), pub("a", "Tappa A"), pub("b", "Tappa B")]));
+    rerender(lista([voce("c", "Tappa C"), voce("a", "Tappa A"), voce("b", "Tappa B")]));
     expect(riga("Tappa A")).toBe(rigaA); // con la chiave = posizione la riga di A sarebbe diventata quella di C
     expect(riga("Tappa B")).toBe(rigaB);
     expect(screen.getAllByRole("button")).toHaveLength(3);
@@ -73,10 +72,10 @@ describe("ArchivioList: chiavi stabili", () => {
 
   it("il clic su una riga apre proprio quella tappa", () => {
     const onOpen = vi.fn();
-    const pubs = [pub("a", "Tappa A"), pub("b", "Tappa B")];
-    render(<ArchivioList pubs={pubs} errore={null} onRiprova={() => {}} onOpen={onOpen} />);
+    const voci = [voce("a", "Tappa A"), voce("b", "Tappa B")];
+    render(<ArchivioList pubs={voci} errore={null} onRiprova={() => {}} onOpen={onOpen} />);
     fireEvent.click(within(riga("Tappa B")).getByText("Tappa B"));
-    expect(onOpen).toHaveBeenCalledExactlyOnceWith(pubs[1]);
+    expect(onOpen).toHaveBeenCalledExactlyOnceWith(voci[1]);
   });
 });
 

@@ -7,6 +7,6 @@ export function ArchivioPage() {
   const navigate = useNavigate();
   return (
     <ArchivioList pubs={pubs} errore={errore} onRiprova={() => { void reload(); }}
-      onOpen={(p) => navigate(`/tappa/${p.tappa.id}`)} />
+      onOpen={(voce) => navigate(`/tappa/${voce.tappaId}`)} />
   );
 }
