@@ -169,22 +169,33 @@ async function conLock(fn: () => Promise<boolean>): Promise<boolean> {
   return fn();
 }
 
+/** Un gestore a uno solo posto, registrato dall'app: `imposta` ne mette uno nuovo al posto del precedente e restituisce la funzione
+ *  che lo toglie (solo se è ancora lui); `chiama` lo esegue, se c'è */
+function gestoreSingolo() {
+  let gestore: (() => void) | null = null;
+  return {
+    imposta(fn: () => void): () => void {
+      gestore = fn;
+      return () => {
+        if (gestore === fn) gestore = null;
+      };
+    },
+    chiama() { gestore?.(); },
+  };
+}
+
 /** Gestore della fine della sessione registrato dall'app (vedi suSessioneFinita) */
-let gestoreFineSessione: (() => void) | null = null;
+const gestoreFineSessione = gestoreSingolo();
+/** Gestore del cambio di sessione fatto in un'altra scheda (vedi suSessioneCambiataAltrove) */
+const gestoreSessioneCambiata = gestoreSingolo();
 
 /** Registra il gestore della fine della sessione. Lo chiamano il rinnovo respinto dal server (refresh token scaduto o
  *  revocato) e, in ogni scheda, la cancellazione del token fatta da un'altra (uscita o sessione finita lì). Ce n'è uno
  *  solo: uno nuovo sostituisce il precedente.
  *  @returns la funzione che lo toglie */
 export function suSessioneFinita(fn: () => void): () => void {
-  gestoreFineSessione = fn;
-  return () => {
-    if (gestoreFineSessione === fn) gestoreFineSessione = null;
-  };
+  return gestoreFineSessione.imposta(fn);
 }
-
-/** Gestore del cambio di sessione fatto in un'altra scheda (vedi suSessioneCambiataAltrove) */
-let gestoreSessioneCambiata: (() => void) | null = null;
 
 /** Registra il gestore del token che compare o sparisce per mano di un'altra scheda (accesso o uscita lì): le richieste di questa
  *  scheda cambiano senza che la scheda l'abbia deciso (da quel momento portano il Bearer, o non lo portano più), e ciò che
@@ -192,10 +203,7 @@ let gestoreSessioneCambiata: (() => void) | null = null;
  *  Ce n'è uno solo: uno nuovo sostituisce il precedente.
  *  @returns la funzione che lo toglie */
 export function suSessioneCambiataAltrove(fn: () => void): () => void {
-  gestoreSessioneCambiata = fn;
-  return () => {
-    if (gestoreSessioneCambiata === fn) gestoreSessioneCambiata = null;
-  };
+  return gestoreSessioneCambiata.imposta(fn);
 }
 
 // Token cambiato da un'altra scheda: l'evento storage arriva solo alle altre schede dello stesso browser.
@@ -204,8 +212,8 @@ export function suSessioneCambiataAltrove(fn: () => void): () => void {
 if (typeof window !== "undefined") {
   window.addEventListener("storage", (e) => {
     if (e.key !== TOKEN_KEY) return;
-    if ((e.oldValue === null) !== (e.newValue === null)) gestoreSessioneCambiata?.();
-    if (!token.get()) gestoreFineSessione?.();
+    if ((e.oldValue === null) !== (e.newValue === null)) gestoreSessioneCambiata.chiama();
+    if (!token.get()) gestoreFineSessione.chiama();
   });
 }
 
@@ -246,7 +254,7 @@ function rinnova(): Promise<boolean> {
         // chiusa in un'altra scheda arriva l'evento storage
         if (e instanceof ApiError && e.status === 401 && dopo) {
           token.clear();
-          gestoreFineSessione?.();
+          gestoreFineSessione.chiama();
         }
         return false;
       }

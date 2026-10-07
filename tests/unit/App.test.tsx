@@ -351,6 +351,22 @@ describe("App: anagrafe e sessione cambiata in un'altra scheda (T2.15)", () => {
     expect(useAnagrafeStore.getState().caricata).toBe(false);
   });
 
+  it("«Esci» da ospite con il token di un'altra scheda: il token resta e la sessione dell'altra scheda non viene revocata", async () => {
+    avvia(ospite); // il token c'è: l'ha salvato l'altra scheda, registrata
+    await screen.findByText("Si parte dal campetto");
+    anagrafeInCache(completo);
+    const tokenAltraScheda = token.get();
+    expect(tokenAltraScheda).not.toBeNull();
+    fireEvent.click(esci()[0]);
+    await screen.findByRole("button", { name: /Continua come Ospite/ });
+    // L'ospite è uscito e la sua cache con i dati completi non c'è più...
+    expect(store().user).toBeNull();
+    expect(useAnagrafeStore.getState().giocatori).toBeNull();
+    // ...ma il token è dell'altra scheda: non si cancella e il server non revoca niente (l'altra scheda uscirebbe senza conferma)
+    expect(token.get()).toBe(tokenAltraScheda);
+    expect(chiamateA("/api/auth/logout")).toBe(0);
+  });
+
   it("un token rinnovato da un'altra scheda non svuota la cache: i dati sono gli stessi", async () => {
     await dentro();
     anagrafeInCache(completo);

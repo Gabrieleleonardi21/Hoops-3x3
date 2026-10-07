@@ -20,23 +20,20 @@ function clearSession() {
 export function useAuth() {
   const { user, setUser, reset, rehydrate, salvaTutto } = useAppStore();
 
-  /** Registrazione: il server risponde già con il token, poi si caricano le leghe (vuote) */
-  const register = async (name: string, email: string, pass: string) => {
-    const u = await authService.register(name, email, pass);
+  /** Chi ha appena fatto l'accesso o la registrazione entra: il token c'è già (lo ha salvato authService), quindi l'anagrafe già in
+   *  cache, vista senza token, ha la forma pubblica e si svuota; poi si caricano le leghe */
+  const entra = async (u: User) => {
     setUser(u);
     saveSession(u);
-    useAnagrafeStore.getState().svuota(); // il token c'è già: l'anagrafe già in cache ha la forma pubblica
+    useAnagrafeStore.getState().svuota();
     await rehydrate();
   };
 
+  /** Registrazione: il server risponde già con il token, poi si caricano le leghe (vuote) */
+  const register = async (name: string, email: string, pass: string) => entra(await authService.register(name, email, pass));
+
   /** Login: lancia ApiError (401 credenziali, 0 server spento) che il form mostra all'utente */
-  const login = async (email: string, pass: string) => {
-    const u = await authService.login(email, pass);
-    setUser(u);
-    saveSession(u);
-    useAnagrafeStore.getState().svuota(); // il token c'è già: l'anagrafe già in cache ha la forma pubblica
-    await rehydrate();
-  };
+  const login = async (email: string, pass: string) => entra(await authService.login(email, pass));
 
   const enterGuest = async () => {
     const u: User = { name: "Ospite", guest: true };
@@ -59,12 +56,15 @@ export function useAuth() {
       const esci = await conferma(nonSalvate);
       if (!esci) return { uscito: false, nonSalvate };
     }
+    const eraOspite = useAppStore.getState().user?.guest === true;
     clearSession();
     reset();
     // Prima di aspettare la rete, senza await fino alla cancellazione del token (dentro authService.logout): nessun caricamento
     // può ripartire con il token di chi esce e riempire di nuovo la cache con i suoi dati riservati
     useAnagrafeStore.getState().svuota();
-    await authService.logout();
+    // L'ospite non ha una sessione sul server: un token che c'è è di un'altra scheda, registrata, e cancellarlo (o revocarlo) la
+    // farebbe uscire senza conferma, con le tappe non salvate perse. Esce solo lo stato dell'ospite
+    if (!eraOspite) await authService.logout();
     return { uscito: true, nonSalvate };
   };
 

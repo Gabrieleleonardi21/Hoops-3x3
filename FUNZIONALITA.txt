@@ -29,6 +29,8 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
 - Modalità Ospite: accesso immediato senza credenziali per provare l'app;
   i dati vengono salvati solo localmente, i controlli obbligatori su roster
   e punteggi sono disattivati, la pubblicazione nell'archivio è bloccata.
+  «Esci» dall'Ospite chiude solo l'Ospite: se un'altra scheda del browser ha
+  una sessione registrata, il suo token resta e quella scheda non esce.
 - Solo utenti registrati possono scrivere nell'anagrafe condivisa e
   concludere/pubblicare una tappa.
 
