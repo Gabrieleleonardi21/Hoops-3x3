@@ -365,16 +365,20 @@ utenti registrati.
   della lega); una lega illeggibile non si apre e si può eliminare
   dall'elenco delle leghe. Se il browser rifiuta una scrittura (spazio
   esaurito) la modifica resta in memoria e una barra avvisa che non è salvata
-  (esportare la lega o eliminarne altre libera spazio); l'avviso sparisce
+  (esportare la lega o eliminarne altre libera spazio). L'avviso sparisce
   quando torna a riuscire una scrittura che contiene la lega aperta (non
   basta l'indice, scritto eliminando un'altra lega: le modifiche della lega
-  aperta potrebbero essere ancora solo in memoria). Creare o importare una lega senza
-  spazio non crea niente (dati e indice entrano insieme, o nessuno dei due) e
-  il messaggio dice «spazio esaurito». Un messaggio analogo compare nel modulo
-  d'accesso se il JWT non si può scrivere dopo una registrazione o un accesso.
-  La lega aperta per ultima ha una chiave nel browser per l'ospite e una per
-  il registrato: passando da una modalità all'altra non si cancellano a
-  vicenda.
+  aperta potrebbero essere ancora solo in memoria) o quando la lega aperta
+  viene eliminata. Finché l'avviso c'è, aprire, creare o importare un'altra
+  lega prova prima a salvare quella aperta: se riesce l'avviso sparisce e si
+  procede, se no non cambia niente e un messaggio dice di esportarla o di
+  liberare spazio (le modifiche non si perdono in silenzio). Creare o
+  importare una lega senza spazio non crea niente (dati e indice entrano
+  insieme, o nessuno dei due) e il messaggio dice «spazio esaurito». Un
+  messaggio analogo compare nel modulo d'accesso se il JWT non si può
+  scrivere dopo una registrazione o un accesso. La lega aperta per ultima ha
+  una chiave nel browser per l'ospite e una per il registrato: passando da
+  una modalità all'altra non si cancellano a vicenda.
 - Anagrafe in cache nello store (useAnagrafeStore): scaricata una volta e
   aggiornata a ogni scrittura, non a ogni apertura di pagina; le modifiche
   di altri utenti si vedono ricaricando la pagina; fanno eccezione le voci
