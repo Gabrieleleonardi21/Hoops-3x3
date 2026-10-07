@@ -123,7 +123,7 @@ describe("SyncBanner (avviso dei salvataggi)", () => {
       await vi.advanceTimersByTimeAsync(400);
     });
     const [rifiuto, errore] = screen.getAllByRole("alert").map((r) => r.textContent);
-    expect(rifiuto).toBe("Salvataggio della tappa «Finale» non riuscito: Dati della tappa non validi");
+    expect(rifiuto).toMatch(/^Salvataggio della tappa «Finale» non riuscito: Dati della tappa non validi\. Correggi la tappa, oppure riapri la lega/);
     expect(errore).toBe("Rinomina lega non riuscita: Errore del server");
     fireEvent.click(screen.getByRole("button", { name: "Chiudi avviso" }));
     // Il rifiuto resta finché è vero: sul server c'è la versione di prima

@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   COPIA_LINK_NON_RIUSCITA, PERDITA_RIAPERTURA, SPAZIO_ESAURITO, SPAZIO_ESAURITO_ACCESSO, SPAZIO_ESAURITO_LEGA,
-  conteggio, copiaPubblicaNonAggiornata, perditaGiocatore, perditaLega, perditaSquadraAnagrafe, pubblicazioneSenzaSalvataggio, tappaNonPubblicata,
+  conteggio, copiaPubblicaNonAggiornata, perditaGiocatore, perditaLega, perditaSquadraAnagrafe, pubblicazioneSenzaSalvataggio, salvataggioRifiutato,
+  tappaNonPubblicata,
 } from "../../src/utils/testi";
 import type { LegaMeta, RegGiocatore, RegSquadra } from "../../src/types";
 
@@ -10,6 +11,29 @@ describe("conteggio: il numero con il nome al singolare o al plurale", () => {
     expect(conteggio(1, "risultato", "risultati")).toBe("1 risultato");
     expect(conteggio(0, "risultato", "risultati")).toBe("0 risultati");
     expect(conteggio(12, "risultato", "risultati")).toBe("12 risultati");
+  });
+});
+
+describe("salvataggio rifiutato dal server: che cosa è successo e che cosa fare", () => {
+  it("nella lega aperta: correggere la tappa, oppure riaprire la lega per tornare alla versione salvata sul server", () => {
+    expect(salvataggioRifiutato("Finale", "Dati della tappa non validi", "Estate", true)).toBe(
+      "Salvataggio della tappa «Finale» non riuscito: Dati della tappa non validi. Correggi la tappa, oppure riapri la lega «Estate» "
+      + "da «Le mie leghe» per tornare alla versione salvata sul server.",
+    );
+  });
+
+  it("in un'altra lega: la nomina, e dice che quella versione qui non c'è più invece di promettere di salvarla", () => {
+    expect(salvataggioRifiutato("Finale", "Dati della tappa non validi.", "Inverno", false)).toBe(
+      "Salvataggio della tappa «Finale» della lega «Inverno» non riuscito: Dati della tappa non validi. Quella versione non è più qui: "
+      + "aprendo la lega «Inverno» trovi quella salvata sul server.",
+    );
+  });
+
+  it("una tappa senza nome (il nome vuoto può essere proprio il dato rifiutato)", () => {
+    expect(salvataggioRifiutato("  ", "Il nome della tappa è obbligatorio", "Estate", true))
+      .toMatch(/^Salvataggio di una tappa senza nome non riuscito: Il nome della tappa è obbligatorio\. Correggi la tappa/);
+    expect(salvataggioRifiutato("", "Il nome della tappa è obbligatorio", "Inverno", false))
+      .toMatch(/^Salvataggio di una tappa senza nome della lega «Inverno» non riuscito: /);
   });
 });
 

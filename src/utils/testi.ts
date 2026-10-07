@@ -79,11 +79,20 @@ export function pubblicazioneSenzaSalvataggio(motivo: string | null): string {
 }
 
 /** Il server ha rifiutato il salvataggio di una tappa (dati non validi): lì resta la versione di prima. È una frase della riga dei
- *  salvataggi rifiutati nella barra degli avvisi, che dura finché il rifiuto vale. Il nome è quello mandato, che può essere proprio il
- *  campo rifiutato (vuoto) */
-export function salvataggioRifiutato(nome: string, motivo: string): string {
-  if (!nome.trim()) return `Salvataggio di una tappa senza nome non riuscito: ${motivo}`;
-  return `Salvataggio della tappa «${nome.trim()}» non riuscito: ${motivo}`;
+ *  salvataggi rifiutati nella barra degli avvisi, che dura finché il rifiuto vale, e dice che cosa fare. Il nome è quello mandato, che
+ *  può essere proprio il campo rifiutato (vuoto). `aperta` = la tappa è della lega aperta: la versione rifiutata è sullo schermo, e si
+ *  corregge, oppure si torna a quella del server riaprendo la lega. Se è di un'altra lega quella versione non è più in memoria (aprendo
+ *  l'altra lega lo store l'ha sostituita): la frase nomina la lega e non promette di salvarla */
+export function salvataggioRifiutato(nome: string, motivo: string, lega: string, aperta: boolean): string {
+  let tappa = `della tappa «${nome.trim()}»`;
+  if (!nome.trim()) tappa = "di una tappa senza nome";
+  const perche = motivo.trim().replace(/\.+$/, "");
+  if (aperta) {
+    return `Salvataggio ${tappa} non riuscito: ${perche}. Correggi la tappa, oppure riapri la lega «${lega}» da «Le mie leghe» `
+      + "per tornare alla versione salvata sul server.";
+  }
+  return `Salvataggio ${tappa} della lega «${lega}» non riuscito: ${perche}. Quella versione non è più qui: aprendo la lega «${lega}» `
+    + "trovi quella salvata sul server.";
 }
 
 /* Conflitti tra dispositivi sulle tappe (T2.7): un altro dispositivo, o un'altra scheda, ha salvato la stessa tappa. Vale la tappa del

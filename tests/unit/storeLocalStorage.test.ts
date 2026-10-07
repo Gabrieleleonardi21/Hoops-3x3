@@ -334,6 +334,21 @@ describe("ospite: l'avviso «spazio esaurito» sparisce quando le scritture torn
     expect(store().spazioEsaurito).toBe(false);
   });
 
+  it("ricordare la lega aperta è una comodità: se il browser rifiuta solo quella chiave, la protezione non si alza", async () => {
+    localStorage.setItem("hoop3x3_lega_l1", JSON.stringify({ nome: "Estate", tappe: [tappa()] }));
+    localStorage.setItem("hoop3x3_lega_l2", JSON.stringify({ nome: "Inverno", tappe: [] }));
+    useAppStore.setState({ leghe: [...store().leghe, { id: "l2", nome: "Inverno", ts: 1, nTappe: 0 }] });
+    const scrivi = Storage.prototype.setItem;
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (this: Storage, chiave: string, valore: string) {
+      if (chiave === CHIAVE_OSPITE) throw new DOMException("The quota has been exceeded.", "QuotaExceededError");
+      scrivi.call(this, chiave, valore);
+    });
+    await store().selectLega("l2");
+    expect(store().legaId).toBe("l2");
+    expect(store().spazioEsaurito).toBe(false);             // la lega aperta non ha modifiche solo in memoria
+    expect(store().syncError).toBeNull();
+  });
+
   it("un altro avviso non si toglie: sparisce solo quello dello spazio", () => {
     useAppStore.setState({ syncError: "La lega «Estate» ha una tappa non valida." });
     store().updateTappa("t1", { nome: "Finale" });

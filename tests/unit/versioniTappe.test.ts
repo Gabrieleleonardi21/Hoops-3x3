@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { useAppStore } from "../../src/stores/useAppStore";
+import { avvisoRifiutate, useAppStore } from "../../src/stores/useAppStore";
 import { legheApi } from "../../src/services/legheApi";
 import { ApiError } from "../../src/services/api";
 import { DEFAULT_RULES } from "../../src/constants/rules";
@@ -19,6 +19,8 @@ vi.mock("../../src/services/legheApi", () => ({
 const api = vi.mocked(legheApi);
 const registrato: User = { id: "u1", name: "Anna", email: "anna@example.it", guest: false };
 const store = () => useAppStore.getState();
+/** La riga dei salvataggi rifiutati come la mostra la barra degli avvisi, calcolata sullo stato di adesso */
+const rifiuti = () => avvisoRifiutate(store());
 
 const tappa = (id: string, nome = "Tappa"): Tappa => ({
   id, nome, luogo: "", data: "", nGironi: 1, regole: { ...DEFAULT_RULES }, squadre: [], gironi: null, partite: [], video: [],
@@ -85,6 +87,18 @@ function rispostaPersa(server: ReturnType<typeof serverFinto>) {
     await server.put(t);
     throw new ApiError(0, NESSUNA_RISPOSTA);
   });
+}
+
+/** La GET della prossima apertura legge la lega appena parte e risponde quando il test chiama `ok`: è una lettura partita
+ *  prima di ciò che il test fa nel frattempo (salvataggi, conflitti) */
+function letturaLenta(server: ReturnType<typeof serverFinto>) {
+  const lettura = differita();
+  api.get.mockImplementationOnce(async (id) => {
+    const letta = { id, nome: "Lega", tappe: [...server.salvate.values()].map(copia) };
+    await lettura.p;
+    return letta;
+  });
+  return lettura;
 }
 
 /** Versioni e nomi delle PUT partite, in ordine */
@@ -357,7 +371,7 @@ describe("400 «Manca la versione»: pagina aperta prima dell'aggiornamento del 
     await vi.advanceTimersByTimeAsync(60_000);
     expect(api.putTappa).toHaveBeenCalledTimes(2);
     expect(api.get).toHaveBeenCalledTimes(1);
-    expect(store().avvisoRifiutate).toBe("Salvataggio di una tappa senza nome non riuscito: Il nome della tappa è obbligatorio");
+    expect(rifiuti()).toMatch(/^Salvataggio di una tappa senza nome non riuscito: Il nome della tappa è obbligatorio\. Correggi la tappa/);
   });
 });
 
@@ -622,6 +636,159 @@ describe("conflitti: i casi rischiosi", () => {
   });
 });
 
+describe("riaprire la lega: altri ordini di arrivo (dopo la ri-revisione di C1)", () => {
+  const nonRaggiungibile = () => new ApiError(0, NESSUNA_RISPOSTA);
+
+  it("P1: una versione in attesa prima della GET (rete giù) e una nuova salvata durante la GET: i dati non tornano indietro", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1"), 3);
+    await apri();
+    api.putTappa.mockRejectedValueOnce(nonRaggiungibile()).mockRejectedValueOnce(nonRaggiungibile());
+    store().updateTappa("t1", { nome: "Semifinale" });
+    await vi.advanceTimersByTimeAsync(400);                  // PUT non riuscita: T1 resta in attesa
+    const lettura = letturaLenta(server);
+    const apertura = store().selectLega("l1");               // salvaTutto non riesce ancora: T1 è tra quelle in attesa; la GET parte
+    await vi.advanceTimersByTimeAsync(0);
+    store().updateTappa("t1", { luogo: "Testaccio" });       // la rete torna (per esempio una modifica del Coach): T2 è salvata
+    await vi.advanceTimersByTimeAsync(400);
+    expect(server.salvate.get("t1")).toMatchObject({ nome: "Semifinale", luogo: "Testaccio", versione: 4 });
+    lettura.ok();
+    await apertura;
+    expect(store().tappe[0]).toMatchObject({ nome: "Semifinale", luogo: "Testaccio", versione: 4 });
+    store().updateTappa("t1", { data: "2026-10-07" });
+    await vi.advanceTimersByTimeAsync(400);
+    expect(server.salvate.get("t1")).toMatchObject({ nome: "Semifinale", luogo: "Testaccio", data: "2026-10-07", versione: 5 });
+    senzaAvvisi();
+  });
+
+  it("P2: un conflitto risolto durante la GET (vale la tappa del server): la risposta della GET non lo disfa", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1"), 3);
+    await apri();
+    api.putTappa.mockRejectedValueOnce(nonRaggiungibile()).mockRejectedValueOnce(nonRaggiungibile());
+    store().updateTappa("t1", { nome: "Semifinale" });
+    await vi.advanceTimersByTimeAsync(400);
+    const lettura = letturaLenta(server);
+    const apertura = store().selectLega("l1");
+    await vi.advanceTimersByTimeAsync(0);
+    server.salvaAltrove("t1", { nome: "Salvata altrove" });  // versione 4
+    await vi.advanceTimersByTimeAsync(5000);                 // nuovo tentativo: 409, vale la tappa del server
+    expect(store().tappe[0]).toMatchObject({ nome: "Salvata altrove", versione: 4 });
+    expect(store().avvisoConflitti).toBe(tappaModificataAltrove("Salvata altrove"));
+    lettura.ok();
+    await apertura;
+    expect(store().tappe[0]).toMatchObject({ nome: "Salvata altrove", versione: 4 });
+    store().updateTappa("t1", { luogo: "Ostia" });
+    await vi.advanceTimersByTimeAsync(400);
+    expect(server.salvate.get("t1")).toMatchObject({ nome: "Salvata altrove", luogo: "Ostia", versione: 5 });
+  });
+
+  it("P3: la PUT parte e finisce durante la GET, che ha letto prima: resta il dato di qui", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1"), 3);
+    await apri();
+    const lettura = letturaLenta(server);
+    const apertura = store().selectLega("l1");
+    await vi.advanceTimersByTimeAsync(0);
+    store().updateTappa("t1", { nome: "Finale" });
+    await vi.advanceTimersByTimeAsync(400);                  // PUT riuscita: versione 4
+    lettura.ok();
+    await apertura;
+    expect(store().tappe[0]).toMatchObject({ nome: "Finale", versione: 4 });
+    store().updateTappa("t1", { luogo: "Ostia" });
+    await vi.advanceTimersByTimeAsync(400);
+    expect(server.salvate.get("t1")).toMatchObject({ nome: "Finale", luogo: "Ostia", versione: 5 });
+    senzaAvvisi();
+  });
+
+  it("P4: due «Apri» di fila con la PUT in volo: GET1, GET2, poi la PUT", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1"), 3);
+    await apri();
+    const l1 = letturaLenta(server);
+    const l2 = letturaLenta(server);
+    const a1 = store().selectLega("l1");
+    const a2 = store().selectLega("l1");
+    await vi.advanceTimersByTimeAsync(0);
+    const put = differita();
+    api.putTappa.mockImplementationOnce(async (t) => { await put.p; return server.put(t); });
+    store().updateTappa("t1", { nome: "Finale" });
+    await vi.advanceTimersByTimeAsync(400);
+    l1.ok();
+    await a1;
+    l2.ok();
+    await a2;
+    expect(store().tappe[0]).toMatchObject({ nome: "Finale" });
+    put.ok();
+    await vi.advanceTimersByTimeAsync(0);
+    store().updateTappa("t1", { luogo: "Ostia" });
+    await vi.advanceTimersByTimeAsync(400);
+    expect(server.salvate.get("t1")).toMatchObject({ nome: "Finale", luogo: "Ostia", versione: 5 });
+    senzaAvvisi();
+  });
+
+  it("P5: cambio di lega con la rete giù e ritorno; il nuovo tentativo riesce durante la GET del ritorno", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1"), 3);
+    await apri();
+    api.putTappa.mockRejectedValueOnce(nonRaggiungibile()).mockRejectedValueOnce(nonRaggiungibile())
+      .mockRejectedValueOnce(nonRaggiungibile());
+    store().updateTappa("t1", { nome: "Semifinale" });
+    await vi.advanceTimersByTimeAsync(400);
+    api.get.mockImplementationOnce(async (id) => ({ id, nome: "Altra", tappe: [] }));
+    await store().selectLega("l2");                          // salvaTutto non riesce: T1 resta in attesa
+    expect(store().tappe).toEqual([]);
+    const lettura = letturaLenta(server);
+    const ritorno = store().selectLega("l1");                // salvaTutto non riesce ancora; la GET parte
+    await vi.advanceTimersByTimeAsync(15000);                // nuovo tentativo riuscito durante la GET
+    expect(server.salvate.get("t1")).toMatchObject({ nome: "Semifinale", versione: 4 });
+    lettura.ok();
+    await ritorno;
+    expect(store().tappe[0]).toMatchObject({ nome: "Semifinale", versione: 4 });
+  });
+
+  it("P6: ritorno da un'altra lega con un conflitto risolto durante la GET del ritorno, che ha letto prima: vale la tappa del server", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1"), 3);
+    await apri();
+    api.putTappa.mockRejectedValueOnce(nonRaggiungibile()).mockRejectedValueOnce(nonRaggiungibile())
+      .mockRejectedValueOnce(nonRaggiungibile());
+    store().updateTappa("t1", { nome: "Semifinale" });
+    await vi.advanceTimersByTimeAsync(400);
+    api.get.mockImplementationOnce(async (id) => ({ id, nome: "Altra", tappe: [] }));
+    await store().selectLega("l2");                          // T1 resta in attesa
+    const lettura = letturaLenta(server);                    // la GET del ritorno legge la versione 3
+    const ritorno = store().selectLega("l1");
+    await vi.advanceTimersByTimeAsync(0);
+    server.salvaAltrove("t1", { nome: "Salvata altrove" });  // versione 4
+    await vi.advanceTimersByTimeAsync(15000);                // nuovo tentativo: 409, vale la tappa del server (la lega aperta è l2)
+    expect(store().avvisoConflitti).toBe(tappaModificataAltrove("Salvata altrove"));
+    lettura.ok();
+    await ritorno;
+    expect(store().tappe[0]).toMatchObject({ nome: "Salvata altrove", versione: 4 });
+    store().updateTappa("t1", { luogo: "Ostia" });
+    await vi.advanceTimersByTimeAsync(400);
+    expect(server.salvate.get("t1")).toMatchObject({ nome: "Salvata altrove", luogo: "Ostia", versione: 5 });
+  });
+
+  it("P7: una tappa eliminata qui durante la GET, che l'ha letta prima, non torna", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1"), 3);
+    server.ha(tappa("t2", "Seconda"), 0);
+    await apri();
+    const lettura = letturaLenta(server);
+    const apertura = store().selectLega("l1");
+    await vi.advanceTimersByTimeAsync(0);
+    store().removeTappa("t2");
+    await vi.advanceTimersByTimeAsync(0);                    // la DELETE è arrivata
+    expect(server.salvate.has("t2")).toBe(false);
+    lettura.ok();
+    await apertura;
+    expect(store().tappe.map((t) => t.id)).toEqual(["t1"]);
+    senzaAvvisi();
+  });
+});
+
 describe("404 sulla PUT: la tappa l'ha eliminata un altro dispositivo", () => {
   // Il server controlla l'esistenza della tappa prima della versione: una tappa eliminata altrove dà 404 alla PUT, non 409
   it("si rilegge la lega: la tappa non c'è più, esce dallo store con l'avviso e non si ritenta", async () => {
@@ -636,7 +803,7 @@ describe("404 sulla PUT: la tappa l'ha eliminata un altro dispositivo", () => {
     expect(store().tappe.map((t) => t.id)).toEqual(["t2"]);
     expect(store().leghe[0].nTappe).toBe(1);
     expect(store().avvisoConflitti).toBe(tappaEliminataAltrove("Prima"));
-    expect(store().avvisoRifiutate).toBeNull();
+    expect(rifiuti()).toBeNull();
     expect(store().syncError).toBeNull();
     await vi.advanceTimersByTimeAsync(60_000);
     expect(api.putTappa).toHaveBeenCalledTimes(1);
@@ -675,7 +842,7 @@ describe("404 sulla PUT: la tappa l'ha eliminata un altro dispositivo", () => {
     rilettura.ok();
     await vi.advanceTimersByTimeAsync(0);
     senzaAvvisi();
-    expect(store().avvisoRifiutate).toBeNull();
+    expect(rifiuti()).toBeNull();
     expect(api.removeTappa).toHaveBeenCalledExactlyOnceWith("t1");
   });
 
@@ -688,7 +855,7 @@ describe("404 sulla PUT: la tappa l'ha eliminata un altro dispositivo", () => {
     await vi.advanceTimersByTimeAsync(400);
     expect(api.get).toHaveBeenCalledTimes(2);
     expect(store().tappe.map((t) => t.id)).toEqual(["t1"]);
-    expect(store().avvisoRifiutate).toBe("Salvataggio della tappa «Tappa» non riuscito: Tappa non trovata: t1");
+    expect(rifiuti()).toMatch(/^Salvataggio della tappa «Tappa» non riuscito: Tappa non trovata: t1\. Correggi la tappa/);
     expect(store().avvisoConflitti).toBeNull();
   });
 });
@@ -760,18 +927,6 @@ describe("riaprire la lega aperta mentre un salvataggio è in volo (C1)", () => 
   const risultato = { sa: 21, sb: 15, done: true };
   /** Una tappa con una partita ancora da giocare */
   const conPartita = (id: string): Tappa => ({ ...tappa(id), partite: [{ id: "m1", g: 0, a: "s1", b: "s2", sa: 0, sb: 0, done: false }] });
-
-  /** La GET della prossima apertura legge la lega appena parte e risponde quando il test chiama `ok`: è una lettura partita
-   *  prima dei salvataggi che il test fa nel frattempo */
-  function letturaLenta(server: ReturnType<typeof serverFinto>) {
-    const lettura = differita();
-    api.get.mockImplementationOnce(async (id) => {
-      const letta = { id, nome: "Lega", tappe: [...server.salvate.values()].map(copia) };
-      await lettura.p;
-      return letta;
-    });
-    return lettura;
-  }
 
   it("la GET risponde mentre la PUT del risultato è in volo, la PUT dopo: la modifica successiva porta il risultato", async () => {
     const server = serverFinto();

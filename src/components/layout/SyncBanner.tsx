@@ -5,13 +5,13 @@
  *  - i conflitti con un altro dispositivo (T2.7), una frase per tappa: salvata altrove (ora nello store c'è quella del
  *    server), eliminata altrove, o non eliminata perché salvata nello stesso istante. Sta a parte dagli errori, così
  *    un errore arrivato dopo non nasconde che delle modifiche sono state scartate; si chiude a mano;
- *  - i salvataggi rifiutati dal server (dati non validi), una frase per tappa. Sta a parte per lo stesso motivo, e non si chiude:
- *    sparisce da sola quando non è più vera (la tappa si salva, si elimina, o si riapre la lega);
+ *  - i salvataggi rifiutati dal server (dati non validi), una frase per tappa con che cosa fare. Sta a parte per lo stesso motivo, e
+ *    non si chiude: sparisce da sola quando non è più vera (la tappa si salva, si elimina, o si riapre la lega);
  *  - gli altri errori (rinomina, eliminazione, caricamento, dati dell'ospite), che si chiudono a mano.
  *  Lo stato in memoria resta corretto in tutti i casi.
  *  Ogni riga ha il suo ruolo, così il lettore di schermo legge solo quella che cambia: `alert` per errori, conflitti e rifiuti,
  *  `status` per le modifiche non salvate, che cambiano spesso e da sole. */
-import { useAppStore } from "../../stores/useAppStore";
+import { avvisoRifiutate, useAppStore } from "../../stores/useAppStore";
 import { tappeNonSalvate } from "../../utils/tappeNonSalvate";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
@@ -33,7 +33,8 @@ export function SyncBanner() {
   const clear = useAppStore((s) => s.clearSyncError);
   const conflitti = useAppStore((s) => s.avvisoConflitti);
   const chiudiConflitti = useAppStore((s) => s.chiudiAvvisoConflitti);
-  const rifiutate = useAppStore((s) => s.avvisoRifiutate);
+  // La riga si calcola dallo stato di adesso: dice se la versione rifiutata è della lega aperta, e nomina l'altra lega se non lo è
+  const rifiutate = useAppStore(avvisoRifiutate);
   const inSospeso = useAppStore((s) => s.inSospeso);
   const motivo = useAppStore((s) => s.erroreSalvataggio);
   const salvaTutto = useAppStore((s) => s.salvaTutto);
