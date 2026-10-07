@@ -12,6 +12,7 @@ import { useAnagrafeStore } from "../stores/useAnagrafeStore";
 import { anagrafeApi } from "../services/anagrafeApi";
 import { testoErrore } from "../services/api";
 import { uid } from "../utils/uid";
+import { MAX_ROSTER } from "../constants/rules";
 import { pulisci, senzaTag } from "../utils/buildCoachContext";
 import {
   annullaRisultato, concludi, creaTappa, erroreLimitiTappa, generaFasiDirette, perditaRisultati, registraRisultato,
@@ -261,7 +262,7 @@ async function eseguiCreaTappa(args: Argomenti, ctx: ContestoStrumenti): Promise
 
   // Le richieste senza squadra in anagrafe si registrano in automatico
   const autoRegistrate: string[] = [];
-  const squadreTappa: SquadraTappa[] = await Promise.all(
+  const abbinamenti = await Promise.all(
     abbinate.map(async ({ nome: nomeRichiesto, trovata }) => {
       let reg = trovata;
 
@@ -277,25 +278,34 @@ async function eseguiCreaTappa(args: Argomenti, ctx: ContestoStrumenti): Promise
       }
 
       // Carica i giocatori del roster dell'anagrafe
-      const giocatori: GiocatoreRoster[] = reg.roster
+      const delRoster: GiocatoreRoster[] = reg.roster
         .map((gId) => {
           const g = tuttiGiocatori.find((x) => x.id === gId);
           return g ? { id: uid(), nome: `${g.nome} ${g.cognome}` } : null;
         })
         .filter((g): g is GiocatoreRoster => g !== null);
+      // Al massimo MAX_ROSTER, il tetto che l'interfaccia impone alle squadre di una tappa: gli altri restano fuori
+      // (i primi dell'anagrafe restano) e lo strumento lo dice, perché chi gioca lo sceglie l'utente dalla pagina della tappa
+      const giocatori = delRoster.slice(0, MAX_ROSTER);
 
       return {
-        id: uid(),
-        nome: reg.nome,
-        giocatori,
-        rank: reg.rank || "",
-        regId: reg.id,
-        logo: reg.logo || undefined,
-        website: reg.website || undefined,
-        instagram: reg.instagram || undefined,
+        squadra: {
+          id: uid(),
+          nome: reg.nome,
+          giocatori,
+          rank: reg.rank || "",
+          regId: reg.id,
+          logo: reg.logo || undefined,
+          website: reg.website || undefined,
+          instagram: reg.instagram || undefined,
+        },
+        fuori: delRoster.length - giocatori.length,
       };
     })
   );
+  const squadreTappa: SquadraTappa[] = abbinamenti.map((a) => a.squadra);
+  // Le squadre con giocatori rimasti fuori, nell'ordine in cui sono state richieste
+  const tagliate = abbinamenti.filter((a) => a.fuori > 0);
 
   // Chat cancellata durante le registrazioni (già spedite, finiscono comunque): la tappa non va creata
   fermaSeCancellata(ctx.segnale);
@@ -315,7 +325,13 @@ async function eseguiCreaTappa(args: Argomenti, ctx: ContestoStrumenti): Promise
   let msg = `Tappa "${nomeTappa}" creata con ${squadreTappa.length} squadre`;
   if (trovate > 0) msg += `, ${trovate} trovate in anagrafe con i rispettivi giocatori`;
   if (autoRegistrate.length) msg += `. Registrate automaticamente nell'anagrafe: ${autoRegistrate.join(", ")}`;
-  return msg + ".";
+  msg += ".";
+  if (tagliate.length) {
+    // Nomi dall'anagrafe condivisa: scritti da altri, passano da pulisci
+    const elenco = tagliate.map((a) => `${pulisci(a.squadra.nome)} ${a.fuori}`).join(", ");
+    msg += ` Giocatori oltre il massimo di ${MAX_ROSTER} per squadra, rimasti fuori dal roster (tenuti i primi dell'anagrafe): ${elenco}. L'utente può sceglierli dalla pagina della tappa.`;
+  }
+  return msg;
 }
 
 async function eseguiRegistraSquadra(args: Argomenti): Promise<string> {
