@@ -260,7 +260,13 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 L'anagrafe è uno spazio condiviso tra tutti gli utenti del circuito.
-I dati inseriti sono visibili a chiunque abbia accesso all'app.
+I dati personali sono riservati a chi ha un account: senza un token il server
+manda solo nome, cognome, soprannome, ruolo, numero e squadra del giocatore
+(della squadra: nome, città, anno, ranking, roster, logo, sito, Instagram e
+note); data di nascita, città, nazionalità, altezza, peso, esperienza, note e
+autore del giocatore, referente e autore della squadra arrivano vuoti, e le
+schede nascondono le righe vuote («Registrato da» compreso). Una voce letta
+così non si può modificare né eliminare, nemmeno da un ADMIN.
 
 Scheda GIOCATORE
   - Dati anagrafici: nome, cognome, soprannome, data di nascita (l'età si
@@ -398,7 +404,12 @@ utenti registrati.
   di altri utenti si vedono ricaricando la pagina; fanno eccezione le voci
   che l'app trova sul server per conto suo (la ricerca per nome di una
   squadra, la verifica di una tappa con squadre collegate), che entrano in
-  cache.
+  cache. La cache si svuota quando cambia chi la guarda: accesso,
+  registrazione, uscita (anche dell'ospite) e accesso o uscita in un'altra
+  scheda del browser (il token compare o sparisce nel localStorage); le
+  pagine aperte la riscaricano da sole, e la risposta di una richiesta
+  partita prima del cambio si scarta quando arriva, così la forma pubblica
+  non finisce nella cache di chi ha appena fatto l'accesso.
 - Errori visibili: una pagina che non si riesce a disegnare mostra un
   messaggio con «Ricarica» e il resto dell'app resta usabile; anagrafe e
   archivio che non si caricano dicono perché e offrono «Riprova» (mai un
