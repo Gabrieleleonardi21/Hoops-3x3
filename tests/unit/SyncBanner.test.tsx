@@ -78,7 +78,29 @@ describe("SyncBanner (avviso dei salvataggi)", () => {
     const avviso = screen.getByRole("alert").textContent;
     expect(avviso).toContain("La tappa «Dell'altro» è stata modificata da un altro dispositivo: ora vedi la versione salvata sul server");
     expect(avviso).not.toContain("modifiche non salvate.");   // niente in sospeso: la coda ha scartato la versione superata
+    fireEvent.click(screen.getByRole("button", { name: "Chiudi avviso dei conflitti" }));
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("due tappe in conflitto: un solo avviso le nomina tutte e due, e un errore arrivato dopo non lo nasconde", async () => {
+    api.putTappa.mockRejectedValue(new ApiError(409, "La tappa è stata modificata da un altro dispositivo: ricaricala"));
+    api.get.mockResolvedValue({
+      id: "l1", nome: "Lega",
+      tappe: [{ ...tappa("t1"), nome: "Prima dell'altro", versione: 8 }, { ...tappa("t2"), nome: "Seconda dell'altro", versione: 8 }],
+    });
+    await modificaESalva("t1", "t2");
+    api.rename.mockRejectedValue(new ApiError(500, "Errore del server"));
+    await act(async () => {
+      store().setLegaName("Nuovo nome");                     // la rinomina non riesce: un errore meno grave, dopo
+      await vi.advanceTimersByTimeAsync(400);
+    });
+    const avviso = screen.getByRole("alert").textContent;
+    expect(avviso).toContain("La tappa «Prima dell'altro» è stata modificata da un altro dispositivo");
+    expect(avviso).toContain("La tappa «Seconda dell'altro» è stata modificata da un altro dispositivo");
+    expect(avviso).toContain("Rinomina lega non riuscita: Errore del server");
     fireEvent.click(screen.getByRole("button", { name: "Chiudi avviso" }));
+    expect(screen.getByRole("alert").textContent).toContain("«Prima dell'altro»");
+    fireEvent.click(screen.getByRole("button", { name: "Chiudi avviso dei conflitti" }));
     expect(screen.queryByRole("alert")).toBeNull();
   });
 });

@@ -224,16 +224,17 @@ describe("riaprire una lega con salvataggi in sospeso", () => {
 });
 
 describe("eliminazioni con salvataggi in sospeso: nessun errore per dati eliminati apposta", () => {
-  it("una tappa eliminata con la PUT in volo: il 404 della PUT, arrivata dopo la DELETE, non è un errore", async () => {
+  it("una tappa eliminata con la PUT in volo: la DELETE aspetta la PUT, e un 404 della PUT (tappa già sparita) non è un errore", async () => {
     useAppStore.setState({ tappe: [tappa("t1")] });
     const put = differita<Tappa>();
     api.putTappa.mockReturnValueOnce(put.p);
     store().updateTappa("t1", { nome: "Finale" });
     await vi.advanceTimersByTimeAsync(400);       // parte la PUT (lenta)
-    store().removeTappa("t1");                    // la DELETE parte subito e il server la esegue per prima
-    expect(api.removeTappa).toHaveBeenCalledWith("t1");
+    store().removeTappa("t1");
+    expect(api.removeTappa).not.toHaveBeenCalled(); // insieme al salvataggio avrebbe un 409 (T2.7)
     put.ko(new ApiError(404, "Tappa non trovata: t1"));
     await vi.advanceTimersByTimeAsync(0);
+    expect(api.removeTappa).toHaveBeenCalledWith("t1");
     expect(store().syncError).toBeNull();
     expect(store().inSospeso).toBe(0);
   });

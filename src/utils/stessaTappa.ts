@@ -39,9 +39,10 @@ function chiaviInOrdine(valore: unknown): unknown {
   return Object.fromEntries(Object.keys(oggetto).sort().map((k) => [k, chiaviInOrdine(oggetto[k])]));
 }
 
-/** Il testo con cui si confronta una tappa. Prima passa da JSON, come viaggia verso il server: le chiavi senza valore (undefined)
- *  spariscono, e i blocchi si confrontano come valori, non come testo (ordine delle chiavi e spazi non contano) */
-const impronta = (t: Tappa): string => JSON.stringify(chiaviInOrdine(JSON.parse(JSON.stringify(comeSulServer(t)))));
+/** Il testo con cui si confronta una tappa: due tappe con la stessa impronta sono uguali per il server, versione esclusa. Prima passa
+ *  da JSON, come viaggia verso il server: le chiavi senza valore (undefined) spariscono, e i blocchi si confrontano come valori, non
+ *  come testo (ordine delle chiavi e spazi non contano). Chi confronta una tappa con molte la calcola una volta sola */
+export const impronta = (t: Tappa): string => JSON.stringify(chiaviInOrdine(JSON.parse(JSON.stringify(comeSulServer(t)))));
 
 /** true se le due tappe hanno lo stesso contenuto per il server, versione esclusa */
 export function stessaTappa(a: Tappa, b: Tappa): boolean {

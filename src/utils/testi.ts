@@ -82,6 +82,13 @@ export function tappaModificataAltrove(nome: string): string {
     + "e le modifiche fatte qui che non erano ancora salvate sono state scartate.";
 }
 
+/** Un salvataggio ha trovato la tappa eliminata sul server da un altro dispositivo: la tappa esce anche da qui, e le sue modifiche non
+ *  ancora salvate non si possono più salvare */
+export function tappaEliminataAltrove(nome: string): string {
+  return `La tappa «${nome}» è stata eliminata da un altro dispositivo: non c'è più, e le modifiche fatte qui che non erano ancora `
+    + "salvate sono andate perse.";
+}
+
 /** L'eliminazione di una tappa non è riuscita perché un altro dispositivo l'ha salvata nello stesso istante: la tappa resta */
 export function eliminazioneTappaInConflitto(nome: string): string {
   return `La tappa «${nome}» non è stata eliminata: un altro dispositivo l'ha modificata nello stesso momento. `

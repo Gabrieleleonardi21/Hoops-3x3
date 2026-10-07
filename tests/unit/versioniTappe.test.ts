@@ -4,7 +4,7 @@ import { useAppStore } from "../../src/stores/useAppStore";
 import { legheApi } from "../../src/services/legheApi";
 import { ApiError } from "../../src/services/api";
 import { DEFAULT_RULES } from "../../src/constants/rules";
-import { eliminazioneTappaInConflitto, tappaModificataAltrove } from "../../src/utils/testi";
+import { eliminazioneTappaInConflitto, tappaEliminataAltrove, tappaModificataAltrove } from "../../src/utils/testi";
 import type { Tappa, User } from "../../src/types";
 
 /* Versione delle tappe (T2.7): la PUT manda la versione dell'ultima risposta del server, e un 409 si risolve rileggendo la lega.
@@ -88,6 +88,12 @@ function rispostaPersa(server: ReturnType<typeof serverFinto>) {
 /** Versioni e nomi delle PUT partite, in ordine */
 const putPartite = () => api.putTappa.mock.calls.map(([t]) => [t.nome, t.versione]);
 
+/** Nessun avviso nella barra: né un errore né un conflitto */
+function senzaAvvisi() {
+  expect(store().syncError).toBeNull();
+  expect(store().avvisoConflitti).toBeNull();
+}
+
 /** Apre la lega l1 come dopo «Le mie leghe»: le tappe arrivano dal server con la loro versione */
 const apri = () => store().selectLega("l1");
 
@@ -118,7 +124,7 @@ describe("la PUT manda la versione dell'ultima risposta del server", () => {
     expect(putPartite()).toEqual([["Semifinale", 3], ["Finale", 4]]);
     expect(server.salvate.get("t1")).toMatchObject({ nome: "Finale", versione: 5 });
     expect(store().tappe[0].versione).toBe(5);
-    expect(store().syncError).toBeNull();
+    senzaAvvisi();
   });
 
   it("una modifica fatta con la PUT in volo resta: la risposta cambia solo la versione, e la modifica parte con quella nuova", async () => {
@@ -202,7 +208,7 @@ describe("409 sulla PUT: la tappa l'ha cambiata un altro dispositivo", () => {
     expect(api.get).toHaveBeenCalledTimes(2);                // l'apertura e la rilettura dopo il 409
     expect(store().tappe[0]).toEqual(server.salvate.get("t1"));
     expect(store().tappe[0].versione).toBe(4);
-    expect(store().syncError).toBe(tappaModificataAltrove("Nome dell'altro"));
+    expect(store().avvisoConflitti).toBe(tappaModificataAltrove("Nome dell'altro"));
     expect(store().inSospeso).toBe(0);
     expect(store().erroreSalvataggio).toBeNull();
     await vi.advanceTimersByTimeAsync(60_000);
@@ -243,7 +249,7 @@ describe("409 sulla PUT: la tappa l'ha cambiata un altro dispositivo", () => {
     store().updateTappa("t1", { luogo: "Testaccio" });
     await vi.advanceTimersByTimeAsync(400);
     expect(store().tappe[0]).toEqual(server.salvate.get("t1"));
-    expect(store().syncError).toBe(tappaModificataAltrove("Nome dell'altro"));
+    expect(store().avvisoConflitti).toBe(tappaModificataAltrove("Nome dell'altro"));
   });
 });
 
@@ -261,7 +267,7 @@ describe("409 sulla PUT dopo un proprio salvataggio rimasto senza risposta", () 
     expect(putPartite()).toEqual([["Finale", 3], ["Finale", 3], ["Finale", 4]]);
     expect(server.salvate.get("t1")).toMatchObject({ nome: "Finale", luogo: "Testaccio", versione: 5 });
     expect(store().tappe[0]).toMatchObject({ nome: "Finale", luogo: "Testaccio", versione: 5 });
-    expect(store().syncError).toBeNull();
+    senzaAvvisi();
     expect(store().inSospeso).toBe(0);
     expect(store().erroreSalvataggio).toBeNull();
   });
@@ -274,7 +280,7 @@ describe("409 sulla PUT dopo un proprio salvataggio rimasto senza risposta", () 
     store().updateTappa("t1", { nome: "Finale" });
     await vi.advanceTimersByTimeAsync(400 + 2000);           // il nuovo tentativo dopo 2 secondi riceve 409
     expect(putPartite()).toEqual([["Finale", 3], ["Finale", 3], ["Finale", 4]]);
-    expect(store().syncError).toBeNull();
+    senzaAvvisi();
     expect(store().tappe[0]).toMatchObject({ nome: "Finale", versione: 5 });
   });
 
@@ -289,7 +295,7 @@ describe("409 sulla PUT dopo un proprio salvataggio rimasto senza risposta", () 
     expect(server.salvate.get("t1")).toMatchObject({ nome: "Finale", luogo: "Roma", data: "", video: [], versione: 4 });
     store().updateTappa("t1", { nGironi: 2 });
     await vi.advanceTimersByTimeAsync(400);
-    expect(store().syncError).toBeNull();
+    senzaAvvisi();
     expect(server.salvate.get("t1")).toMatchObject({ nome: "Finale", nGironi: 2, versione: 5 });
     expect(store().tappe[0]).toMatchObject({ nGironi: 2, versione: 5 });
   });
@@ -306,7 +312,7 @@ describe("409 sulla PUT dopo un proprio salvataggio rimasto senza risposta", () 
     await vi.advanceTimersByTimeAsync(400);                  // anche questo senza risposta
     store().updateTappa("t1", { data: "2026-07-01" });
     await vi.advanceTimersByTimeAsync(400);                  // 409: sul server c'è «Finale», non l'ultimo corpo mandato
-    expect(store().syncError).toBeNull();
+    senzaAvvisi();
     expect(server.salvate.get("t1")).toMatchObject({ luogo: "Testaccio", data: "2026-07-01", versione: 5 });
   });
 
@@ -319,7 +325,7 @@ describe("409 sulla PUT dopo un proprio salvataggio rimasto senza risposta", () 
     await vi.advanceTimersByTimeAsync(0);
     expect(server.salvate.get("t1")!.versione).toBe(4);
     await vi.advanceTimersByTimeAsync(400);                  // la pagina torna (cache del browser): parte la PUT in coda
-    expect(store().syncError).toBeNull();
+    senzaAvvisi();
     expect(store().tappe[0]).toMatchObject({ nome: "Finale", versione: 5 });
   });
 });
@@ -335,7 +341,7 @@ describe("400 «Manca la versione»: pagina aperta prima dell'aggiornamento del 
     expect(putPartite()).toEqual([["Finale", undefined], ["Finale", 3]]);
     expect(server.salvate.get("t1")).toMatchObject({ nome: "Finale", versione: 4 });
     expect(store().tappe[0]).toMatchObject({ nome: "Finale", versione: 4 });
-    expect(store().syncError).toBeNull();
+    senzaAvvisi();
   });
 
   it("se anche il nuovo invio fallisce vale la gestione di sempre, senza un terzo invio", async () => {
@@ -367,7 +373,7 @@ describe("409 sulla DELETE di una tappa: un altro dispositivo l'ha salvata nello
     expect(store().tappe.map((t) => t.id)).toEqual(["t1", "t2"]);
     expect(store().tappe[0]).toEqual(server.salvate.get("t1"));
     expect(store().leghe[0].nTappe).toBe(2);
-    expect(store().syncError).toBe(eliminazioneTappaInConflitto("Salvata altrove"));
+    expect(store().avvisoConflitti).toBe(eliminazioneTappaInConflitto("Salvata altrove"));
     // Si modifica con la versione del server
     store().updateTappa("t1", { luogo: "Testaccio" });
     await vi.advanceTimersByTimeAsync(400);
@@ -391,11 +397,267 @@ describe("409 sulla POST: la tappa è già stata creata (T1.6), gestito come pri
     expect(api.addTappa).toHaveBeenCalledTimes(2);
     expect(putPartite()).toEqual([["Finale", 0]]);
     expect(server.salvate.get("t1")).toMatchObject({ nome: "Finale", versione: 1 });
-    expect(store().syncError).toBeNull();
+    senzaAvvisi();
     // Da qui la tappa esiste: le modifiche successive vanno con la PUT e la versione nuova
     store().updateTappa("t1", { luogo: "Testaccio" });
     await vi.advanceTimersByTimeAsync(400);
     expect(api.addTappa).toHaveBeenCalledTimes(2);
     expect(putPartite().at(-1)).toEqual(["Finale", 1]);
+  });
+});
+
+describe("409 sulla POST: se la tappa del server non è un corpo di questo client vince il server", () => {
+  it("un altro dispositivo l'ha cambiata dopo la creazione persa: la tappa del server, con l'avviso, e nessuna PUT", async () => {
+    const server = serverFinto();
+    await apri();
+    api.addTappa.mockImplementationOnce(async (legaId, t) => {
+      await server.post(legaId, t);
+      throw new ApiError(0, NESSUNA_RISPOSTA);               // creata (versione 0), ma la risposta si perde
+    });
+    store().addTappa(tappa("t1"));
+    await vi.advanceTimersByTimeAsync(400);
+    server.salvaAltrove("t1", { nome: "Nome dell'altro" });  // un altro dispositivo, che ha aperto la lega, la cambia
+    store().updateTappa("t1", { luogo: "Testaccio" });
+    await vi.advanceTimersByTimeAsync(400);                  // POST di nuovo → 409 → la tappa del server non è un nostro corpo
+    expect(api.addTappa).toHaveBeenCalledTimes(2);
+    expect(store().tappe[0]).toEqual(server.salvate.get("t1"));
+    expect(store().avvisoConflitti).toBe(tappaModificataAltrove("Nome dell'altro"));
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(api.putTappa).not.toHaveBeenCalled();
+    expect(api.addTappa).toHaveBeenCalledTimes(2);
+    // Da qui la tappa esiste: PUT con la versione del server
+    store().updateTappa("t1", { data: "2026-07-01" });
+    await vi.advanceTimersByTimeAsync(400);
+    expect(putPartite()).toEqual([["Nome dell'altro", 1]]);
+  });
+});
+
+describe("DELETE di una tappa e salvataggi della stessa tappa", () => {
+  it("con una PUT in volo la DELETE parte solo quando la PUT è finita", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1"), 3);
+    await apri();
+    const put = differita();
+    api.putTappa.mockImplementationOnce(async (t) => { await put.p; return server.put(t); });
+    store().updateTappa("t1", { nome: "Finale" });
+    await vi.advanceTimersByTimeAsync(400);                  // la PUT resta in volo
+    store().removeTappa("t1");
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(api.removeTappa).not.toHaveBeenCalled();          // arrivando insieme al salvataggio avrebbe un 409
+    put.ok();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(api.removeTappa).toHaveBeenCalledExactlyOnceWith("t1");
+    expect(server.salvate.has("t1")).toBe(false);
+    expect(store().tappe).toEqual([]);
+    senzaAvvisi();
+  });
+
+  it("salvaTutto (prima di «Esci») finisce solo dopo aver mandato la DELETE che aspettava la PUT in volo", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1"), 3);
+    await apri();
+    const put = differita();
+    api.putTappa.mockImplementationOnce(async (t) => { await put.p; return server.put(t); });
+    store().updateTappa("t1", { nome: "Finale" });
+    await vi.advanceTimersByTimeAsync(400);
+    store().removeTappa("t1");
+    const deleteAllaFine = store().salvaTutto().then(() => api.removeTappa.mock.calls.length);
+    put.ok();
+    expect(await deleteAllaFine).toBe(1);                    // dopo l'uscita il token non c'è più
+  });
+
+  it("409 dopo un proprio salvataggio rimasto senza risposta: la DELETE si rimanda una volta, senza avviso, e la tappa non torna", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1"), 3);
+    await apri();
+    rispostaPersa(server);
+    store().updateTappa("t1", { nome: "Finale" });
+    await vi.advanceTimersByTimeAsync(400);                  // salvata dal server (versione 4), risposta persa
+    // Il server esegue quel salvataggio insieme alla DELETE (ripartenza di Render): la DELETE riceve 409
+    api.removeTappa.mockRejectedValueOnce(new ApiError(409, MODIFICATA));
+    store().removeTappa("t1");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(api.removeTappa).toHaveBeenCalledTimes(2);
+    expect(server.salvate.has("t1")).toBe(false);
+    expect(store().tappe).toEqual([]);
+    senzaAvvisi();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(api.putTappa).toHaveBeenCalledTimes(1);           // il nuovo tentativo della PUT persa non parte più
+  });
+
+  it("una tappa eliminata qui mentre si rilegge la lega dopo un 409: nessun avviso, nessun nuovo invio, poi la DELETE", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1"), 3);
+    await apri();
+    server.salvaAltrove("t1", { nome: "Nome dell'altro" });
+    const rilettura = differita();
+    api.get.mockImplementationOnce(async (id) => {
+      await rilettura.p;
+      return { id, nome: "Lega", tappe: [...server.salvate.values()].map(copia) };
+    });
+    store().updateTappa("t1", { luogo: "Testaccio" });
+    await vi.advanceTimersByTimeAsync(400);                  // 409, la rilettura resta in corso
+    store().removeTappa("t1");
+    expect(api.removeTappa).not.toHaveBeenCalled();          // aspetta la fine della richiesta in volo
+    rilettura.ok();
+    await vi.advanceTimersByTimeAsync(0);
+    senzaAvvisi();
+    expect(store().tappe).toEqual([]);
+    expect(api.putTappa).toHaveBeenCalledTimes(1);
+    expect(api.removeTappa).toHaveBeenCalledExactlyOnceWith("t1");
+    expect(server.salvate.has("t1")).toBe(false);
+  });
+});
+
+describe("conflitti: i casi rischiosi", () => {
+  it("un secondo 409 dopo il nuovo invio: vince il server, con l'avviso, e non parte un terzo invio", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1"), 3);
+    await apri();
+    rispostaPersa(server);
+    store().updateTappa("t1", { nome: "Finale" });
+    await vi.advanceTimersByTimeAsync(400);                  // salvata (versione 4), risposta persa
+    // Mentre il client rilegge la lega, un altro dispositivo salva la tappa (versione 5)
+    api.get.mockImplementationOnce(async (id) => {
+      const letta = { id, nome: "Lega", tappe: [...server.salvate.values()].map(copia) };
+      server.salvaAltrove("t1", { luogo: "Ostia" });
+      return letta;
+    });
+    store().updateTappa("t1", { data: "2026-07-01" });
+    await vi.advanceTimersByTimeAsync(400);                  // 409 → è nostro → nuovo invio con la 4 → 409 → vince il server
+    expect(putPartite()).toEqual([["Finale", 3], ["Finale", 3], ["Finale", 4]]);
+    expect(store().tappe[0]).toEqual(server.salvate.get("t1"));
+    expect(store().avvisoConflitti).toBe(tappaModificataAltrove("Finale"));
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(api.putTappa).toHaveBeenCalledTimes(3);
+    expect(server.salvate.get("t1")).toMatchObject({ luogo: "Ostia", data: "", versione: 5 });
+  });
+
+  it("rilettura non riuscita per la rete: la coda ritenta, i corpi senza risposta restano e nessun avviso; poi si risolve", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1"), 3);
+    await apri();
+    rispostaPersa(server);
+    store().updateTappa("t1", { nome: "Finale" });
+    await vi.advanceTimersByTimeAsync(400);
+    api.get.mockRejectedValueOnce(new ApiError(0, "Server non raggiungibile"));
+    store().updateTappa("t1", { luogo: "Testaccio" });
+    await vi.advanceTimersByTimeAsync(400);                  // 409 → la rilettura non riesce
+    senzaAvvisi();
+    expect(store().inSospeso).toBe(1);
+    expect(store().erroreSalvataggio).toBe("Server non raggiungibile");
+    expect(store().tappe[0]).toMatchObject({ nome: "Finale", luogo: "Testaccio" });
+    await vi.advanceTimersByTimeAsync(2000);                 // nuovo tentativo: 409 → rilettura → il corpo salvato è nostro
+    expect(putPartite()).toEqual([["Finale", 3], ["Finale", 3], ["Finale", 3], ["Finale", 4]]);
+    senzaAvvisi();
+    expect(store().inSospeso).toBe(0);
+    expect(server.salvate.get("t1")).toMatchObject({ nome: "Finale", luogo: "Testaccio", versione: 5 });
+  });
+
+  it("due tappe in conflitto insieme seguono ciascuna la sua strada, e la modifica in attesa di una terza resta", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1", "Prima"), 3);
+    server.ha(tappa("t2", "Seconda"), 3);
+    server.ha(tappa("t3", "Terza"), 3);
+    await apri();
+    rispostaPersa(server);
+    store().updateTappa("t1", { luogo: "Testaccio" });
+    await vi.advanceTimersByTimeAsync(400);                  // t1: salvata dal server (versione 4), risposta persa
+    server.salvaAltrove("t2", { nome: "Seconda dell'altro" }); // t2: un altro dispositivo la cambia (versione 4)
+    store().updateTappa("t1", { data: "2026-07-01" });
+    store().updateTappa("t2", { luogo: "Ostia" });
+    await vi.advanceTimersByTimeAsync(200);
+    store().updateTappa("t3", { luogo: "Fiumicino" });       // t3: ancora in attesa quando arrivano i due 409
+    await vi.advanceTimersByTimeAsync(200);                  // t1 e t2: 409 e rilettura
+    expect(server.salvate.get("t1")).toMatchObject({ luogo: "Testaccio", data: "2026-07-01", versione: 5 });
+    expect(store().tappe[1]).toEqual(server.salvate.get("t2"));
+    expect(store().avvisoConflitti).toBe(tappaModificataAltrove("Seconda dell'altro"));
+    await vi.advanceTimersByTimeAsync(200);                  // t3 parte quando tocca a lei
+    expect(server.salvate.get("t3")).toMatchObject({ luogo: "Fiumicino", versione: 4 });
+    expect(store().tappe.map((t) => t.versione)).toEqual([5, 4, 4]);
+    expect(store().inSospeso).toBe(0);
+  });
+
+  it("409 e poi la tappa non c'è più sul server (eliminata da un altro dispositivo): esce dallo store, con l'avviso", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1", "Prima"), 3);
+    server.ha(tappa("t2", "Seconda"), 0);
+    await apri();
+    server.salvaAltrove("t1", { nome: "Nome dell'altro" });
+    api.get.mockImplementationOnce(async (id) => {
+      server.salvate.delete("t1");                           // e subito dopo la elimina
+      return { id, nome: "Lega", tappe: [...server.salvate.values()].map(copia) };
+    });
+    store().updateTappa("t1", { luogo: "Testaccio" });
+    await vi.advanceTimersByTimeAsync(400);
+    expect(store().tappe.map((t) => t.id)).toEqual(["t2"]);
+    expect(store().leghe[0].nTappe).toBe(1);
+    expect(store().avvisoConflitti).toBe(tappaEliminataAltrove("Prima"));
+    expect(store().syncError).toBeNull();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(api.putTappa).toHaveBeenCalledTimes(1);           // niente più invii, e niente 404 a ogni modifica
+  });
+});
+
+describe("corpi senza risposta: niente doppioni, e un tetto", () => {
+  it("la stessa copia rimandata più volte senza risposta («Riprova ora») conta una volta: non fa uscire il corpo salvato", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1"), 3);
+    await apri();
+    rispostaPersa(server);
+    store().updateTappa("t1", { nome: "Finale" });
+    await vi.advanceTimersByTimeAsync(400);                  // «Finale» salvata dal server, risposta persa
+    api.putTappa.mockRejectedValue(new ApiError(0, NESSUNA_RISPOSTA));
+    store().updateTappa("t1", { luogo: "Testaccio" });
+    await vi.advanceTimersByTimeAsync(400);
+    for (let i = 0; i < 25; i++) await store().salvaTutto();  // la stessa copia, sempre senza risposta
+    api.putTappa.mockImplementation(server.put);
+    await store().salvaTutto();                               // 409: sul server c'è il primo corpo
+    senzaAvvisi();
+    expect(server.salvate.get("t1")).toMatchObject({ nome: "Finale", luogo: "Testaccio", versione: 5 });
+  });
+
+  it("si ricordano al massimo gli ultimi 20 corpi: il più vecchio, oltre il tetto, non conta più", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1"), 3);
+    await apri();
+    rispostaPersa(server);
+    store().updateTappa("t1", { nome: "Finale" });
+    await vi.advanceTimersByTimeAsync(400);                  // il primo corpo, salvato dal server
+    api.putTappa.mockRejectedValue(new ApiError(0, NESSUNA_RISPOSTA));
+    for (let i = 1; i <= 20; i++) {                          // altri 20 corpi diversi, mai arrivati
+      store().updateTappa("t1", { luogo: `Campo ${i}` });
+      await vi.advanceTimersByTimeAsync(400);
+    }
+    api.putTappa.mockImplementation(server.put);
+    await store().salvaTutto();                               // 409: il corpo salvato è uscito dal conto
+    expect(store().avvisoConflitti).toBe(tappaModificataAltrove("Finale"));
+  });
+});
+
+describe("la versione nota non scende mai", () => {
+  it("una lettura della lega partita prima di un salvataggio non riporta indietro né la versione né i dati", async () => {
+    const server = serverFinto();
+    server.ha(tappa("t1"), 3);
+    await apri();
+    const lettura = differita();
+    api.get.mockImplementationOnce(async (id) => {
+      const letta = { id, nome: "Lega", tappe: [...server.salvate.values()].map(copia) }; // letta adesso: versione 3
+      await lettura.p;
+      return letta;
+    });
+    const apertura = store().selectLega("l1");               // «Le mie leghe» → la stessa lega: la GET parte
+    await vi.advanceTimersByTimeAsync(0);
+    store().updateTappa("t1", { nome: "Finale" });
+    await vi.advanceTimersByTimeAsync(400);                  // la PUT finisce prima della GET: versione 4
+    expect(server.salvate.get("t1")!.versione).toBe(4);
+    lettura.ok();
+    await apertura;                                          // la GET risponde con la versione 3, ormai superata
+    expect(store().tappe[0]).toMatchObject({ nome: "Finale", versione: 4 });
+    store().updateTappa("t1", { luogo: "Testaccio" });
+    await vi.advanceTimersByTimeAsync(400);
+    expect(putPartite().at(-1)).toEqual(["Finale", 4]);
+    senzaAvvisi();
+    expect(server.salvate.get("t1")).toMatchObject({ nome: "Finale", luogo: "Testaccio", versione: 5 });
   });
 });
