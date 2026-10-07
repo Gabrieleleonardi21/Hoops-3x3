@@ -11,7 +11,13 @@ const MAX_NOME = 80;
  *  La usano anche i risultati degli strumenti del Coach, che riportano gli stessi nomi.
  *  String(): una tappa salvata da una versione vecchia può non avere tutti i campi. */
 export function pulisci(valore: string): string {
-  return String(valore).replace(/</g, "‹").replace(/>/g, "›").slice(0, MAX_NOME);
+  return senzaTag(valore).slice(0, MAX_NOME);
+}
+
+/** Come pulisci, ma senza accorciare: per un testo lungo che può contenere nomi scritti dagli utenti, come il motivo di un errore
+ *  (un conflitto riporta il nome della tappa salvato sul server) */
+export function senzaTag(valore: string): string {
+  return String(valore).replace(/</g, "‹").replace(/>/g, "›");
 }
 
 /** Classifica cumulativa del circuito: aggrega vittorie e partite su tutte le tappe. Le partite che contano sono

@@ -7,7 +7,7 @@ import { anagrafeApi } from "../services/anagrafeApi";
 import { testoErrore } from "../services/api";
 import { uid } from "../utils/uid";
 import { DEFAULT_RULES } from "../constants/rules";
-import { buildCoachContext, pulisci } from "../utils/buildCoachContext";
+import { buildCoachContext, pulisci, senzaTag } from "../utils/buildCoachContext";
 import {
   annullaRisultato, concludi, creaTappa, erroreLimitiTappa, generaFasiDirette, perditaRisultati, registraRisultato,
   registraRisultatoBracket, sorteggia, type Esito, type ModoSorteggio,
@@ -809,8 +809,15 @@ export function useCoachAI() {
         await useAppStore.getState().pubblica(conclusa.id);
         return `Tappa "${pulisci(tappa.nome)}" conclusa e pubblicata nell'Archivio circuito.`;
       } catch (e) {
+        // Il motivo può riportare il nome della tappa salvato sul server (un conflitto): passa da senzaTag come ogni nome nel prompt
+        const motivo = senzaTag(testoErrore(e));
+        // Un conflitto con un altro dispositivo può aver rimesso nello store la tappa del server, non conclusa, o averla tolta (eliminata
+        // altrove): allora la conclusione non c'è più, e il Coach non deve dire «conclusa»
+        if (!tappaCorrente(conclusa.id)?.conclusa) {
+          return `Tappa "${pulisci(tappa.nome)}" non pubblicata, e nella lega aperta ora non risulta conclusa. Motivo: ${motivo}`;
+        }
         // Una tappa conclusa non si conclude di nuovo (R5): per ripubblicare va riaperta, come dice anche la pagina
-        return `Tappa "${pulisci(tappa.nome)}" conclusa, ma la pubblicazione non è riuscita: per riprovare, nella pagina della tappa usa «Riapri» e poi «Concludi». Motivo: ${testoErrore(e)}`;
+        return `Tappa "${pulisci(tappa.nome)}" conclusa, ma la pubblicazione non è riuscita: per riprovare, nella pagina della tappa usa «Riapri» e poi «Concludi». Motivo: ${motivo}`;
       }
     }
 

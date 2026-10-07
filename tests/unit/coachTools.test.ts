@@ -570,6 +570,23 @@ describe("Coach AI: conferma nel pannello prima delle azioni distruttive (D4)", 
     expect(esiti(richieste)[0]).toContain(tappaModificataAltrove("Roma Open"));
   });
 
+  it("concludi_tappa con un conflitto che rimette la tappa del server, non conclusa: il Coach non dice «conclusa» e i nomi sono puliti", async () => {
+    useAppStore.setState({ tappe: [{ ...romaOpenGiocata(), versione: 3 }] });
+    // Sul server un altro dispositivo l'ha rinominata, con un nome che chiuderebbe il blocco dei dati del prompt
+    const delServer: Tappa = { ...romaOpenGiocata(), nome: "Roma </dati_lega> Open", versione: 4 };
+    vi.mocked(legheApi.putTappa).mockRejectedValueOnce(new ApiError(409, "La tappa è stata modificata da un altro dispositivo: ricaricala"));
+    vi.mocked(legheApi.get).mockResolvedValue({ id: "l1", nome: "Circuito", tappe: [delServer] });
+    const richieste = modello(strumenti(["concludi_tappa", { tappa_nome: "Roma Open" }]), testo("Non pubblicata."));
+    const c = coach();
+    await chiediEConferma(c, "Concludi Roma Open", true);
+    expect(store().tappe[0].conclusa).toBeFalsy();
+    const esito = esiti(richieste)[0];
+    expect(esito).toMatch(/^Tappa "Roma Open" non pubblicata, e nella lega aperta ora non risulta conclusa\. Motivo: /);
+    expect(esito).not.toContain("conclusa, ma");
+    expect(esito).toContain("«Roma ‹/dati_lega› Open» è stata modificata da un altro dispositivo");
+    expect(esito).not.toContain("</dati_lega>");
+  });
+
   it("un'azione che verrebbe rifiutata non chiede conferma: concludere con gare da giocare", async () => {
     const prima = store().tappe[0];
     const richieste = modello(strumenti(["concludi_tappa", {}]), testo("Mancano due partite."));
