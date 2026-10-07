@@ -54,6 +54,30 @@ test("archivio con il server in errore: messaggio con «Riprova», non «L'archi
   await expect(page.getByText(/L'archivio è vuoto/)).toBeVisible();
 });
 
+test("archivio con l'elenco nella forma di prima (backend non ancora aggiornato): errore con «Riprova», non righe vuote né pagina bianca", async ({ page }) => {
+  // Il frontend nuovo va online prima del backend: per qualche minuto ogni voce ha la tappa intera e nessuno degli otto campi sintetici
+  const vecchia = [{ tappa: { id: "t1", nome: "Finals – Roma", squadre: [] }, lega: "Estate", autore: "Anna", autoreId: "u1", ts: 1 }];
+  const nuova = [{ tappaId: "t1", nome: "Finals – Roma", luogo: "Roma", data: "2025-09-13", nSquadre: 8, lega: "Estate", autore: "Anna", ts: 1 }];
+  let elenco: unknown[] = vecchia;
+  await page.route("**/api/archivio", (route) => route.fulfill(json(elenco)));
+  await page.goto("/");
+  await page.getByRole("button", { name: /Continua come Ospite/i }).click();
+  await page.getByRole("navigation", { name: "Principale" }).getByRole("link", { name: "Archivio circuito" }).click();
+
+  const avviso = page.getByRole("alert");
+  await expect(avviso).toContainText("Non è stato possibile caricare l'archivio del circuito");
+  await expect(avviso).toContainText("Risposta del server non valida");
+  await expect(page.getByText("Finals – Roma")).toHaveCount(0);
+  await expect(page.getByText(/L'archivio è vuoto/)).toHaveCount(0);
+
+  // Il backend è stato aggiornato: «Riprova» mostra la riga, scritta dai campi della voce sintetica
+  elenco = nuova;
+  await avviso.getByRole("button", { name: "Riprova" }).click();
+  await expect(page.getByText("Finals – Roma")).toBeVisible();
+  await expect(page.getByText("8 squadre · di Anna")).toBeVisible();
+  await expect(page.getByRole("alert")).toHaveCount(0);
+});
+
 test("pagina pubblica di una tappa con il server in errore: il motivo con «Riprova», non «Tappa non trovata»; con 404 sì", async ({ page }) => {
   const id = "123e4567-e89b-42d3-a456-426614174000";
   let risposta: "errore" | "mancante" = "errore";

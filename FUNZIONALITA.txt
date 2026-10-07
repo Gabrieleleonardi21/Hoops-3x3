@@ -233,7 +233,11 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
 11. ARCHIVIO CIRCUITO (PAGINA PUBBLICA)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-- Elenco di tutte le tappe concluse e pubblicate del circuito.
+- Elenco di tutte le tappe concluse e pubblicate del circuito, dalla più
+  recente (l'ordine lo decide il server). Ogni riga mostra nome, lega,
+  luogo, data, numero di squadre e autore: l'elenco è sintetico e la
+  tappa intera si carica solo aprendola. Se il server risponde con una
+  forma che l'app non riconosce, compare l'errore con «Riprova».
 - Ogni tappa mostra: squadre e roster, risultati per girone, classifica
   finale, dettaglio statistiche e log eventi per ogni partita,
   bracket playoff (se generato), leaderboard, video.

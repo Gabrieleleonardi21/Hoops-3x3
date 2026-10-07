@@ -101,7 +101,8 @@ Tutte le risposte di errore hanno il formato `{ "message": "...", "timestamp": "
 | GET | `/api/anagrafe/giocatori`, `/squadre` | pubblico | Anagrafe circuito |
 | POST | `/api/anagrafe/giocatori`, `/squadre` | login | Nuova voce (autore = utente) |
 | PUT/DELETE | `/api/anagrafe/giocatori/{id}`, `/squadre/{id}` | autore o ADMIN | Modifica / elimina |
-| GET | `/api/archivio`, `/api/archivio/{tappaId}` | pubblico | Tappe pubblicate |
+| GET | `/api/archivio` | pubblico | Elenco sintetico delle tappe pubblicate, già dalla più recente: per ogni voce `tappaId`, `nome`, `luogo`, `data`, `nSquadre`, `lega`, `autore`, `ts`, senza la tappa intera. Il client lo valida (zod) e non lo riordina: una risposta con un'altra forma, come quella di prima, dà l'errore con «Riprova» |
+| GET | `/api/archivio/{tappaId}` | pubblico | Dettaglio: la tappa intera con lega, autore e `ts` (404 se non c'è) |
 | PUT | `/api/archivio/{tappaId}` | proprietario della lega o ADMIN | Pubblica o ripubblica una tappa conclusa, senza corpo: la copia la costruisce il server da ciò che ha salvato (404 se la tappa non esiste, 403 se non è sua, 409 se non è conclusa) |
 | DELETE | `/api/archivio/{tappaId}` | autore o ADMIN | Ritira la pubblicazione |
 | GET | `/api/coach/status` | login | `{ available }` (chiave Groq configurata) |
