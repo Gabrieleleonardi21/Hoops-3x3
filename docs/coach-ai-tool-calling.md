@@ -79,9 +79,23 @@ Tutti gli strumenti di tappa accettano `tappa_nome` (facoltativo):
 ### Come si sceglie la squadra dell'anagrafe
 
 `crea_tappa` (per ogni nome in `squadre`) e `aggiorna_squadra` (per `nome`) trovano la squadra con la stessa regola delle tappe
-(`trovaPerNome` in `toolHandlers.ts`, usata anche da `findTappa`; per le squadre la chiama `findSquadra`):
+(`trovaPerNome` in `toolHandlers.ts`, usata anche da `findTappa`; per le squadre la chiama `findSquadra`, che prima guarda gli
+omonimi esatti):
 
 - vince il nome **esatto** (maiuscole a parte): con «Roma Kings» elencata prima di «Roma», chiedere «Roma» sceglie «Roma»;
+- se **due o più squadre** hanno lo stesso nome esatto (né il server né la pagina Anagrafe impediscono i doppioni) non vince la
+  prima: la scelta dipende dallo strumento e dall'utente di adesso (`useAppStore.getState().user`):
+  - `aggiorna_squadra` tiene tra gli omonimi quelle che l'utente può modificare (`puoModificare` in `utils/permessi.ts`: le sue, o
+    tutte se è ADMIN, come sul server). Se ne resta una, è quella (un utente con la sua «Roma» e quella di un altro modifica la sua).
+    Se ne restano più d'una (per esempio un ADMIN, o due dello stesso utente) è un errore che le distingue per città e autore e
+    rimanda alla pagina Anagrafe: `Più squadre in anagrafe si chiamano "Roma": "Roma" (Lazio, di Bruno); "Roma" (Milano, di Carla).
+    Il Coach non sa quale di queste modificare: aprila dalla pagina Anagrafe.` Se nessuna è modificabile l'errore lo dice («Nessuna è
+    tua: le modifica solo l'autore o un ADMIN, e non ho modificato niente.»), invece di lasciar arrivare il 403 del server;
+  - `crea_tappa`, che legge la squadra per collegarla e non la modifica, preferisce quella creata dall'utente se è **una sola**
+    (conta l'autore, non il permesso: un ADMIN può modificarle tutte, ma questo non dice quale voleva). Altrimenti è un errore che
+    le distingue per città e autore e chiede di sistemare i doppioni dalla pagina Anagrafe («Il Coach non sa quale collegare alla
+    tappa…»), prima di registrare qualsiasi squadra;
+  - città e autore (e il nome) passano da `pulisci`; senza città il testo dice «città non indicata»;
 - altrimenti basta una **parte** del nome, purché corrisponda a **una sola** squadra (con la sola «Roma Kings», «Kings» la trova);
 - se la parte corrisponde a più squadre è un errore che elenca i nomi (passati da `pulisci`) e chiede il nome completo:
   `Più squadre in anagrafe corrispondono a "Roma": "Roma Kings", "Roma Stars". Indica il nome completo.` Per `crea_tappa` il
@@ -107,7 +121,7 @@ Tutti gli strumenti di tappa accettano `tappa_nome` (facoltativo):
 - **Azione:**
   1. Controlla i limiti (`erroreLimitiTappa` di `tappaOps`: numero di squadre e di gironi, nome fino a 120 caratteri, luogo fino a 160, data vuota o aaaa-mm-gg) **prima** di toccare l'anagrafe: una tappa rifiutata non lascia squadre registrate
   2. Carica in parallelo squadre e giocatori dell'anagrafe condivisa dal server (`anagrafeApi`: lettura sempre fresca, per non registrare doppioni). Se una delle due letture non riesce lo strumento si ferma con l'errore «L'anagrafe condivisa non risponde (<motivo>): non ho registrato né modificato niente, riprova tra poco.»: non registra niente, perché con un elenco vuoto passerebbero per nuove squadre che esistono già
-  3. Abbina **tutti** i nomi richiesti alle squadre dell'anagrafe con la regola di «Come si sceglie la squadra dell'anagrafe» (nome esatto, altrimenti una parte che corrisponde a una squadra sola); un nome che ne corrisponde a più ferma lo strumento con un errore, prima di registrare qualsiasi squadra
+  3. Abbina **tutti** i nomi richiesti alle squadre dell'anagrafe con la regola di «Come si sceglie la squadra dell'anagrafe» (nome esatto, altrimenti una parte che corrisponde a una squadra sola); un nome che ne corrisponde a più (anche due dallo stesso nome esatto, se l'utente non ne ha una sola) ferma lo strumento con un errore, prima di registrare qualsiasi squadra
   4. Per le squadre trovate: popola `giocatori` con il roster dell'anagrafe, al massimo `MAX_ROSTER` (4, il tetto che l'interfaccia impone alle squadre di una tappa): i primi del roster. Gli altri restano fuori e il testo per il modello lo dice con le squadre e i **nomi** dei giocatori esclusi («Giocatori oltre il massimo di 4 per squadra, rimasti fuori dal roster (tenuti i primi dell'anagrafe): Roma Open 2: Anna, Bea; Alfa: Carlo. Nella pagina della tappa il roster si cambia a mano: l'utente toglie un giocatore e scrive il nome di chi vuole al suo posto.»; nomi di squadre e di giocatori passano da `pulisci`, e il formato «squadra: giocatori» non si confonde con un conteggio se il nome della squadra finisce con un numero); le altre squadre non compaiono. Nella pagina della tappa il roster è fatto di campi di testo (`RosterEditor`): non c'è una scelta dall'anagrafe. Copia inoltre `regId`, `logo`, `rank`, `website`, `instagram`
   5. Per le squadre non trovate: le registra in anagrafe con i dati minimi (`saveSquadra` di `useAnagrafeStore`, così si aggiorna anche la cache letta dalle pagine); il roster resta vuoto, da completare a mano
   6. Se intanto la chat è stata cancellata o si è aperta un'altra lega non crea la tappa (le squadre già registrate restano in anagrafe, e con un'altra lega aperta l'errore le elenca); altrimenti `creaTappa` di `tappaOps` + `addTappa` sullo store, poi apre `/lega/tappa/:id`
@@ -211,7 +225,7 @@ Tutti gli strumenti di tappa accettano `tappa_nome` (facoltativo):
 
 ### `aggiorna_squadra`
 - **Descrizione:** Aggiorna i dati di una squadra già presente nell'anagrafe. Passa solo i campi da modificare.
-- **Parametro obbligatorio:** `nome` (nome attuale, per trovarla: il nome esatto, maiuscole a parte, o una parte del nome che corrisponde a una squadra sola; se ne corrispondono più d'una è un errore che chiede il nome completo, vedi «Come si sceglie la squadra dell'anagrafe»)
+- **Parametro obbligatorio:** `nome` (nome attuale, per trovarla: il nome esatto, maiuscole a parte, o una parte del nome che corrisponde a una squadra sola; se ne corrispondono più d'una è un errore che chiede il nome completo; con due squadre dallo stesso nome esatto modifica quella dell'utente se è una sola, vedi «Come si sceglie la squadra dell'anagrafe»)
 - **Parametri opzionali:** `citta`, `referente`, `logo`, `website`, `instagram`, `anno`, `rank`, `note`
 - **Azione:**
   1. Legge l'anagrafe dal server e trova la squadra (vedi «Come si sceglie la squadra dell'anagrafe»). Se il server non risponde l'errore dice il motivo vero («L'anagrafe condivisa non risponde (<motivo>)…»), non «non trovata»
@@ -381,7 +395,7 @@ const ESECUTORI = new Map<string, Esecutore>([
 >
 > Gli aiuti interni di `toolHandlers.ts`:
 > `str(args, key)` legge una stringa con ripiego a `""`; `obbligatorio(args, key, cosa)` la vuole non vuota, altrimenti l'errore dice che cosa manca; `numero(args, key)` legge un numero (o un testo che lo contiene).
-> `tappaRichiesta(args)` trova la tappa di `tappa_nome` (nome esatto, o una parte che corrisponde a una tappa sola) oppure l'ultima; `findSquadra(squadre, nome)` fa lo stesso con le squadre dell'anagrafe. Tutte e due usano `trovaPerNome`: una regola sola per scegliere per nome.
+> `tappaRichiesta(args)` trova la tappa di `tappa_nome` (nome esatto, o una parte che corrisponde a una tappa sola) oppure l'ultima; `findSquadra(squadre, nome, traLeOmonime)` fa lo stesso con le squadre dell'anagrafe, e con due squadre dallo stesso nome esatto lascia scegliere a `traLeModificabili` (aggiorna_squadra) o `traLeMie` (crea_tappa). Tutte e due usano `trovaPerNome`: una regola sola per scegliere per nome.
 > `prova(tappa, operazione)` / `applica(tappa, operazione)` eseguono una funzione di `tappaOps` senza salvare / salvando sulla tappa di adesso.
 > `fetchSquadre()` / `fetchGiocatori()` leggono l'anagrafe condivisa dal server; se non risponde lanciano l'errore di `anagrafeNonRisponde` (non una lista vuota, che farebbe registrare doppioni).
 > Un nome scritto dagli utenti che entra nel testo restituito al modello passa da `pulisci` (o `senzaTag` per un testo lungo).

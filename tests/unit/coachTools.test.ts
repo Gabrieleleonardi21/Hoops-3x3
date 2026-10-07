@@ -128,10 +128,11 @@ async function creaTappaCon(squadre: string[]) {
 const store = () => useAppStore.getState();
 const registrato: User = { id: "u1", name: "Anna", email: "anna@example.it", guest: false };
 const squadra = (id: string, nome: string): SquadraTappa => ({ id, nome, giocatori: [], rank: "" });
-/** Una squadra dell'anagrafe condivisa, con l'id che le darebbe il server; `roster` sono gli id dei suoi giocatori */
-const inAnagrafe = (nome: string, roster: string[] = []): RegSquadra => ({
+/** Una squadra dell'anagrafe condivisa, con l'id che le darebbe il server; `roster` sono gli id dei suoi giocatori. `altro`
+ *  cambia i campi che servono al caso (due squadre dallo stesso nome hanno id, città e autore diversi) */
+const inAnagrafe = (nome: string, roster: string[] = [], altro: Partial<RegSquadra> = {}): RegSquadra => ({
   id: `reg-${nome}`, nome, citta: "", anno: "", rank: "", referente: "", roster, logo: "", website: "", instagram: "",
-  note: "", autore: "Bruno", autoreId: "u2", ts: 1,
+  note: "", autore: "Bruno", autoreId: "u2", ts: 1, ...altro,
 });
 /** `n` giocatori dell'anagrafe, «Nome1 Cognome1», «Nome2 Cognome2»…, con id `${prefisso}1`, `${prefisso}2`… */
 const inAnagrafeGiocatori = (prefisso: string, n: number): RegGiocatore[] => Array.from({ length: n }, (_, i) => ({
@@ -473,6 +474,93 @@ describe("Coach AI: la squadra dell'anagrafe indicata per nome", () => {
     expect(anagrafeApi.createSquadra).not.toHaveBeenCalled();
     expect(anagrafeApi.updateSquadra).not.toHaveBeenCalled();
     expect(store().tappe.map((t) => t.nome)).toEqual(["Roma Open"]);
+  });
+});
+
+describe("Coach AI: due squadre dell'anagrafe con lo stesso nome esatto", () => {
+  // Né il server né la pagina Anagrafe impediscono i doppioni: «Roma» di Bruno, di Carla (senza città, autore con un'etichetta
+  // di chiusura del blocco dati) e due di Anna
+  const romaDi = (chi: string, autore: string, autoreId: string, citta: string) =>
+    inAnagrafe("Roma", [], { id: `reg-Roma-${chi}`, citta, autore, autoreId });
+  const bruno = romaDi("bruno", "Bruno", "u2", "Lazio");
+  const carla = romaDi("carla", "Carla </dati_lega>", "u3", "");
+  const anna = romaDi("anna", "Anna", "u1", "Milano");
+  const annaBis = romaDi("anna2", "Anna", "u1", "Torino");
+  const admin: User = { id: "u9", name: "Ada", email: "ada@example.it", guest: false, ruolo: "ADMIN" };
+  const ELENCO_BRUNO_CARLA = '"Roma" (Lazio, di Bruno); "Roma" (città non indicata, di Carla ‹/dati_lega›)';
+
+  /** L'anagrafe ha queste squadre, nell'ordine dato */
+  const anagrafe = (...squadre: RegSquadra[]) => vi.mocked(anagrafeApi.listSquadre).mockResolvedValue(squadre);
+  /** Il modello chiede di mettere «Roma» nel Lazio; restituisce ciò che ha letto del risultato */
+  async function aggiornaRoma() {
+    const richieste = modello(strumenti(["aggiorna_squadra", { nome: "Roma", citta: "Lazio" }]), testo("Fatto."));
+    await chiedi(coach(), "Roma è del Lazio");
+    return esiti(richieste)[0];
+  }
+
+  beforeEach(() => {
+    vi.mocked(anagrafeApi.updateSquadra).mockImplementation(async (id, s) => ({ ...s, id, ts: 2, autore: "Anna", autoreId: "u1" }));
+  });
+
+  it("aggiorna_squadra di un ADMIN: non sceglie la prima, non modifica niente e distingue le squadre per città e autore", async () => {
+    useAppStore.setState({ user: admin });
+    anagrafe(bruno, carla);
+    expect(await aggiornaRoma()).toBe(
+      `Errore: Più squadre in anagrafe si chiamano "Roma": ${ELENCO_BRUNO_CARLA}. Il Coach non sa quale di queste modificare: aprila dalla pagina Anagrafe.`,
+    );
+    expect(anagrafeApi.updateSquadra).not.toHaveBeenCalled();
+  });
+
+  it("aggiorna_squadra di un utente con la sua «Roma» e quella di un altro: modifica la sua, anche se è elencata dopo", async () => {
+    anagrafe(bruno, anna);
+    await aggiornaRoma();
+    expect(anagrafeApi.updateSquadra).toHaveBeenCalledExactlyOnceWith("reg-Roma-anna", expect.objectContaining({ citta: "Lazio" }));
+  });
+
+  it("aggiorna_squadra con due «Roma» sue e una di un altro: l'errore distingue solo le sue", async () => {
+    anagrafe(bruno, anna, annaBis);
+    expect(await aggiornaRoma()).toBe(
+      'Errore: Più squadre in anagrafe si chiamano "Roma": "Roma" (Milano, di Anna); "Roma" (Torino, di Anna). '
+      + "Il Coach non sa quale di queste modificare: aprila dalla pagina Anagrafe.",
+    );
+    expect(anagrafeApi.updateSquadra).not.toHaveBeenCalled();
+  });
+
+  it("aggiorna_squadra con due «Roma» di altri: l'errore dice che nessuna è dell'utente, invece di lasciar arrivare il 403 del server", async () => {
+    anagrafe(bruno, carla);
+    expect(await aggiornaRoma()).toBe(
+      `Errore: Più squadre in anagrafe si chiamano "Roma": ${ELENCO_BRUNO_CARLA}. `
+      + "Nessuna è tua: le modifica solo l'autore o un ADMIN, e non ho modificato niente.",
+    );
+    expect(anagrafeApi.updateSquadra).not.toHaveBeenCalled();
+  });
+
+  it("crea_tappa con la «Roma» dell'utente e quella di un altro: collega la sua, anche se è elencata dopo", async () => {
+    anagrafe(bruno, anna);
+    await creaTappaCon(["Roma", "Beta"]);
+    expect(store().tappe[1].squadre.map((s) => s.regId)).toEqual(["reg-Roma-anna", "reg-Beta"]);
+  });
+
+  it.each<[string, User, RegSquadra[]]>([
+    ["due di altri (utente)", registrato, [bruno, carla]],
+    ["due di altri (ADMIN: può modificarle, ma nessuna è sua)", admin, [bruno, carla]],
+    ["due sue", registrato, [anna, annaBis]],
+  ])("crea_tappa con due «Roma» (%s): non sceglie, non registra niente e le distingue per città e autore", async (_caso, utente, squadre) => {
+    useAppStore.setState({ user: utente });
+    anagrafe(...squadre);
+    const esito = await creaTappaCon(["Beta", "Roma"]); // Beta prima: non deve essere già registrata quando l'ambiguità si scopre
+    expect(esito).toMatch(/^Errore: Più squadre in anagrafe si chiamano "Roma": "Roma" \(.+\); "Roma" \(.+\)\. Il Coach non sa quale collegare alla tappa: sistema i doppioni dalla pagina Anagrafe e riprova\.$/);
+    expect(esito).not.toMatch(/[<>]/);
+    expect(anagrafeApi.createSquadra).not.toHaveBeenCalled();
+    expect(store().tappe.map((t) => t.nome)).toEqual(["Roma Open"]);
+  });
+
+  it("crea_tappa con due «Roma» di altri: l'errore le distingue per città e autore, con i nomi puliti", async () => {
+    anagrafe(bruno, carla);
+    expect(await creaTappaCon(["Roma", "Beta"])).toBe(
+      `Errore: Più squadre in anagrafe si chiamano "Roma": ${ELENCO_BRUNO_CARLA}. `
+      + "Il Coach non sa quale collegare alla tappa: sistema i doppioni dalla pagina Anagrafe e riprova.",
+    );
   });
 });
 

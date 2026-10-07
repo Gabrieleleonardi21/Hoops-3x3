@@ -383,11 +383,13 @@ esplicitamente:
                       cerca le squadre in anagrafe (nome esatto, oppure una
                       parte che corrisponde a una squadra sola: se ne
                       corrispondono più d'una si ferma e chiede il nome
-                      completo), ne porta con sé i giocatori del roster, al
-                      massimo 4 per squadra (il modello sa chi è rimasto
-                      fuori), e registra con i dati minimi quelle mancanti.
-                      Se l'anagrafe non risponde non crea la tappa e non
-                      registra niente.
+                      completo; con due squadre dallo stesso nome esatto
+                      collega quella creata dall'utente se è una sola,
+                      altrimenti si ferma), ne porta con sé i giocatori del
+                      roster, al massimo 4 per squadra (il modello sa chi è
+                      rimasto fuori), e registra con i dati minimi quelle
+                      mancanti. Se l'anagrafe non risponde non crea la tappa
+                      e non registra niente.
   sorteggia_gironi    Esegue il sorteggio (casuale o per ranking) su una tappa.
                       Se la tappa ha già dei risultati chiede conferma.
   genera_fasi_dirette Genera il tabellone a eliminazione diretta dalla
@@ -403,9 +405,12 @@ esplicitamente:
   registra_squadra    Aggiunge una squadra all'anagrafe condivisa.
   aggiorna_squadra    Modifica i dati di una squadra esistente in anagrafe
                       (logo, città, referente, rank, ecc.); la squadra si
-                      sceglie come per crea_tappa; aggiorna solo i campi
-                      passati, gli altri restano invariati. Se l'anagrafe non
-                      risponde lo dice, senza modificare niente.
+                      sceglie come per crea_tappa, e con due squadre dallo
+                      stesso nome esatto modifica quella che l'utente può
+                      modificare se è una sola (altrimenti si ferma e rimanda
+                      alla pagina Anagrafe); aggiorna solo i campi passati,
+                      gli altri restano invariati. Se l'anagrafe non risponde
+                      lo dice, senza modificare niente.
   registra_giocatore  Aggiunge un giocatore all'anagrafe condivisa.
   concludi_tappa      Conclude e pubblica la tappa nell'Archivio circuito
                       (richiede account non ospite). Chiede sempre conferma.

@@ -20,6 +20,7 @@ import {
 } from "../domain/tappaOps";
 import type { Tappa, RegSquadra, RegGiocatore, SquadraTappa, GiocatoreRoster } from "../types";
 import { squadraDi } from "../utils/tappaInfo";
+import { puoModificare } from "../utils/permessi";
 
 /** Ciò che l'hook dà agli strumenti */
 export interface ContestoStrumenti {
@@ -148,9 +149,46 @@ function findTappa(tappe: Tappa[], nomeTappa?: string): Tappa | null {
   return trovaPerNome(tappe, nomeTappa, (t) => t.nome, "tappe");
 }
 
+/** Come si distingue una squadra da un'omonima: città e autore (scritti da altri utenti: passano da pulisci) */
+function descrizione(s: RegSquadra): string {
+  const citta = pulisci(s.citta) || "città non indicata";
+  return `"${pulisci(s.nome)}" (${citta}, di ${pulisci(s.autore)})`;
+}
+
+/** L'errore per più squadre dallo stesso nome esatto: le elenca per città e autore e dice che fare */
+function erroreOmonime(omonime: RegSquadra[], cosaFare: string): Error {
+  return new Error(`Più squadre in anagrafe si chiamano "${pulisci(omonime[0].nome)}": ${omonime.map(descrizione).join("; ")}. ${cosaFare}`);
+}
+
+/** aggiorna_squadra tra più squadre dallo stesso nome esatto: quelle che l'utente di adesso può modificare (le sue, o tutte se è
+ *  ADMIN), come sul server. Se ne resta una è quella; se nessuna, l'errore lo dice invece di lasciar arrivare il 403 (e un ADMIN
+ *  non modifica per caso la squadra di un altro); se più d'una, non si indovina */
+function traLeModificabili(omonime: RegSquadra[]): RegSquadra {
+  const { user } = useAppStore.getState();
+  const modificabili = omonime.filter((s) => puoModificare(user, s.autoreId));
+  if (modificabili.length === 1) return modificabili[0];
+  if (modificabili.length === 0) {
+    throw erroreOmonime(omonime, "Nessuna è tua: le modifica solo l'autore o un ADMIN, e non ho modificato niente.");
+  }
+  throw erroreOmonime(modificabili, "Il Coach non sa quale di queste modificare: aprila dalla pagina Anagrafe.");
+}
+
+/** crea_tappa (che legge la squadra per collegarla, non la modifica) tra più squadre dallo stesso nome esatto: quella creata
+ *  dall'utente di adesso, se è una sola; altrimenti non si indovina. Conta l'autore e non il permesso: un ADMIN può modificarle
+ *  tutte, ma questo non dice quale voleva collegare */
+function traLeMie(omonime: RegSquadra[]): RegSquadra {
+  const { user } = useAppStore.getState();
+  const mie = omonime.filter((s) => s.autoreId === user?.id);
+  if (mie.length === 1) return mie[0];
+  throw erroreOmonime(omonime, "Il Coach non sa quale collegare alla tappa: sistema i doppioni dalla pagina Anagrafe e riprova.");
+}
+
 /** Trova una squadra dell'anagrafe condivisa per nome, con la stessa regola delle tappe: con «Roma Kings» elencata prima di
- *  «Roma», chiedere «Roma» sceglie «Roma» (crea_tappa e aggiorna_squadra) */
-function findSquadra(squadre: RegSquadra[], nome: string): RegSquadra | null {
+ *  «Roma», chiedere «Roma» sceglie «Roma». In più, l'anagrafe può avere due squadre dallo stesso nome esatto (nessuno lo impedisce):
+ *  tra quelle sceglie `traLeOmonime` (traLeModificabili o traLeMie), che restituisce la squadra o lancia l'errore */
+function findSquadra(squadre: RegSquadra[], nome: string, traLeOmonime: (omonime: RegSquadra[]) => RegSquadra): RegSquadra | null {
+  const omonime = squadre.filter((s) => s.nome.toLowerCase() === nome.toLowerCase());
+  if (omonime.length > 1) return traLeOmonime(omonime);
   return trovaPerNome(squadre, nome, (s) => s.nome, "squadre in anagrafe");
 }
 
@@ -258,7 +296,7 @@ async function eseguiCreaTappa(args: Argomenti, ctx: ContestoStrumenti): Promise
   fermaSeCancellata(ctx.segnale);
 
   // Prima si abbinano tutti i nomi: se uno corrisponde a più squadre lo strumento si ferma senza aver registrato niente
-  const abbinate = nomiRichiesti.map((nome) => ({ nome, trovata: findSquadra(tutteSquadre, nome) }));
+  const abbinate = nomiRichiesti.map((nome) => ({ nome, trovata: findSquadra(tutteSquadre, nome, traLeMie) }));
 
   // Le richieste senza squadra in anagrafe si registrano in automatico
   const autoRegistrate: string[] = [];
@@ -512,7 +550,7 @@ async function eseguiAggiornaSquadra(args: Argomenti, ctx: ContestoStrumenti): P
   const tutteSquadre = await fetchSquadre();
   // Chat cancellata durante la lettura: niente scrittura nell'anagrafe condivisa
   fermaSeCancellata(ctx.segnale);
-  const reg = findSquadra(tutteSquadre, nomeRicerca);
+  const reg = findSquadra(tutteSquadre, nomeRicerca, traLeModificabili);
   if (!reg) throw new Error(`Squadra "${nomeRicerca}" non trovata in anagrafe.`);
 
   // Aggiorna solo i campi presenti negli argomenti
