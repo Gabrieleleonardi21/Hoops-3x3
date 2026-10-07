@@ -10,10 +10,18 @@ App web per la gestione di un circuito italiano di basket 3x3: tornei, gironi, s
 - **Punteggi** — risultato di ogni gara (niente pareggi), tabellino per giocatore (punti, rimbalzi, assist, palle rubate, stoppate, palle perse, falli) e log eventi di gara (fallo, sostituzione, timeout, infortunio, altro). Ai registrati i punti dei giocatori sono richiesti e devono sommare al totale; l'Ospite fa prove libere
 - **Timer di gara** — finestra per il tavolo con countdown, shot clock, punteggio +1/+2, fine partita rilevata da sola e supplementare
 - **Statistiche** — leader della tappa per categoria (punti, rimbalzi, assist, palle rubate, stoppate) e statistiche di stagione per giocatore, sommate su tutte le tappe della lega, nella scheda «Statistiche stagione» dell'Anagrafe
-- **Anagrafe** — archivio condiviso di giocatori e squadre (con logo e sito web cliccabile) che le tappe riutilizzano: scrivendo il nome di una squadra di tappa si collega alla voce dell'anagrafe (nome, logo, ranking e sito; il roster non si copia) o ne crea una. Modifica ed eliminazione solo per l'autore o un ADMIN. I dati personali (del giocatore: data di nascita, città, nazionalità, altezza, peso, esperienza, note e autore; della squadra: referente e autore) li vede solo chi ha un account
-- **Archivio** — le tappe concluse e pubblicate (la pubblicazione è dei registrati), consultabili senza account in `/archivio` e `/tappa/:id`: squadre e roster, risultati, classifiche dei gironi, tabellone, leader e video, con «Stampa / PDF»; il link pubblico di una tappa conclusa si copia dalla sua pagina
+- **Anagrafe** — archivio condiviso di giocatori e squadre (con logo e sito web cliccabile) che le tappe riutilizzano
+  - scrivendo il nome di una squadra di tappa, questa si collega alla voce dell'anagrafe (nome, logo, ranking e sito; il roster non si copia) o ne crea una
+  - modifica ed eliminazione solo per l'autore o un ADMIN
+  - i dati personali (del giocatore: data di nascita, città, nazionalità, altezza, peso, esperienza, note e autore; della squadra: referente e autore) li vede solo chi ha un account
+- **Archivio** — le tappe concluse e pubblicate (la pubblicazione è dei registrati), consultabili senza account in `/archivio` e `/tappa/:id`
+  - squadre e roster, risultati, classifiche dei gironi, tabellone, leader e video, con «Stampa / PDF»
+  - il link pubblico di una tappa conclusa si copia dalla sua pagina
 - **Video** — link video per tappa: quelli di YouTube si incorporano nella pagina, gli altri si aprono in una nuova scheda
-- **Coach AI** — assistente virtuale che conosce le regole FIBA 3x3 e i dati della lega corrente, e può agire nell'app con 10 strumenti (crea lega e tappa, sorteggia, registra e annulla risultati, genera le fasi dirette, conclude la tappa, scrive nell'anagrafe); chiede conferma prima di sorteggiare su una tappa con risultati, annullare un risultato e concludere una tappa. Solo per i registrati, via backend (vedi «Coach AI» e `docs/coach-ai-tool-calling.md`)
+- **Coach AI** — assistente virtuale che conosce le regole FIBA 3x3 e i dati della lega corrente
+  - agisce nell'app con 10 strumenti: crea lega e tappa, sorteggia, registra e annulla risultati, genera le fasi dirette, conclude la tappa, scrive nell'anagrafe
+  - chiede conferma prima di sorteggiare su una tappa con risultati, annullare un risultato e concludere una tappa
+  - solo per i registrati, via backend (vedi «Coach AI» e `docs/coach-ai-tool-calling.md`)
 - **Conferme** — ciò che fa perdere dati (eliminare una tappa, una lega, il tabellone o una voce dell'anagrafe; rifare il sorteggio o cambiare squadre e gironi con dei risultati; rimuovere una squadra con dati; riaprire una tappa pubblicata) apre una finestra che dice che cosa si perde
 - **Home dashboard** — tappa in corso, classifica live, ultimo risultato registrato, prossime partite e leader
 - **Profilo giocatore** — pagina `/giocatore/:id` con statistiche aggregate, andamento punti, storico tappe e ultime partite
@@ -133,30 +141,18 @@ Senza chiave il Coach risponde "non configurato" e il resto dell'app funziona no
 
 ## API REST
 
-Le chiamate che il frontend fa al backend, tutte in `src/services/` (`api.ts`, `authService.ts`, `legheApi.ts`, `anagrafeApi.ts`, `archivioApi.ts`, `aiService.ts`). Il contratto completo (accessi, validazioni, limiti di frequenza) è nel README di [hoop3x3-backend](https://github.com/Gabrieleleonardi21/hoop3x3-backend). Tutte le risposte di errore hanno il formato `{ "message": "...", "timestamp": "..." }`. Gli endpoint protetti richiedono `Authorization: Bearer <jwt>`.
+Il contratto del backend (endpoint per endpoint, chi può chiamarlo, codici di stato, limiti) sta nella sezione «Endpoint» del README di [hoop3x3-backend](https://github.com/Gabrieleleonardi21/hoop3x3-backend), che la ricava dai test di accesso: qui non si ripete, per non farlo divergere. Il frontend chiama il backend solo da `src/services/`, e ogni servizio ha il suo gruppo di endpoint:
 
-| Metodo | Endpoint | Accesso | Descrizione |
-|---|---|---|---|
-| POST | `/api/auth/register` | pubblico | Crea l'account (ruolo `USER`), imposta il cookie di refresh e restituisce token + utente |
-| POST | `/api/auth/login` | pubblico | Login, imposta il cookie di refresh e restituisce token + utente |
-| POST | `/api/auth/refresh` | pubblico, con il cookie di refresh | Ruota il refresh token e restituisce un nuovo token + utente |
-| POST | `/api/auth/logout` | pubblico | Revoca il refresh token e cancella il cookie (204) |
-| GET | `/api/auth/me` | login | Utente del token corrente |
-| GET | `/api/utenti` | ADMIN | Elenco utenti (il frontend non lo usa) |
-| GET/POST | `/api/leghe` | login | Indice leghe dell'utente / nuova lega (anche import con `tappe`) |
-| GET/PATCH/DELETE | `/api/leghe/{id}` | proprietario o ADMIN | Dettaglio con tappe / rinomina / elimina |
-| POST | `/api/leghe/{id}/tappe` | proprietario o ADMIN | Nuova tappa (id UUID generato dal client), con la `versione` 0 (409 se esiste già) |
-| PUT/DELETE | `/api/tappe/{id}` | proprietario o ADMIN | Sostituisce la tappa, con la `versione` dell'ultima risposta (400 se manca, 409 se nel frattempo un altro dispositivo l'ha salvata; il 200 porta la versione nuova) / elimina la tappa (409 se salvata nello stesso istante: la tappa resta) |
-| GET | `/api/anagrafe/giocatori`, `/squadre` | pubblico | Anagrafe circuito |
-| POST | `/api/anagrafe/giocatori`, `/squadre` | login | Nuova voce (autore = utente) |
-| PUT/DELETE | `/api/anagrafe/giocatori/{id}`, `/squadre/{id}` | autore o ADMIN | Modifica / elimina |
-| GET | `/api/archivio` | pubblico | Elenco sintetico delle tappe pubblicate, già dalla più recente: per ogni voce `tappaId`, `nome`, `luogo`, `data`, `nSquadre`, `lega`, `autore`, `ts`, senza la tappa intera. Il client lo valida (zod) e non lo riordina: una risposta con un'altra forma, come quella di prima, dà l'errore con «Riprova» |
-| GET | `/api/archivio/{tappaId}` | pubblico | Dettaglio: la tappa intera con lega, autore e `ts` (404 se non c'è) |
-| PUT | `/api/archivio/{tappaId}` | proprietario della lega o ADMIN | Pubblica o ripubblica una tappa conclusa, senza corpo: la copia la costruisce il server da ciò che ha salvato (404 se la tappa non esiste, 403 se non è sua, 409 se non è conclusa) |
-| DELETE | `/api/archivio/{tappaId}` | autore o ADMIN | Ritira la pubblicazione |
-| GET | `/api/coach/status` | login | `{ available }` (chiave Groq configurata); il frontend non lo usa: la chiave mancante la scopre dal 503 della chat |
-| POST | `/api/coach/chat` | login | Proxy verso Groq (messaggi + tool in formato OpenAI) |
-| GET | `/actuator/health` | pubblico | Controllo di salute: l'app lo chiama appena si apre per svegliare il backend dei piani free (`svegliaServer`) |
+| Servizio | Gruppo di endpoint |
+|---|---|
+| `api.ts` (client HTTP: JWT, rinnovo, tempo massimo) | `POST /api/auth/refresh` (il rinnovo della sessione; se è respinto, anche `POST /api/auth/logout`) e `GET /actuator/health` (appena si apre l'app, per svegliare il backend dei piani free: `svegliaServer`) |
+| `authService.ts` | `/api/auth/*`: registrazione, accesso, uscita e verifica della sessione (`/api/auth/me`) |
+| `legheApi.ts` | `/api/leghe` (indice, nuova lega, import con le tappe), `/api/leghe/{id}` (dettaglio, rinomina, eliminazione), `/api/leghe/{id}/tappe` (nuova tappa), `/api/tappe/{id}` (salvataggio ed eliminazione di una tappa) |
+| `anagrafeApi.ts` | `/api/anagrafe/giocatori` e `/api/anagrafe/squadre` (lettura, creazione, modifica, eliminazione) |
+| `archivioApi.ts` | `/api/archivio` (elenco) e `/api/archivio/{tappaId}` (dettaglio, pubblicazione, ritiro) |
+| `aiService.ts` | `POST /api/coach/chat` (il Coach AI) |
+
+Non usa `GET /api/utenti` (solo ADMIN) né `GET /api/coach/status`: la chiave Groq mancante la scopre dal 503 della chat. Il client mostra all'utente il campo `message` delle risposte d'errore del backend, o «Errore <status>» se il corpo manca.
 
 Un utente `ADMIN` iniziale viene creato al primo avvio dalle proprietà `ADMIN_EMAIL` / `ADMIN_PASSWORD` di `env.properties`.
 
