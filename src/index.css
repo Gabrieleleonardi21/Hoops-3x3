@@ -95,7 +95,7 @@
     @apply focus:border-court focus:outline-none;
   }
   .cellin {
-    @apply w-[46px] text-center bg-asphalt-800 border border-asphalt-700 rounded-sm px-0.5 py-1 text-[13px] font-semibold text-chalk;
+    @apply w-[46px] text-center bg-asphalt-800 border border-asphalt-500 rounded-sm px-0.5 py-1 text-[13px] font-semibold text-chalk;
     @apply focus:border-court focus:outline-none;
   }
 

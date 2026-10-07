@@ -107,8 +107,9 @@ Lo stato reale, con dove è garantito:
 
 - **Contrasto.** Il testo dei token del design (`chalk`, `chalk-muted`, `chalk-dim`, `court`, `win`, `loss`) è ≥ 4.5:1 sulla sua
   superficie (i valori nella tabella dei colori sono calcolati dagli esadecimali di `index.css`); il bordo dei campi
-  (`asphalt-500`: `.statin`, `.scorein`) è ≥ 3:1 (WCAG 1.4.11). **Eccezione:** `.cellin`, il campo del tabellino (`StatsEditor`), ha
-  il bordo `asphalt-700` su `asphalt-800`, cioè 1,23:1, sotto il minimo: è un difetto noto, da portare a norma.
+  (`asphalt-500`: `.statin`, `.scorein` e `.cellin`, il campo del tabellino di `StatsEditor`) è ≥ 3:1 sullo sfondo del campo
+  (`asphalt-800`: 3.5:1) ed è ancora più netto sulle superfici (4.1:1 su `asphalt-950`; WCAG 1.4.11). Provato in
+  `tests/unit/contrastoCampi.test.ts`, che calcola il rapporto dai colori di `index.css`.
 - **Focus visibile.** Un anello di 2px `court` con offset 2px su ogni elemento interattivo (`:focus-visible` in `index.css`); è
   provato su ciò che prende il focus da codice (schede, esito del timer) in `tests/e2e/tastiera.spec.ts`. I campi di testo e di
   punteggio (`.statin`, `.scorein`, `.cellin`) al focus non hanno l'anello ma il bordo `court`.
