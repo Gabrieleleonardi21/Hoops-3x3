@@ -176,9 +176,9 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
 - Si qualificano le prime 2 di ogni girone (il Coach AI può indicarne un altro
   numero). Il tabellone ha tanti posti quanti la potenza di due che le
   contiene tutte: con 2 gironi sono le semifinali, con 3 o 4 si parte dai
-  quarti di finale, con più gironi dagli ottavi. Se le qualificate non
-  riempiono i posti, le migliori teste di serie passano il primo turno senza
-  giocare (bye).
+  quarti di finale, con più gironi da un turno più largo (ottavi e oltre). Se
+  le qualificate non riempiono i posti, le migliori teste di serie passano il
+  primo turno senza giocare (bye).
 - Le teste di serie si ordinano per piazzamento nel girone (prima tutte le
   prime classificate, poi le seconde…) e, a parità, per percentuale di
   vittorie, media punti e differenza punti: la 1 e la 2 possono incontrarsi
@@ -189,7 +189,8 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
   automaticamente al turno successivo, nel posto che gli spetta per posizione
   nel tabellone (slot TBD aggiornato in tempo reale).
 - Nomi dei turni generati dinamicamente in base alle gare del turno: "Ottavo
-  di finale N", "Quarto di finale N", "Semifinale N", "Finale".
+  di finale N", "Quarto di finale N", "Semifinale N", "Finale" (i turni più
+  larghi degli ottavi sono "Turno N · Gara M").
 - Con il tabellone generato i risultati dei gironi non si correggono.
   «Elimina bracket e ricomincia» chiede sempre conferma e dice quanti
   risultati del tabellone si perdono (quelli dei gironi restano).
