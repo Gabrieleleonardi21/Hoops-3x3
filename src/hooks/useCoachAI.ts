@@ -4,7 +4,7 @@ import { askCoachWithTools, AiError, type ChatMsg, type ToolDef } from "../servi
 import { useAppStore, tappaCorrente } from "../stores/useAppStore";
 import { useAnagrafeStore } from "../stores/useAnagrafeStore";
 import { anagrafeApi } from "../services/anagrafeApi";
-import { archivioApi } from "../services/archivioApi";
+import { testoErrore } from "../services/api";
 import { uid } from "../utils/uid";
 import { DEFAULT_RULES } from "../constants/rules";
 import { buildCoachContext, pulisci } from "../utils/buildCoachContext";
@@ -804,12 +804,12 @@ export function useCoachAI() {
       );
       const conclusa = applica(tappa, concludi);
       try {
-        // Il nome della lega di adesso: può essere cambiato dopo l'invio del messaggio
-        await archivioApi.pubblica(conclusa, useAppStore.getState().legaName);
+        // Come la pagina della tappa: prima si salva tutto (tappa conclusa e nome della lega di adesso), poi si pubblica per id
+        await useAppStore.getState().pubblica(conclusa.id);
         return `Tappa "${pulisci(tappa.nome)}" conclusa e pubblicata nell'Archivio circuito.`;
-      } catch {
+      } catch (e) {
         // Una tappa conclusa non si conclude di nuovo (R5): per ripubblicare va riaperta, come dice anche la pagina
-        return `Tappa "${pulisci(tappa.nome)}" conclusa, ma la pubblicazione non è riuscita: per riprovare, nella pagina della tappa usa «Riapri» e poi «Concludi».`;
+        return `Tappa "${pulisci(tappa.nome)}" conclusa, ma la pubblicazione non è riuscita: per riprovare, nella pagina della tappa usa «Riapri» e poi «Concludi». Motivo: ${testoErrore(e)}`;
       }
     }
 

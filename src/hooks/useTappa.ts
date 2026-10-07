@@ -84,7 +84,7 @@ function scollegaSenzaVoce(t: Tappa, regs: RegSquadra[]): Tappa {
 }
 
 export function useTappa(id: string | undefined) {
-  const { user, legaName, tappe, updateTappa, replaceTappa, removeTappa } = useAppStore();
+  const { user, legaName, tappe, updateTappa, replaceTappa, removeTappa, pubblica } = useAppStore();
   const tappa = tappe.find((t) => t.id === id) || null;
 
   /** Per i campi il cui nuovo valore non dipende dalla tappa (un testo scritto, un valore fisso) */
@@ -287,7 +287,8 @@ export function useTappa(id: string | undefined) {
   /* ── video + pubblicazione ── */
   const republish = async (t: Tappa) => {
     if (!t.conclusa || !user || user.guest) return;
-    await archivioApi.pubblica(t, legaName).catch(() => {});
+    // Prima il server riceve la tappa col video, poi la copia pubblica si ricostruisce da lì
+    await pubblica(t.id).catch(() => {});
   };
   const addVideo = (titolo: string, url: string) => {
     const corrente = tappaCorrente(id);
@@ -316,7 +317,7 @@ export function useTappa(id: string | undefined) {
     if (user.guest) return "La pubblicazione nell'Archivio circuito richiede un account registrato.";
     replaceTappa(esito.tappa);
     try {
-      await archivioApi.pubblica(esito.tappa, legaName);
+      await pubblica(esito.tappa.id);
       return null;
     } catch {
       // La tappa resta conclusa e una tappa conclusa non si conclude di nuovo: per ripubblicare va riaperta

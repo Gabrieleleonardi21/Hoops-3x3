@@ -102,7 +102,7 @@ beforeEach(() => {
   // La cache dell'anagrafe è stato di modulo: ogni test riparte da non caricata
   useAnagrafeStore.setState({ giocatori: null, squadre: null, caricata: false });
   api.putTappa.mockImplementation(async (t) => t);
-  archivio.pubblica.mockImplementation(async (t, lega) => ({ tappa: t, lega, autore: "Anna", autoreId: "u1", ts: 1 }));
+  archivio.pubblica.mockImplementation(async (id) => ({ tappa: { ...tappa(), id }, lega: "Lega", autore: "Anna", autoreId: "u1", ts: 1 }));
   useAppStore.setState({
     user: registrato, legaId: "l1", leghe: [{ id: "l1", nome: "Lega", ts: 1, nTappe: 1 }], tappe: [tappa()],
   });
@@ -466,7 +466,10 @@ describe("useTappa: le operazioni di tappaOps si applicano alla tappa di adesso"
     await act(async () => { errore = await h.concludi(); });
     expect(errore).toBeNull();
     expect(store().tappe[0].conclusa).toBe(true);
-    expect(archivio.pubblica).toHaveBeenCalledWith(expect.objectContaining({ id: "t1", conclusa: true }), expect.anything());
+    // Prima la tappa conclusa arriva al server, poi si pubblica per id: la copia la costruisce il server
+    expect(api.putTappa).toHaveBeenLastCalledWith(expect.objectContaining({ id: "t1", conclusa: true }));
+    expect(archivio.pubblica).toHaveBeenCalledExactlyOnceWith("t1");
+    expect(api.putTappa.mock.invocationCallOrder.at(-1)).toBeLessThan(archivio.pubblica.mock.invocationCallOrder[0]);
   });
 
   it("R1: aggiungere una squadra cancella anche il tabellone", () => {
@@ -510,14 +513,15 @@ describe("useTappa: le operazioni di tappaOps si applicano alla tappa di adesso"
     expect(store().tappe[0].video.map((v) => v.titolo)).toEqual(["Semifinale"]);
   });
 
-  it("su una tappa conclusa il video aggiunto viene ripubblicato nell'archivio", () => {
+  it("su una tappa conclusa il video aggiunto viene ripubblicato nell'archivio, dopo il salvataggio della tappa col video", async () => {
     useAppStore.setState({ tappe: [{ ...tappa(), conclusa: true }] });
     const { result } = renderHook(() => useTappa("t1"));
-    fai(() => result.current.addVideo("Finale", "https://youtu.be/a"));
-    expect(archivio.pubblica).toHaveBeenCalledWith(
+    await act(async () => { result.current.addVideo("Finale", "https://youtu.be/a"); });
+    expect(api.putTappa).toHaveBeenLastCalledWith(
       expect.objectContaining({ id: "t1", conclusa: true, video: [expect.objectContaining({ titolo: "Finale" })] }),
-      expect.anything(),
     );
+    expect(archivio.pubblica).toHaveBeenCalledExactlyOnceWith("t1");
+    expect(api.putTappa.mock.invocationCallOrder.at(-1)).toBeLessThan(archivio.pubblica.mock.invocationCallOrder[0]);
   });
 });
 

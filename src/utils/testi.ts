@@ -43,6 +43,14 @@ export const PERDITA_RIAPERTURA =
   "La tappa uscirà dall'Archivio circuito e il suo link pubblico smetterà di funzionare finché non la concluderai di nuovo. "
   + "Sorteggio e risultati restano.";
 
+/** La pubblicazione non parte: la copia pubblica la costruisce il server da ciò che ha salvato, e l'ultima versione della tappa
+ *  non gli è arrivata (rete assente, dati rifiutati). `motivo` è il perché del salvataggio non riuscito, se si sa. */
+export function pubblicazioneSenzaSalvataggio(motivo: string | null): string {
+  const testo = "Prima di pubblicare, l'ultima versione della tappa deve essere salvata sul server, ma il salvataggio non è riuscito";
+  if (!motivo) return `${testo}.`;
+  return `${testo}: ${motivo}`;
+}
+
 /** Eliminare una lega cancella le sue tappe: si dice quante sono (l'elenco delle leghe non carica i risultati) */
 export function perditaLega(m: LegaMeta): string {
   if (m.nTappe === 0) return `Verrà eliminata la lega «${m.nome}», che non ha tappe.`;

@@ -2,10 +2,11 @@ import { create } from "zustand";
 import type { LegaMeta, Partita, Tappa, User } from "../types";
 import { uid } from "../utils/uid";
 import { legheApi } from "../services/legheApi";
+import { archivioApi } from "../services/archivioApi";
 import { ApiError, testoErrore } from "../services/api";
 import { createSaveQueue } from "./saveQueue";
 import { leggiLegaSalvata, type LegaSalvata } from "../utils/legaFile";
-import { SPAZIO_ESAURITO, SPAZIO_ESAURITO_CAMBIO, SPAZIO_ESAURITO_LEGA } from "../utils/testi";
+import { SPAZIO_ESAURITO, SPAZIO_ESAURITO_CAMBIO, SPAZIO_ESAURITO_LEGA, pubblicazioneSenzaSalvataggio } from "../utils/testi";
 
 /**
  * Store globale: utente, indice leghe e lega attiva con le sue tappe.
@@ -38,6 +39,11 @@ interface AppState {
    *  (logout, «Riprova ora», apertura di una lega).
    *  @returns quante tappe hanno ancora modifiche non salvate */
   salvaTutto: () => Promise<number>;
+  /** Pubblica la tappa (già conclusa) nell'Archivio circuito. Prima salva tutto e aspetta la coda, rinomina della lega compresa:
+   *  la copia pubblica la costruisce il server da ciò che ha salvato, quindi deve avere l'ultima versione. Se la tappa non arriva
+   *  al server (rete assente, dati rifiutati) non pubblica e rifiuta con il motivo; rifiuta anche con l'errore dell'archivio
+   *  (409 se la tappa non risulta conclusa sul server). Lo usano la pagina della tappa e il Coach, con lo stesso ordine. */
+  pubblica: (tappaId: string) => Promise<void>;
   createLega: (nome: string) => Promise<string>;
   selectLega: (id: string) => Promise<void>;
   deleteLega: (id: string) => Promise<void>;
@@ -283,10 +289,20 @@ export const useAppStore = create<AppState>((set, get) => {
   const eliminataNelFrattempo = (e: unknown, t: Tappa) =>
     e instanceof ApiError && e.status === 404 && !get().tappe.some((x) => x.id === t.id);
 
+  /** Tappe il cui ultimo salvataggio il server ha rifiutato (dati non validi): id → motivo. La coda non riprova e le dà per
+   *  smaltite, ma sul server c'è ancora la versione di prima: pubblicarla metterebbe in archivio una versione vecchia. Si toglie
+   *  alla prima volta che un salvataggio della tappa riesce. */
+  const rifiutate = new Map<string, string>();
+
   const coda = createSaveQueue({
-    salva: (t) => salvaSulServer(t).catch((e: unknown) => {
-      if (!eliminataNelFrattempo(e, t)) throw e;
-    }),
+    salva: (t) => salvaSulServer(t).then(
+      () => { rifiutate.delete(t.id); },
+      (e: unknown) => {
+        if (eliminataNelFrattempo(e, t)) return;
+        if (!riprovabile(e)) rifiutate.set(t.id, testoErrore(e));
+        throw e;
+      },
+    ),
     riprovabile,
     ritardo: SAVE_DELAY,
     onErrore: (e, definitivo) => {
@@ -371,6 +387,19 @@ export const useAppStore = create<AppState>((set, get) => {
       return coda.inAttesa().length;
     },
 
+    pubblica: async (tappaId) => {
+      await get().salvaTutto();
+      // Il salvataggio di questa tappa non è andato a buon fine (rete assente: è ancora in coda; dati rifiutati: la coda l'ha
+      // scartata): la pubblicazione non parte. Le modifiche in sospeso di altre tappe non c'entrano
+      const rifiutata = rifiutate.get(tappaId);
+      const inCoda = coda.inAttesa().some((t) => t.id === tappaId);
+      if (inCoda || rifiutata !== undefined) {
+        // 412 (precondizione non soddisfatta): errore nostro, non del server; testoErrore ne mostra il messaggio
+        throw new ApiError(412, pubblicazioneSenzaSalvataggio(rifiutata ?? get().erroreSalvataggio));
+      }
+      await archivioApi.pubblica(tappaId);
+    },
+
     createLega: async (nome) => {
       const trimmed = nome.trim() || "Nuova lega";
       if (isRemote()) {
@@ -423,6 +452,7 @@ export const useAppStore = create<AppState>((set, get) => {
         for (const t of get().tappe) {
           coda.annulla(t.id);
           daCreare.delete(t.id);
+          rifiutate.delete(t.id);
         }
         localStorage.removeItem(chiaveAttiva());
         set({ leghe, legaId: null, legaName: "", tappe: [] });
@@ -517,6 +547,7 @@ export const useAppStore = create<AppState>((set, get) => {
       set((s) => ({ tappe: s.tappe.filter((t) => t.id !== id) }));
       if (isRemote()) {
         coda.annulla(id); // un salvataggio ancora in attesa su una tappa eliminata darebbe 404
+        rifiutate.delete(id);
         touchIndex();
         // Creazione non ancora confermata: niente DELETE, la tappa potrebbe non essere mai arrivata al server
         if (daCreare.delete(id)) {
@@ -534,6 +565,7 @@ export const useAppStore = create<AppState>((set, get) => {
       coda.azzera();
       daCreare.clear();
       eliminatePrimaDellaCreazione.clear();
+      rifiutate.clear();
       // Chi esce dimentica la sua lega aperta; quella dell'altra modalità (ospite o registrato) resta
       localStorage.removeItem(chiaveAttiva());
       set({ user: null, legaId: null, leghe: [], legaName: "", tappe: [], ready: true, syncError: null });

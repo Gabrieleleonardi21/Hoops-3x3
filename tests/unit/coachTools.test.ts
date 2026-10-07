@@ -157,7 +157,7 @@ beforeEach(() => {
   vi.mocked(anagrafeApi.listSquadre).mockResolvedValue([]);
   vi.mocked(anagrafeApi.listGiocatori).mockResolvedValue([]);
   vi.mocked(anagrafeApi.createSquadra).mockImplementation(async (s) => ({ ...s, id: `reg-${s.nome}`, autore: "Anna", autoreId: "u1", ts: 1 }));
-  vi.mocked(archivioApi.pubblica).mockImplementation(async (tappa, lega) => ({ tappa, lega, autore: "Anna", autoreId: "u1", ts: 1 }));
+  vi.mocked(archivioApi.pubblica).mockImplementation(async (id) => ({ tappa: { ...romaOpen(), id }, lega: "Circuito", autore: "Anna", autoreId: "u1", ts: 1 }));
   useAppStore.setState({
     user: registrato, legaId: "l1", legaName: "Circuito", leghe: [{ id: "l1", nome: "Circuito", ts: 1, nTappe: 1 }],
     tappe: [romaOpen()],
@@ -224,19 +224,26 @@ describe("Coach AI: gli strumenti leggono lega, tappe e utente al momento dell'e
     expect(esiti(richieste)[0]).toMatch(/lega aperta è cambiata/);
   });
 
-  it("concludi_tappa pubblica con il nome della lega di adesso, non con quello che aveva all'invio", async () => {
+  it("concludi_tappa salva prima la lega rinominata nel frattempo e la tappa conclusa, e solo dopo pubblica", async () => {
     useAppStore.setState({ tappe: [romaOpenGiocata()] });
+    vi.mocked(legheApi.rename).mockResolvedValue({ id: "l1", nome: "Circuito Lazio", ts: 1, nTappe: 1 });
     const risposta = differita<Risposta>();
     modello(risposta.p, testo("Roma Open è conclusa e pubblicata."));
     const c = coach();
     const invio = inviaSenzaAspettare(c, "Concludi Roma Open");
-    // Mentre il modello pensa, la lega cambia nome
-    act(() => { useAppStore.setState({ legaName: "Circuito Lazio" }); });
+    // Mentre il modello pensa, la lega cambia nome: la PATCH aspetta il suo ritardo
+    act(() => { store().setLegaName("Circuito Lazio"); });
     await act(async () => { risposta.ok(strumenti(["concludi_tappa", { tappa_nome: "Roma Open" }])); });
     await waitFor(() => expect(c.current.conferma).toBeTruthy());
     act(() => { c.current.conferma!.rispondi(true); });
     await act(async () => { await invio; });
-    expect(archivioApi.pubblica).toHaveBeenCalledWith(expect.objectContaining({ id: "t1", conclusa: true }), "Circuito Lazio");
+    // La copia la costruisce il server: deve già avere il nome nuovo e la tappa conclusa
+    expect(legheApi.rename).toHaveBeenCalledWith("l1", "Circuito Lazio");
+    expect(legheApi.putTappa).toHaveBeenLastCalledWith(expect.objectContaining({ id: "t1", conclusa: true }));
+    expect(archivioApi.pubblica).toHaveBeenCalledExactlyOnceWith("t1");
+    const pubblicata = vi.mocked(archivioApi.pubblica).mock.invocationCallOrder[0];
+    expect(vi.mocked(legheApi.rename).mock.invocationCallOrder[0]).toBeLessThan(pubblicata);
+    expect(vi.mocked(legheApi.putTappa).mock.invocationCallOrder.at(-1)).toBeLessThan(pubblicata);
   });
 });
 
@@ -504,7 +511,11 @@ describe("Coach AI: conferma nel pannello prima delle azioni distruttive (D4)", 
     const richiesta = await chiediEConferma(c, "Concludi Roma Open", true);
     expect(richiesta.titolo).toBe('Concludere "Roma Open"?');
     expect(store().tappe[0].conclusa).toBe(true);
-    expect(archivioApi.pubblica).toHaveBeenCalledWith(expect.objectContaining({ id: "t1", conclusa: true }), "Circuito");
+    // Prima la tappa conclusa arriva al server, poi si pubblica per id (lo stesso ordine della pagina)
+    expect(legheApi.putTappa).toHaveBeenLastCalledWith(expect.objectContaining({ id: "t1", conclusa: true }));
+    expect(archivioApi.pubblica).toHaveBeenCalledExactlyOnceWith("t1");
+    expect(vi.mocked(legheApi.putTappa).mock.invocationCallOrder.at(-1))
+      .toBeLessThan(vi.mocked(archivioApi.pubblica).mock.invocationCallOrder[0]);
   });
 
   it("concludi_tappa con «Annulla»: niente conclusione e niente pubblicazione", async () => {
@@ -520,12 +531,27 @@ describe("Coach AI: conferma nel pannello prima delle azioni distruttive (D4)", 
   it("concludi_tappa con la pubblicazione non riuscita: per riprovare indica «Riapri» e poi «Concludi»", async () => {
     // Una tappa conclusa ha solo «Riapri»: «riprova dalla pagina» non si poteva seguire (vedi useTappa)
     useAppStore.setState({ tappe: [romaOpenGiocata()] });
-    vi.mocked(archivioApi.pubblica).mockRejectedValue(new Error("rete assente"));
+    vi.mocked(archivioApi.pubblica).mockRejectedValue(new ApiError(0, "Server non raggiungibile"));
     const richieste = modello(strumenti(["concludi_tappa", { tappa_nome: "Roma Open" }]), testo("Conclusa, ma non pubblicata."));
     const c = coach();
     await chiediEConferma(c, "Concludi Roma Open", true);
     expect(store().tappe[0].conclusa).toBe(true);
     expect(esiti(richieste)[0]).toContain("«Riapri» e poi «Concludi»");
+    expect(esiti(richieste)[0]).toContain("Motivo: Server non raggiungibile");
+  });
+
+  it("concludi_tappa con la tappa che non arriva al server: non pubblica e il modello sa perché", async () => {
+    useAppStore.setState({ tappe: [romaOpenGiocata()] });
+    vi.mocked(legheApi.putTappa).mockRejectedValue(new ApiError(0, "Server non raggiungibile"));
+    const richieste = modello(strumenti(["concludi_tappa", { tappa_nome: "Roma Open" }]), testo("Conclusa, ma non pubblicata."));
+    const c = coach();
+    await chiediEConferma(c, "Concludi Roma Open", true);
+    // La conclusione resta (è nello store e la coda riprova), la pubblicazione no: il server non ha l'ultima versione
+    expect(store().tappe[0].conclusa).toBe(true);
+    expect(archivioApi.pubblica).not.toHaveBeenCalled();
+    expect(esiti(richieste)[0]).toContain("«Riapri» e poi «Concludi»");
+    expect(esiti(richieste)[0]).toContain("Motivo: Prima di pubblicare, l'ultima versione della tappa deve essere salvata sul server");
+    expect(esiti(richieste)[0]).toContain("Server non raggiungibile");
   });
 
   it("un'azione che verrebbe rifiutata non chiede conferma: concludere con gare da giocare", async () => {
