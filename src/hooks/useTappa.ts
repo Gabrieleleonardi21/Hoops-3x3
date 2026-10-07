@@ -95,11 +95,14 @@ export interface StatoArchivio {
 }
 const SCONOSCIUTO: StatoArchivio = { pubblicata: null, errore: null };
 
-/** La pubblicazione è fallita e si sa che la copia non c'è: o il server ha risposto con un errore, oppure la richiesta non è nemmeno
- *  partita (412 locale: la tappa non era salvata). Con rete assente o tempo scaduto (status 0) non si sa: la richiesta può essere
- *  arrivata e il server aver pubblicato lo stesso, e dire «non pubblicata» farebbe riaprire la tappa lasciando la copia pubblica. */
+/** La pubblicazione è fallita e si sa che la copia non c'è: o il server ha risposto con un errore suo, oppure la richiesta non è
+ *  nemmeno partita (412 locale: la tappa non era salvata). Non si sa con rete assente o tempo scaduto (status 0), né con un 502, 503 o
+ *  504: dietro un proxy (Render) la PUT può essere stata eseguita dal server anche se la risposta è andata persa o il proxy ha
+ *  risposto al suo posto. Dire «non pubblicata» farebbe riaprire la tappa lasciando la copia pubblica; nel dubbio «Riapri» ritira
+ *  (la PUT è un upsert e la DELETE tollera il 404). */
+const ESITO_IGNOTO = [0, 502, 503, 504];
 function nonPubblicataSicuro(e: unknown): boolean {
-  return e instanceof ApiError && e.status !== 0;
+  return e instanceof ApiError && !ESITO_IGNOTO.includes(e.status);
 }
 
 /** Lo stato della pubblicazione di una tappa, per `setArchivio` */
@@ -348,8 +351,13 @@ export function useTappa(id: string | undefined) {
       await pubblica(t.id);
       setArchivio(registra(t.id, { pubblicata: true, errore: null }));
     } catch (e) {
-      // La copia pubblica resta com'era: se la tappa era in archivio ci resta, ma senza il video, e il motivo compare nella pagina
-      setArchivio((tutti) => ({ ...tutti, [t.id]: { pubblicata: (tutti[t.id] ?? SCONOSCIUTO).pubblicata, errore: testoErrore(e) } }));
+      // La copia pubblica resta com'era: se la tappa era in archivio ci resta, ma senza il video, e il motivo compare nella pagina.
+      // Un vecchio «non pubblicata» non vale più se l'esito di questa PUT è ignoto: potrebbe aver pubblicato
+      setArchivio((tutti) => {
+        let pubblicata = (tutti[t.id] ?? SCONOSCIUTO).pubblicata;
+        if (pubblicata === false && !nonPubblicataSicuro(e)) pubblicata = null;
+        return registra(t.id, { pubblicata, errore: testoErrore(e) })(tutti);
+      });
     } finally {
       setInCorso((n) => n - 1);
     }
@@ -380,18 +388,20 @@ export function useTappa(id: string | undefined) {
     if (!esito.ok) return esito.errore;
     if (user.guest) return "La pubblicazione nell'Archivio circuito richiede un account registrato.";
     setInCorso((n) => n + 1); // prima della conclusione: la pagina cambia con «Riapri» già disattivato
-    replaceTappa(esito.tappa);
-    // Da qui la pagina è un'altra (la sezione «Concludi» non c'è più): se la pubblicazione non riesce, il messaggio che si
-    // restituisce non lo leggerebbe nessuno. L'esito sta nello stato, e la pagina lo mostra accanto alla tappa. La tappa resta
-    // conclusa e una tappa conclusa non si conclude di nuovo: per ripubblicare va riaperta. «Non pubblicata» solo se si sa; se
-    // l'esito è ignoto (rete assente, tempo scaduto) lo stato resta «non si sa» e «Riapri» ritira la copia, se c'è
     try {
-      await pubblica(esito.tappa.id);
-      setArchivio(registra(esito.tappa.id, { pubblicata: true, errore: null }));
-    } catch (e) {
-      let pubblicata: boolean | null = null;
-      if (nonPubblicataSicuro(e)) pubblicata = false;
-      setArchivio(registra(esito.tappa.id, { pubblicata, errore: testoErrore(e) }));
+      replaceTappa(esito.tappa);
+      // Da qui la pagina è un'altra (la sezione «Concludi» non c'è più): se la pubblicazione non riesce, il messaggio che si
+      // restituisce non lo leggerebbe nessuno. L'esito sta nello stato, e la pagina lo mostra accanto alla tappa. La tappa resta
+      // conclusa e una tappa conclusa non si conclude di nuovo: per ripubblicare va riaperta. «Non pubblicata» solo se si sa; se
+      // l'esito è ignoto (rete assente, tempo scaduto, errore del proxy) lo stato resta «non si sa» e «Riapri» ritira la copia, se c'è
+      try {
+        await pubblica(esito.tappa.id);
+        setArchivio(registra(esito.tappa.id, { pubblicata: true, errore: null }));
+      } catch (e) {
+        let pubblicata: boolean | null = null;
+        if (nonPubblicataSicuro(e)) pubblicata = false;
+        setArchivio(registra(esito.tappa.id, { pubblicata, errore: testoErrore(e) }));
+      }
     } finally {
       setInCorso((n) => n - 1);
     }

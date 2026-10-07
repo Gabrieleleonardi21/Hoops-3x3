@@ -644,13 +644,13 @@ describe("TappaPage: l'esito della pubblicazione di una tappa conclusa", () => {
   });
 
   it("pubblicazione rifiutata dal server: la pagina NON dice «pubblicata», dice perché e indica «Riapri» e poi «Concludi»", async () => {
-    vi.mocked(archivioApi.pubblica).mockRejectedValue(new ApiError(503, "Servizio non disponibile: riprova tra poco."));
+    vi.mocked(archivioApi.pubblica).mockRejectedValue(new ApiError(500, "Errore interno del server: riprova tra poco."));
     apriPagina({});
     concludi();
     const avviso = await screen.findByRole("alert");
     expect(avviso.textContent).toContain("La pubblicazione nell'Archivio circuito non è riuscita");
     expect(avviso.textContent).toContain("«Riapri» e poi «Concludi»");
-    expect(avviso.textContent).toContain("Servizio non disponibile: riprova tra poco.");
+    expect(avviso.textContent).toContain("Errore interno del server: riprova tra poco.");
     expect(screen.getByText(nonPubblicata)).toBeTruthy();
     expect(screen.queryByText(pubblicata)).toBeNull();
     // La tappa è conclusa: è la pubblicazione che non è riuscita

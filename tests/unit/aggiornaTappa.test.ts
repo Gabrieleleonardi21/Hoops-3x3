@@ -635,6 +635,23 @@ describe("useTappa: pubblicazione nell'archivio di una tappa conclusa", () => {
     expect(store().tappe[0].conclusa).toBe(false);
   });
 
+  // Dietro un proxy (Render) un 502, 503 o 504 può nascondere una PUT già eseguita dal server: l'esito è ignoto come con lo status 0
+  it.each([0, 502, 503, 504])("«Concludi» con la PUT dell'archivio che finisce con %i: l'esito è ignoto, non «non pubblicata»", async (status) => {
+    useAppStore.setState({ tappe: [sorteggiata([giocata("m1")])] });
+    archivio.pubblica.mockRejectedValueOnce(new ApiError(status, "Errore del proxy"));
+    const { result } = renderHook(() => useTappa("t1"));
+    await act(async () => { await result.current.concludi(); });
+    expect(result.current.statoArchivio).toEqual({ pubblicata: null, errore: "Errore del proxy" });
+  });
+
+  it.each([400, 401, 403, 404, 409, 500])("«Concludi» con la PUT dell'archivio che finisce con %i: l'esito è certo, «non pubblicata»", async (status) => {
+    useAppStore.setState({ tappe: [sorteggiata([giocata("m1")])] });
+    archivio.pubblica.mockRejectedValueOnce(new ApiError(status, "Rifiutata dal server"));
+    const { result } = renderHook(() => useTappa("t1"));
+    await act(async () => { await result.current.concludi(); });
+    expect(result.current.statoArchivio).toEqual({ pubblicata: false, errore: "Rifiutata dal server" });
+  });
+
   it("la via d'uscita funziona: «Riapri» (senza toccare l'archivio, la tappa non c'è) e poi «Concludi»", async () => {
     useAppStore.setState({ tappe: [sorteggiata([giocata("m1")])] });
     // Esito certo: il server rifiuta la tappa conclusa (400) e la pubblicazione non parte (412)
@@ -819,6 +836,29 @@ describe("useTappa: pubblicazione nell'archivio di una tappa conclusa", () => {
       archivio.pubblica.mockRejectedValueOnce(new ApiError(0, "Server non raggiungibile"));
       await act(async () => { result.current.addVideo("Finale", "https://youtu.be/a"); });
       expect(result.current.statoArchivio).toEqual({ pubblicata: true, errore: "Server non raggiungibile" });
+    });
+
+    it("la tappa risultava non pubblicata (404) e la PUT del video non ha risposta: l'esito è ignoto, «Riapri» ritira la copia che potrebbe esserci", async () => {
+      archivio.get.mockRejectedValue(new ApiError(404, "Tappa non presente in archivio"));
+      archivio.rimuovi.mockResolvedValue(undefined);
+      const { result } = await apri();
+      expect(result.current.statoArchivio.pubblicata).toBe(false);
+      archivio.pubblica.mockRejectedValueOnce(new ApiError(0, "Il server non risponde: controlla la connessione e riprova."));
+      await act(async () => { result.current.addVideo("Finale", "https://youtu.be/a"); });
+      // Il vecchio «non pubblicata» non vale più: la PUT può essere arrivata e aver pubblicato
+      expect(result.current.statoArchivio).toEqual({ pubblicata: null, errore: "Il server non risponde: controlla la connessione e riprova." });
+      expect(result.current.perditaRiapertura()).toBe(PERDITA_RIAPERTURA);
+      await act(async () => { await result.current.riapri(); });
+      expect(archivio.rimuovi).toHaveBeenCalledExactlyOnceWith("t1");
+      expect(store().tappe[0].conclusa).toBe(false);
+    });
+
+    it("la tappa risultava non pubblicata (404) e il server rifiuta la PUT del video con un errore certo: resta «non pubblicata»", async () => {
+      archivio.get.mockRejectedValue(new ApiError(404, "Tappa non presente in archivio"));
+      const { result } = await apri();
+      archivio.pubblica.mockRejectedValueOnce(new ApiError(500, "Errore interno del server"));
+      await act(async () => { result.current.addVideo("Finale", "https://youtu.be/a"); });
+      expect(result.current.statoArchivio).toEqual({ pubblicata: false, errore: "Errore interno del server" });
     });
   });
 

@@ -292,8 +292,9 @@ export const useAppStore = create<AppState>((set, get) => {
     e instanceof ApiError && e.status === 404 && !get().tappe.some((x) => x.id === t.id);
 
   /** Tappe il cui ultimo salvataggio il server ha rifiutato (dati non validi): id → motivo. La coda non riprova e le dà per
-   *  smaltite, ma sul server c'è ancora la versione di prima: pubblicarla metterebbe in archivio una versione vecchia. Si toglie
-   *  alla prima volta che un salvataggio della tappa riesce. */
+   *  smaltite, ma sul server c'è ancora la versione di prima: pubblicarla metterebbe in archivio una versione vecchia. Una voce si
+   *  toglie quando: un salvataggio della tappa riesce; si apre una lega (selectLega: le sue tappe arrivano dal server); la tappa o
+   *  la lega si eliminano (removeTappa, deleteLega); si esce (reset). */
   const rifiutate = new Map<string, string>();
 
   const coda = createSaveQueue({

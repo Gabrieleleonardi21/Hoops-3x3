@@ -804,7 +804,8 @@ export function useCoachAI() {
       );
       const conclusa = applica(tappa, concludi);
       try {
-        // Come la pagina della tappa: prima si salva tutto (tappa conclusa e nome della lega di adesso), poi si pubblica per id
+        // Come la pagina della tappa: prima la tappa conclusa arriva al server (e parte la rinomina della lega in attesa, che non si
+        // controlla: se fallisce la copia porta il nome che il server ha), poi si pubblica per id
         await useAppStore.getState().pubblica(conclusa.id);
         return `Tappa "${pulisci(tappa.nome)}" conclusa e pubblicata nell'Archivio circuito.`;
       } catch (e) {
