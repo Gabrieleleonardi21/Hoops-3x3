@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { AuthForm } from "../../src/components/auth/AuthForm";
 import { ApiError } from "../../src/services/api";
@@ -61,5 +61,38 @@ describe("AuthForm: nome utente come sul server (RegisterRequestDTO: da 2 a 80 c
 
   it("il campo non accetta più di 80 caratteri", () => {
     expect((screen.getByLabelText("Nome utente") as HTMLInputElement).maxLength).toBe(80);
+  });
+});
+
+describe("AuthForm: un invio alla volta, con stato di attesa (F8)", () => {
+  const pulsante = (nome: string | RegExp) => screen.getByRole("button", { name: nome }) as HTMLButtonElement;
+
+  it("mentre la registrazione aspetta il server «Crea account» dice che è in corso e, con «Ospite», è disattivato; un secondo clic non registra due volte", async () => {
+    let rispondi: () => void = () => {};
+    register.mockReturnValue(new Promise<never>((_ok, ko) => { rispondi = () => ko(new ApiError(409, "Email già registrata")); }));
+    registra("Anna");
+    await screen.findByRole("button", { name: "Creazione in corso…" });
+    expect(pulsante("Creazione in corso…").disabled).toBe(true);
+    expect(pulsante(/Continua come Ospite/).disabled).toBe(true);
+    fireEvent.click(pulsante("Creazione in corso…"));
+    expect(register).toHaveBeenCalledTimes(1);
+    rispondi();
+    expect(await screen.findByText("Email già registrata")).toBeTruthy();
+    expect(pulsante("Crea account").disabled).toBe(false);
+    expect(pulsante(/Continua come Ospite/).disabled).toBe(false);
+  });
+
+  it("se l'ingresso da Ospite fallisce il motivo compare, invece di una promessa rifiutata senza gestore", async () => {
+    // La lettura della lega dell'ospite dal browser fallisce: si sostituisce rehydrate dello store (dentro act, così il modulo
+    // già montato la riceve prima del clic) e la si rimette a posto alla fine
+    const rehydrateVera = useAppStore.getState().rehydrate;
+    act(() => { useAppStore.setState({ rehydrate: async () => { throw new ApiError(507, "Spazio esaurito nel browser"); } }); });
+    try {
+      fireEvent.click(pulsante(/Continua come Ospite/));
+      expect((await screen.findByRole("alert")).textContent).toBe("Spazio esaurito nel browser");
+      expect(pulsante(/Continua come Ospite/).disabled).toBe(false);
+    } finally {
+      useAppStore.setState({ rehydrate: rehydrateVera });
+    }
   });
 });

@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuth } from "../../hooks/useAuth";
-import { ApiError } from "../../services/api";
+import { useInvio } from "../../hooks/useInvio";
 import { Input } from "../ui/Input";
 import { Button } from "../ui/Button";
 
@@ -16,11 +16,6 @@ function hasAccountHint(): boolean {
 }
 function rememberAccount() {
   try { localStorage.setItem(ACCOUNT_HINT, "1"); } catch { /* ignora */ }
-}
-/** Il backend risponde sempre {message}: si mostra quello, altrimenti un testo generico */
-function messaggioErrore(e: unknown): string {
-  if (e instanceof ApiError) return e.message;
-  return "Errore imprevisto, riprova.";
 }
 /** Messaggio arrivato con lo stato della navigazione, per esempio quello della fine della sessione (App.tsx) */
 function messaggioRicevuto(stato: unknown): string | null {
@@ -57,32 +52,26 @@ export function AuthForm() {
   const avviso = ricevuto ?? copia;
   // Chi ha già usato un account su questo browser parte dal tab "Accedi"
   const [mode, setMode] = useState<"register" | "login">(hasAccountHint() ? "login" : "register");
-  const [authError, setAuthError] = useState<string | null>(null);
+  // Un solo invio alla volta tra registrazione, accesso e Ospite: finché uno aspetta il server i tre pulsanti sono disattivati (un
+  // doppio clic non registra due volte) e un rifiuto compare sotto il modulo con il messaggio del server (useInvio senza prefisso)
+  const { invio, errore: authError, setErrore: setAuthError, esegui } = useInvio();
 
   const regForm = useForm<RegisterData>({ resolver: zodResolver(registerSchema) });
   const logForm = useForm<LoginData>({ resolver: zodResolver(loginSchema) });
 
-  const onRegister = regForm.handleSubmit(async (d) => {
-    setAuthError(null);
-    try {
-      await doRegister(d.name, d.email, d.pass);
-      rememberAccount();
-      navigate("/lega");
-    } catch (e) {
-      setAuthError(messaggioErrore(e));
-    }
-  });
+  /** Dopo un accesso o una registrazione riusciti: l'indizio dell'account e la pagina della lega */
+  const entra = async (accesso: () => Promise<void>) => {
+    if (!(await esegui(accesso))) return;
+    rememberAccount();
+    navigate("/lega");
+  };
 
-  const onLogin = logForm.handleSubmit(async (d) => {
-    setAuthError(null);
-    try {
-      await doLogin(d.email, d.pass);
-      rememberAccount();
-      navigate("/lega");
-    } catch (e) {
-      setAuthError(messaggioErrore(e));
-    }
-  });
+  const onRegister = regForm.handleSubmit((d) => entra(() => doRegister(d.name, d.email, d.pass)));
+  const onLogin = logForm.handleSubmit((d) => entra(() => doLogin(d.email, d.pass)));
+  /** L'Ospite non ha un server, ma leggere la sua lega dal browser può fallire: anche qui l'errore si vede, non si perde */
+  const comeOspite = async () => {
+    if (await esegui(enterGuest)) navigate("/lega");
+  };
 
   const tab = (m: "register" | "login", label: string) => (
     <button type="button" onClick={() => { setMode(m); setAuthError(null); }}
@@ -107,20 +96,20 @@ export function AuthForm() {
           <p className="m-0 text-xs text-chalk-muted">
             L'account è salvato sul server: le tue leghe ti seguono su qualsiasi dispositivo.
           </p>
-          <Button type="submit" className="w-full">Crea account</Button>
+          <Button type="submit" className="w-full" disabled={invio}>{invio ? "Creazione in corso…" : "Crea account"}</Button>
         </form>
       ) : (
         <form className="flex flex-col gap-3" onSubmit={onLogin} noValidate>
           <Input label="Mail" type="email" autoComplete="email" {...logForm.register("email")} error={!!logErr.email} hint={logErr.email?.message} />
           <Input label="Password" type="password" autoComplete="current-password" {...logForm.register("pass")} error={!!logErr.pass} hint={logErr.pass?.message} />
-          <Button type="submit" className="w-full">Accedi</Button>
+          <Button type="submit" className="w-full" disabled={invio}>{invio ? "Accesso in corso…" : "Accedi"}</Button>
         </form>
       )}
 
       {authError && <p className="mt-2.5 text-[13px] font-semibold text-loss" role="alert">{authError}</p>}
 
       <div className="mt-4 border-t border-asphalt-700 pt-4">
-        <Button variant="outline" className="w-full" onClick={() => { enterGuest().then(() => navigate("/lega")); }}>
+        <Button variant="outline" className="w-full" onClick={() => { void comeOspite(); }} disabled={invio}>
           Continua come Ospite
         </Button>
         <p className="mt-2 mb-0 text-xs text-chalk-muted">
