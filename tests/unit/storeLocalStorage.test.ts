@@ -101,7 +101,7 @@ describe("ospite: le scritture su localStorage sono protette (FS-9)", () => {
 
   it("aprire un'altra lega non va in errore", async () => {
     localStorage.setItem("hoop3x3_lega_l2", JSON.stringify({ nome: "Inverno", tappe: [] }));
-    useAppStore.setState({ leghe: [...store().leghe, { id: "l2", nome: "Inverno", ts: 1, nTappe: 0 }] });
+    useAppStore.setState({ leghe: [...store().leghe!, { id: "l2", nome: "Inverno", ts: 1, nTappe: 0 }] });
     browserPieno();
     await expect(store().selectLega("l2")).resolves.toBeUndefined();
     expect(store().legaId).toBe("l2");
@@ -212,7 +212,7 @@ describe("ospite: con le modifiche non salvate, aprire, creare o importare un'al
     expect(store().syncError).toMatch(/spazio esaurito/i);
     await expect(azione()).rejects.toMatchObject({ status: 507, message: expect.stringMatching(/modifiche della lega aperta non sono salvate/i) });
     expect(store().legaId).toBe("l1");
-    expect(store().leghe.map((m) => m.id)).toEqual(["l1"]);
+    expect(store().leghe!.map((m) => m.id)).toEqual(["l1"]);
     expect(store().tappe[0].nome).toBe("Finale");
     expect(store().syncError).toMatch(/spazio esaurito/i);
     expect(Object.keys(localStorage).filter((k) => k.startsWith("hoop3x3_lega_"))).toEqual(["hoop3x3_lega_l1"]); // niente lega nuova nel browser
@@ -254,7 +254,7 @@ describe("ospite: con le modifiche non salvate, aprire, creare o importare un'al
   it("senza modifiche non salvate (nessun avviso) aprire un'altra lega non scrive né chiede niente", async () => {
     versioneVecchia();
     localStorage.setItem("hoop3x3_lega_l2", JSON.stringify({ nome: "Inverno", tappe: [] }));
-    useAppStore.setState({ leghe: [...store().leghe, { id: "l2", nome: "Inverno", ts: 1, nTappe: 0 }] });
+    useAppStore.setState({ leghe: [...store().leghe!, { id: "l2", nome: "Inverno", ts: 1, nTappe: 0 }] });
     await store().selectLega("l2");
     expect(store().legaId).toBe("l2");
     expect(nomeSalvato()).toBe("Tappa"); // la lega di prima non è stata riscritta
@@ -292,7 +292,7 @@ describe("ospite: l'avviso «spazio esaurito» sparisce quando le scritture torn
 
   it("eliminare un'altra lega (entra solo l'indice) non toglie l'avviso: la lega aperta ha ancora modifiche solo in memoria", async () => {
     localStorage.setItem("hoop3x3_lega_l2", JSON.stringify({ nome: "Inverno", tappe: [] }));
-    useAppStore.setState({ leghe: [...store().leghe, { id: "l2", nome: "Inverno", ts: 1, nTappe: 0 }] });
+    useAppStore.setState({ leghe: [...store().leghe!, { id: "l2", nome: "Inverno", ts: 1, nTappe: 0 }] });
     const pieno = browserPieno();
     store().updateTappa("t1", { nome: "Finale" }); // non si salva
     expect(store().syncError).toMatch(/spazio esaurito/i);
@@ -309,7 +309,7 @@ describe("ospite: l'avviso «spazio esaurito» sparisce quando le scritture torn
 
   it("la protezione (spazioEsaurito) si abbassa con una scrittura riuscita della lega aperta, non con quella del solo indice", async () => {
     localStorage.setItem("hoop3x3_lega_l2", JSON.stringify({ nome: "Inverno", tappe: [] }));
-    useAppStore.setState({ leghe: [...store().leghe, { id: "l2", nome: "Inverno", ts: 1, nTappe: 0 }] });
+    useAppStore.setState({ leghe: [...store().leghe!, { id: "l2", nome: "Inverno", ts: 1, nTappe: 0 }] });
     const pieno = browserPieno();
     store().updateTappa("t1", { nome: "Finale" });
     expect(store().spazioEsaurito).toBe(true);
@@ -337,7 +337,7 @@ describe("ospite: l'avviso «spazio esaurito» sparisce quando le scritture torn
   it("ricordare la lega aperta è una comodità: se il browser rifiuta solo quella chiave, la protezione non si alza", async () => {
     localStorage.setItem("hoop3x3_lega_l1", JSON.stringify({ nome: "Estate", tappe: [tappa()] }));
     localStorage.setItem("hoop3x3_lega_l2", JSON.stringify({ nome: "Inverno", tappe: [] }));
-    useAppStore.setState({ leghe: [...store().leghe, { id: "l2", nome: "Inverno", ts: 1, nTappe: 0 }] });
+    useAppStore.setState({ leghe: [...store().leghe!, { id: "l2", nome: "Inverno", ts: 1, nTappe: 0 }] });
     const scrivi = Storage.prototype.setItem;
     vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (this: Storage, chiave: string, valore: string) {
       if (chiave === CHIAVE_OSPITE) throw new DOMException("The quota has been exceeded.", "QuotaExceededError");
@@ -452,7 +452,7 @@ describe("ospite con l'app aperta in due schede: nessuna scheda cancella ciò ch
 
   it("una lega creata nell'altra scheda compare nell'elenco, e una modifica qui non la toglie dall'indice", () => {
     scriveLAltraScheda(INDICE, conInverno);
-    expect(store().leghe.map((m) => m.nome)).toEqual(["Estate", "Inverno"]);
+    expect(store().leghe!.map((m) => m.nome)).toEqual(["Estate", "Inverno"]);
     store().updateTappa("t1", { nome: "Finale" });
     expect(indiceNelBrowser()).toEqual(["l1", "l2"]);
   });

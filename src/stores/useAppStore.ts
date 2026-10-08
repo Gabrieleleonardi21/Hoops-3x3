@@ -47,7 +47,11 @@ export interface Rifiuto {
 interface AppState {
   user: User | null;
   legaId: string | null;    // ID della lega attualmente aperta
-  leghe: LegaMeta[];        // indice di tutte le leghe dell'utente
+  /** Indice di tutte le leghe dell'utente; null finché il registrato non l'ha ricevuto dal server (o se la lettura non è riuscita:
+   *  `erroreLeghe` dice perché). Un elenco che non si sa non è un elenco vuoto: la pagina delle leghe mostra l'errore con «Riprova» */
+  leghe: LegaMeta[] | null;
+  /** Perché l'ultima lettura dell'elenco delle leghe (rehydrate) non è riuscita; null se è andata bene o è in corso */
+  erroreLeghe: string | null;
   legaName: string;
   tappe: Tappa[];
   /** false mentre si caricano i dati dal server dopo login/reload (per i registrati) */
@@ -111,11 +115,12 @@ interface AppState {
 export { SESSION_KEY } from "./memoriaBrowser";
 
 /** Stato iniziale sincrono: l'ospite ha già tutto in localStorage, il registrato aspetta rehydrate() */
-function getInitialState(): Pick<AppState, "user" | "legaId" | "leghe" | "legaName" | "tappe" | "ready" | "syncError"> {
-  const empty = { user: null, legaId: null, leghe: [], legaName: "", tappe: [], ready: true, syncError: null };
+function getInitialState(): Pick<AppState, "user" | "legaId" | "leghe" | "erroreLeghe" | "legaName" | "tappe" | "ready" | "syncError"> {
+  const empty = { user: null, legaId: null, leghe: [], erroreLeghe: null, legaName: "", tappe: [], ready: true, syncError: null };
   const user = readSession();
   if (!user) return empty;
-  if (!user.guest) return { ...empty, user, ready: false };
+  // Il registrato non ha ancora l'elenco: arriva con rehydrate
+  if (!user.guest) return { ...empty, user, leghe: null, ready: false };
   return { ...empty, user, ...statoOspite() };
 }
 
@@ -173,7 +178,7 @@ export const useAppStore = create<AppState>((set, get) => {
    *  riscrivere quello in memoria la farebbe sparire dall'elenco. Le leghe che conosce solo questa scheda restano, in fondo */
   const indiceAttuale = (): LegaMeta[] => {
     const nelBrowser = readIndex();
-    const soloQui = get().leghe.filter((m) => !nelBrowser.some((x) => x.id === m.id));
+    const soloQui = (get().leghe ?? []).filter((m) => !nelBrowser.some((x) => x.id === m.id));
     return [...nelBrowser, ...soloQui];
   };
   /** Scrive i dati e l'indice di una lega nuova dell'ospite (creata o importata): tutto o niente. Senza spazio non si crea niente,
@@ -600,6 +605,7 @@ export const useAppStore = create<AppState>((set, get) => {
   /** Aggiorna nTappe/ts della lega attiva nell'indice in memoria (il server lo fa da sé) */
   const touchIndex = () => {
     const s = get();
+    if (!s.leghe) return; // l'elenco non è arrivato: non c'è niente da aggiornare
     set({ leghe: s.leghe.map((m) => m.id === s.legaId ? { ...m, nTappe: s.tappe.length, ts: Date.now() } : m) });
   };
 
@@ -733,7 +739,7 @@ export const useAppStore = create<AppState>((set, get) => {
     }
     const letta = readLegaData(s.legaId);
     if (!letta) {
-      set({ syncError: legaIllegibile(s.leghe, s.legaId) });
+      set({ syncError: legaIllegibile(s.leghe ?? [], s.legaId) });
       return;
     }
     let syncError = letta.avviso ?? s.syncError;
@@ -745,6 +751,20 @@ export const useAppStore = create<AppState>((set, get) => {
   let renameTimer = 0;
   /** PATCH della rinomina che aspetta il suo timer; null se non ce n'è */
   let rinominaInAttesa: (() => Promise<void>) | null = null;
+  /** Il nome della lega aperta com'è sul server (letto all'apertura, confermato da ogni PATCH riuscita): se il server rifiuta una
+   *  rinomina (400: troppo lungo, vuoto) lo schermo torna a questo, invece di mostrare un nome che sul server non c'è */
+  let nomeSulServer = "";
+
+  /** Scrive il nome della lega aperta nello stato e nell'indice. L'ospite riparte dall'indice del browser (indiceAttuale): un'altra
+   *  scheda può averlo cambiato. @returns l'indice aggiornato, che l'ospite salva */
+  const scriviNomeLega = (legaName: string): LegaMeta[] => {
+    const s = get();
+    let base = s.leghe ?? [];
+    if (!isRemote()) base = indiceAttuale();
+    const leghe = base.map((m) => m.id === s.legaId ? { ...m, nome: legaName, ts: Date.now() } : m);
+    set({ legaName, leghe });
+    return leghe;
+  };
 
   /** Manda subito la rinomina in attesa, se c'è: allo scadere del timer, oppure da salvaTutto prima del logout,
    *  quando il token sta per sparire */
@@ -802,7 +822,8 @@ export const useAppStore = create<AppState>((set, get) => {
       if (isRemote()) {
         const meta = await legheApi.create(trimmed);
         ricordaLega(meta.id);
-        set({ legaId: meta.id, leghe: [meta, ...get().leghe], legaName: meta.nome, tappe: [] });
+        nomeSulServer = meta.nome;
+        set({ legaId: meta.id, leghe: [meta, ...(get().leghe ?? [])], legaName: meta.nome, tappe: [] });
         return meta.id;
       }
       salvaLegaApertaPrimaDelCambio();
@@ -835,6 +856,7 @@ export const useAppStore = create<AppState>((set, get) => {
         for (const t of lega.tappe) togliRifiutata(t.id);
         togliRifiutateDellaLega(id, (tid) => tappe.some((t) => t.id === tid));
         ricordaLega(id);
+        nomeSulServer = lega.nome;
         set({ legaId: id, legaName: lega.nome, tappe });
         return;
       }
@@ -842,7 +864,7 @@ export const useAppStore = create<AppState>((set, get) => {
       const letta = readLegaData(id);
       // L'ospite non ha un server: una lega che nel browser non c'è o è rovinata si segnala come la segnalerebbe il server
       // (404), e la pagina mostra il motivo come per ogni altro errore
-      if (!letta) throw new ApiError(404, legaIllegibile(get().leghe, id));
+      if (!letta) throw new ApiError(404, legaIllegibile(get().leghe ?? [], id));
       ricordaLega(id);
       set({ legaId: id, legaName: letta.lega.nome, tappe: letta.lega.tappe, syncError: letta.avviso });
     },
@@ -859,7 +881,7 @@ export const useAppStore = create<AppState>((set, get) => {
       } else {
         localStorage.removeItem(legaStorageKey(id));
       }
-      let leghe = get().leghe.filter((m) => m.id !== id);
+      let leghe = (get().leghe ?? []).filter((m) => m.id !== id);
       if (!isRemote()) {
         leghe = indiceAttuale().filter((m) => m.id !== id);
         writeIndex(leghe);
@@ -884,22 +906,25 @@ export const useAppStore = create<AppState>((set, get) => {
     },
 
     setLegaName: (legaName) => {
-      set({ legaName });
       const s = get();
-      if (!s.legaId) return;
-      // L'ospite riparte dall'indice del browser (indiceAttuale): un'altra scheda può averlo cambiato
-      let base = s.leghe;
-      if (!isRemote()) base = indiceAttuale();
-      const leghe = base.map((m) => m.id === s.legaId ? { ...m, nome: legaName, ts: Date.now() } : m);
-      set({ leghe });
+      if (!s.legaId) {
+        set({ legaName });
+        return;
+      }
+      const leghe = scriviNomeLega(legaName);
       if (isRemote()) {
         // L'input chiama setLegaName a ogni tasto: una sola PATCH a fine digitazione (o prima, da salvaTutto)
         const legaId = s.legaId;
         rinominaInAttesa = async () => {
+          const nome = get().legaName.trim() || "Lega";
           try {
-            await legheApi.rename(legaId, get().legaName.trim() || "Lega");
+            await legheApi.rename(legaId, nome);
+            nomeSulServer = nome;
           } catch (e) {
             reportError(e, "Rinomina lega non riuscita");
+            // Rifiuto definitivo (400, 403…): sul server resta il nome di prima, e lo schermo lo mostra. Un errore temporaneo (rete,
+            // server) lascia il nome scritto: si rimanda da salvaTutto o alla prossima modifica
+            if (!riprovabile(e) && get().legaId === legaId) scriviNomeLega(nomeSulServer);
           }
         };
         window.clearTimeout(renameTimer);
@@ -953,7 +978,8 @@ export const useAppStore = create<AppState>((set, get) => {
         const importate = tappe.map((t) => ({ ...t, versione: 0 }));
         versioni.ricordaTappe(meta.id, importate);
         ricordaLega(meta.id);
-        set({ legaId: meta.id, leghe: [meta, ...get().leghe], legaName: meta.nome, tappe: importate });
+        nomeSulServer = meta.nome;
+        set({ legaId: meta.id, leghe: [meta, ...(get().leghe ?? [])], legaName: meta.nome, tappe: importate });
         return;
       }
       salvaLegaApertaPrimaDelCambio();
@@ -1005,32 +1031,41 @@ export const useAppStore = create<AppState>((set, get) => {
       // Chi esce dimentica la sua lega aperta; quella dell'altra modalità (ospite o registrato) resta
       localStorage.removeItem(chiaveAttiva());
       set({
-        user: null, legaId: null, leghe: [], legaName: "", tappe: [], ready: true, syncError: null, avvisoConflitti: null,
-        rifiuti: [], spazioEsaurito: false,
+        user: null, legaId: null, leghe: [], erroreLeghe: null, legaName: "", tappe: [], ready: true, syncError: null,
+        avvisoConflitti: null, rifiuti: [], spazioEsaurito: false,
       });
     },
 
     rehydrate: async () => {
       if (isRemote()) {
-        set({ ready: false });
+        set({ ready: false, erroreLeghe: null });
+        let leghe: LegaMeta[];
         try {
           await rimandaRimaste();
-          const leghe = await legheApi.list();
-          // In mancanza della propria, la chiave storica (scritta quando ce n'era una sola per tutti): l'elenco del server qui sotto
-          // scarta già l'id che non è di questo utente, e il ramo senza lega toglie solo la chiave del registrato
-          const activeId = localStorage.getItem(ACTIVE_KEY_REGISTRATO) ?? localStorage.getItem(ACTIVE_KEY_OSPITE);
-          // La lega attiva potrebbe essere di un altro account usato su questo browser
-          const attiva = activeId && leghe.some((m) => m.id === activeId) ? await legheApi.get(activeId) : null;
-          if (!attiva) {
-            localStorage.removeItem(ACTIVE_KEY_REGISTRATO);
-            set({ leghe, legaId: null, legaName: "", tappe: [], ready: true });
-            return;
-          }
+          leghe = await legheApi.list();
+        } catch (e) {
+          // L'elenco non si sa: resta null (non vuoto) e la pagina delle leghe mostra il motivo con «Riprova», che richiama rehydrate
+          set({ leghe: null, erroreLeghe: testoErrore(e), ready: true });
+          return;
+        }
+        // In mancanza della propria, la chiave storica (scritta quando ce n'era una sola per tutti): l'elenco del server qui sotto
+        // scarta già l'id che non è di questo utente, e il ramo senza lega toglie solo la chiave del registrato
+        const activeId = localStorage.getItem(ACTIVE_KEY_REGISTRATO) ?? localStorage.getItem(ACTIVE_KEY_OSPITE);
+        // La lega attiva potrebbe essere di un altro account usato su questo browser
+        if (!activeId || !leghe.some((m) => m.id === activeId)) {
+          localStorage.removeItem(ACTIVE_KEY_REGISTRATO);
+          set({ leghe, legaId: null, legaName: "", tappe: [], ready: true });
+          return;
+        }
+        try {
+          const attiva = await legheApi.get(activeId);
           versioni.ricordaTappe(attiva.id, attiva.tappe);
+          nomeSulServer = attiva.nome;
           set({ leghe, legaId: attiva.id, legaName: attiva.nome, tappe: attiva.tappe, ready: true });
         } catch (e) {
-          reportError(e, "Caricamento leghe non riuscito");
-          set({ ready: true });
+          // Solo la lega aperta per ultima non si è letta: l'elenco c'è, e la lega si riapre da lì. L'avviso va nella barra
+          reportError(e, "Apertura dell'ultima lega non riuscita");
+          set({ leghe, legaId: null, legaName: "", tappe: [], ready: true });
         }
         return;
       }
@@ -1044,7 +1079,7 @@ export const useAppStore = create<AppState>((set, get) => {
  *  delle leghe, che cambiano */
 export function avvisoRifiutate(s: Pick<AppState, "rifiuti" | "legaId" | "leghe">): string | null {
   const frasi = s.rifiuti.map((r) => {
-    const lega = s.leghe.find((m) => m.id === r.legaId)?.nome || "senza nome";
+    const lega = (s.leghe ?? []).find((m) => m.id === r.legaId)?.nome || "senza nome";
     return salvataggioRifiutato(r.nome, r.motivo, lega, r.legaId === s.legaId, r.nuova);
   });
   return frasi.join(" ") || null;

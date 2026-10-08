@@ -3,6 +3,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { SquadraAnagrafeForm } from "../../src/components/anagrafe/SquadraAnagrafeForm";
 import { MAX_ROSTER_ANAGRAFE } from "../../src/constants/rules";
+import type { SquadraInput } from "../../src/services/anagrafeApi";
 import type { RegGiocatore } from "../../src/types";
 
 afterEach(cleanup);
@@ -20,7 +21,7 @@ function aggiungi(id: string) {
 
 describe("SquadraAnagrafeForm: il limite del roster che il form dichiara è quello che applica", () => {
   it(`accetta ${MAX_ROSTER_ANAGRAFE} giocatori, poi «Aggiungi» e la tendina si disattivano e il salvataggio manda solo quelli`, async () => {
-    const onSave = vi.fn(async () => {});
+    const onSave = vi.fn(async (_dati: SquadraInput) => {});
     const giocatori = Array.from({ length: MAX_ROSTER_ANAGRAFE + 1 }, (_, i) => giocatore(i + 1));
     render(<SquadraAnagrafeForm giocatori={giocatori} onSave={onSave} />);
     expect(screen.getByText(`Roster (dai giocatori registrati, 0/${MAX_ROSTER_ANAGRAFE})`)).toBeTruthy();

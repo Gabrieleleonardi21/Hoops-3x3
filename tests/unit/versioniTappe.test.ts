@@ -388,7 +388,7 @@ describe("409 sulla DELETE di una tappa: un altro dispositivo l'ha salvata nello
     await vi.advanceTimersByTimeAsync(0);
     expect(store().tappe.map((t) => t.id)).toEqual(["t1", "t2"]);
     expect(store().tappe[0]).toEqual(server.salvate.get("t1"));
-    expect(store().leghe[0].nTappe).toBe(2);
+    expect(store().leghe![0].nTappe).toBe(2);
     expect(store().avvisoConflitti).toBe(eliminazioneTappaInConflitto("Salvata altrove"));
     // Si modifica con la versione del server
     store().updateTappa("t1", { luogo: "Testaccio" });
@@ -628,7 +628,7 @@ describe("conflitti: i casi rischiosi", () => {
     store().updateTappa("t1", { luogo: "Testaccio" });
     await vi.advanceTimersByTimeAsync(400);
     expect(store().tappe.map((t) => t.id)).toEqual(["t2"]);
-    expect(store().leghe[0].nTappe).toBe(1);
+    expect(store().leghe![0].nTappe).toBe(1);
     expect(store().avvisoConflitti).toBe(tappaEliminataAltrove("Prima"));
     expect(store().syncError).toBeNull();
     await vi.advanceTimersByTimeAsync(60_000);
@@ -944,7 +944,7 @@ describe("404 sulla PUT: la tappa l'ha eliminata un altro dispositivo", () => {
     await vi.advanceTimersByTimeAsync(400);
     expect(api.get).toHaveBeenCalledTimes(2);                // l'apertura e la rilettura dopo il 404
     expect(store().tappe.map((t) => t.id)).toEqual(["t2"]);
-    expect(store().leghe[0].nTappe).toBe(1);
+    expect(store().leghe![0].nTappe).toBe(1);
     expect(store().avvisoConflitti).toBe(tappaEliminataAltrove("Prima"));
     expect(rifiuti()).toBeNull();
     expect(store().syncError).toBeNull();

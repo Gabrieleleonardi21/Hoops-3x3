@@ -240,7 +240,7 @@ describe("Dati vecchi dell'ospite nel browser (Ruling 3, T1.12)", () => {
     expect(screen.getByRole("alert").textContent)
       .toBe("I dati della lega «Estate» non ci sono più nel browser o sono danneggiati: puoi eliminarla dall'elenco delle leghe.");
     // Le due leghe sono ancora nell'elenco, e l'app si usa
-    expect(store().leghe.map((m) => m.id)).toEqual(["l1", "l2"]);
+    expect(store().leghe!.map((m) => m.id)).toEqual(["l1", "l2"]);
     expect(screen.getByText("Apri una lega esistente o creane una nuova.")).toBeTruthy();
   });
 
@@ -545,7 +545,7 @@ describe("Elenco delle leghe: errori di creazione, apertura ed eliminazione", ()
   const estate = { id: "l1", nome: "Estate", ts: 1, nTappe: 2 };
 
   /** Apre l'elenco delle leghe di questo utente; la pagina della lega è un segnaposto per vedere se si naviga */
-  function apriLeghe(utente: User, elenco = [estate]) {
+  function apriLeghe(utente: User, elenco: typeof estate[] | null = [estate]) {
     useAppStore.setState({ user: utente, leghe: elenco });
     render(
       <MemoryRouter initialEntries={["/leghe"]}>
@@ -558,6 +558,21 @@ describe("Elenco delle leghe: errori di creazione, apertura ed eliminazione", ()
   }
   const campoNome = () => screen.getByLabelText(/Nome della nuova lega/) as HTMLInputElement;
   const creaLega = () => screen.getByRole("button", { name: /Crea lega/ }) as HTMLButtonElement;
+
+  it("elenco non arrivato dal server: non «Nessuna lega ancora» ma il motivo con «Riprova», che rilegge le leghe (F1)", async () => {
+    useAppStore.setState({ erroreLeghe: "Server non raggiungibile" });
+    apriLeghe(registrato, null);
+    expect(screen.queryByText(/Nessuna lega ancora/)).toBeNull();
+    expect(screen.getByRole("alert").textContent).toContain("Non è stato possibile caricare le tue leghe.");
+    expect(screen.getByRole("alert").textContent).toContain("Server non raggiungibile");
+    // Il modulo per creare una lega resta: con il server tornato si può creare senza ricaricare la pagina
+    expect(campoNome()).toBeTruthy();
+    leghe.list.mockResolvedValueOnce([estate]);
+    fireEvent.click(screen.getByRole("button", { name: "Riprova" }));
+    await screen.findByText("Estate");
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(leghe.list).toHaveBeenCalledTimes(1);
+  });
 
   it("creazione che fallisce: il messaggio dice perché, il nome resta nel campo e non si cambia pagina", async () => {
     leghe.create.mockRejectedValue(rete());

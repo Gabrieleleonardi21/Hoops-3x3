@@ -12,6 +12,8 @@ import { Input } from "../components/ui/Input";
 import { Button } from "../components/ui/Button";
 import { Icon } from "../components/ui/Icon";
 import { Section } from "../components/ui/Section";
+import { ErroreCaricamento } from "../components/ui/ErroreCaricamento";
+import { MAX_NOME_LEGA } from "../constants/rules";
 import type { LegaMeta } from "../types";
 
 /** `disabled`: un'altra azione sulle leghe è in corso, quindi i pulsanti aspettano; `pubblicabili`: chi ha un account può avere tappe
@@ -43,6 +45,9 @@ function LegaCard({ m, disabled, pubblicabili, onOpen, onDelete }: {
 export function LegheListPage() {
   const user      = useUtente();
   const leghe     = useAppStore((s) => s.leghe);
+  // Perché l'elenco non è arrivato dal server (leghe === null): «Riprova» lo richiede con rehydrate
+  const erroreLeghe = useAppStore((s) => s.erroreLeghe);
+  const rehydrate   = useAppStore((s) => s.rehydrate);
   const createLega  = useAppStore((s) => s.createLega);
   const selectLega  = useAppStore((s) => s.selectLega);
   const deleteLega  = useAppStore((s) => s.deleteLega);
@@ -76,29 +81,37 @@ export function LegheListPage() {
         <p className="mt-1 text-[13px] text-chalk-muted">Ogni lega è un circuito indipendente con le sue tappe, squadre e statistiche.</p>
       </div>
 
-      {/* Form creazione nuova lega */}
+      {/* Form creazione nuova lega; il nome non va oltre il limite del server (NuovaLegaDTO), altrimenti sarebbe un 400 */}
       <div className="mb-7 flex flex-wrap items-end gap-2.5">
         <div className="min-w-[240px] max-w-sm flex-1">
           <Input label="Nome della nuova lega" value={nome} onChange={(e) => setNome(e.target.value)}
-            placeholder="Es. Roma Streetball 2025"
+            placeholder="Es. Roma Streetball 2025" maxLength={MAX_NOME_LEGA}
             onKeyDown={(e: React.KeyboardEvent) => { if (e.key === "Enter") handleCreate(); }} />
         </div>
         <Button onClick={handleCreate} disabled={invio}><Icon name="plus" size={16} /> Crea lega</Button>
       </div>
       {errore && <p className="-mt-4 mb-6 text-[13px] font-semibold text-loss" role="alert">{errore}</p>}
 
-      {/* Lista leghe esistenti */}
-      <Section title="Leghe" kicker={conteggio(leghe.length, "lega", "leghe")}>
-        {leghe.length === 0 ? (
-          <p className="text-[15px] text-chalk-muted">Nessuna lega ancora: crea la prima qui sopra.</p>
-        ) : (
-          <div className="grid gap-3 grid-cols-[repeat(auto-fill,minmax(240px,1fr))]">
-            {leghe.map((m) => (
-              <LegaCard key={m.id} m={m} disabled={invio} pubblicabili={!user.guest} onOpen={() => handleOpen(m.id)} onDelete={() => handleDelete(m)} />
-            ))}
-          </div>
-        )}
-      </Section>
+      {/* Lista leghe esistenti. Un elenco che non è arrivato dal server (null) non si mostra come vuoto: si dice perché, con «Riprova» */}
+      {leghe === null && (
+        <Section title="Leghe">
+          <ErroreCaricamento cosa="Non è stato possibile caricare le tue leghe." motivo={erroreLeghe ?? "errore imprevisto"}
+            onRiprova={() => { void rehydrate(); }} />
+        </Section>
+      )}
+      {leghe !== null && (
+        <Section title="Leghe" kicker={conteggio(leghe.length, "lega", "leghe")}>
+          {leghe.length === 0 ? (
+            <p className="text-[15px] text-chalk-muted">Nessuna lega ancora: crea la prima qui sopra.</p>
+          ) : (
+            <div className="grid gap-3 grid-cols-[repeat(auto-fill,minmax(240px,1fr))]">
+              {leghe.map((m) => (
+                <LegaCard key={m.id} m={m} disabled={invio} pubblicabili={!user.guest} onOpen={() => handleOpen(m.id)} onDelete={() => handleDelete(m)} />
+              ))}
+            </div>
+          )}
+        </Section>
+      )}
     </div>
   );
 }
