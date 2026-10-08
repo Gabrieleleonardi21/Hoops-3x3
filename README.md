@@ -56,7 +56,7 @@ App web per la gestione di un circuito italiano di basket 3x3: tornei, gironi, s
 | Il frontend | [Node](https://nodejs.org/) `^20.19.0`, `^22.13.0` o `>=24` (il vincolo più stretto è quello di jsdom 29, usato dai test; Vite 6 e React Router 7 ne chiedono meno) e npm. `package.json` non dichiara `engines` e non c'è un `.nvmrc`: la CI e Render usano la 22 |
 | Le funzioni da registrato | Il backend [hoop3x3-backend](https://github.com/Gabrieleleonardi21/hoop3x3-backend) in ascolto su `localhost:3001`: JDK 25 e PostgreSQL su `localhost:5432` (Maven lo scarica il wrapper `./mvnw`) |
 
-Il backend serve per registrazione e accesso, leghe e tappe sul server, anagrafe, archivio e Coach AI. Senza, l'app parte lo stesso e l'Ospite può creare e giocare una tappa nel browser; le pagine che leggono dal server mostrano l'errore con «Riprova». I test unitari e quelli end-to-end non hanno bisogno del backend.
+Il backend serve per registrazione e accesso, leghe e tappe sul server, anagrafe, archivio e Coach AI. Senza, l'app parte lo stesso e l'Ospite può creare e giocare una tappa nel browser; le pagine che leggono dal server mostrano l'errore con «Riprova». I test unitari e quelli end-to-end di `tests/e2e/` non hanno bisogno del backend; quelli di `tests/e2e-backend/` lo avviano da soli (vedi «Test end-to-end con il backend vero»).
 
 **Variabili d'ambiente.** Il frontend ne ha una sola, facoltativa: `VITE_API_URL` (origine del backend, letta in `src/services/api.ts` e tipizzata in `src/vite-env.d.ts`; modello in `.env.example`, da copiare in `.env`, che git ignora). Vuota va bene in sviluppo, dove il proxy di Vite (`vite.config.ts`) inoltra `/api` e `/actuator/health` a `http://localhost:3001`, e dietro un reverse proxy sulla stessa origine; va impostata solo se il backend ha un'origine propria (vedi sotto). La chiave del Coach AI non è qui ma nell'`env.properties` del backend.
 
@@ -122,12 +122,22 @@ Ogni push su `main` di uno dei due repository ripubblica il servizio corrisponde
 | `npm test` | Test unitari (Vitest, `tests/unit/`) |
 | `npm run check` | `lint` + `typecheck` + `test`: il controllo da fare prima di ogni commit (non comprende copertura, build ed end-to-end) |
 | `npm run test:e2e` | Test end-to-end (Playwright, `tests/e2e/`): avviano da soli il dev server sulla porta 5199 |
+| `npm run test:e2e:backend` | Test end-to-end con il backend vero (`tests/e2e-backend/`): avviano il jar del backend sulla porta 3199 e il dev server sulla 5299; servono `E2E_BACKEND_JAR` e un database di prova (vedi sotto) |
 
-Prima volta con i test end-to-end: `npx playwright install chromium` (sono provati solo con Chromium). Non serve il backend: i percorsi da registrato rispondono alle chiamate a `/api` con risposte finte (`tests/e2e/helpers.ts`) e gli altri lavorano da Ospite.
+Prima volta con i test end-to-end: `npx playwright install chromium` (sono provati solo con Chromium). Per `tests/e2e/` non serve il backend: i percorsi da registrato rispondono alle chiamate a `/api` con risposte finte (`tests/e2e/helpers.ts`) e gli altri lavorano da Ospite.
+
+**Test end-to-end con il backend vero.** `tests/e2e-backend/` (configurazione in `playwright.backend.config.ts`) prova senza risposte finte ciò che il server finto può solo imitare: registrazione, uscita e accesso con le credenziali controllate dal server, lega e tappa salvate sul server e rilette dopo una ricarica, e il rinnovo del JWT con il cookie di refresh vero, due volte di seguito (il server ruota il refresh token a ogni rinnovo). Fissano anche il contratto che il server finto di `tests/e2e/` imita: le creazioni rispondono 201, la prima versione di una tappa è 0 e ogni PUT la aumenta di uno. Servono Java 25, il jar del backend (`./mvnw -B package -DskipTests` nel repository `hoop3x3-backend`) e un database PostgreSQL di prova, vuoto o già usato da questi test (le tabelle le crea Flyway all'avvio; i test non svuotano niente, ogni test registra un utente nuovo e lavora sui suoi dati). Poi:
+
+```bash
+createdb hoop3x3_e2e   # una volta
+E2E_BACKEND_JAR=../hoop3x3-backend/target/hoop-3x3-backend-1.0.0.jar npm run test:e2e:backend
+```
+
+Il database si sceglie con `E2E_DB_NAME`, `E2E_DB_USERNAME` e `E2E_DB_PASSWORD` (di base `hoop3x3_e2e`, `postgres`, vuota). Il backend parte con un `JWT_SECRET` fisso di prova, `CORS_ORIGINS` sull'origine del dev server e il limite di login alzato (`LIMITE_AUTH_AL_MINUTO`), tutto in `playwright.backend.config.ts`: non legge `env.properties`, che sta nella cartella del backend.
 
 **Copertura.** `npm test -- --coverage` misura la copertura di `src/` e **fallisce** se un file di queste cartelle scende sotto l'80% di righe, funzioni, rami o istruzioni, ogni file per conto suo (`perFile`): `src/domain`, `src/utils`, `src/stores`, `src/services` (soglie in `vite.config.ts`; i componenti si provano più dal browser e non hanno soglia). Con la media per cartella un file piccolo senza test restava nascosto dietro quelli grandi ben provati. Il report è in `coverage/`.
 
-**Integrazione continua.** `.github/workflows/ci.yml` gira a ogni push su `main` e a ogni pull request, con Node 22: `npm ci`, lint, controllo dei tipi, `npm test -- --coverage` (con le soglie di sopra), build, installazione di Chromium e `npm run test:e2e`. Un solo passo che fallisce ferma la CI.
+**Integrazione continua.** `.github/workflows/ci.yml` gira a ogni push su `main` e a ogni pull request, con Node 22, in due job: `frontend` fa `npm ci`, lint, controllo dei tipi, `npm test -- --coverage` (con le soglie di sopra), build, installazione di Chromium e `npm run test:e2e`; `e2e-backend` scarica il ramo `main` di `hoop3x3-backend`, ne compila il jar con Java 25, avvia un PostgreSQL 18 di servizio e fa `npm run test:e2e:backend`. Un solo passo che fallisce ferma la CI. Una PR del frontend che dipende da una modifica del backend passa `e2e-backend` solo dopo che quella è unita in `main` del backend.
 
 ## Coach AI (opzionale)
 
@@ -161,7 +171,8 @@ Un utente `ADMIN` iniziale viene creato al primo avvio dalle proprietà `ADMIN_E
 ```
 tests/
 ├── unit/             # Test unitari e di componenti (Vitest; jsdom dove serve il DOM)
-└── e2e/              # Test end-to-end (Playwright)
+├── e2e/              # Test end-to-end con il server finto (Playwright, playwright.config.ts)
+└── e2e-backend/      # Test end-to-end con il backend vero (playwright.backend.config.ts)
 docs/                 # Coach AI, design system e mockup di riferimento
 .github/workflows/    # CI (ci.yml)
 render.yaml           # Blueprint di Render

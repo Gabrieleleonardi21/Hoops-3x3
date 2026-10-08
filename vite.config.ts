@@ -8,13 +8,16 @@ import tailwindcss from "@tailwindcss/vite";
 // è l'unica difesa contro gli URL javascript:) restava nascosto dietro i file grandi ben provati. I componenti si provano più dal
 // browser e non hanno soglia
 const SOGLIA_80 = { lines: 80, functions: 80, branches: 80, statements: 80 };
+/** Backend a cui il dev server inoltra /api e /actuator/health (vedi `server.proxy`) */
+const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:3001";
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  // In sviluppo /api va al backend Spring (porta 3001): per il browser è la stessa origine. Il proxy però
-  // riscrive l'Host, quindi il backend controlla lo stesso l'Origin: la porta di Vite deve essere tra le sue cors.origins
-  // Anche /actuator/health, che l'app chiama all'avvio per svegliare il backend (svegliaServer in services/api.ts)
-  server: { proxy: { "/api": "http://localhost:3001", "/actuator/health": "http://localhost:3001" } },
+  // In sviluppo /api va al backend Spring (porta 3001, o BACKEND_URL: i test con il backend vero ne avviano uno su un'altra porta):
+  // per il browser è la stessa origine. Il proxy però riscrive l'Host, quindi il backend controlla lo stesso l'Origin: la porta di
+  // Vite deve essere tra le sue cors.origins. Anche /actuator/health, che l'app chiama all'avvio per svegliare il backend
+  // (svegliaServer in services/api.ts)
+  server: { proxy: { "/api": BACKEND_URL, "/actuator/health": BACKEND_URL } },
   test: {
     // Ambiente node di default; i test che usano il DOM lo dichiarano in testa con il commento @vitest-environment jsdom
     environment: "node",
