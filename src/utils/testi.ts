@@ -138,10 +138,14 @@ export function eliminazioneTappaInConflitto(nome: string): string {
     + "Ora vedi la versione salvata sul server: se vuoi, eliminala di nuovo.";
 }
 
-/** Eliminare una lega cancella le sue tappe: si dice quante sono (l'elenco delle leghe non carica i risultati) */
-export function perditaLega(m: LegaMeta): string {
+/** Eliminare una lega cancella le sue tappe: si dice quante sono (l'elenco delle leghe non carica i risultati). Per chi ha un
+ *  account (`pubblicabili`) le tappe concluse possono essere nell'Archivio circuito, e il server toglie anche le copie pubbliche:
+ *  l'elenco non sa quali siano, quindi lo si dice per tutte. L'ospite non pubblica niente. */
+export function perditaLega(m: LegaMeta, pubblicabili = false): string {
   if (m.nTappe === 0) return `Verrà eliminata la lega «${m.nome}», che non ha tappe.`;
-  return `Verrà eliminata la lega «${m.nome}» con ${conteggio(m.nTappe, "tappa", "tappe")}, squadre e risultati compresi.`;
+  const frase = `Verrà eliminata la lega «${m.nome}» con ${conteggio(m.nTappe, "tappa", "tappe")}, squadre e risultati compresi.`;
+  if (!pubblicabili) return frase;
+  return `${frase} Le tappe pubblicate usciranno dall'Archivio circuito e i loro link pubblici smetteranno di funzionare.`;
 }
 
 /** L'anagrafe è condivisa: il giocatore sparisce per tutti, e il server lo toglie anche dai roster in cui c'è. `squadre` è

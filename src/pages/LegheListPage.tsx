@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { useAppStore } from "../stores/useAppStore";
 import { useInvio } from "../hooks/useInvio";
 import { useConfermaPerdita } from "../hooks/useConfermaPerdita";
+import { useUtente } from "../hooks/useUtente";
 import { conteggio, perditaLega } from "../utils/testi";
 import { GuestBanner } from "../components/auth/GuestBanner";
 import { Input } from "../components/ui/Input";
@@ -13,10 +14,13 @@ import { Icon } from "../components/ui/Icon";
 import { Section } from "../components/ui/Section";
 import type { LegaMeta } from "../types";
 
-/** `disabled`: un'altra azione sulle leghe è in corso, quindi i pulsanti aspettano */
-function LegaCard({ m, disabled, onOpen, onDelete }: { m: LegaMeta; disabled: boolean; onOpen: () => void; onDelete: () => void }) {
+/** `disabled`: un'altra azione sulle leghe è in corso, quindi i pulsanti aspettano; `pubblicabili`: chi ha un account può avere tappe
+ *  nell'Archivio circuito, e la conferma dice che escono anche loro */
+function LegaCard({ m, disabled, pubblicabili, onOpen, onDelete }: {
+  m: LegaMeta; disabled: boolean; pubblicabili: boolean; onOpen: () => void; onDelete: () => void;
+}) {
   // Eliminare una lega cancella tutte le sue tappe e non si recupera: si chiede sempre conferma, dicendo quante sono
-  const { chiedi, finestra } = useConfermaPerdita(() => perditaLega(m));
+  const { chiedi, finestra } = useConfermaPerdita(() => perditaLega(m, pubblicabili));
   const date = m.ts ? new Date(m.ts).toLocaleDateString("it-IT", { day: "2-digit", month: "short", year: "numeric" }) : null;
 
   return (
@@ -37,6 +41,7 @@ function LegaCard({ m, disabled, onOpen, onDelete }: { m: LegaMeta; disabled: bo
 }
 
 export function LegheListPage() {
+  const user      = useUtente();
   const leghe     = useAppStore((s) => s.leghe);
   const createLega  = useAppStore((s) => s.createLega);
   const selectLega  = useAppStore((s) => s.selectLega);
@@ -89,7 +94,7 @@ export function LegheListPage() {
         ) : (
           <div className="grid gap-3 grid-cols-[repeat(auto-fill,minmax(240px,1fr))]">
             {leghe.map((m) => (
-              <LegaCard key={m.id} m={m} disabled={invio} onOpen={() => handleOpen(m.id)} onDelete={() => handleDelete(m)} />
+              <LegaCard key={m.id} m={m} disabled={invio} pubblicabili={!user.guest} onOpen={() => handleOpen(m.id)} onDelete={() => handleDelete(m)} />
             ))}
           </div>
         )}

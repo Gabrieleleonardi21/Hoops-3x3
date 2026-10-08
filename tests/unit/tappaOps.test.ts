@@ -500,6 +500,14 @@ describe("perditaTappa: che cosa cancella «Elimina» (si chiede sempre)", () =>
   it("una tappa senza nome (dati vecchi dell'ospite) si nomina senza le virgolette vuote", () => {
     expect(perditaTappa({ ...tappaNuova(), nome: "  " })).toBe("Verrà eliminata la tappa con 4 squadre.");
   });
+
+  it("una tappa conclusa può essere nell'archivio: la conferma dice che la copia pubblica se ne va con lei", () => {
+    expect(perditaTappa({ ...tappaGironiConclusi(), conclusa: true })).toBe(
+      "Verranno eliminati la tappa «Roma Open» con 4 squadre, il sorteggio e 2 risultati. "
+      + "Se è pubblicata, uscirà anche dall'Archivio circuito e il suo link pubblico smetterà di funzionare.",
+    );
+    expect(perditaTappa(tappaGironiConclusi())).not.toContain("Archivio");
+  });
 });
 
 describe("perditaTabellone: che cosa cancella «Elimina bracket e ricomincia» (si chiede sempre)", () => {

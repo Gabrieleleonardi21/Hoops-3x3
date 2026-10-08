@@ -191,11 +191,17 @@ export function perditaRisultati(tappa: Tappa): string | null {
   return fraseEliminati(datiDiGioco(tappa));
 }
 
-/** Che cosa cancella «Elimina»: la tappa con le sue squadre e, se ci sono, sorteggio, fase finale e risultati. Per questa
- *  azione la conferma si chiede sempre, quindi il testo c'è sempre. */
+/** Una tappa conclusa può essere pubblicata nell'Archivio circuito: eliminandola il server toglie anche la copia pubblica, e la
+ *  conferma lo deve dire. Solo una tappa conclusa può esserlo; se lo sia davvero lo sa l'archivio, non la tappa */
+const PERDITA_ARCHIVIO = "Se è pubblicata, uscirà anche dall'Archivio circuito e il suo link pubblico smetterà di funzionare.";
+
+/** Che cosa cancella «Elimina»: la tappa con le sue squadre e, se ci sono, sorteggio, fase finale e risultati; per una tappa
+ *  conclusa anche la pubblicazione nell'archivio. Per questa azione la conferma si chiede sempre, quindi il testo c'è sempre. */
 export function perditaTappa(tappa: Tappa): string {
   const voce = `${nominata("la tappa", tappa.nome)} con ${conteggio(tappa.squadre.length, "squadra", "squadre")}`;
-  return fraseEliminati([voce, ...datiDiGioco(tappa)]);
+  const frase = fraseEliminati([voce, ...datiDiGioco(tappa)]);
+  if (!tappa.conclusa) return frase;
+  return `${frase} ${PERDITA_ARCHIVIO}`;
 }
 
 /** Che cosa cancella «Elimina bracket e ricomincia»: il tabellone e i suoi risultati (quelli dei gironi restano). Anche
