@@ -132,6 +132,16 @@ export function tappaEliminataAltrove(nome: string): string {
     + "salvate sono andate perse.";
 }
 
+/** Una voce dell'anagrafe (B6) salvata con una versione vecchia: un altro dispositivo l'ha modificata nel frattempo (409). Come per
+ *  le tappe vale la voce del server: la scheda esce dalla modifica e la mostra, e ciò che era scritto non è stato salvato (salvarlo
+ *  sopra cancellerebbe il lavoro dell'altro). `cosa` è «La squadra» o «Il giocatore»: il participio segue il genere */
+export function voceAnagrafeModificataAltrove(cosa: string, nome: string): string {
+  let modificata = "è stato modificato";
+  if (cosa.startsWith("La")) modificata = "è stata modificata";
+  return `${cosa} «${nome}» ${modificata} da un altro dispositivo: la scheda mostra ora la versione salvata sul server. `
+    + "Le modifiche scritte qui non sono state salvate: se servono ancora, riscrivile con «Modifica».";
+}
+
 /** L'eliminazione di una tappa non è riuscita perché un altro dispositivo l'ha salvata nello stesso istante: la tappa resta */
 export function eliminazioneTappaInConflitto(nome: string): string {
   return `La tappa «${nome}» non è stata eliminata: un altro dispositivo l'ha modificata nello stesso momento. `
