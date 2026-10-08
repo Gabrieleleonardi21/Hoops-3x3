@@ -172,7 +172,8 @@ export function TappaPage() {
         )}
 
         <Card className="no-print mb-4"><VideoForm compact onAdd={h.addVideo} /></Card>
-        <ArchivioTappaView t={t} lega={h.legaName} autore={user.name} />
+        {/* I video di una tappa conclusa si aggiungono e si tolgono: ogni cambio ripubblica la copia pubblica (useTappa.removeVideo) */}
+        <ArchivioTappaView t={t} lega={h.legaName} autore={user.name} onRemoveVideo={h.removeVideo} />
         {riapri.finestra}
       </div>
     );
