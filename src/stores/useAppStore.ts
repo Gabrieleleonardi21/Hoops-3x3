@@ -7,14 +7,15 @@ import { archivioApi } from "../services/archivioApi";
 import { ApiError, esitoIgnoto, testoErrore } from "../services/api";
 import { createSaveQueue } from "./saveQueue";
 import {
-  ACTIVE_KEY_OSPITE, ACTIVE_KEY_REGISTRATO, INDEX_KEY, legaIllegibile, legaStorageKey, readLegaData, readSession, scrivi,
+  ACTIVE_KEY_OSPITE, ACTIVE_KEY_REGISTRATO, INDEX_KEY, legaIllegibile, legaStorageKey, readIndex, readLegaData, readSession, scrivi,
   statoOspite,
 } from "./memoriaBrowser";
 import {
   conflitto, creaVersioniTappe, mancaVersione, nonTrovata, riprovabile, tappaSulServer, unoDeiNostri, type TappaLetta,
 } from "./versioniTappe";
 import {
-  SPAZIO_ESAURITO, SPAZIO_ESAURITO_CAMBIO, SPAZIO_ESAURITO_LEGA, eliminazioneTappaInConflitto, pubblicazioneSenzaSalvataggio,
+  LEGA_ELIMINATA_IN_ALTRA_SCHEDA, LEGA_RILETTA_DA_ALTRA_SCHEDA, SPAZIO_ESAURITO, SPAZIO_ESAURITO_CAMBIO, SPAZIO_ESAURITO_LEGA,
+  eliminazioneTappaInConflitto, pubblicazioneSenzaSalvataggio,
   salvataggioRifiutato, tappaEliminataAltrove, tappaModificataAltrove,
 } from "../utils/testi";
 
@@ -162,6 +163,13 @@ export const useAppStore = create<AppState>((set, get) => {
     if (scriviOspite(...coppie)) spazioTornato();
   };
   const writeIndex = (leghe: LegaMeta[]) => scriviOspite([INDEX_KEY, JSON.stringify(leghe)]);
+  /** Ospite: l'indice delle leghe da cui partire per riscriverlo, riletto dal browser. Un'altra scheda può averci aggiunto una lega:
+   *  riscrivere quello in memoria la farebbe sparire dall'elenco. Le leghe che conosce solo questa scheda restano, in fondo */
+  const indiceAttuale = (): LegaMeta[] => {
+    const nelBrowser = readIndex();
+    const soloQui = get().leghe.filter((m) => !nelBrowser.some((x) => x.id === m.id));
+    return [...nelBrowser, ...soloQui];
+  };
   /** Scrive i dati e l'indice di una lega nuova dell'ospite (creata o importata): tutto o niente. Senza spazio non si crea niente,
    *  e l'errore dice perché, come per ogni altro rifiuto: l'ospite non ha un server, e 507 è lo stato che userebbe (come il 404 di
    *  una lega che non si legge). Se i dati entrano ma l'indice no, i dati si tolgono: una lega fuori dall'indice si aprirebbe al
@@ -207,7 +215,7 @@ export const useAppStore = create<AppState>((set, get) => {
   const persistLocal = () => {
     const s = get();
     if (!s.legaId) return;
-    const leghe = s.leghe.map((m) =>
+    const leghe = indiceAttuale().map((m) =>
       m.id === s.legaId ? { ...m, nTappe: s.tappe.length, ts: Date.now() } : m
     );
     salvaLegaAperta([legaStorageKey(s.legaId), JSON.stringify({ nome: s.legaName, tappe: s.tappe })], [INDEX_KEY, JSON.stringify(leghe)]);
@@ -611,6 +619,36 @@ export const useAppStore = create<AppState>((set, get) => {
     });
   }
 
+  /** Ospite con l'app aperta in più schede: ogni scheda scrive la lega e l'indice dalla sua memoria, quindi deve sapere che cosa ha
+   *  scritto l'altra. L'evento storage arriva solo alle altre schede dello stesso browser, dopo una scrittura riuscita.
+   *  - Indice cambiato: l'elenco delle leghe si rilegge (una lega creata o eliminata là compare o sparisce anche qui).
+   *  - Lega aperta salvata là: si rilegge, e da qui si continua dalla versione dell'altra scheda (ogni modifica dell'ospite è già
+   *    nel browser, quindi non si perde niente; se qui c'erano modifiche solo in memoria per lo spazio esaurito, l'avviso lo dice).
+   *  - Lega aperta eliminata là: si chiude anche qui, con l'avviso, invece di riscriverla al prossimo salvataggio. */
+  const allineaConAltraScheda = (e: StorageEvent) => {
+    const s = get();
+    if (!s.user?.guest) return;
+    if (e.key === INDEX_KEY) {
+      set({ leghe: readIndex() });
+      return;
+    }
+    if (!s.legaId || e.key !== legaStorageKey(s.legaId)) return;
+    if (e.newValue === null) {
+      localStorage.removeItem(ACTIVE_KEY_OSPITE);
+      set({ legaId: null, legaName: "", tappe: [], syncError: LEGA_ELIMINATA_IN_ALTRA_SCHEDA, spazioEsaurito: false });
+      return;
+    }
+    const letta = readLegaData(s.legaId);
+    if (!letta) {
+      set({ syncError: legaIllegibile(s.leghe, s.legaId) });
+      return;
+    }
+    let syncError = letta.avviso ?? s.syncError;
+    if (s.spazioEsaurito) syncError = LEGA_RILETTA_DA_ALTRA_SCHEDA;
+    set({ legaName: letta.lega.nome, tappe: letta.lega.tappe, syncError, spazioEsaurito: false });
+  };
+  if (typeof window !== "undefined") window.addEventListener("storage", allineaConAltraScheda);
+
   let renameTimer = 0;
   /** PATCH della rinomina che aspetta il suo timer; null se non ce n'è */
   let rinominaInAttesa: (() => Promise<void>) | null = null;
@@ -677,7 +715,7 @@ export const useAppStore = create<AppState>((set, get) => {
       salvaLegaApertaPrimaDelCambio();
       const id = uid();
       const meta: LegaMeta = { id, nome: trimmed, ts: Date.now(), nTappe: 0 };
-      const leghe = [...get().leghe, meta];
+      const leghe = [...indiceAttuale(), meta];
       scriviLegaNuova(id, { nome: trimmed, tappe: [] }, leghe);
       ricordaLega(id);
       set({ legaId: id, leghe, legaName: trimmed, tappe: [] });
@@ -728,8 +766,11 @@ export const useAppStore = create<AppState>((set, get) => {
       } else {
         localStorage.removeItem(legaStorageKey(id));
       }
-      const leghe = get().leghe.filter((m) => m.id !== id);
-      if (!isRemote()) writeIndex(leghe);
+      let leghe = get().leghe.filter((m) => m.id !== id);
+      if (!isRemote()) {
+        leghe = indiceAttuale().filter((m) => m.id !== id);
+        writeIndex(leghe);
+      }
       // I rifiuti delle tappe della lega non valgono più, anche se non è quella aperta: non c'è più niente da salvare
       togliRifiutateDellaLega(id);
       versioni.dimenticaCopieDellaLega(id);
@@ -753,7 +794,10 @@ export const useAppStore = create<AppState>((set, get) => {
       set({ legaName });
       const s = get();
       if (!s.legaId) return;
-      const leghe = s.leghe.map((m) => m.id === s.legaId ? { ...m, nome: legaName, ts: Date.now() } : m);
+      // L'ospite riparte dall'indice del browser (indiceAttuale): un'altra scheda può averlo cambiato
+      let base = s.leghe;
+      if (!isRemote()) base = indiceAttuale();
+      const leghe = base.map((m) => m.id === s.legaId ? { ...m, nome: legaName, ts: Date.now() } : m);
       set({ leghe });
       if (isRemote()) {
         // L'input chiama setLegaName a ogni tasto: una sola PATCH a fine digitazione (o prima, da salvaTutto)
@@ -822,7 +866,7 @@ export const useAppStore = create<AppState>((set, get) => {
       salvaLegaApertaPrimaDelCambio();
       const id = uid();
       const meta: LegaMeta = { id, nome: trimmed, ts: Date.now(), nTappe: tappe.length };
-      const leghe = [...get().leghe, meta];
+      const leghe = [...indiceAttuale(), meta];
       scriviLegaNuova(id, { nome: trimmed, tappe }, leghe);
       ricordaLega(id);
       set({ legaId: id, leghe, legaName: trimmed, tappe });

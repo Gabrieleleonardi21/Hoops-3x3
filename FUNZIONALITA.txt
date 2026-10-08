@@ -493,7 +493,10 @@ utenti registrati: un ospite riceve in chat l'invito a creare un account.
   riceve 404 o 409), rilegge la lega e, se la tappa non c'è più, la toglie
   con lo stesso avviso.
 - Persistenza (ospite): localStorage per la lega (multi-lega con indice);
-  anagrafe e archivio in sola lettura dal server. All'avvio la lega aperta
+  anagrafe e archivio in sola lettura dal server. Con più schede aperte
+  ognuna segue le scritture delle altre: una lega creata in un'altra scheda
+  compare nell'elenco e non sparisce dall'indice, la lega aperta salvata
+  altrove si ricarica, quella eliminata altrove si chiude con un avviso. All'avvio la lega aperta
   si controlla con gli stessi campi dell'import, ma senza i limiti del
   server (nome vuoto, numero di gironi e regole fuori limite si tengono: si
   correggono dall'app): le tappe con la forma sbagliata non si caricano e un
