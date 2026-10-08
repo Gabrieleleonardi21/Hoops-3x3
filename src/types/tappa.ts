@@ -35,8 +35,9 @@ export interface Tappa {
   partite: Partita[];
   video: VideoItem[];
   conclusa?: boolean;
-  /** Fase a eliminazione diretta, generata dopo i gironi */
-  bracket?: BracketMatch[];
+  /** Fase a eliminazione diretta, generata dopo i gironi. Assente quando non c'è; il server la manda come null (colonna JSONB
+   *  vuota), e una tappa letta dal server la porta così: chi la legge usa `?.` o `?? []` */
+  bracket?: BracketMatch[] | null;
   /** Numero di versione della tappa sul server (T2.7): lo decide il server, che lo fa salire quando un salvataggio la cambia, e
    *  la PUT lo rimanda per dire su quale versione si basano le modifiche (409 se nel frattempo un altro dispositivo ha salvato).
    *  È uno stato del server: manca per l'ospite, per una tappa non ancora creata e nel file della lega (export e import). */

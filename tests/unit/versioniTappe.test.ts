@@ -811,7 +811,7 @@ describe("rifiuti e riapertura: la riga dice il vero (ritocchi finali)", () => {
   const rifiutoDati = () => new ApiError(400, "Dati della tappa non validi");
   /** L'apertura di un'altra lega, l2 «Altra», vuota */
   async function apriAltra() {
-    useAppStore.setState({ leghe: [...store().leghe, { id: "l2", nome: "Altra", ts: 1, nTappe: 0 }] });
+    useAppStore.setState({ leghe: [...store().leghe!, { id: "l2", nome: "Altra", ts: 1, nTappe: 0 }] });
     api.get.mockImplementationOnce(async (id) => ({ id, nome: "Altra", tappe: [] }));
     await store().selectLega("l2");
   }
