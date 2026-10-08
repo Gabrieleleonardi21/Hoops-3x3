@@ -130,7 +130,10 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
   registrati serve il ranking di almeno una squadra (l'Ospite sorteggia
   comunque).
 - Generazione automatica di tutti i match del girone (ogni squadra affronta
-  tutte le altre una volta sola).
+  tutte le altre una volta sola), in ordine di giornata con il metodo del
+  cerchio: in ogni giornata una squadra gioca al più una volta (con un numero
+  dispari di squadre una riposa a turno), così nessuno gioca tutte le sue
+  partite di fila.
 - Possibilità di risorteggiare finché non si è soddisfatti del tabellone: un
   nuovo sorteggio riparte da zero e, se ci sono risultati registrati, chiede
   conferma dicendo che cosa si perde.
