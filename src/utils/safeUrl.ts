@@ -24,14 +24,15 @@ export function safeUrl(url: string | undefined | null): string {
 export const MAX_URL = 2048;
 
 /** Perché un indirizzo scritto dall'utente non va, o null se va. Lo stesso criterio del server (B10), controllato nei form prima
- *  dell'invio: vuoto va bene (i campi sono facoltativi); altrimenti deve essere un URL http:// o https:// entro MAX_URL caratteri.
- *  Deve anche passare safeUrl (un URL malformato o «protocol-relative» non è un indirizzo); i percorsi relativi, che safeUrl accetta
- *  per i link dell'app, qui non valgono perché il server li rifiuta. */
+ *  dell'invio: vuoto va bene (i campi sono facoltativi); altrimenti deve essere un URL http:// o https://, oppure un percorso del
+ *  sito (/logos/nome.svg: i loghi integrati), entro MAX_URL caratteri. Deve anche passare safeUrl: un URL malformato o
+ *  «protocol-relative» (//host) non è un indirizzo, né per noi né per il server. */
 export function erroreUrl(valore: string): string | null {
   const v = valore.trim();
   if (!v) return null;
   if (v.length > MAX_URL) return `l'indirizzo può avere al massimo ${MAX_URL} caratteri.`;
-  if (!/^https?:\/\//i.test(v) || safeUrl(v) === "#") return "l'indirizzo deve cominciare con http:// o https:// (oppure lascia il campo vuoto).";
+  const schemaAmmesso = /^https?:\/\//i.test(v) || v.startsWith("/");
+  if (!schemaAmmesso || safeUrl(v) === "#") return "l'indirizzo deve cominciare con http:// o https:// (oppure lascia il campo vuoto).";
   return null;
 }
 

@@ -82,6 +82,13 @@ export function AuthForm() {
   );
   const regErr = regForm.formState.errors;
   const logErr = logForm.formState.errors;
+  // Durante l'invio il pulsante dice cosa sta facendo (F8)
+  let testoRegistra = "Crea account";
+  let testoAccedi = "Accedi";
+  if (invio) {
+    testoRegistra = "Creazione in corso…";
+    testoAccedi = "Accesso in corso…";
+  }
 
   return (
     <section className="rounded border border-asphalt-600 bg-asphalt-900/95 p-5 backdrop-blur" aria-label="Accesso">
@@ -96,13 +103,13 @@ export function AuthForm() {
           <p className="m-0 text-xs text-chalk-muted">
             L'account è salvato sul server: le tue leghe ti seguono su qualsiasi dispositivo.
           </p>
-          <Button type="submit" className="w-full" disabled={invio}>{invio ? "Creazione in corso…" : "Crea account"}</Button>
+          <Button type="submit" className="w-full" disabled={invio}>{testoRegistra}</Button>
         </form>
       ) : (
         <form className="flex flex-col gap-3" onSubmit={onLogin} noValidate>
           <Input label="Mail" type="email" autoComplete="email" {...logForm.register("email")} error={!!logErr.email} hint={logErr.email?.message} />
           <Input label="Password" type="password" autoComplete="current-password" {...logForm.register("pass")} error={!!logErr.pass} hint={logErr.pass?.message} />
-          <Button type="submit" className="w-full" disabled={invio}>{invio ? "Accesso in corso…" : "Accedi"}</Button>
+          <Button type="submit" className="w-full" disabled={invio}>{testoAccedi}</Button>
         </form>
       )}
 

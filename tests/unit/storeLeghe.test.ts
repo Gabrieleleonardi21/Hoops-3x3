@@ -60,10 +60,27 @@ describe("store: l'elenco delle leghe che non arriva non è un elenco vuoto (F1)
     expect(store().syncError).toBe("Apertura dell'ultima lega non riuscita: Errore interno");
   });
 
-  it("con l'elenco mai arrivato, creare una lega o calcolare la riga dei rifiuti non va in errore", async () => {
+  it("con l'elenco mai arrivato, creare una lega la apre ma non inventa un elenco con lei sola: resta null con «Riprova»", async () => {
+    useAppStore.setState({ erroreLeghe: "Server non raggiungibile: controlla la connessione e riprova." });
     api.create.mockResolvedValueOnce({ id: "l2", nome: "Nuova", ts: 2, nTappe: 0 });
     await store().createLega("Nuova");
-    expect(store().leghe).toEqual([{ id: "l2", nome: "Nuova", ts: 2, nTappe: 0 }]);
+    expect(store().legaId).toBe("l2");
+    expect(store().legaName).toBe("Nuova");
+    expect(store().leghe).toBeNull();
+    expect(store().erroreLeghe).toBe("Server non raggiungibile: controlla la connessione e riprova.");
+    // Al «Riprova» l'elenco arriva intero, con la nuova dentro
+    api.list.mockResolvedValueOnce([{ id: "l2", nome: "Nuova", ts: 2, nTappe: 0 }, estate]);
+    api.get.mockResolvedValueOnce({ id: "l2", nome: "Nuova", tappe: [] });
+    await store().rehydrate();
+    expect(store().leghe).toHaveLength(2);
+    expect(store().erroreLeghe).toBeNull();
+  });
+
+  it("con l'elenco arrivato, la lega creata va in testa; con l'elenco mai arrivato la riga dei rifiuti non va in errore", async () => {
+    useAppStore.setState({ leghe: [estate] });
+    api.create.mockResolvedValueOnce({ id: "l2", nome: "Nuova", ts: 2, nTappe: 0 });
+    await store().createLega("Nuova");
+    expect(store().leghe).toEqual([{ id: "l2", nome: "Nuova", ts: 2, nTappe: 0 }, estate]);
     useAppStore.setState({ leghe: null, rifiuti: [{ id: "t1", nome: "Tappa", motivo: "no", legaId: "l9", nuova: false }] });
     expect(avvisoRifiutate(store())).toContain("«senza nome»");
   });

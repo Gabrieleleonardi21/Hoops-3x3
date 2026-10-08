@@ -8,10 +8,11 @@ import { useAnagrafeStore } from "../../src/stores/useAnagrafeStore";
 import { creaTappa, sorteggia } from "../../src/domain/tappaOps";
 import type { Tappa, User } from "../../src/types";
 
-/* Misura dei ridisegni (F11): una tappa grande (32 squadre in 4 gironi da 8 = 112 partite) e un tasto scritto nel nome di una
- * squadra. Prima della correzione ogni tasto ridisegnava tutte le 112 schede delle partite (con i loro tabellini: centinaia di
- * campi); dopo, solo le 7 schede della squadra rinominata. Si contano i disegni di ScoreCard, che ogni scheda di partita disegna
- * una volta: la si avvolge in un contatore e si lascia com'è. */
+/* Misura dei ridisegni (F11): una tappa grande (16 squadre in 2 gironi da 8 = 56 partite; con 4 gironi, 112, il test in jsdom
+ * supera i 30 s dentro la suite completa) e un tasto scritto nel nome di una squadra. Prima della correzione ogni tasto
+ * ridisegnava tutte le schede delle partite (con i loro tabellini: centinaia di campi); dopo, solo le 7 schede della squadra
+ * rinominata. Si contano i disegni di ScoreCard, che ogni scheda di partita disegna una volta: la si avvolge in un contatore e
+ * si lascia com'è. */
 let disegni = 0;
 vi.mock("../../src/components/partita/ScoreCard", async (importOriginal) => {
   const reale = await importOriginal<typeof import("../../src/components/partita/ScoreCard")>();
@@ -25,9 +26,9 @@ vi.mock("../../src/components/partita/ScoreCard", async (importOriginal) => {
 });
 
 const ospite: User = { name: "Ospite", guest: true };
-const N_SQUADRE = 32;
-const N_GIRONI = 4;
-/** 4 gironi da 8: 28 partite a girone, 112 in tutto */
+const N_SQUADRE = 16;
+const N_GIRONI = 2;
+/** 2 gironi da 8: 28 partite a girone, 56 in tutto */
 const N_PARTITE = N_GIRONI * (8 * 7) / 2;
 
 /** La tappa sorteggiata, con 3 giocatori per squadra (così ogni scheda ha i tabellini) */
@@ -55,7 +56,7 @@ afterEach(() => {
 });
 
 describe("TappaPage: quante schede di partita si ridisegnano a ogni tasto (F11)", () => {
-  it("scrivere nel nome di una squadra ridisegna solo le schede delle sue partite, non tutte e 112", () => {
+  it("scrivere nel nome di una squadra ridisegna solo le schede delle sue partite, non tutte e 56", () => {
     const inizio = performance.now();
     render(
       <MemoryRouter initialEntries={["/lega/tappa/t1"]}>
@@ -76,5 +77,5 @@ describe("TappaPage: quante schede di partita si ridisegnano a ogni tasto (F11)"
     expect(useAppStore.getState().tappe[0].squadre[0].nome).toBe("Falchi");
     // La squadra rinominata gioca 7 partite nel suo girone: solo quelle schede cambiano
     expect(disegni).toBe(7);
-  }, 30_000); // 112 schede con i tabellini: in jsdom il primo disegno da solo supera i 5 secondi di base
+  }, 60_000); // 56 schede con i tabellini: in jsdom il primo disegno da solo supera i 5 secondi di base, e la suite gira in parallelo
 });

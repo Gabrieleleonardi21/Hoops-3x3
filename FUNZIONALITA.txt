@@ -369,7 +369,8 @@ Scheda SQUADRA
   - Dati squadra: nome, città, anno di fondazione, punteggio ranking
     circuito, referente/capitano, note libere.
   - Link a logo (URL immagine), sito web, profilo Instagram: vuoti oppure
-    indirizzi http(s):// fino a 2048 caratteri, il criterio del server,
+    indirizzi http(s):// o percorsi del sito (/logos/nome.svg) fino a 2048
+    caratteri, il criterio del server,
     controllato dal form prima dell'invio con il nome del campo che non va.
   - Roster collegato: aggiunta dei giocatori presenti in anagrafe, fino a 6
     (il form lo dichiara e lo applica; il server ne accetta 12 per

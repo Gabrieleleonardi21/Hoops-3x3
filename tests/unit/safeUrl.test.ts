@@ -2,16 +2,17 @@ import { describe, it, expect } from "vitest";
 import { erroreUrl, erroreUrlSquadra, MAX_URL, safeUrl } from "../../src/utils/safeUrl";
 
 describe("erroreUrl: il criterio del server per gli indirizzi scritti dagli utenti (B10), controllato prima dell'invio", () => {
-  it.each(["", "   ", "https://esempio.it/logo.png", "http://esempio.it", "  HTTPS://ESEMPIO.IT/x  "])("«%s» va bene", (valore) => {
+  // Il percorso del sito è quello dei loghi integrati (/logos/nome.svg): il server lo ammette come safeUrl
+  it.each(["", "   ", "https://esempio.it/logo.png", "http://esempio.it", "  HTTPS://ESEMPIO.IT/x  ", "/logos/squadra.svg"])("«%s» va bene", (valore) => {
     expect(erroreUrl(valore)).toBeNull();
   });
 
   it.each([
     ["uno schema pericoloso", "javascript:alert(1)"],
-    ["un percorso relativo (safeUrl lo accetta, il server no)", "/logos/squadra.svg"],
     ["un sito senza schema", "esempio.it/logo.png"],
     ["un URL malformato", "https://"],
     ["un «protocol-relative»", "//esempio.it"],
+    ["un «protocol-relative» con la barra rovesciata", "/\\esempio.it"],
   ])("%s è rifiutato dicendo che serve http:// o https://", (_caso, valore) => {
     expect(erroreUrl(valore)).toBe("l'indirizzo deve cominciare con http:// o https:// (oppure lascia il campo vuoto).");
   });

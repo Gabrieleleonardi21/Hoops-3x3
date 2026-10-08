@@ -222,6 +222,14 @@ export const useAppStore = create<AppState>((set, get) => {
     scrivi(chiaveAttiva(), id);
   };
 
+  /** Registrato: l'elenco con la lega appena creata in testa. Se l'elenco non è mai arrivato (F1) resta null: inventarne uno con
+   *  la sola lega nuova farebbe sparire l'errore e «Riprova», e le altre leghe sembrerebbero perse; al «Riprova» arrivano tutte */
+  const conInTesta = (meta: LegaMeta): LegaMeta[] | null => {
+    const leghe = get().leghe;
+    if (leghe === null) return null;
+    return [meta, ...leghe];
+  };
+
   /** Ospite: salva la lega attiva su localStorage e aggiorna nTappe/ts nell'indice */
   const persistLocal = () => {
     const s = get();
@@ -823,7 +831,7 @@ export const useAppStore = create<AppState>((set, get) => {
         const meta = await legheApi.create(trimmed);
         ricordaLega(meta.id);
         nomeSulServer = meta.nome;
-        set({ legaId: meta.id, leghe: [meta, ...(get().leghe ?? [])], legaName: meta.nome, tappe: [] });
+        set({ legaId: meta.id, leghe: conInTesta(meta), legaName: meta.nome, tappe: [] });
         return meta.id;
       }
       salvaLegaApertaPrimaDelCambio();
@@ -979,7 +987,7 @@ export const useAppStore = create<AppState>((set, get) => {
         versioni.ricordaTappe(meta.id, importate);
         ricordaLega(meta.id);
         nomeSulServer = meta.nome;
-        set({ legaId: meta.id, leghe: [meta, ...(get().leghe ?? [])], legaName: meta.nome, tappe: importate });
+        set({ legaId: meta.id, leghe: conInTesta(meta), legaName: meta.nome, tappe: importate });
         return;
       }
       salvaLegaApertaPrimaDelCambio();
