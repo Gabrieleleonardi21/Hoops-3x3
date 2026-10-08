@@ -13,6 +13,7 @@ import { Section } from "../components/ui/Section";
 import { ApiError } from "../services/api";
 import { useAppStore } from "../stores/useAppStore";
 import { eSegnaposto } from "../domain/tappaOps";
+import { MAX_NOME_LEGA } from "../constants/rules";
 import { leggiFileLega, testoFileLega } from "../utils/legaFile";
 
 export function LegaPage() {
@@ -118,8 +119,9 @@ export function LegaPage() {
 
       <div className="mb-6 flex flex-wrap items-end gap-3">
         <div className="min-w-[240px] max-w-md flex-1">
+          {/* Il nome non va oltre il limite del server (PatchLegaDTO): oltre, la rinomina sarebbe un 400 */}
           <Input label="La tua lega — circuito italiano 3x3" labelClassName="form-label"
-            value={legaName} onChange={(e) => setLegaName(e.target.value)}
+            value={legaName} onChange={(e) => setLegaName(e.target.value)} maxLength={MAX_NOME_LEGA}
             placeholder="Es. Roma Streetball League" className="font-display text-2xl h-12" />
         </div>
         {/* Import / Export JSON */}

@@ -26,6 +26,11 @@ export const MAX_ROSTER_ANAGRAFE = 6;
 export const MIN_SQUADRE = 2;
 export const MAX_SQUADRE = 64;
 
+/** Limiti del server su una lega (NuovaLegaDTO, PatchLegaDTO): caratteri del nome e tappe per lega. Oltre, 400. Li usano i campi del
+ *  nome (maxLength), l'import di una lega da file e la creazione di una tappa */
+export const MAX_NOME_LEGA = 120;
+export const MAX_TAPPE_LEGA = 100;
+
 /** Il nome segnaposto della squadra numero `n` (da 1) di una tappa: lo riconosce eSegnaposto in tappaOps */
 export function nomeSegnaposto(n: number): string {
   return `Squadra ${n}`;

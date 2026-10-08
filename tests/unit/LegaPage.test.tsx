@@ -92,10 +92,19 @@ describe("LegaPage: «Crea la tappa» con gli stessi limiti del Coach (R8)", () 
     expect(store().tappe).toEqual([]);
   });
 
-  it("nome e luogo non si possono scrivere oltre 120 e 160 caratteri, i limiti del server", () => {
+  it("nome e luogo non si possono scrivere oltre 120 e 160 caratteri, i limiti del server; il nome della lega oltre 120", () => {
     apriLega();
     expect((screen.getByLabelText("Nome tappa") as HTMLInputElement).maxLength).toBe(120);
     expect((screen.getByLabelText("Luogo") as HTMLInputElement).maxLength).toBe(160);
+    expect((screen.getByLabelText(/La tua lega/) as HTMLInputElement).maxLength).toBe(120);
+  });
+
+  it("la centunesima tappa non si crea: il tetto del server si dice prima della POST", () => {
+    useAppStore.setState({ tappe: Array.from({ length: 100 }, (_, i) => ({ ...tappaCon([]), id: `t${i}` })) });
+    apriLega();
+    crea();
+    expect(screen.getByRole("alert").textContent).toBe("Una lega può avere al massimo 100 tappe.");
+    expect(store().tappe).toHaveLength(100);
   });
 
   it("con dati validi crea la tappa e la apre", () => {

@@ -7,7 +7,7 @@
  *  Gli stessi campi controllano anche la lega che l'ospite ha nel browser (leggiLegaSalvata), ma senza i limiti del server:
  *  è il caso di chi in passato ha importato un file incompleto, prima che l'import lo controllasse. */
 import { z } from "zod";
-import { DEFAULT_RULES } from "../constants/rules";
+import { DEFAULT_RULES, MAX_NOME_LEGA, MAX_TAPPE_LEGA } from "../constants/rules";
 import { MAX_GIRONI, erroreTestiTappa } from "../domain/tappaOps";
 import { uid } from "./uid";
 import type { Lega, Tappa } from "../types";
@@ -18,10 +18,8 @@ export type EsitoLettura = { ok: true; lega: Lega } | { ok: false; errore: strin
 
 const ko = (errore: string): EsitoLettura => ({ ok: false, errore });
 
-/** Limiti del server per l'import (NuovaLegaDTO): nome della lega e numero di tappe. Quelli di nome, luogo e data di
- *  ogni tappa (TappaDTO) sono in tappaOps, gli stessi dei form: il numero sta in un posto solo. */
-const MAX_NOME_LEGA = 120;
-const MAX_TAPPE = 100;
+// I limiti del server per l'import (NuovaLegaDTO: nome della lega e numero di tappe) stanno in constants/rules, gli stessi dei
+// form; quelli di nome, luogo e data di ogni tappa (TappaDTO) sono in tappaOps: ogni numero sta in un posto solo
 
 /* ── Forma del file: uno schema per ogni tipo di src/types ──
  *  Un campo senza valore predefinito è obbligatorio: chi lo perde non ha un valore neutro da mettere al suo posto (gli id
@@ -162,7 +160,7 @@ const tappaSalvataSchema: z.ZodType<Tappa, z.ZodTypeDef, unknown> = tappaCampi.e
 const fileSchema = z.object({
   // Senza un nome valido (assente, null o vuoto) la lega prende quello del file; i limiti si contano senza gli spazi ai lati
   nome: stringa.trim().max(MAX_NOME_LEGA, `il nome della lega può avere al massimo ${MAX_NOME_LEGA} caratteri`).nullish(),
-  tappe: z.array(tappaSchema).max(MAX_TAPPE, `un file può avere al massimo ${MAX_TAPPE} tappe`),
+  tappe: z.array(tappaSchema).max(MAX_TAPPE_LEGA, `un file può avere al massimo ${MAX_TAPPE_LEGA} tappe`),
 });
 
 /* ── Messaggi: dicono dove sta il problema, con le parole dei messaggi del server (tappe[0].squadre) ── */
