@@ -862,6 +862,89 @@ describe("TappaPage: risultati dei gironi con la fase finale già generata (R6)"
   });
 });
 
+describe("TappaPage: le regole della tappa si applicano all'uscita dal campo, come interi da 1 in su", () => {
+  const campo = () => screen.getByLabelText("Punteggio vittoria") as HTMLInputElement;
+  /** Scrive nel campo, come chi digita, ed esce */
+  const scriviEdEsci = (testo: string) => {
+    fireEvent.change(campo(), { target: { value: testo } });
+    fireEvent.blur(campo());
+  };
+
+  it("svuotare il campo per scrivere «15» non passa da 1: la tappa cambia solo all'uscita, con 15", () => {
+    apriPagina({});
+    fireEvent.change(campo(), { target: { value: "" } });
+    expect(store().tappe[0].regole.target).toBe(21); // mentre si scrive la tappa non cambia
+    fireEvent.change(campo(), { target: { value: "15" } });
+    expect(store().tappe[0].regole.target).toBe(21);
+    fireEvent.blur(campo());
+    expect(store().tappe[0].regole.target).toBe(15);
+    expect(campo().value).toBe("15");
+  });
+
+  it("un decimale si tronca (il server e l'import vogliono un intero); vuoto o sotto 1 non cambiano niente", () => {
+    apriPagina({});
+    scriviEdEsci("12.7");
+    expect(store().tappe[0].regole.target).toBe(12);
+    scriviEdEsci("");
+    expect(store().tappe[0].regole.target).toBe(12);
+    expect(campo().value).toBe("12"); // il campo torna alla regola di prima
+    scriviEdEsci("0");
+    expect(store().tappe[0].regole.target).toBe(12);
+    scriviEdEsci("abc");
+    expect(store().tappe[0].regole.target).toBe(12);
+  });
+
+  it("riscrivere lo stesso valore non fa partire un salvataggio", async () => {
+    apriPagina({});
+    const prima = store().tappe[0];
+    scriviEdEsci("21");
+    expect(store().tappe[0]).toBe(prima);
+    await act(async () => {});
+    expect(legheApi.putTappa).not.toHaveBeenCalled();
+  });
+});
+
+describe("TappaPage: i video di una tappa conclusa si tolgono, e la copia pubblica si aggiorna", () => {
+  const conVideo = (): Tappa => ({
+    ...conUnRisultato(), conclusa: true,
+    video: [{ id: "v1", titolo: "Finale", url: "https://youtu.be/abcdefghijk" }, { id: "v2", titolo: "Highlights", url: "https://esempio.it/v" }],
+  });
+
+  beforeEach(() => {
+    vi.mocked(archivioApi.get).mockResolvedValue(pubblicazione(conVideo()));
+    vi.mocked(archivioApi.pubblica).mockImplementation(async (id) => pubblicazione({ ...conVideo(), id }));
+    useAppStore.setState({ tappe: [conVideo()] });
+  });
+
+  it("ogni video ha «Rimuovi video»: tolto, sparisce dalla tappa e la tappa si ripubblica", async () => {
+    apriPagina({});
+    await screen.findByText("Conclusa e pubblicata nell'archivio");
+    expect(screen.getAllByRole("button", { name: "Rimuovi video" })).toHaveLength(2);
+    fireEvent.click(screen.getAllByRole("button", { name: "Rimuovi video" })[0]);
+    expect(store().tappe[0].video.map((v) => v.id)).toEqual(["v2"]);
+    expect(screen.getAllByRole("button", { name: "Rimuovi video" })).toHaveLength(1);
+    await waitFor(() => expect(archivioApi.pubblica).toHaveBeenCalledExactlyOnceWith("t1"));
+  });
+});
+
+describe("TappaPage: se l'anagrafe non risponde, la squadra non si crea (sarebbe un doppione di una che forse c'è)", () => {
+  it("la ricerca sul server fallisce: nessuna creazione, e il motivo compare nella card con «Riprova»", async () => {
+    // La cache è caricata ma senza «Alfa»: la ricerca vera dello store chiede la lista al server, che non risponde
+    anagrafe.listSquadre.mockRejectedValue(new ApiError(0, "Server non raggiungibile"));
+    apriPagina({ squadre: [] });
+    scrivi(0, "Alfa");
+    fireEvent.blur(campiNome()[0]);
+    expect((await screen.findByRole("alert")).textContent).toContain("Squadra «Alfa» non collegata all'anagrafe: Server non raggiungibile");
+    expect(anagrafe.createSquadra).not.toHaveBeenCalled();
+    expect(store().tappe[0].squadre[0].regId).toBeUndefined();
+    // Il server torna: «Riprova» trova la squadra registrata nel frattempo da un altro e la collega, senza crearne una seconda
+    anagrafe.listSquadre.mockResolvedValue([regAlfa]);
+    fireEvent.click(screen.getByRole("button", { name: "Riprova" }));
+    await waitFor(() => expect(store().tappe[0].squadre[0].regId).toBe("r1"));
+    expect(anagrafe.createSquadra).not.toHaveBeenCalled();
+  });
+});
+
 describe("TappaPage: il timer di gara usa le regole della tappa (FD-7)", () => {
   it("si apre con la durata e il possesso scritti nelle regole, non con 10 minuti e 12 secondi", () => {
     useAppStore.setState({ tappe: [{ ...tappa(), regole: { target: 11, durata: 5, ot: 3, shot: 24 } }] });

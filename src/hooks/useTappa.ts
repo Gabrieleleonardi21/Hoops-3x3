@@ -134,8 +134,15 @@ export function useTappa(id: string | undefined) {
   const setInfo = (k: "luogo" | "data", v: string) => patch({ [k]: v });
   /** Il nome passa da tappaOps: un nome vuoto è rifiutato e nello store resta quello di prima */
   const rinomina = (nome: string) => applica((t) => ops.rinominaTappa(t, nome));
-  const setRule = (k: keyof Tappa["regole"], v: string) =>
-    aggiorna((t) => ({ ...t, regole: { ...t.regole, [k]: Math.max(1, Number(v) || 1) } }));
+  /** Una regola di gara: un intero da 1 in su, come RegoleDTO (@Min(1)) e l'import di una lega; i decimali si troncano. Un valore
+   *  vuoto, non numerico o sotto 1 non cambia niente (il campo torna a mostrare la regola di prima), e lo stesso valore non fa
+   *  partire un salvataggio */
+  const setRule = (k: keyof Tappa["regole"], v: string) => {
+    const n = Math.trunc(Number(v));
+    const corrente = tappaCorrente(id);
+    if (!corrente || !Number.isFinite(n) || n < 1 || corrente.regole[k] === n) return;
+    updateTappa(corrente.id, (t) => ({ ...t, regole: { ...t.regole, [k]: n } }));
+  };
   /** Il testo di una conferma (le funzioni `perdita…` di tappaOps) per la tappa com'è adesso nello store; null se niente */
   const perdita = (testo: (t: Tappa) => string | null) => {
     const corrente = tappaCorrente(id);
