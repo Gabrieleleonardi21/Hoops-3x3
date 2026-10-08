@@ -9,6 +9,7 @@ import { askCoach, AiError } from "../../services/aiService";
 import { useAppStore } from "../../stores/useAppStore";
 import type { Tappa } from "../../types";
 import { fmtMedia } from "../../utils/formato";
+import { pulisci } from "../../utils/buildCoachContext";
 
 
 export function GiocatoreAnalisi({ tappa, pid, onClose }: { tappa: Tappa; pid: string; onClose: () => void }) {
@@ -24,7 +25,8 @@ export function GiocatoreAnalisi({ tappa, pid, onClose }: { tappa: Tappa; pid: s
     try {
       const preamble =
         "Sei un allenatore esperto di basket 3x3 (regole FIBA: canestri da 1 e 2 punti, gara a 21 o 10 minuti, possesso di 12 secondi). Rispondi in italiano, tono diretto e incoraggiante, massimo 130 parole, senza markdown e senza elenchi puntati.";
-      const domanda = `Analizza questo giocatore di un torneo 3x3 e dagli consigli pratici di allenamento. ${a.nome} (${a.squadra}), ${a.partite} partite giocate. Medie a partita: ${fmtMedia(a.medie.pt)} punti, ${fmtMedia(a.medie.rb)} rimbalzi, ${fmtMedia(a.medie.as)} assist, ${fmtMedia(a.medie.ru)} recuperi, ${fmtMedia(a.medie.st)} stoppate, ${fmtMedia(a.medie.pe)} palle perse, ${fmtMedia(a.medie.fa)} falli. Aree deboli individuate: ${a.migliorare.map((m) => m.area).join(", ") || "nessuna"}. Dai 2-3 consigli specifici e un esercizio in più non banale.`;
+      // Nome e squadra li hanno scritti gli utenti: nel prompt passano da pulisci, come ogni altro nome che arriva al modello
+      const domanda = `Analizza questo giocatore di un torneo 3x3 e dagli consigli pratici di allenamento. ${pulisci(a.nome)} (${pulisci(a.squadra)}), ${a.partite} partite giocate. Medie a partita: ${fmtMedia(a.medie.pt)} punti, ${fmtMedia(a.medie.rb)} rimbalzi, ${fmtMedia(a.medie.as)} assist, ${fmtMedia(a.medie.ru)} recuperi, ${fmtMedia(a.medie.st)} stoppate, ${fmtMedia(a.medie.pe)} palle perse, ${fmtMedia(a.medie.fa)} falli. Aree deboli individuate: ${a.migliorare.map((m) => m.area).join(", ") || "nessuna"}. Dai 2-3 consigli specifici e un esercizio in più non banale.`;
       const reply = await askCoach(preamble, [{ role: "user", content: domanda }]);
       setAiText(reply);
     } catch (e) {
