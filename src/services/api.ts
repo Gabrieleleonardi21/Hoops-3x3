@@ -18,6 +18,12 @@ const TOKEN_KEY = "hoop3x3_token";
 const MARGINE_SCADENZA = 120;
 /** Tempo massimo di una richiesta, lettura della risposta compresa (ms) */
 const TEMPO_MASSIMO = 15_000;
+/** Tempo massimo del rinnovo del JWT e dell'attesa del server all'avvio (ms). Un avvio a freddo su Render dura in genere 30-60
+ *  secondi: un rinnovo abbandonato dopo 15 il server lo esegue lo stesso, ruota il refresh token, e il cookie nuovo arriva in una
+ *  risposta che nessuno legge più. Al rinnovo successivo il cookie vecchio è respinto e l'utente si trova fuori */
+const ATTESA_SERVER = 90_000;
+/** Pausa tra due tentativi di attendiServer (ms) */
+const PAUSA_ATTESA_SERVER = 2_000;
 
 /** Errore HTTP con lo status del server; status 0 = rete assente, server spento o che non risponde entro TEMPO_MASSIMO */
 export class ApiError extends Error {
@@ -214,6 +220,26 @@ export function svegliaServer(): void {
   fetch(`${BASE}/actuator/health`, { cache: "no-store" }).catch(() => {});
 }
 
+/** Aspetta che il server risponda a /actuator/health, al massimo `limite` ms: un tentativo ogni PAUSA_ATTESA_SERVER finché non
+ *  risponde 200. All'avvio con una sessione salvata la verifica (che può rinnovare il JWT) parte solo dopo, così il rinnovo non
+ *  incontra un server ancora spento. Non lancia mai eccezioni.
+ *  @returns true se il server ha risposto, false se il tempo è finito */
+export async function attendiServer(limite = ATTESA_SERVER): Promise<boolean> {
+  const fine = Date.now() + limite;
+  for (;;) {
+    const resto = fine - Date.now();
+    if (resto <= 0) return false;
+    let signal: AbortSignal | undefined;
+    if (typeof AbortSignal.timeout === "function") signal = AbortSignal.timeout(resto);
+    try {
+      const res = await fetch(`${BASE}/actuator/health`, { cache: "no-store", signal });
+      if (res.ok) return true;
+    } catch { /* server spento, rete assente o tempo finito: si riprova finché c'è tempo */ }
+    const pausa = Math.min(PAUSA_ATTESA_SERVER, fine - Date.now());
+    if (pausa > 0) await new Promise((fatto) => setTimeout(fatto, pausa));
+  }
+}
+
 // Token cambiato da un'altra scheda: l'evento storage arriva solo alle altre schede dello stesso browser.
 // - Token comparso o sparito (accesso o uscita lì): la sessione del browser è cambiata, e chi dipende dal token lo deve sapere.
 // - Token cancellato: per tutte la sessione è finita. Un token appena rinnovato o salvato da un accesso non chiude niente
@@ -242,7 +268,8 @@ function rinnova(): Promise<boolean> {
       // Un'altra scheda ha rinnovato mentre si aspettava il lock: il suo JWT è già in localStorage
       if (attuale !== tokenVecchio && !inScadenza()) return true;
       try {
-        const r = await chiama<{ token: string }>("/api/auth/refresh", { method: "POST" }, false);
+        // Tempo massimo lungo (ATTESA_SERVER): un rinnovo abbandonato che il server esegue lo stesso fa uscire l'utente
+        const r = await chiama<{ token: string }>("/api/auth/refresh", { method: "POST", tempoMassimo: ATTESA_SERVER }, false);
         // Logout arrivato durante il rinnovo: vince il logout. Il JWT nuovo non si salva e la sessione
         // appena rinnovata si chiude sul server, altrimenti resterebbe aperta dopo l'uscita
         // (keepalive: la chiusura parte anche se intanto la scheda viene chiusa)

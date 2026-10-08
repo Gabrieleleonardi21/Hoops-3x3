@@ -91,6 +91,8 @@ export function squadraDiAnna(id: string, nome: string) {
 /** Un utente registrato (Anna) senza il backend: la sessione e il token stanno già nel browser (tokenFinto, che non si rinnova) e le
  *  risposte del server le decide il test. Le leghe sono vuote; l'anagrafe è quella passata. Va chiamata prima di aprire la pagina. */
 export async function utenteRegistrato(page: Page, anagrafe: { giocatori?: unknown[]; squadre?: unknown[] } = {}) {
+  // All'avvio con una sessione salvata l'app aspetta che il server risponda prima di verificarla
+  await rispondiAlRisveglio(page);
   await page.addInitScript(([u, token]) => {
     localStorage.setItem("hoop3x3_token", token);
     localStorage.setItem("hoop3x3_session", JSON.stringify({ ...u, guest: false }));
