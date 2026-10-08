@@ -51,11 +51,19 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
 2. GESTIONE LEGHE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-- Creazione di più leghe distinte (es. "Circuito Roma 2025", "Milano 3x3").
-- Lista leghe con switch rapido tra una lega e l'altra.
-- Ogni lega ha un nome personalizzabile in qualsiasi momento.
+- Creazione di più leghe distinte (es. "Circuito Roma 2025", "Milano 3x3"),
+  ognuna con al massimo 100 tappe (il tetto del server: la centunesima non
+  si crea e la pagina dice perché).
+- Lista leghe con switch rapido tra una lega e l'altra. Se l'elenco non
+  arriva dal server la pagina dice perché, con «Riprova», e non lo mostra
+  come vuoto; se non si legge solo l'ultima lega aperta, l'elenco resta e
+  l'avviso va nella barra.
+- Ogni lega ha un nome personalizzabile in qualsiasi momento, fino a 120
+  caratteri (il limite del server, applicato dai campi); se il server rifiuta
+  una rinomina, il campo torna al nome che il server ha.
 - Eliminazione di una lega con conferma: la finestra dice quante tappe si
-  perdono.
+  perdono e, per un registrato, che le tappe pubblicate escono dall'Archivio
+  circuito.
 - Export della lega corrente come file JSON (backup / trasferimento).
 - Import di una lega da file JSON (ripristino / migrazione da altro dispositivo).
   Il file viene controllato prima di importarlo: se è incompleto o supera i limiti
@@ -63,7 +71,9 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
   cambia nulla. La lega importata è sempre una lega nuova, con id nuovi, anche se
   l'originale esiste ancora.
 - Classifica circuito aggregata: ordina le squadre per punteggio ranking
-  massimo ottenuto nelle tappe, con numero di tappe disputate.
+  massimo ottenuto nelle tappe, con numero di tappe disputate. Le squadre
+  con il nome segnaposto («Squadra N») e quelle senza punti ranking restano
+  fuori, e senza nessuna classificata la tabella non compare.
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -109,6 +119,11 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
     • Durata massima in minuti (default 10)
     • Punti per il supplementare (default 2)
     • Shot clock in secondi (default 12)
+  Ogni campo si applica all'uscita o con Invio, come intero da 1 in su (i
+  decimali si troncano; vuoto o 0 non cambiano niente): svuotare il campo per
+  scrivere «15» non fa passare la regola da 1.
+- Eliminazione tappa con conferma: la finestra dice che cosa si perde e, per
+  una tappa conclusa, che se è pubblicata esce anche dall'Archivio circuito.
 - Conclusione e pubblicazione della tappa nell'Archivio circuito (richiede
   account registrato; la tappa passa in sola lettura). Servono tutti i
   risultati dei gironi e, se è stata generata la fase a eliminazione
@@ -291,10 +306,13 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 - Aggiunta di link video alla tappa (durante l'organizzazione o dopo la
-  conclusione).
-- I link YouTube vengono incorporati direttamente come player nella pagina.
+  conclusione). Il link deve cominciare con http:// o https:// (fino a 2048
+  caratteri, come vuole il server): altrimenti resta nel campo con il motivo.
+- I link YouTube vengono incorporati direttamente come player nella pagina
+  (embed youtube-nocookie.com, senza cookie di profilazione).
 - Gli altri URL si aprono in una nuova scheda.
-- Rimozione di singoli video.
+- Rimozione di singoli video, anche a tappa conclusa: ogni video aggiunto o
+  tolto ripubblica la copia nell'Archivio circuito.
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -350,8 +368,18 @@ Scheda GIOCATORE
 Scheda SQUADRA
   - Dati squadra: nome, città, anno di fondazione, punteggio ranking
     circuito, referente/capitano, note libere.
-  - Link a logo (URL immagine), sito web, profilo Instagram.
-  - Roster collegato: aggiunta dei giocatori presenti in anagrafe.
+  - Link a logo (URL immagine), sito web, profilo Instagram: vuoti oppure
+    indirizzi http(s):// fino a 2048 caratteri, il criterio del server,
+    controllato dal form prima dell'invio con il nome del campo che non va.
+  - Roster collegato: aggiunta dei giocatori presenti in anagrafe, fino a 6
+    (il form lo dichiara e lo applica; il server ne accetta 12 per
+    compatibilità). È un concetto diverso dai 3-4 giocatori di una squadra
+    di tappa.
+  - Ogni voce (squadra e giocatore) ha una versione decisa dal server: se un
+    altro dispositivo la modifica mentre la scheda è in modifica, il
+    salvataggio riceve 409, la scheda esce dalla modifica e mostra la
+    versione del server con l'avviso «modificata da un altro dispositivo»;
+    ciò che era scritto non si salva sopra, si riscrive con «Modifica».
   - Logo visibile nelle card delle squadre durante la tappa.
   - Ricerca per nome, città, referente.
   - Modifica e cancellazione (autore o ADMIN) con modale di dettaglio; la
@@ -477,6 +505,22 @@ utenti registrati: un ospite riceve in chat l'invito a creare un account.
 - Nessun uso di innerHTML: tutti i contenuti dinamici usano createElement /
   textContent / React JSX per prevenire attacchi XSS.
 - URL dinamici validati con safeUrl() che blocca schemi javascript: e data:.
+  I loghi, su host qualsiasi, si caricano senza Referer (referrerPolicy
+  no-referrer).
+- Content-Security-Policy sul sito pubblicato (render.yaml) e sul preview
+  dei test end-to-end (vite.config.ts): script e stili solo della build,
+  font da Google Fonts, immagini da host https, chiamate solo alla stessa
+  origine, frame solo per l'embed di YouTube senza cookie, niente oggetti né
+  inserimento in altre pagine. Un test confronta le due copie e un e2e apre
+  una pagina con logo esterno e video senza violazioni.
+- Orologio del dispositivo: la scadenza del JWT si giudica nell'ora del
+  server (scarto letto da iat a ogni token), così un orologio avanti o
+  indietro non causa rinnovi continui né 401 alla chiusura della pagina.
+- Modulo d'accesso: un invio alla volta («Crea account», «Accedi» e «Ospite»
+  disattivati durante l'attesa) e anche l'errore dell'ingresso da Ospite si
+  vede. I testi degli errori del Coach AI parlano all'utente (il 429 riporta
+  il messaggio del server, che dice quale limite è finito), senza istruzioni
+  da sviluppatore.
 - ID generati con crypto.randomUUID() (CSPRNG, non indovinabili); dove non
   esiste (http fuori da localhost, come da un telefono in rete locale) con
   crypto.getRandomValues, che dà lo stesso UUID v4.
