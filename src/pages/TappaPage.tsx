@@ -4,6 +4,7 @@
 import { useState, useEffect, type ReactNode } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { useTappa } from "../hooks/useTappa";
+import { tappaCorrente } from "../stores/useAppStore";
 import { useAnagrafe } from "../hooks/useAnagrafe";
 import { useConfermaPerdita } from "../hooks/useConfermaPerdita";
 import { useInvio } from "../hooks/useInvio";
@@ -89,16 +90,21 @@ export function TappaPage() {
       // Prima in cache, poi sul server: un altro utente può averla registrata dopo il caricamento
       // della cache e non va creato un doppione nell'anagrafe condivisa
       const existing = await trovaSquadra(trimmed);
+      // applyReg collega solo se la squadra ha ancora `trimmed` come nome e non è stata collegata nel frattempo
       if (existing) {
-        h.applyReg(teamId, existing);
+        h.applyReg(teamId, existing, trimmed);
       } else {
+        // Prima di creare una voce condivisa si ricontrolla la squadra di adesso: se intanto il nome è cambiato o un'altra uscita dal
+        // campo l'ha già collegata, applyReg rifiuterebbe e la voce resterebbe orfana nell'anagrafe
+        const adesso = tappaCorrente(h.tappa?.id)?.squadre.find((x) => x.id === teamId);
+        if (!adesso || adesso.regId || adesso.nome.trim() !== trimmed) return;
         // Crea una nuova RegSquadra nell'anagrafe e collega subito
         const newReg = await saveSquadra({
           nome: trimmed, citta: "", anno: "", rank: String(s.rank || ""),
           referente: "", roster: [], logo: s.logo || "", website: s.website || "",
           instagram: "", note: "",
         });
-        h.applyReg(teamId, newReg);
+        h.applyReg(teamId, newReg, trimmed);
       }
     } catch (e) {
       // Chiamata dal campo del nome (onBlur), dove nessuno aspetta la promessa: se non si prende qui l'errore va perso, e l'utente
@@ -140,7 +146,8 @@ export function TappaPage() {
       <div>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2.5">
           {badge}
-          <span className="flex flex-wrap gap-2">
+          {/* comandi della pagina: in stampa non servono (index.css nasconde solo .no-print) */}
+          <span className="no-print flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={() => navigate("/lega")}><Icon name="arrowLeft" size={14} /> Tutte le tappe</Button>
             <Button variant="outline" size="sm" onClick={() => setShareOpen((o) => !o)}><Icon name="share" size={14} /> Condividi</Button>
             <Button variant="ghost" size="sm" disabled={riapertura.invio || h.pubblicando}
@@ -154,7 +161,7 @@ export function TappaPage() {
 
         {/* Pannello condivisione link pubblico */}
         {shareOpen && (
-          <Card className="mb-3">
+          <Card className="no-print mb-3">
             <div className="kicker mb-1.5">Link pubblico — chiunque può consultare questa tappa</div>
             <div className="flex flex-wrap items-center gap-2">
               <code className="flex-1 min-w-[200px] break-all rounded-sm border border-asphalt-700 bg-asphalt-950 px-2.5 py-1.5 text-[13px] text-chalk">{publicUrl}</code>
@@ -164,7 +171,7 @@ export function TappaPage() {
           </Card>
         )}
 
-        <Card className="mb-4"><VideoForm compact onAdd={h.addVideo} /></Card>
+        <Card className="no-print mb-4"><VideoForm compact onAdd={h.addVideo} /></Card>
         <ArchivioTappaView t={t} lega={h.legaName} autore={user.name} />
         {riapri.finestra}
       </div>

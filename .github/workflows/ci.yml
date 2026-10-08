@@ -24,3 +24,49 @@ jobs:
       # Solo Chromium, con le librerie di sistema che gli servono sul runner
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
+
+  # Percorsi da registrato con il backend vero (tests/e2e-backend/, playwright.backend.config.ts): il jar si compila dal ramo main del
+  # repository hoop3x3-backend e gira contro un PostgreSQL di servizio. Se il backend cambia un contratto che questi test fissano
+  # (201 alle creazioni, versione 0 della tappa nuova), la PR si ferma qui
+  e2e-backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: hoop3x3_e2e
+          POSTGRES_USER: hoop
+          POSTGRES_PASSWORD: hoop
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U hoop -d hoop3x3_e2e"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: Gabrieleleonardi21/hoop3x3-backend
+          path: backend
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 25
+          cache: maven
+      # Il backend ha la sua CI con i test: qui serve solo il jar
+      - run: ./mvnw -B package -DskipTests
+        working-directory: backend
+      - run: echo "E2E_BACKEND_JAR=$(ls "$GITHUB_WORKSPACE"/backend/target/hoop-3x3-backend-*.jar)" >> "$GITHUB_ENV"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e:backend
+        env:
+          E2E_DB_NAME: hoop3x3_e2e
+          E2E_DB_USERNAME: hoop
+          E2E_DB_PASSWORD: hoop

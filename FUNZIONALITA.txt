@@ -90,7 +90,13 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
   squadra, come il tetto dell'interfaccia). Se il nome non
   c'è, l'app crea la scheda in anagrafe con il ranking, il logo e il sito che
   la squadra ha. Se il collegamento non riesce il motivo compare sotto il
-  nome, con «Riprova». All'apertura della tappa le squadre collegate si
+  nome, con «Riprova». La risposta collega la squadra solo se ha ancora il
+  nome per cui è partita la ricerca (se intanto si è continuato a scrivere,
+  o una seconda uscita dal campo ha già collegato, non cambia niente).
+  «Scollega», sotto il badge «Anagrafe», toglie il collegamento e rende di
+  nuovo modificabile il nome: serve a cambiarlo, perché con lo stesso nome
+  alla prossima apertura della tappa la squadra si ricollega per nome (la
+  voce dell'anagrafe resta: si elimina dalla pagina Anagrafe). All'apertura della tappa le squadre collegate si
   riallineano ai dati dell'anagrafe (nome, logo, ranking, sito). Una squadra
   collegata a una voce poi eliminata dall'anagrafe si scollega all'apertura
   della tappa (tiene nome, logo e ranking che ha) e il suo nome torna
@@ -130,7 +136,10 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
   registrati serve il ranking di almeno una squadra (l'Ospite sorteggia
   comunque).
 - Generazione automatica di tutti i match del girone (ogni squadra affronta
-  tutte le altre una volta sola).
+  tutte le altre una volta sola), in ordine di giornata con il metodo del
+  cerchio: in ogni giornata una squadra gioca al più una volta (con un numero
+  dispari di squadre una riposa a turno), così nessuno gioca tutte le sue
+  partite di fila.
 - Possibilità di risorteggiare finché non si è soddisfatti del tabellone: un
   nuovo sorteggio riparte da zero e, se ci sono risultati registrati, chiede
   conferma dicendo che cosa si perde.
@@ -192,6 +201,11 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
 - Nomi dei turni generati dinamicamente in base alle gare del turno: "Ottavo
   di finale N", "Quarto di finale N", "Semifinale N", "Finale" (i turni più
   larghi degli ottavi sono "Turno N · Gara M").
+- «Correggi» su un match giocato del tabellone lo riporta da giocare (i
+  punteggi restano nei campi come bozza) e toglie il vincitore dal turno
+  dopo; si può solo finché quella gara del turno dopo non è stata giocata
+  (altrimenti va corretta prima lei). I turni superati d'ufficio non hanno
+  un risultato da correggere.
 - Con il tabellone generato i risultati dei gironi non si correggono.
   «Elimina bracket e ricomincia» chiede sempre conferma e dice quanti
   risultati del tabellone si perdono (quelli dei gironi restano).
@@ -402,7 +416,8 @@ esplicitamente:
   annulla_risultato   Annulla un risultato di girone già inserito (riporta la
                       partita a "non disputata", i punteggi restano come
                       bozza). Chiede sempre conferma.
-  registra_squadra    Aggiunge una squadra all'anagrafe condivisa.
+  registra_squadra    Aggiunge una squadra all'anagrafe condivisa; se ce n'è
+                      già una con lo stesso nome non ne crea un doppione.
   aggiorna_squadra    Modifica i dati di una squadra esistente in anagrafe
                       (logo, città, referente, rank, ecc.); la squadra si
                       sceglie come per crea_tappa, e con due squadre dallo
@@ -411,7 +426,9 @@ esplicitamente:
                       alla pagina Anagrafe); aggiorna solo i campi passati,
                       gli altri restano invariati. Se l'anagrafe non risponde
                       lo dice, senza modificare niente.
-  registra_giocatore  Aggiunge un giocatore all'anagrafe condivisa.
+  registra_giocatore  Aggiunge un giocatore all'anagrafe condivisa; se ce n'è
+                      già uno con lo stesso nome e cognome non ne crea un
+                      doppione (un omonimo si registra dalla pagina Anagrafe).
   concludi_tappa      Conclude e pubblica la tappa nell'Archivio circuito
                       (richiede account non ospite). Chiede sempre conferma.
 
@@ -430,7 +447,8 @@ l'azione non compare tra i badge sotto la risposta.
 Contesto fornito al Coach AI (in un blocco <dati_lega>):
   - Nome della lega e, per ogni tappa, nome, data, luogo ed eventuale
     «conclusa».
-  - Classifica circuito aggregata (vittorie/partite totali per squadra).
+  - Classifica circuito aggregata (vinte e perse totali per squadra; la
+    stessa squadra in più tappe è una riga sola).
   - Solo per la tappa in primo piano (l'ultima non conclusa, altrimenti
     l'ultima): squadre iscritte, classifica di ogni girone, partite
     disputate/totali e i 5 migliori marcatori.
@@ -482,10 +500,18 @@ utenti registrati: un ospite riceve in chat l'invito a creare un account.
   frattempo (409), l'app mostra la tappa del server e lo dice nella stessa
   barra, invece di sovrascriverne il lavoro; se l'ha eliminata (la PUT
   riceve 404 o 409), rilegge la lega e, se la tappa non c'è più, la toglie
-  con lo stesso avviso.
+  con lo stesso avviso. Con la scheda nascosta ciò che è in attesa parte
+  subito; alla chiusura della pagina parte con keepalive, che il browser
+  accetta fino a 64 KiB in tutto: le tappe più pesanti (tabellini di 24-32
+  squadre e oltre) restano nel browser e partono alla prossima apertura.
+  Chiudendo con modifiche non ancora confermate il browser chiede conferma.
 - Persistenza (ospite): localStorage per la lega (multi-lega con indice);
-  anagrafe e archivio in sola lettura dal server. All'avvio la lega aperta
-  si controlla con gli stessi campi dell'import, ma senza i limiti del
+  anagrafe e archivio in sola lettura dal server. Con più schede aperte
+  ognuna segue le scritture delle altre: una lega creata in un'altra scheda
+  compare nell'elenco e non sparisce dall'indice, la lega aperta salvata
+  altrove si ricarica, quella eliminata altrove si chiude con un avviso.
+  All'avvio la lega aperta si controlla con gli stessi campi dell'import,
+  ma senza i limiti del
   server (nome vuoto, numero di gironi e regole fuori limite si tengono: si
   correggono dall'app): le tappe con la forma sbagliata non si caricano e un
   avviso dice quali, perché e che alla prossima modifica della lega saranno
@@ -537,8 +563,9 @@ utenti registrati: un ospite riceve in chat l'invito a creare un account.
   (dalla card e dalla scheda). Quando si perde qualcosa: nuovo sorteggio e
   cambio del numero di gironi o delle squadre con dei risultati registrati;
   rimuovi squadra con un nome scritto, dei giocatori o dei risultati nella
-  tappa (una squadra appena aggiunta si toglie subito); riapri una tappa
-  pubblicata. «Annulla», Esc e la X non cambiano niente. Il Coach AI chiede
+  tappa (una squadra appena aggiunta si toglie subito); la X di un giocatore
+  che ha statistiche in qualche partita (dice in quante: spariscono da
+  tabellini, leader e statistiche); riapri una tappa pubblicata. «Annulla», Esc e la X non cambiano niente. Il Coach AI chiede
   la stessa conferma, nella chat, per il nuovo sorteggio con risultati,
   «annulla risultato» e la conclusione di una tappa. Per i lettori di
   schermo la finestra di conferma è un avviso che chiede una decisione

@@ -36,6 +36,34 @@ function statoTappa(t: Tappa): string {
   return "Tappa in preparazione";
 }
 
+/** Una partita in programma per «Prossime partite»: dei gironi (etichetta «GA») o della fase finale («Semifinale 1») */
+interface Prossima {
+  id: string;
+  a: string;
+  b: string;
+  etichetta: string;
+}
+
+/** Le prossime partite da giocare: quelle dei gironi e, finiti i gironi, i match del tabellone con tutte e due le squadre note
+ *  (un turno superato d'ufficio non si gioca). Al massimo 3. */
+function prossimePartite(t: Tappa | null): Prossima[] {
+  if (!t) return [];
+  const gironi: Prossima[] = t.partite.filter((m) => !m.done)
+    .map((m) => ({ id: m.id, a: m.a, b: m.b, etichetta: `G${letteraGirone(m.g)}` }));
+  const tabellone: Prossima[] = [];
+  for (const m of t.bracket ?? []) {
+    if (!m.done && m.squadraA && m.squadraB) tabellone.push({ id: m.id, a: m.squadraA, b: m.squadraB, etichetta: m.label });
+  }
+  return [...gironi, ...tabellone].slice(0, 3);
+}
+
+/** Gare giocate e gare in tutto, gironi e fase finale (senza i turni superati d'ufficio, che non si giocano) */
+function contaGare(t: Tappa | null): { giocate: number; totali: number } {
+  if (!t) return { giocate: 0, totali: 0 };
+  const gare = [...t.partite.map((m) => m.done), ...(t.bracket ?? []).filter((m) => !m.bye).map((m) => m.done)];
+  return { giocate: gare.filter(Boolean).length, totali: gare.length };
+}
+
 export function HomePage() {
   const user = useAppStore((s) => s.user);
   const legaId = useAppStore((s) => s.legaId);
@@ -55,9 +83,11 @@ export function HomePage() {
     return withGames >= 0 ? withGames : 0;
   }, [t]);
   const rows = t?.gironi && gi >= 0 ? standings(t.gironi[gi], t.partite.filter((m) => m.g === gi), nameOf) : [];
-  const prossime = (t?.partite ?? []).filter((m) => !m.done).slice(0, 3);
+  const prossime = prossimePartite(t);
   const ultima = ultimoRisultato(t?.partite ?? []);
-  const live = !!t && !t.conclusa && !!t.gironi && t.partite.some((m) => m.done) && t.partite.some((m) => !m.done);
+  const gare = contaGare(t);
+  // Live: qualche gara giocata e qualcuna ancora da giocare, contando anche la fase finale
+  const live = !!t && !t.conclusa && !!t.gironi && gare.giocate > 0 && gare.giocate < gare.totali;
   const leaders = t ? tappaLeaders(t) : [];
 
   /* ── Non loggato: hero + accesso ── */
@@ -89,7 +119,7 @@ export function HomePage() {
         badge={live ? <Badge tone="live">Live</Badge> : undefined}
         kicker={`${stato} · ${[t.luogo, t.data].filter(Boolean).join(" · ") || legaName}`}
         title={t.nome}
-        subtitle={`${legaName} · ${t.squadre.length} squadre · ${t.nGironi} gironi · ${t.partite.filter((m) => m.done).length}/${t.partite.length} gare giocate`}
+        subtitle={`${legaName} · ${t.squadre.length} squadre · ${t.nGironi} gironi · ${gare.giocate}/${gare.totali} gare giocate`}
         actions={<>
           <Button onClick={() => navigate(`/lega/tappa/${t.id}`)}>Vai alla tappa</Button>
           <Button variant="outline" onClick={() => navigate("/lega")}>Tutte le tappe</Button>
@@ -124,7 +154,7 @@ export function HomePage() {
               {prossime.map((m) => (
                 <li key={m.id} className="flex items-center gap-2 border-b border-asphalt-700 px-3 py-2 text-[13px] last:border-b-0">
                   <span className="min-w-0 flex-1 truncate text-right font-display text-base">{nameOf(m.a)}</span>
-                  <span className="shrink-0 rounded-sm bg-asphalt-800 px-1.5 text-[10.5px] font-semibold text-chalk-muted">G{letteraGirone(m.g)}</span>
+                  <span className="shrink-0 rounded-sm bg-asphalt-800 px-1.5 text-[10.5px] font-semibold text-chalk-muted">{m.etichetta}</span>
                   <span className="min-w-0 flex-1 truncate font-display text-base">{nameOf(m.b)}</span>
                 </li>
               ))}

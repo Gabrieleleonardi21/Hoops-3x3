@@ -75,6 +75,8 @@ beforeEach(() => {
   risposte = {
     "/api/auth/me": () => json(200, { id: "u1", name: "Anna", email: "anna@example.it", ruolo: "USER" }),
     "/api/auth/logout": () => new Response(null, { status: 204 }),
+    // All'avvio con una sessione salvata l'app aspetta che il server risponda (attendiServer)
+    "/actuator/health": () => json(200, { status: "UP" }),
   };
   inattese = [];
   leghe.list.mockResolvedValue([]);
@@ -167,6 +169,35 @@ describe("App: sessione che finisce mentre l'utente lavora", () => {
     await act(async () => {});
     expect(store().user).toEqual(registrato);
     expect(screen.queryByText(MESSAGGIO)).toBeNull();
+  });
+});
+
+describe("App: all'avvio si aspetta il server prima di verificare la sessione (avvio a freddo)", () => {
+  it("mentre il server si avvia dice «Server in avvio» e non verifica la sessione; quando risponde, la verifica parte", async () => {
+    let sveglio: (r: Response) => void = () => {};
+    risposte["/actuator/health"] = () => new Promise<Response>((risolvi) => { sveglio = risolvi; });
+    avvia(registrato);
+    expect(await screen.findByText(/Server in avvio/)).toBeTruthy();
+    expect(chiamateA("/api/auth/me")).toBe(0);
+    await act(async () => { sveglio(json(200, { status: "UP" })); });
+    expect(await screen.findByText("Si parte dal campetto")).toBeTruthy();
+    expect(chiamateA("/api/auth/me")).toBe(1);
+  });
+
+  it("se il server non risponde entro 90 secondi: avviso con «Riprova», nessun rinnovo tentato, la sessione resta", async () => {
+    vi.useFakeTimers();
+    risposte["/actuator/health"] = () => { throw new TypeError("Failed to fetch"); };
+    token.set(jwt(-10)); // JWT scaduto: verificare la sessione vorrebbe dire rinnovarlo
+    avvia(registrato);
+    // Intanto passano anche i 60 secondi del rinnovo automatico, che durante l'attesa resta fermo
+    await act(async () => { await vi.advanceTimersByTimeAsync(89_999); });
+    expect(screen.queryByRole("alert")).toBeNull();
+    await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+    expect(screen.getByRole("alert").textContent).toContain("Server non raggiungibile");
+    expect(chiamateA("/api/auth/me")).toBe(0);
+    expect(chiamateA("/api/auth/refresh")).toBe(0);
+    expect(store().user).toEqual(registrato);
+    expect(token.get()).not.toBeNull();
   });
 });
 

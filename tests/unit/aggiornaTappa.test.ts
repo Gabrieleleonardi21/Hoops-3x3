@@ -153,7 +153,7 @@ describe("useTappa: le modifiche partono dalla tappa com'è adesso, non da quell
     // L'utente esce dal campo: la pagina tiene l'`h` di questo momento mentre aspetta il server
     const hAllUscita = result.current;
     const server = differita<RegSquadra>();
-    const collegamento = server.p.then((reg) => hAllUscita.applyReg("s1", reg));
+    const collegamento = server.p.then((reg) => hAllUscita.applyReg("s1", reg, "Alfa"));
     // Mentre il server risponde, l'utente scrive «Beta» nella seconda squadra
     fai(() => result.current.renameTeam("s2", "Beta"));
     await act(async () => {

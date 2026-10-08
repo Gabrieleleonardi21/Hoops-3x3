@@ -7,7 +7,7 @@ import { Section } from "../ui/Section";
 import type { BracketMatch, Tappa } from "../../types";
 import { useAppStore, tappaCorrente } from "../../stores/useAppStore";
 import { useConfermaPerdita } from "../../hooks/useConfermaPerdita";
-import { generaFasiDirette, perditaTabellone, registraRisultatoBracket } from "../../domain/tappaOps";
+import { annullaRisultatoBracket, generaFasiDirette, perditaTabellone, registraRisultatoBracket } from "../../domain/tappaOps";
 import { splitRounds } from "../../utils/buildBracket";
 import { logoSquadra, nomeSquadra } from "../../utils/tappaInfo";
 
@@ -61,6 +61,18 @@ export function BracketSection({ tappa, readOnly = false }: Props) {
     setErrore(null);
   };
 
+  /** «Correggi» di un match giocato: il risultato si annulla (tappaOps lo rifiuta se il vincitore ha già giocato il turno
+   *  dopo) e i punteggi tornano nei campi come bozza, da correggere e salvare di nuovo */
+  const correggi = (match: BracketMatch) => {
+    const corrente = tappaCorrente(tappa.id);
+    if (!corrente) return;
+    const esito = annullaRisultatoBracket(corrente, match.id);
+    if (!esito.ok) { setErrore({ matchId: match.id, testo: esito.errore }); return; }
+    replaceTappa(esito.tappa);
+    setScores((prev) => ({ ...prev, [match.id]: { a: String(match.pA), b: String(match.pB) } }));
+    setErrore(null);
+  };
+
   // Prompt prima dei gironi
   if (!allGironiDone && !tappa.bracket?.length) {
     return null; // non mostrare nulla finché i gironi non sono completati
@@ -94,8 +106,23 @@ export function BracketSection({ tappa, readOnly = false }: Props) {
   const rounds = splitRounds(tappa.bracket);
   const logoOf = (id: string | null) => logoSquadra(tappa.squadre, id);
 
-  /** Input punteggio + salva per un match ancora da giocare (markup; la logica è registraRisultato) */
+  /** Messaggio del rifiuto dell'ultimo «Salva» o «Correggi», sotto il match a cui si riferisce */
+  const erroreDi = (m: BracketMatch) => {
+    if (errore?.matchId !== m.id) return null;
+    return <p className="mt-1.5 text-xs font-semibold text-loss" role="alert">{errore.testo}</p>;
+  };
+
+  /** Input punteggio + salva per un match ancora da giocare, «Correggi» per uno giocato (markup; la logica è in
+   *  registraRisultato e correggi) */
   const renderControls = (m: BracketMatch) => {
+    if (m.done) {
+      return (
+        <>
+          <Button variant="link" className="text-chalk-muted" onClick={() => correggi(m)}>Correggi</Button>
+          {erroreDi(m)}
+        </>
+      );
+    }
     const sc = scores[m.id] ?? { a: "", b: "" };
     // Correggendo il punteggio il messaggio del rifiuto precedente non vale più
     const setSc = (side: "a" | "b", v: string) => {
@@ -112,7 +139,7 @@ export function BracketSection({ tappa, readOnly = false }: Props) {
             onChange={(e) => setSc("b", e.target.value)} aria-label={`Punti ${nameOf(m.squadraB)}`} />
           <Button size="sm" className="ml-auto" onClick={() => registraRisultato(m)}>Salva</Button>
         </div>
-        {errore?.matchId === m.id && <p className="mt-1.5 text-xs font-semibold text-loss" role="alert">{errore.testo}</p>}
+        {erroreDi(m)}
       </>
     );
   };

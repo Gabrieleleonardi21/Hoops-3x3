@@ -120,6 +120,47 @@ describe("BracketSection: punteggio non valido (R4)", () => {
   });
 });
 
+describe("BracketSection: «Correggi» di un risultato del tabellone", () => {
+  /** Il tabellone con la prima semifinale già giocata (21-15) */
+  function conPrimaSemifinale(): Tappa {
+    const t = tappaConTabellone();
+    const esito = registraRisultatoBracket(t, t.bracket?.[0].id ?? "", 21, 15);
+    if (!esito.ok) throw new Error(esito.errore);
+    return esito.tappa;
+  }
+
+  it("riporta il match da giocare, toglie il vincitore dalla finale e rimette i punteggi nei campi", () => {
+    mostra(conPrimaSemifinale());
+    fireEvent.click(screen.getByRole("button", { name: "Correggi" }));
+    const [prima, , finale] = nelloStore().bracket ?? [];
+    expect(prima.done).toBe(false);
+    expect([finale.squadraA, finale.squadraB]).toEqual([null, null]);
+  });
+
+  it("i punteggi annullati restano nei campi come bozza", () => {
+    const t = conPrimaSemifinale();
+    useAppStore.setState({ user: ospite, legaId: "l1", leghe: [{ id: "l1", nome: "Lega", ts: 1, nTappe: 1 }], tappe: [t] });
+    const { rerender } = render(<BracketSection tappa={t} />);
+    fireEvent.click(screen.getByRole("button", { name: "Correggi" }));
+    rerender(<BracketSection tappa={nelloStore()} />);
+    const [puntiA, puntiB] = screen.getAllByRole("spinbutton");
+    expect([(puntiA as HTMLInputElement).value, (puntiB as HTMLInputElement).value]).toEqual(["21", "15"]);
+  });
+
+  it("se il vincitore ha già giocato il turno dopo, il risultato resta e si dice perché", () => {
+    let t = conPrimaSemifinale();
+    for (const [id, a, b] of [[t.bracket?.[1].id ?? "", 21, 10], [t.bracket?.[2].id ?? "", 21, 19]] as const) {
+      const esito = registraRisultatoBracket(t, id, a, b);
+      if (!esito.ok) throw new Error(esito.errore);
+      t = esito.tappa;
+    }
+    mostra(t);
+    fireEvent.click(screen.getAllByRole("button", { name: "Correggi" })[0]);
+    expect(screen.getByRole("alert").textContent).toBe("Finale: è già stata giocata. Annulla prima quel risultato.");
+    expect(nelloStore()).toBe(t);
+  });
+});
+
 describe("BracketSection: «Elimina bracket e ricomincia» chiede conferma (FD-2)", () => {
   const elimina = () => screen.getByRole("button", { name: "Elimina bracket e ricomincia" });
 

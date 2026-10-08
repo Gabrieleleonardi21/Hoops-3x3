@@ -24,6 +24,7 @@ export function SquadraCard({ s, index, h, erroreAnagrafe, onNameCommit }: {
   // Togliere una squadra cancella ciò che vi è stato scritto (nome, giocatori) e azzera il sorteggio: si chiede prima conferma,
   // tranne per una squadra appena aggiunta e vuota, che si toglie subito.
   // Il rifiuto di removeTeam non serve mostrarlo: il pulsante c'è solo con più di 2 squadre.
+  // La stessa finestra serve per la X di un giocatore: si chiede solo se ha statistiche (perditaGiocatore).
   const { chiedi, finestra } = useConfermaPerdita(() => h.perditaSquadra(s.id));
 
   return (
@@ -33,7 +34,13 @@ export function SquadraCard({ s, index, h, erroreAnagrafe, onNameCommit }: {
           <TeamLogo src={s.logo} alt={`Logo ${s.nome}`} className="h-10 w-10" />
           <span className="font-display text-lg text-chalk-dim">#{index + 1}</span>
         </div>
-        {linked && <Badge tone="court"><Icon name="check" size={11} /> Anagrafe</Badge>}
+        {linked && (
+          <div className="flex flex-col items-end gap-1">
+            <Badge tone="court"><Icon name="check" size={11} /> Anagrafe</Badge>
+            {/* Il collegamento può essere partito da un nome scritto a metà: «Scollega» rende di nuovo modificabile il nome */}
+            <Button variant="link" className="text-chalk-muted" onClick={() => h.unlinkReg(s.id)}>Scollega</Button>
+          </div>
+        )}
       </div>
 
       {/* Nome: editabile solo se non collegata; onBlur trigger sync anagrafe */}
@@ -70,7 +77,7 @@ export function SquadraCard({ s, index, h, erroreAnagrafe, onNameCommit }: {
       <RosterEditor giocatori={s.giocatori || []}
         onAdd={() => h.addPlayer(s.id)}
         onRename={(pid, nome) => h.renamePlayer(s.id, pid, nome)}
-        onRemove={(pid) => h.removePlayer(s.id, pid)} />
+        onRemove={(pid) => chiedi("Rimuovere il giocatore?", () => h.removePlayer(s.id, pid), () => h.perditaGiocatore(s.id, pid))} />
 
       {(h.tappa?.squadre.length ?? 0) > 2 && (
         <Button variant="link" className="mt-2 text-chalk-dim"

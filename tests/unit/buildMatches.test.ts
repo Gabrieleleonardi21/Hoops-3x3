@@ -19,4 +19,31 @@ describe("buildMatches (calendario all'italiana)", () => {
     expect(ms.filter((m) => m.g === 1)).toHaveLength(1);
     expect(ms.every((m) => !m.done)).toBe(true);
   });
+
+  // Metodo del cerchio: le partite escono a giornate, in ognuna ogni squadra gioca al più una volta
+  it("con 4 squadre ogni giornata di 2 partite coinvolge tutte e 4 le squadre", () => {
+    const ms = buildMatches([["a", "b", "c", "d"]]);
+    for (let k = 0; k < ms.length; k += 2) {
+      const giornata = ms.slice(k, k + 2).flatMap((m) => [m.a, m.b]);
+      expect(new Set(giornata).size).toBe(4);
+    }
+  });
+
+  it("con 5 squadre (una riposa a turno) 10 partite, nessuna squadra in due partite della stessa giornata", () => {
+    const ms = buildMatches([["a", "b", "c", "d", "e"]]);
+    expect(ms).toHaveLength(10);
+    expect(new Set(ms.map((m) => [m.a, m.b].sort().join("-"))).size).toBe(10);
+    for (let k = 0; k < ms.length; k += 2) {
+      const giornata = ms.slice(k, k + 2).flatMap((m) => [m.a, m.b]);
+      expect(new Set(giornata).size).toBe(4);
+    }
+  });
+
+  it("la prima squadra non gioca più partite di fila", () => {
+    const ms = buildMatches([["a", "b", "c", "d"]]);
+    for (let k = 1; k < ms.length; k++) {
+      const insieme = [ms[k - 1].a, ms[k - 1].b].includes("a") && [ms[k].a, ms[k].b].includes("a");
+      expect(insieme).toBe(false);
+    }
+  });
 });

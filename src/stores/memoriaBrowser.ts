@@ -73,6 +73,37 @@ export function statoOspite(): StatoOspite {
   return { ...vuoto, syncError: legaIllegibile(leghe, activeId) };
 }
 
+/** Registrato: le tappe che alla chiusura della pagina non sono potute partire con keepalive (il browser accetta al massimo 64 KiB di
+ *  corpi keepalive in volo) e restano nel browser fino alla prossima apertura, che le rimanda (rehydrate). Una voce per tappa, con
+ *  l'utente che l'ha scritta: su un browser condiviso le rimanda solo lui */
+export const DA_RIMANDARE_KEY = NS + "da_rimandare";
+
+export interface DaRimandare {
+  userId: string;
+  legaId: string;
+  /** true = la tappa non era ancora creata sul server: va la POST, non la PUT */
+  nuova: boolean;
+  /** La tappa con la versione su cui si basano le modifiche */
+  tappa: Tappa;
+}
+
+export function leggiDaRimandare(): DaRimandare[] {
+  try {
+    const voci: unknown = JSON.parse(localStorage.getItem(DA_RIMANDARE_KEY) || "[]");
+    if (Array.isArray(voci)) return voci.filter((v) => typeof v?.userId === "string" && typeof v?.tappa?.id === "string");
+  } catch { /* JSON rovinato */ }
+  return [];
+}
+
+/** Scrive l'elenco (lo toglie se è vuoto). false se il browser rifiuta la scrittura */
+export function scriviDaRimandare(voci: DaRimandare[]): boolean {
+  if (voci.length === 0) {
+    localStorage.removeItem(DA_RIMANDARE_KEY);
+    return true;
+  }
+  return scrivi(DA_RIMANDARE_KEY, JSON.stringify(voci));
+}
+
 export function readSession(): User | null {
   try {
     const raw = localStorage.getItem(SESSION_KEY);

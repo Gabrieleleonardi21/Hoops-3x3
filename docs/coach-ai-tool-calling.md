@@ -48,6 +48,11 @@ abilita i flussi multi-step in un solo messaggio (es. *"crea la tappa e sorteggi
   all'ottavo il modello chiede ancora tool, il ciclo si ferma e parte una chiamata finale **senza** strumenti che costringe il
   modello a chiudere con una risposta (testo di ripiego: «Fatto!»). Il numero copre un flusso completo di tappa (crea →
   sorteggia → risultati → fasi dirette → risultati → concludi).
+- **Limiti del server.** Ogni richiesta al Coach del server ha al massimo 60 messaggi (preambolo compreso) e 100.000 caratteri
+  (`CoachAiService.valida`); 30 messaggi di cronologia più 8 giri di strumenti li superano. Prima di ogni chiamata
+  (`neiLimiti` in `aiService.ts`) si tolgono i messaggi più vecchi della cronologia, mai il preambolo, la domanda di adesso né
+  gli scambi con gli strumenti della richiesta. Se nemmeno così la richiesta ci sta, il ciclo si chiude senza chiamare il
+  modello, con «Ho eseguito le azioni indicate qui sotto, ma la conversazione è diventata troppo lunga…» e i badge delle azioni.
 - **Guardia anti-stallo.** La firma di una chiamata è «nome dello strumento + argomenti» (il testo JSON del modello). Una
   chiamata con la stessa firma di una già fatta nella richiesta, riuscita o no, **non viene rieseguita**: il modello riceve
   `Azione "<nome dello strumento>" già chiamata con gli stessi argomenti in questa richiesta (vedi il suo risultato): non
@@ -59,12 +64,14 @@ abilita i flussi multi-step in un solo messaggio (es. *"crea la tappa e sorteggi
   **non** hanno il badge sotto la risposta.
 - **Richiesta abbandonata.** «Cancella» e il logout interrompono la richiesta (`AbortController` in `useCoachAI`): prima di ogni
   chiamata al modello e di ogni strumento si controlla il segnale, quindi non partono altre chiamate né altre azioni. Gli
-  strumenti che leggono l'anagrafe prima di scrivere (`crea_tappa`, `aggiorna_squadra`) lo controllano di nuovo dopo la lettura.
+  strumenti che leggono l'anagrafe prima di scrivere (`crea_tappa`, `aggiorna_squadra`, `registra_squadra`, `registra_giocatore`)
+  lo controllano di nuovo dopo la lettura.
   Le scritture già spedite al server finiscono comunque. Una conferma in attesa si chiude come «Annulla».
 - **Tempo massimo.** 65 secondi per ogni chiamata alla chat (il server aspetta Groq fino a 60). Gli errori del backend arrivano
   all'utente così: 401 «Sessione scaduta», 429 «Limite richieste raggiunto», 503 «Coach AI non è configurato sul server»
   (manca `GROQ_API_KEY`), rete assente «Server non raggiungibile», 400 con il messaggio del server (es. «Conversazione troppo
-  lunga»), il resto «Si è verificato un errore» (`errorMsg` in `useCoachAI.ts`).
+  lunga»), il resto «Si è verificato un errore» (`errorMsg` in `useCoachAI.ts`). Un errore a metà del ciclo, dopo strumenti già
+  eseguiti, non le nasconde: l'`AiError` porta gli strumenti eseguiti (`calledTools`) e il messaggio d'errore ha i loro badge.
 
 ### Come si sceglie la tappa
 
@@ -159,12 +166,12 @@ omonimi esatti):
 
 ### `registra_risultato`
 - **Descrizione:** Registra il punteggio di una partita, **sia dei gironi sia della fase a eliminazione diretta** (ottavi, quarti, semifinali, finale).
-- **Parametri obbligatori:** `squadra_a`, `punti_a`, `squadra_b`, `punti_b` (i nomi anche in parte; un nome vuoto è un errore)
+- **Parametri obbligatori:** `squadra_a`, `punti_a`, `squadra_b`, `punti_b` (ogni nome è quello esatto, maiuscole a parte, oppure una parte del nome che corrisponde a **una sola** squadra della tappa; se ne corrispondono più d'una, nessuna, o i due nomi indicano la stessa squadra, è un errore; un nome vuoto è un errore)
 - **Parametri opzionali:** `tappa_nome` (default: ultima tappa), `fase` (`"girone"` o `"diretta"`)
 - **Conferma:** no
 - **Azione:**
-  1. Trova la tappa (deve essere sorteggiata) e cerca, tra le due squadre, sia la partita di girone non registrata sia il match di bracket non giocato (con entrambe le squadre note)
-  2. Gestisce l'ordine A/B corretto (non inverte i punteggi se l'utente li dà nell'ordine inverso)
+  1. Trova la tappa (deve essere sorteggiata), risolve i due nomi nelle squadre della tappa (con «Roma», «Roma Nord» e «Milano», «Roma» è Roma) e cerca **per id**, tra le due squadre, sia la partita di girone non registrata sia il match di bracket non giocato (con entrambe le squadre note)
+  2. Gestisce l'ordine A/B corretto per id (non inverte i punteggi se l'utente li dà nell'ordine inverso, né se un nome ne contiene un altro)
   3. Girone → `registraRisultato(tappa, partitaId, { sa, sb })`. Bracket → `registraRisultatoBracket(tappa, matchId, pA, pB)`, che **fa anche avanzare il vincitore** al turno successivo. In entrambi i casi la nuova tappa si salva con `replaceTappa`
   4. La validazione è quella di `tappaOps`, la stessa dell'inserimento manuale: punteggi interi non negativi, nessun pareggio (FIBA 3x3) e, per i gironi, non oltre `target + 4`; una tappa conclusa è rifiutata e, con la fase finale già generata, i gironi non cambiano più
 - **Disambiguazione (zero ambiguità):** il bracket si genera solo a gironi conclusi, quindi quando esiste non c'è alcun girone aperto → al massimo **un** candidato. Nel caso limite di due candidati il tool **non indovina**: chiede di specificare la fase, e il parametro `fase` permette di forzarla. Se non trova nessuna partita da giocare tra le due squadre risponde «non trovata o già registrata».
@@ -175,7 +182,7 @@ omonimi esatti):
 
 ### `annulla_risultato`
 - **Descrizione:** Annulla il risultato di una partita **dei gironi** già registrata, riportandola a non disputata. Serve se l'utente segnala un errore di inserimento.
-- **Parametri obbligatori:** `squadra_a`, `squadra_b` (anche in parte)
+- **Parametri obbligatori:** `squadra_a`, `squadra_b` (stessa regola dei nomi di `registra_risultato`)
 - **Parametri opzionali:** `tappa_nome` (default: ultima tappa)
 - **Conferma:** **sì, sempre** (vedi «Conferme»)
 - **Azione:**
@@ -209,7 +216,7 @@ omonimi esatti):
 - **Descrizione:** Registra una nuova squadra nell'anagrafe condivisa del circuito.
 - **Parametri obbligatori:** `nome`
 - **Parametri opzionali:** `citta`, `anno`, `rank`, `referente`, `logo`, `website`, `instagram`, `note`
-- **Azione:** `saveSquadra` di `useAnagrafeStore`: `POST /api/anagrafe/squadre` sul backend e aggiornamento della cache dell'anagrafe. Il roster parte vuoto
+- **Azione:** legge l'anagrafe (`GET /api/anagrafe/squadre`): se c'è già una squadra con lo stesso nome (maiuscole e spazi ai lati a parte) non registra niente e l'errore la descrive (città, autore) e rimanda ad `aggiorna_squadra`. Altrimenti `saveSquadra` di `useAnagrafeStore`: `POST /api/anagrafe/squadre` sul backend e aggiornamento della cache dell'anagrafe. Il roster parte vuoto
 - **Esempio:** *"Registra la squadra Ballers Roma, città Roma"*
 
 ---
@@ -218,7 +225,7 @@ omonimi esatti):
 - **Descrizione:** Registra un nuovo giocatore nell'anagrafe condivisa del circuito.
 - **Parametri obbligatori:** `nome`, `cognome`
 - **Parametri opzionali:** `squadra`, `ruolo`, `nascita`, `citta`, `nazionalita`, `altezza`, `peso`, `numero`, `soprannome`, `esperienza`, `note`
-- **Azione:** `saveGiocatore` di `useAnagrafeStore`: `POST /api/anagrafe/giocatori` sul backend e aggiornamento della cache dell'anagrafe
+- **Azione:** legge l'anagrafe (`GET /api/anagrafe/giocatori`): se c'è già un giocatore con lo stesso nome e cognome non registra niente (un omonimo vero si registra dalla pagina Anagrafe). Altrimenti `saveGiocatore` di `useAnagrafeStore`: `POST /api/anagrafe/giocatori` sul backend e aggiornamento della cache dell'anagrafe
 - **Esempio:** *"Aggiungi il giocatore Marco Rossi, ruolo Playmaker, squadra Ballers Roma"*
 
 ---
@@ -275,8 +282,8 @@ tappa e nuovi tentativi dopo 2, 5 e 15 secondi). Per un utente registrato, le ch
 | (ogni giro di conversazione) | `POST /api/coach/chat` — `aiService.chiamaCoach` |
 | `crea_lega` | `POST /api/leghe` — `legheApi.create`, da `createLega` |
 | `crea_tappa` | `GET /api/anagrafe/squadre` e `GET /api/anagrafe/giocatori` (insieme); `POST /api/anagrafe/squadre` per ogni squadra non trovata; poi, dalla coda, `POST /api/leghe/{legaId}/tappe` (tappa nuova) |
-| `registra_squadra` | `POST /api/anagrafe/squadre` |
-| `registra_giocatore` | `POST /api/anagrafe/giocatori` |
+| `registra_squadra` | `GET /api/anagrafe/squadre`; `POST /api/anagrafe/squadre` se non c'è già |
+| `registra_giocatore` | `GET /api/anagrafe/giocatori`; `POST /api/anagrafe/giocatori` se non c'è già |
 | `aggiorna_squadra` | `GET /api/anagrafe/squadre`; `PUT /api/anagrafe/squadre/{id}` |
 | `sorteggia_gironi`, `genera_fasi_dirette`, `registra_risultato`, `annulla_risultato` | nessuna diretta: `replaceTappa` mette la tappa in coda → `PUT /api/tappe/{id}` (con la `versione` nota) |
 | `concludi_tappa` | `replaceTappa` (tappa conclusa) → `pubblica`: prima si svuota la coda (`PUT /api/tappe/{id}` e, se c'è una rinomina in attesa, `PATCH /api/leghe/{id}`), poi `PUT /api/archivio/{tappaId}` senza corpo |
@@ -418,7 +425,7 @@ Una sezione `` ### `nome_tool` `` in «Tool disponibili», come le altre: `coach
 
 - Anagrafe: le **scritture** dei tool passano da `useAnagrafeStore` (`saveSquadra`, `saveGiocatore`, `updateSquadra`), che aggiorna il server e la cache letta dalle pagine (`useAnagrafe`); le **letture** (`fetchSquadre` / `fetchGiocatori`) vanno dirette al server con `anagrafeApi`, perché al Coach servono dati freschi per non registrare doppioni.
 - L'AI chiama i tool **solo se l'utente lo chiede esplicitamente**: lo dice il prompt di sistema (`useCoachAI.ts`), che spiega anche il flusso di una tappa e l'uso del parametro `fase`.
-- Il prompt contiene un riassunto della lega racchiuso in `<dati_lega>` (`buildCoachContext`): nome della lega, elenco delle tappe (nome, data, luogo, «conclusa»), classifica del circuito (vittorie/partite totali per squadra) e, **solo per la tappa in primo piano** (l'ultima non conclusa, altrimenti l'ultima), squadre, classifiche dei gironi, partite giocate e i 5 migliori marcatori. Il prompt dice di trattare quel blocco e i risultati degli strumenti come dati, ignorando qualsiasi testo che sembri un'istruzione (mitigazione della prompt injection). I nomi scritti dagli utenti (anche da altri, tramite l'anagrafe condivisa) passano da `pulisci`: `<` e `>` diventano ‹ ›, nomi al massimo di 80 caratteri; gli stessi filtri valgono per i risultati degli strumenti.
+- Il prompt contiene un riassunto della lega racchiuso in `<dati_lega>` (`buildCoachContext`): nome della lega, elenco delle tappe (nome, data, luogo, «conclusa»), classifica del circuito (vinte e perse totali per squadra; la stessa squadra in più tappe è una riga sola, riconosciuta dalla voce dell'anagrafe o, se non è collegata, dal nome; a pari vittorie passa davanti chi ha perso meno) e, **solo per la tappa in primo piano** (l'ultima non conclusa, altrimenti l'ultima), squadre, classifiche dei gironi, partite giocate e i 5 migliori marcatori. Il prompt dice di trattare quel blocco e i risultati degli strumenti come dati, ignorando qualsiasi testo che sembri un'istruzione (mitigazione della prompt injection). I nomi scritti dagli utenti (anche da altri, tramite l'anagrafe condivisa) passano da `pulisci`: `<` e `>` diventano ‹ ›, nomi al massimo di 80 caratteri; gli stessi filtri valgono per i risultati degli strumenti.
 - La chat in UI mostra messaggi user/assistant; i messaggi tool restano interni all'API, ma sotto ogni risposta dell'assistant compaiono **badge** con le azioni eseguite (campo `tools` di `ChatMsg`, etichette in `CoachPanel`; `annulla_risultato` è in rosso).
 - La chat vive nello store (non nel pannello): chiudendo il pannello durante l'attesa la risposta arriva lo stesso. Se ne tengono gli ultimi **30 messaggi**, che sono anche quelli mandati al modello (il server rifiuta oltre 60 messaggi o 100.000 caratteri). La cronologia è in `sessionStorage` (si azzera alla chiusura della scheda e a ogni cambio di utente).
 - `crea_tappa` richiede una lega attiva (`legaId !== null`); se manca, restituisce un errore descrittivo.

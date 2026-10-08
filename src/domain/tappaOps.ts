@@ -7,7 +7,7 @@ import type { Partita, Regole, SquadraTappa, StatSheet, Tappa } from "../types";
 import { buildGironi } from "../utils/buildGironi";
 import { buildGironiSeeded } from "../utils/buildGironiSeeded";
 import { buildMatches } from "../utils/buildMatches";
-import { buildBracket, nextBracketSlot } from "../utils/buildBracket";
+import { buildBracket, nextBracketSlot, splitRounds } from "../utils/buildBracket";
 import { replaceById } from "../utils/replaceById";
 import { uid } from "../utils/uid";
 import { conteggio } from "../utils/testi";
@@ -228,6 +228,20 @@ export function perditaSquadra(tappa: Tappa, squadraId: string): string | null {
   return fraseEliminati([voce, ...datiDiGioco(tappa)]);
 }
 
+/** Che cosa cancella la X accanto a un giocatore del roster: le sue statistiche. Restano scritte nei tabellini delle partite, ma
+ *  contano solo i giocatori del roster (statGiocatori), quindi spariscono da tabellini, leader e statistiche, e riaggiungerlo crea
+ *  un giocatore nuovo. null = nessuna statistica, si toglie senza chiedere. */
+export function perditaGiocatore(tappa: Tappa, squadraId: string, pid: string): string | null {
+  const giocatore = tappa.squadre.find((s) => s.id === squadraId)?.giocatori?.find((p) => p.id === pid);
+  if (!giocatore) return null;
+  // Partite in cui il giocatore ha un tabellino, in una delle due schede
+  const conStatistiche = tappa.partite.filter((m) => pid in (m.pa ?? {}) || pid in (m.pb ?? {})).length;
+  if (conStatistiche === 0) return null;
+  const chi = nominata("Il giocatore", giocatore.nome);
+  return `${chi} ha statistiche in ${conteggio(conStatistiche, "partita", "partite")}: spariranno da tabellini, leader e statistiche `
+    + "della tappa.";
+}
+
 /** Aggiunge una squadra con il nome provvisorio «Squadra N». Il sorteggio fatto non vale più. */
 export function aggiungiSquadra(tappa: Tappa): Esito {
   if (tappa.conclusa) return ko(CONCLUSA);
@@ -321,6 +335,36 @@ export function registraRisultatoBracket(tappa: Tappa, matchId: string, pA: numb
       if (m.id === next.id) return { ...m, ...next.patch };
       return m;
     });
+  }
+  return ok({ ...tappa, bracket: nuovo });
+}
+
+/** Annulla il risultato di un match della fase finale («Correggi» del tabellone): il match torna da giocare e il vincitore
+ *  esce dal posto che occupava nel turno dopo. Ammesso solo finché quella gara non è stata giocata: altrimenti il turno dopo
+ *  conterrebbe una squadra che non ha più vinto, e il suo risultato va annullato prima. Un turno superato d'ufficio (`bye`)
+ *  non è un risultato e non si annulla. */
+export function annullaRisultatoBracket(tappa: Tappa, matchId: string): Esito {
+  if (tappa.conclusa) return ko(CONCLUSA);
+  const bracket = tappa.bracket ?? [];
+  const match = bracket.find((m) => m.id === matchId);
+  if (!match) return ko("Match non trovato nella fase a eliminazione diretta.");
+  if (match.bye) return ko(`${match.label}: turno superato d'ufficio, non c'è un risultato da annullare.`);
+  if (!match.done) return ko(`${match.label}: è già da giocare, non c'è niente da annullare.`);
+
+  let vincitoreId = match.squadraB;
+  if (match.pA > match.pB) vincitoreId = match.squadraA;
+  // La gara del turno dopo in cui il vincitore è avanzato (nessuna dopo la finale)
+  const turni = splitRounds(bracket);
+  const t = turni.findIndex((turno) => turno.some((m) => m.id === matchId));
+  const successiva = (turni[t + 1] ?? []).find((m) => m.squadraA === vincitoreId || m.squadraB === vincitoreId);
+  if (successiva?.done) return ko(`${successiva.label}: è già stata giocata. Annulla prima quel risultato.`);
+
+  let nuovo = replaceById(bracket, { ...match, pA: 0, pB: 0, done: false });
+  if (successiva) {
+    const libera = { ...successiva };
+    if (libera.squadraA === vincitoreId) libera.squadraA = null;
+    if (libera.squadraB === vincitoreId) libera.squadraB = null;
+    nuovo = replaceById(nuovo, libera);
   }
   return ok({ ...tappa, bracket: nuovo });
 }

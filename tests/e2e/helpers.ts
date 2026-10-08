@@ -42,6 +42,9 @@ export async function salvaPrimoMatchDelTabellone(page: Page) {
 /** Una risposta JSON del server finto */
 export const json = (corpo: unknown) => ({ status: 200, contentType: "application/json", body: JSON.stringify(corpo) });
 
+/** Una risposta JSON del server finto a una creazione: 201, come quello vero (lega, tappa, registrazione, anagrafe) */
+export const creato = (corpo: unknown) => ({ ...json(corpo), status: 201 });
+
 /** Risposta di errore del server finto, nel formato {message, timestamp} che manda quello vero */
 export const errore = (status: number, message: string) => ({
   status, contentType: "application/json", body: JSON.stringify({ message, timestamp: 1 }),
@@ -91,6 +94,8 @@ export function squadraDiAnna(id: string, nome: string) {
 /** Un utente registrato (Anna) senza il backend: la sessione e il token stanno già nel browser (tokenFinto, che non si rinnova) e le
  *  risposte del server le decide il test. Le leghe sono vuote; l'anagrafe è quella passata. Va chiamata prima di aprire la pagina. */
 export async function utenteRegistrato(page: Page, anagrafe: { giocatori?: unknown[]; squadre?: unknown[] } = {}) {
+  // All'avvio con una sessione salvata l'app aspetta che il server risponda prima di verificarla
+  await rispondiAlRisveglio(page);
   await page.addInitScript(([u, token]) => {
     localStorage.setItem("hoop3x3_token", token);
     localStorage.setItem("hoop3x3_session", JSON.stringify({ ...u, guest: false }));

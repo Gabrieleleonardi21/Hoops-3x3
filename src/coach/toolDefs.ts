@@ -44,8 +44,8 @@ export const COACH_TOOLS: ToolDef[] = [
       parameters: {
         type: "object",
         properties: {
-          squadra_a:  { type: "string", description: "Nome (o parte del nome) della prima squadra" },
-          squadra_b:  { type: "string", description: "Nome (o parte del nome) della seconda squadra" },
+          squadra_a:  { type: "string", description: "Nome della prima squadra (o una parte che si trova in una squadra sola)" },
+          squadra_b:  { type: "string", description: "Nome della seconda squadra (o una parte che si trova in una squadra sola)" },
           tappa_nome: { type: "string", description: "Nome della tappa (opzionale, default: ultima tappa)" },
         },
         required: ["squadra_a", "squadra_b"],
@@ -160,9 +160,9 @@ export const COACH_TOOLS: ToolDef[] = [
       parameters: {
         type: "object",
         properties: {
-          squadra_a:  { type: "string", description: "Nome (o parte del nome) della prima squadra" },
+          squadra_a:  { type: "string", description: "Nome della prima squadra (o una parte che si trova in una squadra sola)" },
           punti_a:    { type: "number", description: "Punteggio della prima squadra" },
-          squadra_b:  { type: "string", description: "Nome (o parte del nome) della seconda squadra" },
+          squadra_b:  { type: "string", description: "Nome della seconda squadra (o una parte che si trova in una squadra sola)" },
           punti_b:    { type: "number", description: "Punteggio della seconda squadra" },
           tappa_nome: { type: "string", description: "Nome della tappa (opzionale, default: ultima tappa)" },
           fase:       { type: "string", description: "Opzionale: 'girone' o 'diretta' (eliminazione diretta). Passalo SOLO se la stessa coppia di squadre si affronta in entrambe le fasi e bisogna distinguere." },

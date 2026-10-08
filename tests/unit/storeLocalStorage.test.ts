@@ -430,3 +430,78 @@ describe("la lega aperta per ultima: una chiave per l'ospite e una per il regist
     expect(localStorage.getItem(CHIAVE_OSPITE)).toBe("locale-1");
   });
 });
+
+describe("ospite con l'app aperta in due schede: nessuna scheda cancella ciò che ha scritto l'altra", () => {
+  const INDICE = "hoop3x3_leghe_index";
+  const LEGA_L1 = "hoop3x3_lega_l1";
+  /** Gli id delle leghe dell'indice nel browser */
+  const indiceNelBrowser = () => (JSON.parse(localStorage.getItem(INDICE) ?? "[]") as { id: string }[]).map((m) => m.id);
+  /** L'altra scheda scrive questa chiave: qui arriva l'evento storage (il browser lo manda solo alle altre schede) */
+  function scriveLAltraScheda(chiave: string, valore: string | null) {
+    if (valore === null) localStorage.removeItem(chiave);
+    else localStorage.setItem(chiave, valore);
+    window.dispatchEvent(new StorageEvent("storage", { key: chiave, newValue: valore }));
+  }
+  /** L'indice con «Estate» (la lega aperta qui) e «Inverno», creata nell'altra scheda */
+  const conInverno = JSON.stringify([{ id: "l1", nome: "Estate", ts: 1, nTappe: 1 }, { id: "l2", nome: "Inverno", ts: 2, nTappe: 0 }]);
+
+  beforeEach(() => {
+    localStorage.setItem(INDICE, JSON.stringify(store().leghe));
+    localStorage.setItem(LEGA_L1, JSON.stringify({ nome: "Estate", tappe: [tappa()] }));
+  });
+
+  it("una lega creata nell'altra scheda compare nell'elenco, e una modifica qui non la toglie dall'indice", () => {
+    scriveLAltraScheda(INDICE, conInverno);
+    expect(store().leghe.map((m) => m.nome)).toEqual(["Estate", "Inverno"]);
+    store().updateTappa("t1", { nome: "Finale" });
+    expect(indiceNelBrowser()).toEqual(["l1", "l2"]);
+  });
+
+  it("anche senza l'evento, l'indice si rilegge prima di riscriverlo", () => {
+    localStorage.setItem(INDICE, conInverno); // l'altra scheda ha scritto, l'evento non è ancora arrivato
+    store().updateTappa("t1", { nome: "Finale" });
+    expect(indiceNelBrowser()).toEqual(["l1", "l2"]);
+    store().setLegaName("Estate 2026");
+    expect(indiceNelBrowser()).toEqual(["l1", "l2"]);
+  });
+
+  it("creare o eliminare una lega qui tiene quella creata nell'altra scheda", async () => {
+    localStorage.setItem(INDICE, conInverno);
+    await store().createLega("Primavera");
+    expect(indiceNelBrowser()).toHaveLength(3);
+    expect(indiceNelBrowser().slice(0, 2)).toEqual(["l1", "l2"]);
+    await store().deleteLega("l1");
+    expect(indiceNelBrowser()).toContain("l2");
+    expect(indiceNelBrowser()).not.toContain("l1");
+  });
+
+  it("la lega aperta salvata nell'altra scheda si rilegge: la modifica successiva qui parte dalla sua versione", () => {
+    scriveLAltraScheda(LEGA_L1, JSON.stringify({ nome: "Estate", tappe: [{ ...tappa(), luogo: "Roma" }] }));
+    expect(store().tappe[0].luogo).toBe("Roma");
+    store().updateTappa("t1", { nome: "Finale" });
+    const salvata = JSON.parse(localStorage.getItem(LEGA_L1) ?? "null");
+    expect(salvata.tappe[0]).toMatchObject({ nome: "Finale", luogo: "Roma" });
+  });
+
+  it("la lega aperta eliminata nell'altra scheda si chiude anche qui, con l'avviso, e non si riscrive", () => {
+    scriveLAltraScheda(LEGA_L1, null);
+    expect(store()).toMatchObject({ legaId: null, tappe: [], syncError: "La lega aperta è stata eliminata in un'altra scheda di questo browser." });
+    expect(localStorage.getItem(LEGA_L1)).toBeNull();
+  });
+
+  it("con modifiche rimaste solo in memoria qui (spazio esaurito), la versione dell'altra scheda vale e l'avviso lo dice", () => {
+    useAppStore.setState({ spazioEsaurito: true });
+    scriveLAltraScheda(LEGA_L1, JSON.stringify({ nome: "Estate", tappe: [{ ...tappa(), luogo: "Roma" }] }));
+    expect(store().syncError).toMatch(/^La lega è stata salvata da un'altra scheda/);
+    expect(store().spazioEsaurito).toBe(false);
+  });
+
+  it("un registrato non guarda le chiavi dell'ospite", () => {
+    useAppStore.setState({ user: registrato });
+    const prima = store().tappe;
+    scriveLAltraScheda(LEGA_L1, null);
+    scriveLAltraScheda(INDICE, conInverno);
+    expect(store().tappe).toBe(prima);
+    expect(store().legaId).toBe("l1");
+  });
+});

@@ -7,14 +7,15 @@ import { archivioApi } from "../services/archivioApi";
 import { ApiError, esitoIgnoto, testoErrore } from "../services/api";
 import { createSaveQueue } from "./saveQueue";
 import {
-  ACTIVE_KEY_OSPITE, ACTIVE_KEY_REGISTRATO, INDEX_KEY, legaIllegibile, legaStorageKey, readLegaData, readSession, scrivi,
-  statoOspite,
+  ACTIVE_KEY_OSPITE, ACTIVE_KEY_REGISTRATO, INDEX_KEY, leggiDaRimandare, legaIllegibile, legaStorageKey, readIndex, readLegaData,
+  readSession, scrivi, scriviDaRimandare, statoOspite, type DaRimandare,
 } from "./memoriaBrowser";
 import {
   conflitto, creaVersioniTappe, mancaVersione, nonTrovata, riprovabile, tappaSulServer, unoDeiNostri, type TappaLetta,
 } from "./versioniTappe";
 import {
-  SPAZIO_ESAURITO, SPAZIO_ESAURITO_CAMBIO, SPAZIO_ESAURITO_LEGA, eliminazioneTappaInConflitto, pubblicazioneSenzaSalvataggio,
+  LEGA_ELIMINATA_IN_ALTRA_SCHEDA, LEGA_RILETTA_DA_ALTRA_SCHEDA, SPAZIO_ESAURITO, SPAZIO_ESAURITO_CAMBIO, SPAZIO_ESAURITO_LEGA,
+  eliminazioneTappaInConflitto, pubblicazioneSenzaSalvataggio,
   salvataggioRifiutato, tappaEliminataAltrove, tappaModificataAltrove,
 } from "../utils/testi";
 
@@ -123,6 +124,12 @@ function getInitialState(): Pick<AppState, "user" | "legaId" | "leghe" | "legaNa
 /** Attesa dopo l'ultima modifica prima di salvare una tappa o rinominare la lega */
 const SAVE_DELAY = 400;
 
+/** Il browser rifiuta una richiesta keepalive se, con quelle già in volo, i corpi superano 64 KiB (specifica Fetch): una tappa con i
+ *  tabellini di 16 squadre pesa 34-46 KiB, una da 32 squadre 64-89 KiB. Si resta un po' sotto, per le altre richieste keepalive */
+const SOGLIA_KEEPALIVE = 60 * 1024;
+/** Byte del corpo JSON di una richiesta, come lo manda api.ts */
+const byteDelCorpo = (corpo: unknown) => new TextEncoder().encode(JSON.stringify(corpo)).length;
+
 const initial = getInitialState();
 
 export const useAppStore = create<AppState>((set, get) => {
@@ -162,6 +169,13 @@ export const useAppStore = create<AppState>((set, get) => {
     if (scriviOspite(...coppie)) spazioTornato();
   };
   const writeIndex = (leghe: LegaMeta[]) => scriviOspite([INDEX_KEY, JSON.stringify(leghe)]);
+  /** Ospite: l'indice delle leghe da cui partire per riscriverlo, riletto dal browser. Un'altra scheda può averci aggiunto una lega:
+   *  riscrivere quello in memoria la farebbe sparire dall'elenco. Le leghe che conosce solo questa scheda restano, in fondo */
+  const indiceAttuale = (): LegaMeta[] => {
+    const nelBrowser = readIndex();
+    const soloQui = get().leghe.filter((m) => !nelBrowser.some((x) => x.id === m.id));
+    return [...nelBrowser, ...soloQui];
+  };
   /** Scrive i dati e l'indice di una lega nuova dell'ospite (creata o importata): tutto o niente. Senza spazio non si crea niente,
    *  e l'errore dice perché, come per ogni altro rifiuto: l'ospite non ha un server, e 507 è lo stato che userebbe (come il 404 di
    *  una lega che non si legge). Se i dati entrano ma l'indice no, i dati si tolgono: una lega fuori dall'indice si aprirebbe al
@@ -207,7 +221,7 @@ export const useAppStore = create<AppState>((set, get) => {
   const persistLocal = () => {
     const s = get();
     if (!s.legaId) return;
-    const leghe = s.leghe.map((m) =>
+    const leghe = indiceAttuale().map((m) =>
       m.id === s.legaId ? { ...m, nTappe: s.tappe.length, ts: Date.now() } : m
     );
     salvaLegaAperta([legaStorageKey(s.legaId), JSON.stringify({ nome: s.legaName, tappe: s.tappe })], [INDEX_KEY, JSON.stringify(leghe)]);
@@ -593,23 +607,140 @@ export const useAppStore = create<AppState>((set, get) => {
   // ancora create), comprese quelle di una richiesta in corso, che il browser interrompe chiudendo la pagina. Restano in
   // coda: se la pagina torna dalla cache del browser vengono rinviate, e rinviarle non fa danni (la PUT sostituisce
   // tutta la tappa, una POST già arrivata riceve un 409). La risposta non si legge: se il server le salva, il rinvio con la
-  // versione di prima riceve un 409 che dopoUnConflitto riconosce come proprio (sono tra i corpi senza risposta)
-  if (typeof window !== "undefined") {
-    window.addEventListener("pagehide", () => {
-      for (const t of coda.nonConfermate()) {
-        versioni.inviataSenzaRisposta(t);
-        const legaId = daCreare.get(t.id);
-        if (legaId === undefined) {
-          legheApi.putTappa(versioni.conVersione(t), true).catch(() => {});
-          continue;
-        }
-        legheApi.addTappa(legaId, t, true).catch(() => {});
+  // versione di prima riceve un 409 che dopoUnConflitto riconosce come proprio (sono tra i corpi senza risposta).
+  // Oltre la soglia keepalive (SOGLIA_KEEPALIVE, contando le tappe già partite) il browser rifiuterebbe la richiesta: quella versione
+  // resta nel browser (DA_RIMANDARE_KEY) e parte alla prossima apertura (rimandaRimaste)
+  const allaChiusura = () => {
+    let spazio = SOGLIA_KEEPALIVE;
+    const rimaste: DaRimandare[] = [];
+    const userId = get().user?.id;
+    for (const t of coda.nonConfermate()) {
+      const legaNuova = daCreare.get(t.id);
+      const corpo = versioni.conVersione(t);
+      const peso = byteDelCorpo(corpo);
+      if (peso > spazio) {
+        const legaId = legaNuova ?? legaDi(t.id);
+        if (userId && legaId) rimaste.push({ userId, legaId, nuova: legaNuova !== undefined, tappa: corpo });
+        continue;
       }
-      // Le DELETE non ancora confermate, comprese quelle che aspettano un salvataggio in volo: senza keepalive si perderebbero e la
-      // tappa ricomparirebbe. Se la pagina torna dalla cache del browser la DELETE in attesa parte lo stesso, e il suo 404 si tollera
-      for (const id of eliminazioniInAttesa.keys()) legheApi.removeTappa(id, true).catch(() => {});
+      spazio -= peso;
+      versioni.inviataSenzaRisposta(t);
+      if (legaNuova === undefined) {
+        legheApi.putTappa(corpo, true).catch(() => {});
+        continue;
+      }
+      legheApi.addTappa(legaNuova, t, true).catch(() => {});
+    }
+    // Una versione più nuova della stessa tappa sostituisce quella rimasta da una chiusura precedente
+    if (rimaste.length) {
+      const prima = leggiDaRimandare().filter((v) => !rimaste.some((r) => r.tappa.id === v.tappa.id));
+      scriviDaRimandare([...prima, ...rimaste]);
+    }
+    // Le DELETE non ancora confermate, comprese quelle che aspettano un salvataggio in volo: senza keepalive si perderebbero e la
+    // tappa ricomparirebbe. Se la pagina torna dalla cache del browser la DELETE in attesa parte lo stesso, e il suo 404 si tollera
+    for (const id of eliminazioniInAttesa.keys()) legheApi.removeTappa(id, true).catch(() => {});
+  };
+
+  /** La pagina torna dalla cache del browser (indietro/avanti): la coda è ancora viva e rimanda da sé le versioni rimaste nel browser
+   *  alla chiusura; rimandarle anche alla prossima apertura darebbe un 409 su dati già salvati */
+  const tornataDallaCache = () => {
+    const inCoda = new Set(coda.nonConfermate().map((t) => t.id));
+    scriviDaRimandare(leggiDaRimandare().filter((v) => !inCoda.has(v.tappa.id)));
+  };
+
+  /** Prossima apertura (rehydrate): rimanda le tappe rimaste nel browser alla chiusura, prima di leggere le leghe, così la lettura le
+   *  trova già salvate. Un errore temporaneo le lascia lì per la volta dopo; un 409 vuol dire che intanto un altro dispositivo ha
+   *  salvato la tappa, e vale la sua (con l'avviso dei conflitti), a meno che il server non abbia proprio questa versione: il
+   *  salvataggio a scheda nascosta (visibilitychange), partito prima della chiusura, può essere arrivato; un altro rifiuto va nella
+   *  barra degli avvisi */
+  const rimandaRimaste = async () => {
+    const userId = get().user?.id;
+    const tutte = leggiDaRimandare();
+    const mie = tutte.filter((v) => v.userId === userId);
+    if (mie.length === 0) return;
+    const restano = tutte.filter((v) => v.userId !== userId);
+    for (const v of mie) {
+      try {
+        await mandaRimasta(v);
+      } catch (e) {
+        if (riprovabile(e)) restano.push(v);
+        else if (conflitto(e)) await conflittoDiUnaRimasta(v);
+        else reportError(e, `Salvataggio della tappa «${v.tappa.nome}», rimasto dalla chiusura della pagina, non riuscito`);
+      }
+    }
+    scriviDaRimandare(restano);
+  };
+  /** 409 di una tappa rimasta: se il server ha già questa stessa versione (impronta, versione esclusa) era arrivata prima della
+   *  chiusura e non c'è niente da dire; altrimenti vale la tappa dell'altro dispositivo, con l'avviso. Se la lega non si legge,
+   *  l'avviso resta: meglio uno di troppo che una modifica persa in silenzio */
+  const conflittoDiUnaRimasta = async (v: DaRimandare) => {
+    try {
+      const letta = await tappaSulServer(v.legaId, v.tappa.id);
+      if (letta && unoDeiNostri([v.tappa], letta.tappa)) return;
+    } catch { /* lettura non riuscita: si avvisa comunque */ }
+    avvisaConflitto(v.tappa.id, tappaModificataAltrove(v.tappa.nome));
+  };
+  /** Una tappa rimasta: PUT con la versione su cui si basa, oppure POST se non era ancora creata. Un 409 della POST vuol dire che la
+   *  POST partita prima della chiusura è arrivata: questa versione, più recente, la sostituisce con la versione letta dal server */
+  const mandaRimasta = async (v: DaRimandare) => {
+    if (!v.nuova) {
+      await legheApi.putTappa(v.tappa);
+      return;
+    }
+    try {
+      await legheApi.addTappa(v.legaId, v.tappa);
+    } catch (e) {
+      if (!conflitto(e)) throw e;
+      const letta = await tappaSulServer(v.legaId, v.tappa.id);
+      if (!letta) throw e;
+      await legheApi.putTappa({ ...v.tappa, versione: letta.tappa.versione });
+    }
+  };
+
+  if (typeof window !== "undefined") {
+    window.addEventListener("pagehide", allaChiusura);
+    window.addEventListener("pageshow", (e) => { if (e.persisted) tornataDallaCache(); });
+    // Scheda nascosta (cambio di scheda o di app, spesso l'ultimo momento prima della chiusura su mobile): si salva subito, con una
+    // richiesta normale, senza aspettare il ritardo della coda e senza il limite di keepalive
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden" && isRemote()) void get().salvaTutto();
+    });
+    // Chiusura con versioni non ancora confermate dal server: il browser chiede conferma («Uscire dal sito?»)
+    window.addEventListener("beforeunload", (e) => {
+      if (!isRemote() || (coda.nonConfermate().length === 0 && eliminazioniInAttesa.size === 0)) return;
+      e.preventDefault();
     });
   }
+
+  /** Ospite con l'app aperta in più schede: ogni scheda scrive la lega e l'indice dalla sua memoria, quindi deve sapere che cosa ha
+   *  scritto l'altra. L'evento storage arriva solo alle altre schede dello stesso browser, dopo una scrittura riuscita.
+   *  - Indice cambiato: l'elenco delle leghe si rilegge (una lega creata o eliminata là compare o sparisce anche qui).
+   *  - Lega aperta salvata là: si rilegge, e da qui si continua dalla versione dell'altra scheda (ogni modifica dell'ospite è già
+   *    nel browser, quindi non si perde niente; se qui c'erano modifiche solo in memoria per lo spazio esaurito, l'avviso lo dice).
+   *  - Lega aperta eliminata là: si chiude anche qui, con l'avviso, invece di riscriverla al prossimo salvataggio. */
+  const allineaConAltraScheda = (e: StorageEvent) => {
+    const s = get();
+    if (!s.user?.guest) return;
+    if (e.key === INDEX_KEY) {
+      set({ leghe: readIndex() });
+      return;
+    }
+    if (!s.legaId || e.key !== legaStorageKey(s.legaId)) return;
+    if (e.newValue === null) {
+      localStorage.removeItem(ACTIVE_KEY_OSPITE);
+      set({ legaId: null, legaName: "", tappe: [], syncError: LEGA_ELIMINATA_IN_ALTRA_SCHEDA, spazioEsaurito: false });
+      return;
+    }
+    const letta = readLegaData(s.legaId);
+    if (!letta) {
+      set({ syncError: legaIllegibile(s.leghe, s.legaId) });
+      return;
+    }
+    let syncError = letta.avviso ?? s.syncError;
+    if (s.spazioEsaurito) syncError = LEGA_RILETTA_DA_ALTRA_SCHEDA;
+    set({ legaName: letta.lega.nome, tappe: letta.lega.tappe, syncError, spazioEsaurito: false });
+  };
+  if (typeof window !== "undefined") window.addEventListener("storage", allineaConAltraScheda);
 
   let renameTimer = 0;
   /** PATCH della rinomina che aspetta il suo timer; null se non ce n'è */
@@ -677,7 +808,7 @@ export const useAppStore = create<AppState>((set, get) => {
       salvaLegaApertaPrimaDelCambio();
       const id = uid();
       const meta: LegaMeta = { id, nome: trimmed, ts: Date.now(), nTappe: 0 };
-      const leghe = [...get().leghe, meta];
+      const leghe = [...indiceAttuale(), meta];
       scriviLegaNuova(id, { nome: trimmed, tappe: [] }, leghe);
       ricordaLega(id);
       set({ legaId: id, leghe, legaName: trimmed, tappe: [] });
@@ -728,8 +859,11 @@ export const useAppStore = create<AppState>((set, get) => {
       } else {
         localStorage.removeItem(legaStorageKey(id));
       }
-      const leghe = get().leghe.filter((m) => m.id !== id);
-      if (!isRemote()) writeIndex(leghe);
+      let leghe = get().leghe.filter((m) => m.id !== id);
+      if (!isRemote()) {
+        leghe = indiceAttuale().filter((m) => m.id !== id);
+        writeIndex(leghe);
+      }
       // I rifiuti delle tappe della lega non valgono più, anche se non è quella aperta: non c'è più niente da salvare
       togliRifiutateDellaLega(id);
       versioni.dimenticaCopieDellaLega(id);
@@ -753,7 +887,10 @@ export const useAppStore = create<AppState>((set, get) => {
       set({ legaName });
       const s = get();
       if (!s.legaId) return;
-      const leghe = s.leghe.map((m) => m.id === s.legaId ? { ...m, nome: legaName, ts: Date.now() } : m);
+      // L'ospite riparte dall'indice del browser (indiceAttuale): un'altra scheda può averlo cambiato
+      let base = s.leghe;
+      if (!isRemote()) base = indiceAttuale();
+      const leghe = base.map((m) => m.id === s.legaId ? { ...m, nome: legaName, ts: Date.now() } : m);
       set({ leghe });
       if (isRemote()) {
         // L'input chiama setLegaName a ogni tasto: una sola PATCH a fine digitazione (o prima, da salvaTutto)
@@ -822,7 +959,7 @@ export const useAppStore = create<AppState>((set, get) => {
       salvaLegaApertaPrimaDelCambio();
       const id = uid();
       const meta: LegaMeta = { id, nome: trimmed, ts: Date.now(), nTappe: tappe.length };
-      const leghe = [...get().leghe, meta];
+      const leghe = [...indiceAttuale(), meta];
       scriviLegaNuova(id, { nome: trimmed, tappe }, leghe);
       ricordaLega(id);
       set({ legaId: id, leghe, legaName: trimmed, tappe });
@@ -877,6 +1014,7 @@ export const useAppStore = create<AppState>((set, get) => {
       if (isRemote()) {
         set({ ready: false });
         try {
+          await rimandaRimaste();
           const leghe = await legheApi.list();
           // In mancanza della propria, la chiave storica (scritta quando ce n'era una sola per tutti): l'elenco del server qui sotto
           // scarta già l'id che non è di questo utente, e il ramo senza lega toglie solo la chiave del registrato

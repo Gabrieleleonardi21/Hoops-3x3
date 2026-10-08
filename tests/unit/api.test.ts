@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { api, token, ApiError, suSessioneFinita, avviaRinnovoAutomatico, testoErrore, svegliaServer } from "../../src/services/api";
+import {
+  api, token, ApiError, suSessioneFinita, avviaRinnovoAutomatico, testoErrore, svegliaServer, attendiServer,
+} from "../../src/services/api";
 import { legheApi } from "../../src/services/legheApi";
 import { askCoach } from "../../src/services/aiService";
 import type { Tappa } from "../../src/types";
@@ -399,7 +401,9 @@ describe("api: tempo massimo delle richieste", () => {
     vi.useRealTimers();
   });
 
-  it("se il rinnovo non risponde, dopo 15 secondi la richiesta fallisce con ApiError e il token resta", async () => {
+  // Il rinnovo ha un tempo massimo di 90 secondi, non 15: un rinnovo abbandonato mentre il server si avvia, che il server esegue lo
+  // stesso, ruota il refresh token e il cookie nuovo si perde (l'utente si troverebbe fuori al rinnovo dopo)
+  it("se il rinnovo non risponde, dopo 90 secondi la richiesta fallisce con ApiError e il token resta", async () => {
     const vecchio = jwt(3600);
     token.set(vecchio);
     let sblocca = () => {};
@@ -415,13 +419,13 @@ describe("api: tempo massimo delle richieste", () => {
     let esito: unknown = "in attesa";
     const richiesta = api("/api/leghe").then(() => { esito = "riuscita"; }, (e: unknown) => { esito = e; });
     try {
-      await vi.advanceTimersByTimeAsync(14_999);
+      await vi.advanceTimersByTimeAsync(89_999);
       expect(esito).toBe("in attesa");
       await vi.advanceTimersByTimeAsync(1);
       expect(esito).toBeInstanceOf(ApiError);
       expect(esito).toMatchObject({ status: 401, message: SCADUTO });
       expect(token.get()).toBe(vecchio);
-      expect(AbortSignal.timeout).toHaveBeenCalledWith(15_000);
+      expect(AbortSignal.timeout).toHaveBeenCalledWith(90_000);
     } finally {
       sblocca();
       await richiesta;
@@ -438,8 +442,8 @@ describe("api: tempo massimo delle richieste", () => {
       });
     });
     const esiti = Promise.allSettled([api("/api/a"), api("/api/b")]);
-    // Primo rinnovo (in anticipo) interrotto dopo 15 secondi, secondo (dopo il 401) dopo altri 15
-    await vi.advanceTimersByTimeAsync(30_000);
+    // Primo rinnovo (in anticipo) interrotto dopo 90 secondi, secondo (dopo il 401) dopo altri 90
+    await vi.advanceTimersByTimeAsync(180_000);
     const [a, b] = await esiti;
     expect(a).toMatchObject({ status: "rejected", reason: { status: 401 } });
     expect(b).toMatchObject({ status: "rejected", reason: { status: 401 } });
@@ -629,5 +633,61 @@ describe("svegliaServer", () => {
     expect(() => svegliaServer()).not.toThrow();
     // lascia completare la promessa rifiutata: se nessuno la gestisse, Vitest segnalerebbe l'errore
     await new Promise((r) => setTimeout(r, 0));
+  });
+});
+
+describe("attendiServer: all'avvio si aspetta che il server risponda (avvio a freddo su Render)", () => {
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it("riprova ogni 2 secondi finché /actuator/health risponde 200, anche dopo un 503", async () => {
+    fetchFinto
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce(errore(503, "Servizio non disponibile"))
+      .mockResolvedValueOnce(ok({ status: "UP" }));
+    let esito: boolean | null = null;
+    void attendiServer().then((r) => { esito = r; });
+    await vi.advanceTimersByTimeAsync(3_999);
+    expect(esito).toBeNull();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(esito).toBe(true);
+    expect(fetchFinto).toHaveBeenCalledTimes(3);
+    expect(chiamata(0).url).toBe("/actuator/health");
+  });
+
+  it("se non risponde entro 90 secondi rinuncia: false, senza eccezioni", async () => {
+    fetchFinto.mockRejectedValue(new TypeError("Failed to fetch"));
+    let esito: boolean | null = null;
+    void attendiServer().then((r) => { esito = r; });
+    await vi.advanceTimersByTimeAsync(89_999);
+    expect(esito).toBeNull();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(esito).toBe(false);
+  });
+});
+
+describe("askCoach: gli errori del server diventano un AiError con il codice giusto", () => {
+  const domanda = [{ role: "user" as const, content: "Come si sorteggia?" }];
+
+  it.each([
+    [503, "UNAVAILABLE", "Coach AI non configurato"],
+    [500, "SERVER", "Errore interno"],
+    [502, "SERVER", "Bad gateway"],
+  ])("%s → %s, con il messaggio del server", async (status, code, message) => {
+    token.set(jwt(3600));
+    fetchFinto.mockResolvedValue(errore(status, message));
+    await expect(askCoach("Sei il Coach", domanda)).rejects.toMatchObject({ code, message });
+  });
+
+  it("una risposta con un errore nel corpo (formato Groq) è un errore del server", async () => {
+    token.set(jwt(3600));
+    fetchFinto.mockResolvedValue(ok({ error: { message: "modello non disponibile" } }));
+    await expect(askCoach("Sei il Coach", domanda)).rejects.toMatchObject({ code: "SERVER", message: "modello non disponibile" });
+  });
+
+  it("senza testo nella risposta si mostra la frase di cortesia, non una stringa vuota", async () => {
+    token.set(jwt(3600));
+    fetchFinto.mockResolvedValue(ok({ choices: [{ message: { content: "   " } }] }));
+    await expect(askCoach("Sei il Coach", domanda)).resolves.toBe("Non ho una risposta ora, riprova.");
   });
 });

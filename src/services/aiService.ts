@@ -41,6 +41,9 @@ export interface ToolCall {
 export type AiErrorCode = "AUTH" | "RATE" | "UNAVAILABLE" | "BAD_REQUEST" | "SERVER" | "NETWORK";
 
 export class AiError extends Error {
+  /** Strumenti già eseguiti quando l'errore è arrivato a metà del ciclo (askCoachWithTools): le azioni sono avvenute, e la chat
+   *  le mostra anche con l'errore */
+  calledTools: string[] = [];
   constructor(public code: AiErrorCode, message: string) {
     super(message);
   }
@@ -53,6 +56,30 @@ interface ApiMsg {
   tool_calls?: ToolCall[];
   tool_call_id?: string;
 }
+
+/** Limiti di ogni richiesta al Coach del server (CoachAiService.valida): oltre risponde 400. Messaggi compreso il preambolo, e
+ *  caratteri dei messaggi in JSON */
+const MAX_MESSAGGI_SERVER = 60;
+const MAX_CARATTERI_SERVER = 100_000;
+
+/** Fa stare `messages` nei limiti del server prima di una chiamata, togliendo i messaggi più vecchi della cronologia (subito dopo
+ *  il preambolo). Non tocca il preambolo, la domanda di adesso (l'ultimo della cronologia) né gli scambi con gli strumenti di questa
+ *  richiesta, che vengono dopo. `cronologia` = quanti messaggi della cronologia restano; restituisce il nuovo numero, e `ciSta` false
+ *  se nemmeno così la richiesta rientra */
+function neiLimiti(messages: ApiMsg[], cronologia: number): { cronologia: number; ciSta: boolean } {
+  const troppi = () => messages.length > MAX_MESSAGGI_SERVER || JSON.stringify(messages).length > MAX_CARATTERI_SERVER;
+  while (troppi() && cronologia > 1) {
+    messages.splice(1, 1);
+    cronologia--;
+  }
+  return { cronologia, ciSta: !troppi() };
+}
+
+/** Il ciclo ha eseguito delle azioni ma la conversazione non entra più in una richiesta: si chiude senza chiedere il riepilogo */
+const TROPPO_LUNGA = "Ho eseguito le azioni indicate qui sotto, ma la conversazione è diventata troppo lunga per un riepilogo: "
+  + "cancella la chat per continuare.";
+/** Come sopra, ma senza nessuna azione eseguita: il preambolo e la domanda da soli non entrano nei limiti del server */
+const TROPPO_LUNGA_SENZA_AZIONI = "La conversazione è diventata troppo lunga per una richiesta al Coach: cancella la chat per continuare.";
 
 /** Tempo massimo della chat (ms): il server aspetta il modello fino a 60 secondi (CoachAiService), quindi il client
  *  aspetta un po' di più, per ricevere la risposta o l'errore del server invece di abbandonare prima */
@@ -143,6 +170,10 @@ async function eseguiProtetto(onToolCall: OnToolCall, name: string, argomenti: s
  * fatta (riuscita o no) non viene rieseguita; se un round contiene solo ricicli il loop si chiude,
  * evitando di bruciare i round con un modello bloccato che ripete la stessa azione.
  *
+ * Prima di ogni chiamata la richiesta si fa stare nei limiti del server (neiLimiti): 30 messaggi di cronologia più 8 giri di
+ * strumenti superano i 60 messaggi che il server accetta. Se un errore (rete, 429, server) interrompe il ciclo a metà, l'AiError
+ * porta in `calledTools` gli strumenti già eseguiti: le loro azioni sono avvenute.
+ *
  * @param onToolCall - vedi OnToolCall: un errore lanciato diventa il risultato dello strumento
  * @param segnale - interrompe la richiesta: prima di ogni chiamata al modello e di ogni strumento si controlla, e se è
  *   interrotta la promessa è rifiutata con il motivo del segnale
@@ -161,6 +192,30 @@ export async function askCoachWithTools(
   ];
 
   const calledTools: string[] = [];
+  try {
+    return await ciclo(messages, history.length, tools, onToolCall, calledTools, segnale);
+  } catch (e) {
+    if (e instanceof AiError) e.calledTools = [...calledTools];
+    throw e;
+  }
+}
+
+/** Il ciclo di askCoachWithTools; `calledTools` si riempie man mano, così chi chiama lo ha anche se il ciclo lancia */
+async function ciclo(
+  messages: ApiMsg[],
+  nCronologia: number,
+  tools: ToolDef[],
+  onToolCall: OnToolCall,
+  calledTools: string[],
+  segnale?: AbortSignal,
+): Promise<{ text: string; calledTools: string[] }> {
+  let cronologia = nCronologia;
+  /** Prepara la prossima chiamata nei limiti del server; false se non ci sta */
+  const ciSta = () => {
+    const esito = neiLimiti(messages, cronologia);
+    cronologia = esito.cronologia;
+    return esito.ciSta;
+  };
   // Firme (nome + argomenti) dei tool già eseguiti in questa richiesta: blocca i ricicli
   // identici di un modello bloccato (es. richiama crea_tappa che risponde "già creata").
   const seen = new Set<string>();
@@ -170,6 +225,8 @@ export async function askCoachWithTools(
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     fermaSeAbbandonata(segnale);
+    // Un altro giro non entra nei limiti del server: si passa alla chiusura
+    if (!ciSta()) break;
     const res = await chiamaCoach(messages, tools);
 
     // Nessun tool richiesto: è la risposta finale da mostrare in chat
@@ -205,6 +262,10 @@ export async function askCoachWithTools(
 
   // Cap raggiunto o loop interrotto: una chiamata finale senza tool forza la risposta di chiusura.
   fermaSeAbbandonata(segnale);
+  if (!ciSta()) {
+    if (calledTools.length === 0) return { text: TROPPO_LUNGA_SENZA_AZIONI, calledTools };
+    return { text: TROPPO_LUNGA, calledTools };
+  }
   const final = await chiamaCoach(messages);
   return { text: final.content || "Fatto!", calledTools };
 }

@@ -148,6 +148,8 @@ export function useTappa(id: string | undefined) {
   const perditaTappa = () => perdita(ops.perditaTappa);
   /** Che cosa cancellerebbe «Rimuovi squadra»; null per una squadra appena aggiunta, che si toglie senza chiedere */
   const perditaSquadra = (teamId: string) => perdita((t) => ops.perditaSquadra(t, teamId));
+  /** Che cosa cancellerebbe la X accanto a un giocatore; null se non ha statistiche */
+  const perditaGiocatore = (teamId: string, pid: string) => perdita((t) => ops.perditaGiocatore(t, teamId, pid));
   /** Che cosa cancellerebbe «Riapri»: la pubblicazione nell'archivio, che solo chi ha un account può avere. Una tappa che non è
    *  in archivio non ha niente da perdere (il testo direbbe il falso); nel dubbio, se la verifica non è riuscita, si avverte. */
   const perditaRiapertura = () => {
@@ -166,11 +168,21 @@ export function useTappa(id: string | undefined) {
 
   /** Collega una squadra tappa alla RegSquadra e ne copia nome, logo, rank, website.
    *  Lo chiama la pagina dopo aver atteso il server: l'elenco squadre si rifà dalla tappa di adesso, così quello che
-   *  nel frattempo è stato scritto nelle altre squadre resta. */
-  const applyReg = (teamId: string, reg: RegSquadra) =>
+   *  nel frattempo è stato scritto nelle altre squadre resta. `nome` è il nome (senza spazi ai lati) per cui è partita la ricerca:
+   *  se intanto la squadra ha un altro nome (l'utente ha continuato a scrivere) o è già collegata (la risposta di un'uscita dal
+   *  campo successiva è arrivata prima) non si collega niente, altrimenti la risposta più lenta vincerebbe.
+   *  @returns true se ha collegato */
+  const applyReg = (teamId: string, reg: RegSquadra, nome: string): boolean => {
+    const adesso = tappaCorrente(id)?.squadre.find((s) => s.id === teamId);
+    if (!adesso || adesso.regId || adesso.nome.trim() !== nome) return false;
     aggiornaSquadra(teamId, (s) => ({
       ...s, regId: reg.id, nome: reg.nome, logo: reg.logo, rank: reg.rank, website: reg.website,
     }));
+    return true;
+  };
+  /** «Scollega»: la squadra esce dall'anagrafe e torna modificabile (nome, logo, ranking e sito restano quelli che ha). Serve
+   *  quando il collegamento è partito da un nome scritto a metà. La voce dell'anagrafe resta: si elimina dalla pagina Anagrafe */
+  const unlinkReg = (teamId: string) => aggiornaSquadra(teamId, (s) => ({ ...s, regId: undefined }));
 
   /** Sincronizza tutte le squadre della tappa con l'anagrafe `regs`, la cache (usato all'apertura della pagina).
    *  Cerca prima per regId, poi per nome case-insensitive. Non tocca le squadre con nome placeholder ("Squadra N") né le tappe
@@ -339,8 +351,8 @@ export function useTappa(id: string | undefined) {
   return {
     user, legaName, tappa, statoArchivio, pubblicando: archivio.pubblicando,
     nameOf, playersOf, playerNameById, teamComplete,
-    setInfo, rinomina, perditaRisultati, perditaTappa, perditaSquadra, perditaRiapertura, setNGironi, setRule, addTeam, removeTeam,
-    renameTeam, setTeamRank, setTeamWebsite, setTeamLogo, applyReg, syncFromAnagrafe,
+    setInfo, rinomina, perditaRisultati, perditaTappa, perditaSquadra, perditaGiocatore, perditaRiapertura, setNGironi, setRule, addTeam, removeTeam,
+    renameTeam, setTeamRank, setTeamWebsite, setTeamLogo, applyReg, unlinkReg, syncFromAnagrafe,
     addPlayer, renamePlayer, removePlayer,
     sorteggia, saveScore, reopenScore,
     addEvent, removeEvent,

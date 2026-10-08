@@ -74,7 +74,7 @@ export function ArchivioTappaView({ t, lega, autore }: { t: Tappa; lega?: string
                 const isOpen = open === m.id;
                 const footer = hasDetails ? (
                   <div className="flex flex-col gap-2">
-                    <Button variant="link" className="self-start" onClick={() => setOpen(isOpen ? null : m.id)}>
+                    <Button variant="link" className="no-print self-start" onClick={() => setOpen(isOpen ? null : m.id)}>
                       {isOpen ? "Nascondi dettagli" : "Statistiche ed eventi"}
                     </Button>
                     {isOpen && (

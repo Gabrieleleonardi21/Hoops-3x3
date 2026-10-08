@@ -20,6 +20,13 @@ export const SPAZIO_ESAURITO_CAMBIO =
   SPAZIO_ESAURITO_INIZIO + "le modifiche della lega aperta non sono salvate. Esportala («Esporta JSON») o libera spazio, "
   + "eliminando le leghe che non usi, prima di aprirne o crearne un'altra.";
 
+/** Ospite con l'app aperta in due schede: l'altra scheda ha eliminato la lega aperta qui, che quindi si chiude */
+export const LEGA_ELIMINATA_IN_ALTRA_SCHEDA = "La lega aperta è stata eliminata in un'altra scheda di questo browser.";
+/** Ospite con due schede: l'altra ha salvato la lega aperta mentre qui c'erano modifiche rimaste solo in memoria (spazio esaurito).
+ *  Vale la versione salvata dall'altra scheda */
+export const LEGA_RILETTA_DA_ALTRA_SCHEDA = "La lega è stata salvata da un'altra scheda di questo browser: questa scheda mostra "
+  + "la sua versione, e le modifiche fatte qui che non si erano salvate (spazio esaurito) non ci sono più.";
+
 /** «Esci» dell'ospite mentre la lega aperta ha modifiche che il browser non ha salvato (spazio esaurito, anche con l'avviso chiuso):
  *  esistono solo in questa pagina. Il testo della finestra «Uscire senza salvare?», con la via d'uscita per tenerle */
 export const USCITA_OSPITE_NON_SALVATA =

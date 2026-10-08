@@ -218,6 +218,114 @@ describe("store: creazione e modifica delle tappe passano dalla coda dei salvata
   });
 });
 
+describe("chiusura della pagina: limite di keepalive, scheda nascosta e conferma", () => {
+  const DA_RIMANDARE = "hoop3x3_da_rimandare";
+  /** Una tappa il cui corpo JSON supera la soglia di keepalive (60 KiB): con i tabellini di 32 squadre succede davvero */
+  const pesante = (id: string): Tappa => ({ ...tappa(id), luogo: "x".repeat(70 * 1024) });
+  const rimaste = () => JSON.parse(localStorage.getItem(DA_RIMANDARE) ?? "[]") as { userId: string; legaId: string; nuova: boolean; tappa: Tappa }[];
+
+  afterEach(() => { localStorage.clear(); });
+
+  it("una tappa oltre la soglia non parte con keepalive (il browser la rifiuterebbe): resta nel browser per la prossima apertura", () => {
+    useAppStore.setState({ tappe: [{ ...pesante("t1"), versione: 3 }, tappa("t2")] });
+    store().updateTappa("t1", { nome: "Finale" });
+    store().updateTappa("t2", { nome: "Semifinale" });
+    window.dispatchEvent(new Event("pagehide"));
+    expect(api.putTappa).toHaveBeenCalledTimes(1);
+    expect(api.putTappa).toHaveBeenCalledWith(expect.objectContaining({ id: "t2" }), true);
+    expect(rimaste()).toEqual([{ userId: "u1", legaId: "l1", nuova: false, tappa: expect.objectContaining({ id: "t1", nome: "Finale" }) }]);
+  });
+
+  it("la soglia vale per tutte le tappe insieme: la seconda che la farebbe superare resta nel browser", () => {
+    const meta = (id: string): Tappa => ({ ...tappa(id), luogo: "x".repeat(35 * 1024) });
+    useAppStore.setState({ tappe: [meta("t1"), meta("t2")] });
+    store().updateTappa("t1", { nome: "A" });
+    store().updateTappa("t2", { nome: "B" });
+    window.dispatchEvent(new Event("pagehide"));
+    expect(api.putTappa).toHaveBeenCalledTimes(1);
+    expect(rimaste().map((v) => v.tappa.id)).toEqual(["t2"]);
+  });
+
+  it("una tappa nuova oltre la soglia resta come POST", () => {
+    store().addTappa(pesante("t1"));
+    window.dispatchEvent(new Event("pagehide"));
+    expect(api.addTappa).not.toHaveBeenCalled();
+    expect(rimaste()).toEqual([expect.objectContaining({ legaId: "l1", nuova: true })]);
+  });
+
+  it("alla prossima apertura le tappe rimaste partono prima di leggere le leghe, e se ne vanno dal browser", async () => {
+    const ordine: string[] = [];
+    localStorage.setItem(DA_RIMANDARE, JSON.stringify([
+      { userId: "u1", legaId: "l1", nuova: false, tappa: { ...tappa("t1"), nome: "Finale", versione: 3 } },
+      { userId: "u2", legaId: "l9", nuova: false, tappa: tappa("t9") }, // di un altro account: resta
+    ]));
+    api.putTappa.mockImplementation(async (t) => { ordine.push(`PUT ${t.id}`); return t; });
+    api.list.mockImplementation(async () => { ordine.push("GET leghe"); return []; });
+    await store().rehydrate();
+    expect(ordine).toEqual(["PUT t1", "GET leghe"]);
+    expect(api.putTappa).toHaveBeenCalledWith(expect.objectContaining({ id: "t1", versione: 3 }));
+    expect(rimaste().map((v) => v.userId)).toEqual(["u2"]);
+  });
+
+  it("con la rete ancora assente restano per la volta dopo; con un 409 vale la tappa dell'altro dispositivo, e lo si dice", async () => {
+    localStorage.setItem(DA_RIMANDARE, JSON.stringify([
+      { userId: "u1", legaId: "l1", nuova: false, tappa: { ...tappa("t1"), nome: "Uno" } },
+      { userId: "u1", legaId: "l1", nuova: false, tappa: { ...tappa("t2"), nome: "Due" } },
+    ]));
+    api.putTappa.mockRejectedValueOnce(new ApiError(0, "Server non raggiungibile"));
+    api.putTappa.mockRejectedValueOnce(new ApiError(409, "Tappa modificata da un altro dispositivo"));
+    api.list.mockResolvedValue([]);
+    await store().rehydrate();
+    expect(rimaste().map((v) => v.tappa.id)).toEqual(["t1"]);
+    expect(store().avvisoConflitti).toMatch(/La tappa «Due» è stata modificata da un altro dispositivo/);
+  });
+
+  it("con un 409 ma la tappa del server uguale a quella rimasta (il salvataggio a scheda nascosta era arrivato), nessun avviso", async () => {
+    const rimasta = { ...tappa("t1"), nome: "Uno", luogo: "Testaccio", versione: 3 };
+    localStorage.setItem(DA_RIMANDARE, JSON.stringify([{ userId: "u1", legaId: "l1", nuova: false, tappa: rimasta }]));
+    api.putTappa.mockRejectedValueOnce(new ApiError(409, "Tappa modificata da un altro dispositivo"));
+    // Sul server c'è proprio quella versione, con il numero che le ha dato lui
+    api.get.mockResolvedValue({ id: "l1", nome: "Circuito", tappe: [{ ...rimasta, versione: 4 }] });
+    api.list.mockResolvedValue([]);
+    await store().rehydrate();
+    expect(rimaste()).toEqual([]);
+    expect(store().avvisoConflitti).toBeNull();
+  });
+
+  it("scheda nascosta: le modifiche in attesa partono subito, senza aspettare il ritardo della coda", async () => {
+    useAppStore.setState({ tappe: [tappa("t1")] });
+    store().updateTappa("t1", { nome: "Finale" });
+    Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
+    document.dispatchEvent(new Event("visibilitychange"));
+    Reflect.deleteProperty(document, "visibilityState");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(api.putTappa).toHaveBeenCalledWith(expect.objectContaining({ nome: "Finale" }));
+  });
+
+  it("chiudere con versioni non confermate chiede conferma al browser; senza, no", async () => {
+    useAppStore.setState({ tappe: [tappa("t1")] });
+    const chiusura = () => {
+      const e = new Event("beforeunload", { cancelable: true });
+      window.dispatchEvent(e);
+      return e.defaultPrevented;
+    };
+    expect(chiusura()).toBe(false);
+    store().updateTappa("t1", { nome: "Finale" });
+    expect(chiusura()).toBe(true);
+    await store().salvaTutto();
+    expect(chiusura()).toBe(false);
+  });
+
+  it("se la pagina torna dalla cache del browser, la coda rimanda da sé: le tappe rimaste non ripartono alla prossima apertura", () => {
+    useAppStore.setState({ tappe: [pesante("t1")] });
+    store().updateTappa("t1", { nome: "Finale" });
+    window.dispatchEvent(new Event("pagehide"));
+    expect(rimaste()).toHaveLength(1);
+    window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true }));
+    expect(rimaste()).toEqual([]);
+  });
+});
+
 describe("riaprire una lega con salvataggi in sospeso", () => {
   const partitaDaGiocare: Partita = { id: "m1", g: 0, a: "s1", b: "s2", sa: 0, sb: 0, done: false };
   /** La tappa come la conosce il server: la partita risulta ancora da giocare */

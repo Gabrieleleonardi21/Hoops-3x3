@@ -228,15 +228,24 @@ function applica(tappa: Tappa, operazione: (t: Tappa) => Esito): Tappa {
   return nuova;
 }
 
-/** Verifica che i due nomi squadra (parziali, in qualunque ordine) combacino con la coppia indicata. */
-function coppiaCombacia(squA: string, squB: string, queryA: string, queryB: string): boolean {
-  const a = squA.toLowerCase();
-  const b = squB.toLowerCase();
-  const qa = queryA.toLowerCase();
-  const qb = queryB.toLowerCase();
-  if (a.includes(qa) && b.includes(qb)) return true;
-  if (a.includes(qb) && b.includes(qa)) return true;
-  return false;
+/** Le due squadre della tappa indicate dal modello, trovate per nome con la regola di trovaPerNome (esatto, poi una parte del
+ *  nome solo se corrisponde a una squadra sola). Prima bastava che un nome contenesse l'altro: con «Roma», «Roma Nord» e «Milano»
+ *  il risultato finiva sulla partita sbagliata o con i punteggi invertiti. Ogni partita poi si cerca e si orienta per id */
+function squadreRichieste(tappa: Tappa, nomeA: string, nomeB: string): [SquadraTappa, SquadraTappa] {
+  const trova = (nome: string) => {
+    const squadra = trovaPerNome(tappa.squadre, nome, (s) => s.nome, "squadre della tappa");
+    if (!squadra) throw new Error(`Nessuna squadra della tappa "${pulisci(tappa.nome)}" si chiama "${nome}".`);
+    return squadra;
+  };
+  const a = trova(nomeA);
+  const b = trova(nomeB);
+  if (a.id === b.id) throw new Error(`"${nomeA}" e "${nomeB}" indicano la stessa squadra, "${pulisci(a.nome)}": servono due squadre diverse.`);
+  return [a, b];
+}
+
+/** true se la gara è tra le due squadre, in qualunque ordine */
+function stessaCoppia(x: string | null, y: string | null, idA: string, idB: string): boolean {
+  return (x === idA && y === idB) || (x === idB && y === idA);
 }
 
 /** Una squadra di una partita trovata per nome: c'è sempre, perché la ricerca è passata dai nomi delle squadre della tappa. Se manca
@@ -375,9 +384,19 @@ async function eseguiCreaTappa(args: Argomenti, ctx: ContestoStrumenti): Promise
   return msg;
 }
 
-async function eseguiRegistraSquadra(args: Argomenti): Promise<string> {
+/** Stesso nome, maiuscole e spazi ai lati a parte: per riconoscere un doppione nell'anagrafe condivisa */
+const stessoNome = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
+async function eseguiRegistraSquadra(args: Argomenti, ctx: ContestoStrumenti): Promise<string> {
   // L'anagrafe è condivisa: senza nome niente «Nuova squadra» visibile a tutti
   const nome = obbligatorio(args, "nome", "il nome della squadra");
+  // Un modello che ripete la chiamata, o una squadra già registrata da altri, farebbe un doppione visibile a tutti: non si registra
+  const omonime = (await fetchSquadre()).filter((s) => stessoNome(s.nome, nome));
+  fermaSeCancellata(ctx.segnale);
+  if (omonime.length) {
+    throw new Error(`In anagrafe c'è già la squadra ${omonime.map(descrizione).join("; ")}: non ne registro un'altra. `
+      + "Per cambiarne i dati usa aggiorna_squadra.");
+  }
   // Le scritture in anagrafe passano dallo store: aggiornano il server e la cache usata dalle pagine
   await useAnagrafeStore.getState().saveSquadra({
     nome,
@@ -394,9 +413,17 @@ async function eseguiRegistraSquadra(args: Argomenti): Promise<string> {
   return `Squadra "${nome}" registrata nell'anagrafe.`;
 }
 
-async function eseguiRegistraGiocatore(args: Argomenti): Promise<string> {
+async function eseguiRegistraGiocatore(args: Argomenti, ctx: ContestoStrumenti): Promise<string> {
   const nome    = obbligatorio(args, "nome", "il nome del giocatore");
   const cognome = obbligatorio(args, "cognome", "il cognome del giocatore");
+  // Come per le squadre: niente doppioni nell'anagrafe condivisa. Un omonimo vero (un'altra persona) si registra dalla pagina Anagrafe
+  const omonimi = (await fetchGiocatori()).filter((g) => stessoNome(g.nome, nome) && stessoNome(g.cognome, cognome));
+  fermaSeCancellata(ctx.segnale);
+  if (omonimi.length) {
+    const chi = `"${pulisci(omonimi[0].nome)} ${pulisci(omonimi[0].cognome)}"`;
+    throw new Error(`In anagrafe c'è già il giocatore ${chi} (di ${pulisci(omonimi[0].autore)}): non ne registro un altro. `
+      + "Se è un'altra persona con lo stesso nome, l'utente può registrarla dalla pagina Anagrafe.");
+  }
   await useAnagrafeStore.getState().saveGiocatore({
     nome, cognome,
     soprannome:  str(args, "soprannome"),
@@ -442,15 +469,13 @@ function eseguiRegistraRisultato(args: Argomenti): string {
   if (!tappa.gironi) throw new Error(`La tappa "${pulisci(tappa.nome)}" non è ancora sorteggiata: fai prima il sorteggio.`);
 
   const nomeOf = (id: string | null) => squadraDi(tappa.squadre, id)?.nome ?? "";
+  const [richiestaA, richiestaB] = squadreRichieste(tappa, nomeA, nomeB);
 
   // Candidato nei gironi: partita non ancora registrata tra le due squadre
-  let matchGirone = tappa.partite.find(
-    (m) => !m.done && coppiaCombacia(nomeOf(m.a), nomeOf(m.b), nomeA, nomeB),
-  );
+  let matchGirone = tappa.partite.find((m) => !m.done && stessaCoppia(m.a, m.b, richiestaA.id, richiestaB.id));
   // Candidato nella fase finale: match con entrambe le squadre note e non ancora giocato
   let matchBracket = (tappa.bracket ?? []).find(
-    (m) => !m.done && m.squadraA !== null && m.squadraB !== null &&
-      coppiaCombacia(nomeOf(m.squadraA), nomeOf(m.squadraB), nomeA, nomeB),
+    (m) => !m.done && stessaCoppia(m.squadraA, m.squadraB, richiestaA.id, richiestaB.id),
   );
 
   // Filtro 'fase' esplicito: passato solo per disambiguare
@@ -471,10 +496,10 @@ function eseguiRegistraRisultato(args: Argomenti): string {
     const mg = matchGirone;
     const sqA = squadraDellaPartita(tappa, mg.a);
     const sqB = squadraDellaPartita(tappa, mg.b);
-    // Allinea i punteggi all'ordine a/b della partita per non invertirli
+    // Allinea i punteggi all'ordine a/b della partita per non invertirli: conta l'id, non il nome
     let sa = pB;
     let sb = pA;
-    if (sqA.nome.toLowerCase().includes(nomeA.toLowerCase())) {
+    if (mg.a === richiestaA.id) {
       sa = pA;
       sb = pB;
     }
@@ -492,10 +517,10 @@ function eseguiRegistraRisultato(args: Argomenti): string {
     const mb = matchBracket;
     const sqA = squadraDellaPartita(tappa, mb.squadraA);
     const sqB = squadraDellaPartita(tappa, mb.squadraB);
-    // Allinea i punteggi all'ordine squadraA/squadraB del match
+    // Allinea i punteggi all'ordine squadraA/squadraB del match (per id)
     let ptA = pB;
     let ptB = pA;
-    if (sqA.nome.toLowerCase().includes(nomeA.toLowerCase())) {
+    if (mb.squadraA === richiestaA.id) {
       ptA = pA;
       ptB = pB;
     }
@@ -520,7 +545,8 @@ async function eseguiAnnullaRisultato(args: Argomenti, ctx: ContestoStrumenti): 
 
   // Cerca la partita (già conclusa) tra le due squadre
   const nomeOf = (id: string) => squadraDi(tappa.squadre, id)?.nome ?? "";
-  const partita = tappa.partite.find((m) => m.done && coppiaCombacia(nomeOf(m.a), nomeOf(m.b), nomeA, nomeB));
+  const [richiestaA, richiestaB] = squadreRichieste(tappa, nomeA, nomeB);
+  const partita = tappa.partite.find((m) => m.done && stessaCoppia(m.a, m.b, richiestaA.id, richiestaB.id));
   if (!partita) throw new Error(`Partita già conclusa tra "${nomeA}" e "${nomeB}" non trovata nella tappa "${pulisci(tappa.nome)}".`);
 
   // Le regole sono quelle di «Correggi» (tappaOps): no su una tappa conclusa (R5) né con la fase finale generata da

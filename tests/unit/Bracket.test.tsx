@@ -164,11 +164,16 @@ describe("Bracket: campione", () => {
 describe("Bracket: controlli di inserimento", () => {
   const controlli = (m: BracketMatch) => <button>Gioca {m.label}</button>;
 
-  it("compaiono solo per i match da giocare con tutte e due le squadre note", () => {
+  it("compaiono per i match con tutte e due le squadre note, giocati («Correggi») o da giocare", () => {
     // sf1 è giocata, sf2 è da giocare con tutte e due le squadre, la finale ha ancora un posto vuoto
     mostra(tabellone(), { renderControls: controlli });
-    expect(screen.getAllByRole("button")).toHaveLength(1);
-    expect(screen.getByRole("button", { name: "Gioca Semifinale 2" })).toBeTruthy();
+    expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual(["Gioca Semifinale 1", "Gioca Semifinale 2"]);
+  });
+
+  it("un turno superato d'ufficio (bye) non ha controlli: non c'è un risultato da correggere", () => {
+    mostra([[match("sf1", "Semifinale 1", "a", null, { done: true, bye: true }), match("sf2", "Semifinale 2", "b", "c")],
+      [match("fin", "Finale", "a", null)]], { renderControls: controlli });
+    expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual(["Gioca Semifinale 2"]);
   });
 
   it("senza renderControls (sola lettura) non c'è nessun controllo, nemmeno per i match da giocare", () => {

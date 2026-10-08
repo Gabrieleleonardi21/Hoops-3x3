@@ -147,7 +147,29 @@
 
 /* ── Stampa ────────────────────────────────────────────────────────────────── */
 @media print {
-  header, nav, .chatfab, .chatpanel, .no-print, button { display: none !important; }
+  /* Si nascondono solo i comandi marcati .no-print: non ogni <button>, perché nella vista di una tappa sono pulsanti anche
+     le schede delle squadre e le intestazioni della classifica (G/V/P), che sulla carta servono */
+  header, nav, .chatfab, .chatpanel, .no-print { display: none !important; }
+  /* Su carta bianca i token del tema scuro darebbero testo chiaro su bianco: si ridefiniscono chiari i fondi e scuri i testi.
+     Le utility di Tailwind leggono queste variabili, quindi cambiano tutte insieme */
+  :root {
+    color-scheme: light;
+    --color-asphalt-950: #ffffff;
+    --color-asphalt-900: #ffffff;
+    --color-asphalt-800: #f1f1f1;
+    --color-asphalt-700: #cccccc;
+    --color-asphalt-600: #999999;
+    --color-asphalt-500: #777777;
+    --color-chalk: #000000;
+    --color-chalk-muted: #444444;
+    --color-chalk-dim: #555555;
+    --color-court: #b8430a;
+    --color-gold: #8a6500;
+    --color-win: #127041;
+    --color-loss: #b71c1c;
+    --color-live: #b71c1c;
+  }
+  input, select, textarea { color-scheme: light; }
   body { background: #fff !important; color: #000 !important; font-size: 12px; }
   a { text-decoration: none; color: inherit; }
   section, .standtable, .statstable { page-break-inside: avoid; }
