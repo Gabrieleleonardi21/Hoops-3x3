@@ -15,5 +15,7 @@ export function TeamLogo({ src, alt = "", className, ripiego = null }: {
   const [rotto, setRotto] = useState<string | null>(null);
   const url = safeUrl(src);
   if (!src || url === "#" || rotto === src) return <>{ripiego}</>;
-  return <img src={url} alt={alt} className={`object-contain ${className}`} onError={() => setRotto(src)} />;
+  // I loghi stanno su host qualsiasi, scelti dagli utenti: la richiesta parte senza Referer, così l'host non sa da quale pagina
+  // dell'app (e di quale tappa o lega) arriva
+  return <img src={url} alt={alt} className={`object-contain ${className}`} referrerPolicy="no-referrer" onError={() => setRotto(src)} />;
 }
