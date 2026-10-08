@@ -42,6 +42,9 @@ export async function salvaPrimoMatchDelTabellone(page: Page) {
 /** Una risposta JSON del server finto */
 export const json = (corpo: unknown) => ({ status: 200, contentType: "application/json", body: JSON.stringify(corpo) });
 
+/** Una risposta JSON del server finto a una creazione: 201, come quello vero (lega, tappa, registrazione, anagrafe) */
+export const creato = (corpo: unknown) => ({ ...json(corpo), status: 201 });
+
 /** Risposta di errore del server finto, nel formato {message, timestamp} che manda quello vero */
 export const errore = (status: number, message: string) => ({
   status, contentType: "application/json", body: JSON.stringify({ message, timestamp: 1 }),

@@ -1,13 +1,13 @@
 import { test, expect } from "@playwright/test";
 import {
-  accedi, apriModifica, bloccaApiNonPreviste, errore, json, rispondiAlRisveglio, serverConTappa, tappaSulServer, tokenFinto, utenteAnna,
-  utenteRegistrato,
+  accedi, apriModifica, bloccaApiNonPreviste, creato, errore, json, rispondiAlRisveglio, serverConTappa, tappaSulServer, tokenFinto,
+  utenteAnna, utenteRegistrato,
 } from "./helpers";
 
-/* Percorso dell'utente registrato, con il server finto (page.route). Lo scenario con il backend vero (prototipi/verifiche/refresh.spec.ts)
- * resta una prova manuale: in CI servirebbero backend e database. Ogni test chiude controllando che nessuna chiamata a /api sia rimasta
- * senza risposta finta, cioè che niente sia arrivato al proxy di Vite. Il 409 della tappa lo prova conflitto-tappa, i 503 delle pagine
- * errori-visibili. */
+/* Percorso dell'utente registrato, con il server finto (page.route). Lo stesso percorso con il backend vero sta in
+ * tests/e2e-backend/lega-e-tappa.spec.ts, che fissa il contratto imitato qui: le creazioni rispondono 201, la prima versione di una
+ * tappa è 0 e ogni PUT la aumenta di uno. Ogni test chiude controllando che nessuna chiamata a /api sia rimasta senza risposta finta,
+ * cioè che niente sia arrivato al proxy di Vite. Il 409 della tappa lo prova conflitto-tappa, i 503 delle pagine errori-visibili. */
 
 test("accesso e salvataggio: dal modulo di accesso a lega e tappa, e ogni modifica arriva al server con il suo corpo, senza avvisi", async ({ page }) => {
   // Accesso, lega, tappa e modifica in un test solo: i 15 secondi della configurazione bastano a un passo, non a una macchina carica
@@ -27,17 +27,17 @@ test("accesso e salvataggio: dal modulo di accesso a lega e tappa, e ogni modifi
     if (route.request().method() !== "POST") return route.fulfill(json([]));
     const corpo = route.request().postDataJSON();
     leghe.push(corpo);
-    return route.fulfill(json({ id: "l1", nome: corpo.nome, ts: 1, nTappe: 0 }));
+    return route.fulfill(creato({ id: "l1", nome: corpo.nome, ts: 1, nTappe: 0 }));
   });
   await page.route("**/api/leghe/l1/tappe", (route) => {
     const corpo = route.request().postDataJSON();
     tappeCreate.push(corpo);
-    return route.fulfill(json({ ...corpo, versione: 1 })); // la prima versione la decide il server
+    return route.fulfill(creato({ ...corpo, versione: 0 })); // la prima versione la decide il server, ed è 0
   });
   await page.route("**/api/tappe/*", (route) => {
     const corpo = route.request().postDataJSON();
     tappeSalvate.push(corpo);
-    return route.fulfill(json({ ...corpo, versione: 2 }));
+    return route.fulfill(json({ ...corpo, versione: corpo.versione + 1 })); // ogni PUT riuscita la aumenta di uno
   });
   await page.route("**/api/anagrafe/**", (route) => route.fulfill(json([])));
 
@@ -63,11 +63,11 @@ test("accesso e salvataggio: dal modulo di accesso a lega e tappa, e ogni modifi
   expect(tappeCreate[0]).toMatchObject({ nome: "Roma Open", luogo: "", nGironi: 2, gironi: null, partite: [], video: [] });
   expect((tappeCreate[0] as { squadre: unknown[] }).squadre).toHaveLength(8);
 
-  // Una modifica successiva è una PUT sulla stessa tappa, con la versione che il server ha dato alla creazione
+  // Una modifica successiva è una PUT sulla stessa tappa, con la versione che il server ha dato alla creazione (0)
   await page.getByRole("button", { name: "Modifica" }).click();
   await page.getByLabel("Luogo").fill("Testaccio");
   await expect.poll(() => tappeSalvate.length).toBe(1);
-  expect(tappeSalvate[0]).toMatchObject({ id: (tappeCreate[0] as { id: string }).id, nome: "Roma Open", luogo: "Testaccio", versione: 1 });
+  expect(tappeSalvate[0]).toMatchObject({ id: (tappeCreate[0] as { id: string }).id, nome: "Roma Open", luogo: "Testaccio", versione: 0 });
 
   // Tutto è andato a buon fine: nessun avviso, e il luogo è ancora sullo schermo
   await expect(page.getByText(/modifiche non salvate/)).toHaveCount(0);
