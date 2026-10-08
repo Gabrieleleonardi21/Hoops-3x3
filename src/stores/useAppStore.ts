@@ -7,8 +7,8 @@ import { archivioApi } from "../services/archivioApi";
 import { ApiError, esitoIgnoto, testoErrore } from "../services/api";
 import { createSaveQueue } from "./saveQueue";
 import {
-  ACTIVE_KEY_OSPITE, ACTIVE_KEY_REGISTRATO, INDEX_KEY, legaIllegibile, legaStorageKey, readIndex, readLegaData, readSession, scrivi,
-  statoOspite,
+  ACTIVE_KEY_OSPITE, ACTIVE_KEY_REGISTRATO, INDEX_KEY, leggiDaRimandare, legaIllegibile, legaStorageKey, readIndex, readLegaData,
+  readSession, scrivi, scriviDaRimandare, statoOspite, type DaRimandare,
 } from "./memoriaBrowser";
 import {
   conflitto, creaVersioniTappe, mancaVersione, nonTrovata, riprovabile, tappaSulServer, unoDeiNostri, type TappaLetta,
@@ -123,6 +123,12 @@ function getInitialState(): Pick<AppState, "user" | "legaId" | "leghe" | "legaNa
 
 /** Attesa dopo l'ultima modifica prima di salvare una tappa o rinominare la lega */
 const SAVE_DELAY = 400;
+
+/** Il browser rifiuta una richiesta keepalive se, con quelle già in volo, i corpi superano 64 KiB (specifica Fetch): una tappa con i
+ *  tabellini di 16 squadre pesa 34-46 KiB, una da 32 squadre 64-89 KiB. Si resta un po' sotto, per le altre richieste keepalive */
+const SOGLIA_KEEPALIVE = 60 * 1024;
+/** Byte del corpo JSON di una richiesta, come lo manda api.ts */
+const byteDelCorpo = (corpo: unknown) => new TextEncoder().encode(JSON.stringify(corpo)).length;
 
 const initial = getInitialState();
 
@@ -601,21 +607,96 @@ export const useAppStore = create<AppState>((set, get) => {
   // ancora create), comprese quelle di una richiesta in corso, che il browser interrompe chiudendo la pagina. Restano in
   // coda: se la pagina torna dalla cache del browser vengono rinviate, e rinviarle non fa danni (la PUT sostituisce
   // tutta la tappa, una POST già arrivata riceve un 409). La risposta non si legge: se il server le salva, il rinvio con la
-  // versione di prima riceve un 409 che dopoUnConflitto riconosce come proprio (sono tra i corpi senza risposta)
-  if (typeof window !== "undefined") {
-    window.addEventListener("pagehide", () => {
-      for (const t of coda.nonConfermate()) {
-        versioni.inviataSenzaRisposta(t);
-        const legaId = daCreare.get(t.id);
-        if (legaId === undefined) {
-          legheApi.putTappa(versioni.conVersione(t), true).catch(() => {});
-          continue;
-        }
-        legheApi.addTappa(legaId, t, true).catch(() => {});
+  // versione di prima riceve un 409 che dopoUnConflitto riconosce come proprio (sono tra i corpi senza risposta).
+  // Oltre la soglia keepalive (SOGLIA_KEEPALIVE, contando le tappe già partite) il browser rifiuterebbe la richiesta: quella versione
+  // resta nel browser (DA_RIMANDARE_KEY) e parte alla prossima apertura (rimandaRimaste)
+  const allaChiusura = () => {
+    let spazio = SOGLIA_KEEPALIVE;
+    const rimaste: DaRimandare[] = [];
+    const userId = get().user?.id;
+    for (const t of coda.nonConfermate()) {
+      const legaNuova = daCreare.get(t.id);
+      const corpo = versioni.conVersione(t);
+      const peso = byteDelCorpo(corpo);
+      if (peso > spazio) {
+        const legaId = legaNuova ?? legaDi(t.id);
+        if (userId && legaId) rimaste.push({ userId, legaId, nuova: legaNuova !== undefined, tappa: corpo });
+        continue;
       }
-      // Le DELETE non ancora confermate, comprese quelle che aspettano un salvataggio in volo: senza keepalive si perderebbero e la
-      // tappa ricomparirebbe. Se la pagina torna dalla cache del browser la DELETE in attesa parte lo stesso, e il suo 404 si tollera
-      for (const id of eliminazioniInAttesa.keys()) legheApi.removeTappa(id, true).catch(() => {});
+      spazio -= peso;
+      versioni.inviataSenzaRisposta(t);
+      if (legaNuova === undefined) {
+        legheApi.putTappa(corpo, true).catch(() => {});
+        continue;
+      }
+      legheApi.addTappa(legaNuova, t, true).catch(() => {});
+    }
+    // Una versione più nuova della stessa tappa sostituisce quella rimasta da una chiusura precedente
+    if (rimaste.length) {
+      const prima = leggiDaRimandare().filter((v) => !rimaste.some((r) => r.tappa.id === v.tappa.id));
+      scriviDaRimandare([...prima, ...rimaste]);
+    }
+    // Le DELETE non ancora confermate, comprese quelle che aspettano un salvataggio in volo: senza keepalive si perderebbero e la
+    // tappa ricomparirebbe. Se la pagina torna dalla cache del browser la DELETE in attesa parte lo stesso, e il suo 404 si tollera
+    for (const id of eliminazioniInAttesa.keys()) legheApi.removeTappa(id, true).catch(() => {});
+  };
+
+  /** La pagina torna dalla cache del browser (indietro/avanti): la coda è ancora viva e rimanda da sé le versioni rimaste nel browser
+   *  alla chiusura; rimandarle anche alla prossima apertura darebbe un 409 su dati già salvati */
+  const tornataDallaCache = () => {
+    const inCoda = new Set(coda.nonConfermate().map((t) => t.id));
+    scriviDaRimandare(leggiDaRimandare().filter((v) => !inCoda.has(v.tappa.id)));
+  };
+
+  /** Prossima apertura (rehydrate): rimanda le tappe rimaste nel browser alla chiusura, prima di leggere le leghe, così la lettura le
+   *  trova già salvate. Un errore temporaneo le lascia lì per la volta dopo; un 409 vuol dire che intanto un altro dispositivo ha
+   *  salvato la tappa, e vale la sua (con l'avviso dei conflitti); un altro rifiuto va nella barra degli avvisi */
+  const rimandaRimaste = async () => {
+    const userId = get().user?.id;
+    const tutte = leggiDaRimandare();
+    const mie = tutte.filter((v) => v.userId === userId);
+    if (mie.length === 0) return;
+    const restano = tutte.filter((v) => v.userId !== userId);
+    for (const v of mie) {
+      try {
+        await mandaRimasta(v);
+      } catch (e) {
+        if (riprovabile(e)) restano.push(v);
+        else if (conflitto(e)) avvisaConflitto(v.tappa.id, tappaModificataAltrove(v.tappa.nome));
+        else reportError(e, `Salvataggio della tappa «${v.tappa.nome}», rimasto dalla chiusura della pagina, non riuscito`);
+      }
+    }
+    scriviDaRimandare(restano);
+  };
+  /** Una tappa rimasta: PUT con la versione su cui si basa, oppure POST se non era ancora creata. Un 409 della POST vuol dire che la
+   *  POST partita prima della chiusura è arrivata: questa versione, più recente, la sostituisce con la versione letta dal server */
+  const mandaRimasta = async (v: DaRimandare) => {
+    if (!v.nuova) {
+      await legheApi.putTappa(v.tappa);
+      return;
+    }
+    try {
+      await legheApi.addTappa(v.legaId, v.tappa);
+    } catch (e) {
+      if (!conflitto(e)) throw e;
+      const letta = await tappaSulServer(v.legaId, v.tappa.id);
+      if (!letta) throw e;
+      await legheApi.putTappa({ ...v.tappa, versione: letta.tappa.versione });
+    }
+  };
+
+  if (typeof window !== "undefined") {
+    window.addEventListener("pagehide", allaChiusura);
+    window.addEventListener("pageshow", (e) => { if (e.persisted) tornataDallaCache(); });
+    // Scheda nascosta (cambio di scheda o di app, spesso l'ultimo momento prima della chiusura su mobile): si salva subito, con una
+    // richiesta normale, senza aspettare il ritardo della coda e senza il limite di keepalive
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden" && isRemote()) void get().salvaTutto();
+    });
+    // Chiusura con versioni non ancora confermate dal server: il browser chiede conferma («Uscire dal sito?»)
+    window.addEventListener("beforeunload", (e) => {
+      if (!isRemote() || (coda.nonConfermate().length === 0 && eliminazioniInAttesa.size === 0)) return;
+      e.preventDefault();
     });
   }
 
@@ -921,6 +1002,7 @@ export const useAppStore = create<AppState>((set, get) => {
       if (isRemote()) {
         set({ ready: false });
         try {
+          await rimandaRimaste();
           const leghe = await legheApi.list();
           // In mancanza della propria, la chiave storica (scritta quando ce n'era una sola per tutti): l'elenco del server qui sotto
           // scarta già l'id che non è di questo utente, e il ramo senza lega toglie solo la chiave del registrato

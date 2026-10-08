@@ -491,13 +491,18 @@ utenti registrati: un ospite riceve in chat l'invito a creare un account.
   frattempo (409), l'app mostra la tappa del server e lo dice nella stessa
   barra, invece di sovrascriverne il lavoro; se l'ha eliminata (la PUT
   riceve 404 o 409), rilegge la lega e, se la tappa non c'è più, la toglie
-  con lo stesso avviso.
+  con lo stesso avviso. Con la scheda nascosta ciò che è in attesa parte
+  subito; alla chiusura della pagina parte con keepalive, che il browser
+  accetta fino a 64 KiB in tutto: le tappe più pesanti (tabellini di 24-32
+  squadre e oltre) restano nel browser e partono alla prossima apertura.
+  Chiudendo con modifiche non ancora confermate il browser chiede conferma.
 - Persistenza (ospite): localStorage per la lega (multi-lega con indice);
   anagrafe e archivio in sola lettura dal server. Con più schede aperte
   ognuna segue le scritture delle altre: una lega creata in un'altra scheda
   compare nell'elenco e non sparisce dall'indice, la lega aperta salvata
-  altrove si ricarica, quella eliminata altrove si chiude con un avviso. All'avvio la lega aperta
-  si controlla con gli stessi campi dell'import, ma senza i limiti del
+  altrove si ricarica, quella eliminata altrove si chiude con un avviso.
+  All'avvio la lega aperta si controlla con gli stessi campi dell'import,
+  ma senza i limiti del
   server (nome vuoto, numero di gironi e regole fuori limite si tengono: si
   correggono dall'app): le tappe con la forma sbagliata non si caricano e un
   avviso dice quali, perché e che alla prossima modifica della lega saranno
