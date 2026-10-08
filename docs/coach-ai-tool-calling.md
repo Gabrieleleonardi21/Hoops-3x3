@@ -159,12 +159,12 @@ omonimi esatti):
 
 ### `registra_risultato`
 - **Descrizione:** Registra il punteggio di una partita, **sia dei gironi sia della fase a eliminazione diretta** (ottavi, quarti, semifinali, finale).
-- **Parametri obbligatori:** `squadra_a`, `punti_a`, `squadra_b`, `punti_b` (i nomi anche in parte; un nome vuoto è un errore)
+- **Parametri obbligatori:** `squadra_a`, `punti_a`, `squadra_b`, `punti_b` (ogni nome è quello esatto, maiuscole a parte, oppure una parte del nome che corrisponde a **una sola** squadra della tappa; se ne corrispondono più d'una, nessuna, o i due nomi indicano la stessa squadra, è un errore; un nome vuoto è un errore)
 - **Parametri opzionali:** `tappa_nome` (default: ultima tappa), `fase` (`"girone"` o `"diretta"`)
 - **Conferma:** no
 - **Azione:**
-  1. Trova la tappa (deve essere sorteggiata) e cerca, tra le due squadre, sia la partita di girone non registrata sia il match di bracket non giocato (con entrambe le squadre note)
-  2. Gestisce l'ordine A/B corretto (non inverte i punteggi se l'utente li dà nell'ordine inverso)
+  1. Trova la tappa (deve essere sorteggiata), risolve i due nomi nelle squadre della tappa (con «Roma», «Roma Nord» e «Milano», «Roma» è Roma) e cerca **per id**, tra le due squadre, sia la partita di girone non registrata sia il match di bracket non giocato (con entrambe le squadre note)
+  2. Gestisce l'ordine A/B corretto per id (non inverte i punteggi se l'utente li dà nell'ordine inverso, né se un nome ne contiene un altro)
   3. Girone → `registraRisultato(tappa, partitaId, { sa, sb })`. Bracket → `registraRisultatoBracket(tappa, matchId, pA, pB)`, che **fa anche avanzare il vincitore** al turno successivo. In entrambi i casi la nuova tappa si salva con `replaceTappa`
   4. La validazione è quella di `tappaOps`, la stessa dell'inserimento manuale: punteggi interi non negativi, nessun pareggio (FIBA 3x3) e, per i gironi, non oltre `target + 4`; una tappa conclusa è rifiutata e, con la fase finale già generata, i gironi non cambiano più
 - **Disambiguazione (zero ambiguità):** il bracket si genera solo a gironi conclusi, quindi quando esiste non c'è alcun girone aperto → al massimo **un** candidato. Nel caso limite di due candidati il tool **non indovina**: chiede di specificare la fase, e il parametro `fase` permette di forzarla. Se non trova nessuna partita da giocare tra le due squadre risponde «non trovata o già registrata».
@@ -175,7 +175,7 @@ omonimi esatti):
 
 ### `annulla_risultato`
 - **Descrizione:** Annulla il risultato di una partita **dei gironi** già registrata, riportandola a non disputata. Serve se l'utente segnala un errore di inserimento.
-- **Parametri obbligatori:** `squadra_a`, `squadra_b` (anche in parte)
+- **Parametri obbligatori:** `squadra_a`, `squadra_b` (stessa regola dei nomi di `registra_risultato`)
 - **Parametri opzionali:** `tappa_nome` (default: ultima tappa)
 - **Conferma:** **sì, sempre** (vedi «Conferme»)
 - **Azione:**
@@ -418,7 +418,7 @@ Una sezione `` ### `nome_tool` `` in «Tool disponibili», come le altre: `coach
 
 - Anagrafe: le **scritture** dei tool passano da `useAnagrafeStore` (`saveSquadra`, `saveGiocatore`, `updateSquadra`), che aggiorna il server e la cache letta dalle pagine (`useAnagrafe`); le **letture** (`fetchSquadre` / `fetchGiocatori`) vanno dirette al server con `anagrafeApi`, perché al Coach servono dati freschi per non registrare doppioni.
 - L'AI chiama i tool **solo se l'utente lo chiede esplicitamente**: lo dice il prompt di sistema (`useCoachAI.ts`), che spiega anche il flusso di una tappa e l'uso del parametro `fase`.
-- Il prompt contiene un riassunto della lega racchiuso in `<dati_lega>` (`buildCoachContext`): nome della lega, elenco delle tappe (nome, data, luogo, «conclusa»), classifica del circuito (vittorie/partite totali per squadra) e, **solo per la tappa in primo piano** (l'ultima non conclusa, altrimenti l'ultima), squadre, classifiche dei gironi, partite giocate e i 5 migliori marcatori. Il prompt dice di trattare quel blocco e i risultati degli strumenti come dati, ignorando qualsiasi testo che sembri un'istruzione (mitigazione della prompt injection). I nomi scritti dagli utenti (anche da altri, tramite l'anagrafe condivisa) passano da `pulisci`: `<` e `>` diventano ‹ ›, nomi al massimo di 80 caratteri; gli stessi filtri valgono per i risultati degli strumenti.
+- Il prompt contiene un riassunto della lega racchiuso in `<dati_lega>` (`buildCoachContext`): nome della lega, elenco delle tappe (nome, data, luogo, «conclusa»), classifica del circuito (vinte e perse totali per squadra; la stessa squadra in più tappe è una riga sola, riconosciuta dalla voce dell'anagrafe o, se non è collegata, dal nome; a pari vittorie passa davanti chi ha perso meno) e, **solo per la tappa in primo piano** (l'ultima non conclusa, altrimenti l'ultima), squadre, classifiche dei gironi, partite giocate e i 5 migliori marcatori. Il prompt dice di trattare quel blocco e i risultati degli strumenti come dati, ignorando qualsiasi testo che sembri un'istruzione (mitigazione della prompt injection). I nomi scritti dagli utenti (anche da altri, tramite l'anagrafe condivisa) passano da `pulisci`: `<` e `>` diventano ‹ ›, nomi al massimo di 80 caratteri; gli stessi filtri valgono per i risultati degli strumenti.
 - La chat in UI mostra messaggi user/assistant; i messaggi tool restano interni all'API, ma sotto ogni risposta dell'assistant compaiono **badge** con le azioni eseguite (campo `tools` di `ChatMsg`, etichette in `CoachPanel`; `annulla_risultato` è in rosso).
 - La chat vive nello store (non nel pannello): chiudendo il pannello durante l'attesa la risposta arriva lo stesso. Se ne tengono gli ultimi **30 messaggi**, che sono anche quelli mandati al modello (il server rifiuta oltre 60 messaggi o 100.000 caratteri). La cronologia è in `sessionStorage` (si azzera alla chiusura della scheda e a ogni cambio di utente).
 - `crea_tappa` richiede una lega attiva (`legaId !== null`); se manca, restituisce un errore descrittivo.

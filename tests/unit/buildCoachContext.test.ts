@@ -72,8 +72,8 @@ describe("buildCoachContext: la classifica del circuito", () => {
     const contesto = buildCoachContext("Lega", [tappaCon(["Alfa", "Beta", "Gamma"], partite)]);
     return contesto.split("\n").find((r) => r.startsWith("Classifica circuito:")) ?? "";
   }
-  // «xV/yP» sono x vittorie su y partite giocate. Alfa ha battuto Beta; Gamma non ha giocato partite valide
-  const ATTESA = "Classifica circuito: 1. Alfa (1V/1P totali); 2. Beta (0V/1P totali); 3. Gamma (0V/0P totali)";
+  // «xV yP» sono x vinte e y perse, come nelle righe dei gironi. Alfa ha battuto Beta; Gamma non ha giocato partite valide
+  const ATTESA = "Classifica circuito: 1. Alfa (1V 0P totali); 2. Gamma (0V 0P totali); 3. Beta (0V 1P totali)";
 
   it("una partita segnata come giocata ma in parità è ignorata, come nella classifica del girone", () => {
     // Beta-Gamma è 15-15: prima dava la vittoria a Gamma (la seconda squadra), che passava davanti a Beta
@@ -88,5 +88,38 @@ describe("buildCoachContext: la classifica del circuito", () => {
   it("una partita non ancora giocata non conta, nemmeno con un punteggio provvisorio", () => {
     // Alfa-Gamma è da giocare ma ha una bozza 0-21: se contasse, Gamma avrebbe una vittoria
     expect(rigaCircuito([gara("Alfa", "Beta", 21, 10), gara("Alfa", "Gamma", 0, 21, false)])).toBe(ATTESA);
+  });
+
+  /** La riga «Classifica circuito» di più tappe */
+  const rigaDi = (tappe: Tappa[]) =>
+    buildCoachContext("Lega", tappe).split("\n").find((r) => r.startsWith("Classifica circuito:")) ?? "";
+
+  it("la stessa squadra in due tappe è una riga sola, anche se in ogni tappa ha un id diverso", () => {
+    // Le squadre di ogni tappa hanno id nuovi: prima Alfa compariva due volte
+    const t1 = { ...tappaCon(["Alfa", "Beta"], [gara("Alfa", "Beta", 21, 10)]), id: "t1" };
+    const t2: Tappa = {
+      ...tappaCon([], []), id: "t2",
+      squadre: [{ id: "x1", nome: " alfa ", giocatori: [], rank: "" }, { id: "x2", nome: "Beta", giocatori: [], rank: "" }],
+      partite: [{ id: "p", g: 0, a: "x1", b: "x2", sa: 21, sb: 12, done: true }],
+    };
+    expect(rigaDi([t1, t2])).toBe("Classifica circuito: 1. Alfa (2V 0P totali); 2. Beta (0V 2P totali)");
+  });
+
+  it("due squadre omonime collegate a voci diverse dell'anagrafe restano distinte", () => {
+    const t: Tappa = {
+      ...tappaCon([], []),
+      squadre: [
+        { id: "a", nome: "Roma", giocatori: [], rank: "", regId: "r1" },
+        { id: "b", nome: "Roma", giocatori: [], rank: "", regId: "r2" },
+      ],
+      partite: [{ id: "p", g: 0, a: "a", b: "b", sa: 21, sb: 12, done: true }],
+    };
+    expect(rigaDi([t])).toBe("Classifica circuito: 1. Roma (1V 0P totali); 2. Roma (0V 1P totali)");
+  });
+
+  it("a pari vittorie passa davanti chi ha perso meno, non chi ha perso di più", () => {
+    // Alfa e Beta 1 vittoria; Beta ha anche una sconfitta (da Gamma), Alfa no
+    const riga = rigaCircuito([gara("Alfa", "Delta", 21, 10), gara("Beta", "Delta", 21, 10), gara("Gamma", "Beta", 21, 19)]);
+    expect(riga.startsWith("Classifica circuito: 1. Alfa (1V 0P totali); 2. Gamma (1V 0P totali); 3. Beta (1V 1P totali)")).toBe(true);
   });
 });

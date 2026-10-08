@@ -438,7 +438,8 @@ l'azione non compare tra i badge sotto la risposta.
 Contesto fornito al Coach AI (in un blocco <dati_lega>):
   - Nome della lega e, per ogni tappa, nome, data, luogo ed eventuale
     «conclusa».
-  - Classifica circuito aggregata (vittorie/partite totali per squadra).
+  - Classifica circuito aggregata (vinte e perse totali per squadra; la
+    stessa squadra in più tappe è una riga sola).
   - Solo per la tappa in primo piano (l'ultima non conclusa, altrimenti
     l'ultima): squadre iscritte, classifica di ogni girone, partite
     disputate/totali e i 5 migliori marcatori.

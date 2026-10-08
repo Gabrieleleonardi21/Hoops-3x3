@@ -1,4 +1,4 @@
-import type { Tappa } from "../types";
+import type { SquadraTappa, Tappa } from "../types";
 import { giocateConVincitore, standings, vincitore } from "./standings";
 import { tappaLeaders } from "./tappaLeaders";
 import { nomeSquadra } from "./tappaInfo";
@@ -22,26 +22,44 @@ export function senzaTag(valore: string): string {
   return String(valore).replace(/</g, "‹").replace(/>/g, "›");
 }
 
-/** Classifica cumulativa del circuito: aggrega vittorie e partite su tutte le tappe. Le partite che contano sono
- *  le stesse della classifica del girone (giocateConVincitore): una in parità non conta per niente. */
+/** La stessa squadra in tappe diverse: l'id di una squadra cambia a ogni tappa, quindi conta la voce dell'anagrafe a cui è
+ *  collegata (regId) e, se non è collegata, il nome (maiuscole e spazi ai lati a parte) */
+function identitaSquadra(sq: SquadraTappa): string {
+  if (sq.regId) return `reg:${sq.regId}`;
+  return `nome:${sq.nome.trim().toLowerCase()}`;
+}
+
+/** Classifica cumulativa del circuito: aggrega vittorie e sconfitte su tutte le tappe, una riga per squadra (identitaSquadra).
+ *  Ordine: più vittorie, poi meno sconfitte. Le partite che contano sono le stesse della classifica del girone
+ *  (giocateConVincitore): una in parità non conta per niente. «P» sono le perse, come nelle righe dei gironi. */
 function circuitStandings(tappe: Tappa[]): string {
-  const wins: Record<string, { nome: string; v: number; g: number }> = {};
+  const righe = new Map<string, { nome: string; v: number; p: number }>();
   for (const t of tappe) {
+    // id della squadra in questa tappa → la sua riga del circuito
+    const rigaDi = new Map<string, { nome: string; v: number; p: number }>();
     for (const sq of t.squadre) {
-      if (!wins[sq.id]) wins[sq.id] = { nome: sq.nome, v: 0, g: 0 };
+      const chiave = identitaSquadra(sq);
+      let riga = righe.get(chiave);
+      if (!riga) {
+        riga = { nome: sq.nome, v: 0, p: 0 };
+        righe.set(chiave, riga);
+      }
+      rigaDi.set(sq.id, riga);
     }
     for (const m of giocateConVincitore(t.partite)) {
       const vince = vincitore(m);
       // la perdente è l'altra squadra della partita
       let perdente = m.a;
       if (vince === m.a) perdente = m.b;
-      if (wins[vince]) { wins[vince].v++; wins[vince].g++; }
-      if (wins[perdente])  { wins[perdente].g++; }
+      const rigaVince = rigaDi.get(vince);
+      const rigaPerde = rigaDi.get(perdente);
+      if (rigaVince) rigaVince.v++;
+      if (rigaPerde) rigaPerde.p++;
     }
   }
-  return Object.values(wins)
-    .sort((a, b) => b.v - a.v || b.g - a.g)
-    .map((r, i) => `${i + 1}. ${pulisci(r.nome)} (${r.v}V/${r.g}P totali)`)
+  return [...righe.values()]
+    .sort((a, b) => b.v - a.v || a.p - b.p)
+    .map((r, i) => `${i + 1}. ${pulisci(r.nome)} (${r.v}V ${r.p}P totali)`)
     .join("; ");
 }
 

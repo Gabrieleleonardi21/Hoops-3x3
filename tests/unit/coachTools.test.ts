@@ -673,6 +673,75 @@ describe("Coach AI: i nomi scritti dagli utenti arrivano filtrati anche nei risu
   });
 });
 
+describe("Coach AI: registra_risultato e annulla_risultato trovano le squadre per nome e la partita per id", () => {
+  /** «Roma», «Roma Nord» e «Milano»: un nome contenuto in un altro. In calendario Roma Nord-Milano viene prima di Roma-Milano,
+   *  e Roma Nord-Roma ha Roma Nord come squadra A */
+  const tappaRoma = (): Tappa => ({
+    ...romaOpen(),
+    squadre: [squadra("r", "Roma"), squadra("rn", "Roma Nord"), squadra("mi", "Milano")],
+    gironi: [["r", "rn", "mi"]],
+    partite: [daGiocare("p1", "rn", "mi"), daGiocare("p2", "r", "mi"), daGiocare("p3", "rn", "r")],
+  });
+  const partita = (id: string) => store().tappe[0].partite.find((m) => m.id === id)!;
+  /** Il modello registra questo risultato; restituisce ciò che ha letto */
+  async function registra(args: Record<string, unknown>) {
+    const richieste = modello(strumenti(["registra_risultato", args]), testo("Fatto."));
+    await chiedi(coach(), "Registra il risultato");
+    return esiti(richieste)[0];
+  }
+  beforeEach(() => { useAppStore.setState({ tappe: [tappaRoma()] }); });
+
+  it("«Roma» è la squadra Roma, non Roma Nord: il risultato va su Roma-Milano", async () => {
+    await registra({ squadra_a: "Roma", punti_a: 21, squadra_b: "Milano", punti_b: 18 });
+    expect(partita("p2")).toMatchObject({ sa: 21, sb: 18, done: true });
+    expect(partita("p1").done).toBe(false);
+  });
+
+  it("i punteggi seguono le squadre per id: «Roma 21, Roma Nord 18» con Roma Nord come squadra A non li inverte", async () => {
+    await registra({ squadra_a: "Roma", punti_a: 21, squadra_b: "Roma Nord", punti_b: 18 });
+    expect(partita("p3")).toMatchObject({ a: "rn", b: "r", sa: 18, sb: 21, done: true });
+  });
+
+  it("una parte del nome che corrisponde a una squadra sola basta («Nord»)", async () => {
+    await registra({ squadra_a: "Milano", punti_a: 21, squadra_b: "Nord", punti_b: 18 });
+    expect(partita("p1")).toMatchObject({ sa: 18, sb: 21, done: true });
+  });
+
+  it.each<[string, Record<string, unknown>, string]>([
+    ["una parte del nome comune a più squadre", { squadra_a: "Rom", punti_a: 21, squadra_b: "Milano", punti_b: 18 },
+      'Errore: Più squadre della tappa corrispondono a "Rom": "Roma", "Roma Nord". Indica il nome completo.'],
+    ["una squadra che non c'è", { squadra_a: "Torino", punti_a: 21, squadra_b: "Milano", punti_b: 18 },
+      'Errore: Nessuna squadra della tappa "Roma Open" si chiama "Torino".'],
+    ["due nomi della stessa squadra", { squadra_a: "Roma Nord", punti_a: 21, squadra_b: "nord", punti_b: 18 },
+      'Errore: "Roma Nord" e "nord" indicano la stessa squadra, "Roma Nord": servono due squadre diverse.'],
+  ])("%s: nessun risultato registrato, il modello sa perché", async (_caso, args, motivo) => {
+    const prima = store().tappe[0];
+    expect(await registra(args)).toBe(motivo);
+    expect(store().tappe[0]).toBe(prima);
+  });
+
+  it("fase finale: i punteggi seguono le squadre per id anche nel tabellone", async () => {
+    const t = tappaRoma();
+    useAppStore.setState({
+      tappe: [{
+        ...t, partite: t.partite.map((m) => ({ ...m, sa: 21, sb: 10, done: true })),
+        bracket: [{ id: "fin", label: "Finale", squadraA: "rn", squadraB: "r", pA: 0, pB: 0, done: false }],
+      }],
+    });
+    await registra({ squadra_a: "Roma", punti_a: 21, squadra_b: "Roma Nord", punti_b: 18 });
+    expect(store().tappe[0].bracket![0]).toMatchObject({ pA: 18, pB: 21, done: true });
+  });
+
+  it("annulla_risultato toglie il risultato di Roma-Milano, non quello di Roma Nord-Milano", async () => {
+    const t = tappaRoma();
+    useAppStore.setState({ tappe: [{ ...t, partite: t.partite.map((m) => ({ ...m, sa: 21, sb: 10, done: true })) }] });
+    modello(strumenti(["annulla_risultato", { squadra_a: "Milano", squadra_b: "Roma" }]), testo("Annullato."));
+    await chiediEConferma(coach(), "Togli Roma-Milano", true);
+    expect(partita("p2").done).toBe(false);
+    expect(partita("p1").done).toBe(true);
+  });
+});
+
 describe("Coach AI: fase finale", () => {
   it("genera_fasi_dirette conta solo i match da giocare, non i turni superati d'ufficio (bye)", async () => {
     // 6 qualificate in un tabellone da 8 posti: 2 bye al primo turno
