@@ -38,6 +38,8 @@ describe("safeUrl: blocca con «#»", () => {
     ["protocol-relative //host", "//evil.example/x"],
     ["protocol-relative con backslash /\\host", "/\\evil.example/x"],
     ["protocol-relative con spazi davanti", "  //evil.example"],
+    ["protocol-relative con una tabulazione tra le barre (il browser la toglie)", "/\t/evil.example"],
+    ["protocol-relative con un a capo tra le barre", "/\n/evil.example"],
   ])("%s", (_nome, url) => {
     expect(safeUrl(url)).toBe("#");
   });

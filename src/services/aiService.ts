@@ -78,6 +78,8 @@ function neiLimiti(messages: ApiMsg[], cronologia: number): { cronologia: number
 /** Il ciclo ha eseguito delle azioni ma la conversazione non entra più in una richiesta: si chiude senza chiedere il riepilogo */
 const TROPPO_LUNGA = "Ho eseguito le azioni indicate qui sotto, ma la conversazione è diventata troppo lunga per un riepilogo: "
   + "cancella la chat per continuare.";
+/** Come sopra, ma senza nessuna azione eseguita: il preambolo e la domanda da soli non entrano nei limiti del server */
+const TROPPO_LUNGA_SENZA_AZIONI = "La conversazione è diventata troppo lunga per una richiesta al Coach: cancella la chat per continuare.";
 
 /** Tempo massimo della chat (ms): il server aspetta il modello fino a 60 secondi (CoachAiService), quindi il client
  *  aspetta un po' di più, per ricevere la risposta o l'errore del server invece di abbandonare prima */
@@ -260,7 +262,10 @@ async function ciclo(
 
   // Cap raggiunto o loop interrotto: una chiamata finale senza tool forza la risposta di chiusura.
   fermaSeAbbandonata(segnale);
-  if (!ciSta()) return { text: TROPPO_LUNGA, calledTools };
+  if (!ciSta()) {
+    if (calledTools.length === 0) return { text: TROPPO_LUNGA_SENZA_AZIONI, calledTools };
+    return { text: TROPPO_LUNGA, calledTools };
+  }
   const final = await chiamaCoach(messages);
   return { text: final.content || "Fatto!", calledTools };
 }

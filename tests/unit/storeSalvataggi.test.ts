@@ -280,6 +280,18 @@ describe("chiusura della pagina: limite di keepalive, scheda nascosta e conferma
     expect(store().avvisoConflitti).toMatch(/La tappa «Due» è stata modificata da un altro dispositivo/);
   });
 
+  it("con un 409 ma la tappa del server uguale a quella rimasta (il salvataggio a scheda nascosta era arrivato), nessun avviso", async () => {
+    const rimasta = { ...tappa("t1"), nome: "Uno", luogo: "Testaccio", versione: 3 };
+    localStorage.setItem(DA_RIMANDARE, JSON.stringify([{ userId: "u1", legaId: "l1", nuova: false, tappa: rimasta }]));
+    api.putTappa.mockRejectedValueOnce(new ApiError(409, "Tappa modificata da un altro dispositivo"));
+    // Sul server c'è proprio quella versione, con il numero che le ha dato lui
+    api.get.mockResolvedValue({ id: "l1", nome: "Circuito", tappe: [{ ...rimasta, versione: 4 }] });
+    api.list.mockResolvedValue([]);
+    await store().rehydrate();
+    expect(rimaste()).toEqual([]);
+    expect(store().avvisoConflitti).toBeNull();
+  });
+
   it("scheda nascosta: le modifiche in attesa partono subito, senza aspettare il ritardo della coda", async () => {
     useAppStore.setState({ tappe: [tappa("t1")] });
     store().updateTappa("t1", { nome: "Finale" });

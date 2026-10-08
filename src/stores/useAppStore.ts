@@ -650,7 +650,9 @@ export const useAppStore = create<AppState>((set, get) => {
 
   /** Prossima apertura (rehydrate): rimanda le tappe rimaste nel browser alla chiusura, prima di leggere le leghe, così la lettura le
    *  trova già salvate. Un errore temporaneo le lascia lì per la volta dopo; un 409 vuol dire che intanto un altro dispositivo ha
-   *  salvato la tappa, e vale la sua (con l'avviso dei conflitti); un altro rifiuto va nella barra degli avvisi */
+   *  salvato la tappa, e vale la sua (con l'avviso dei conflitti), a meno che il server non abbia proprio questa versione: il
+   *  salvataggio a scheda nascosta (visibilitychange), partito prima della chiusura, può essere arrivato; un altro rifiuto va nella
+   *  barra degli avvisi */
   const rimandaRimaste = async () => {
     const userId = get().user?.id;
     const tutte = leggiDaRimandare();
@@ -662,11 +664,21 @@ export const useAppStore = create<AppState>((set, get) => {
         await mandaRimasta(v);
       } catch (e) {
         if (riprovabile(e)) restano.push(v);
-        else if (conflitto(e)) avvisaConflitto(v.tappa.id, tappaModificataAltrove(v.tappa.nome));
+        else if (conflitto(e)) await conflittoDiUnaRimasta(v);
         else reportError(e, `Salvataggio della tappa «${v.tappa.nome}», rimasto dalla chiusura della pagina, non riuscito`);
       }
     }
     scriviDaRimandare(restano);
+  };
+  /** 409 di una tappa rimasta: se il server ha già questa stessa versione (impronta, versione esclusa) era arrivata prima della
+   *  chiusura e non c'è niente da dire; altrimenti vale la tappa dell'altro dispositivo, con l'avviso. Se la lega non si legge,
+   *  l'avviso resta: meglio uno di troppo che una modifica persa in silenzio */
+  const conflittoDiUnaRimasta = async (v: DaRimandare) => {
+    try {
+      const letta = await tappaSulServer(v.legaId, v.tappa.id);
+      if (letta && unoDeiNostri([v.tappa], letta.tappa)) return;
+    } catch { /* lettura non riuscita: si avvisa comunque */ }
+    avvisaConflitto(v.tappa.id, tappaModificataAltrove(v.tappa.nome));
   };
   /** Una tappa rimasta: PUT con la versione su cui si basa, oppure POST se non era ancora creata. Un 409 della POST vuol dire che la
    *  POST partita prima della chiusura è arrivata: questa versione, più recente, la sostituisce con la versione letta dal server */

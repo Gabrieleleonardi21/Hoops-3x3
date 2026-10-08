@@ -23,7 +23,7 @@ export default defineConfig({
   use: { baseURL: `http://localhost:${PORTA_VITE}` },
   webServer: [
     {
-      command: `java -jar ${JAR}`,
+      command: `java -jar "${JAR}"`,
       // Playwright aspetta un 2xx: /actuator/health risponde 503 finché il database non è pronto
       url: `http://localhost:${PORTA_BACKEND}/actuator/health`,
       timeout: 120_000,

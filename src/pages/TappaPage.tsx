@@ -4,6 +4,7 @@
 import { useState, useEffect, type ReactNode } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { useTappa } from "../hooks/useTappa";
+import { tappaCorrente } from "../stores/useAppStore";
 import { useAnagrafe } from "../hooks/useAnagrafe";
 import { useConfermaPerdita } from "../hooks/useConfermaPerdita";
 import { useInvio } from "../hooks/useInvio";
@@ -93,6 +94,10 @@ export function TappaPage() {
       if (existing) {
         h.applyReg(teamId, existing, trimmed);
       } else {
+        // Prima di creare una voce condivisa si ricontrolla la squadra di adesso: se intanto il nome è cambiato o un'altra uscita dal
+        // campo l'ha già collegata, applyReg rifiuterebbe e la voce resterebbe orfana nell'anagrafe
+        const adesso = tappaCorrente(h.tappa?.id)?.squadre.find((x) => x.id === teamId);
+        if (!adesso || adesso.regId || adesso.nome.trim() !== trimmed) return;
         // Crea una nuova RegSquadra nell'anagrafe e collega subito
         const newReg = await saveSquadra({
           nome: trimmed, citta: "", anno: "", rank: String(s.rank || ""),

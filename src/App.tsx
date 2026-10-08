@@ -74,7 +74,20 @@ function useSessione() {
   /** Verifica la sessione salvata e carica le leghe (un JWT scaduto si rinnova dentro api()). Server che non risponde:
    *  avviso con «Riprova» e la sessione resta. Sessione valida: l'utente del server sostituisce la copia salvata nel
    *  browser (nome e ruolo possono essere cambiati). Sessione finita: form con il messaggio */
+  const verificaInCorso = useRef(false);
   const verifica = async () => {
+    // Una verifica alla volta: «Riprova» premuto due volte (o StrictMode in sviluppo) avvierebbe due attese del server, e la prima
+    // a finire toglierebbe «Server in avvio» mentre l'altra aspetta ancora
+    if (verificaInCorso.current) return;
+    verificaInCorso.current = true;
+    try {
+      await verificaSessione();
+    } finally {
+      verificaInCorso.current = false;
+    }
+  };
+
+  const verificaSessione = async () => {
     setNonVerificato(null);
     const prima = useAppStore.getState().user;
     // Prima il server deve essere sveglio: la verifica può rinnovare il JWT, e un rinnovo verso un server che si sta avviando
