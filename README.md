@@ -125,7 +125,7 @@ Ogni push su `main` di uno dei due repository ripubblica il servizio corrisponde
 
 Prima volta con i test end-to-end: `npx playwright install chromium` (sono provati solo con Chromium). Non serve il backend: i percorsi da registrato rispondono alle chiamate a `/api` con risposte finte (`tests/e2e/helpers.ts`) e gli altri lavorano da Ospite.
 
-**Copertura.** `npm test -- --coverage` misura la copertura di `src/` e **fallisce** se una di queste cartelle scende sotto l'80% di righe, funzioni, rami o istruzioni, ognuna per conto suo: `src/domain`, `src/utils`, `src/stores`, `src/services` (soglie in `vite.config.ts`; i componenti si provano più dal browser e non hanno soglia). Il report è in `coverage/`.
+**Copertura.** `npm test -- --coverage` misura la copertura di `src/` e **fallisce** se un file di queste cartelle scende sotto l'80% di righe, funzioni, rami o istruzioni, ogni file per conto suo (`perFile`): `src/domain`, `src/utils`, `src/stores`, `src/services` (soglie in `vite.config.ts`; i componenti si provano più dal browser e non hanno soglia). Con la media per cartella un file piccolo senza test restava nascosto dietro quelli grandi ben provati. Il report è in `coverage/`.
 
 **Integrazione continua.** `.github/workflows/ci.yml` gira a ogni push su `main` e a ogni pull request, con Node 22: `npm ci`, lint, controllo dei tipi, `npm test -- --coverage` (con le soglie di sopra), build, installazione di Chromium e `npm run test:e2e`. Un solo passo che fallisce ferma la CI.
 

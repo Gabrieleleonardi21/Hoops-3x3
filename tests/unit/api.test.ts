@@ -665,3 +665,29 @@ describe("attendiServer: all'avvio si aspetta che il server risponda (avvio a fr
     expect(esito).toBe(false);
   });
 });
+
+describe("askCoach: gli errori del server diventano un AiError con il codice giusto", () => {
+  const domanda = [{ role: "user" as const, content: "Come si sorteggia?" }];
+
+  it.each([
+    [503, "UNAVAILABLE", "Coach AI non configurato"],
+    [500, "SERVER", "Errore interno"],
+    [502, "SERVER", "Bad gateway"],
+  ])("%s → %s, con il messaggio del server", async (status, code, message) => {
+    token.set(jwt(3600));
+    fetchFinto.mockResolvedValue(errore(status, message));
+    await expect(askCoach("Sei il Coach", domanda)).rejects.toMatchObject({ code, message });
+  });
+
+  it("una risposta con un errore nel corpo (formato Groq) è un errore del server", async () => {
+    token.set(jwt(3600));
+    fetchFinto.mockResolvedValue(ok({ error: { message: "modello non disponibile" } }));
+    await expect(askCoach("Sei il Coach", domanda)).rejects.toMatchObject({ code: "SERVER", message: "modello non disponibile" });
+  });
+
+  it("senza testo nella risposta si mostra la frase di cortesia, non una stringa vuota", async () => {
+    token.set(jwt(3600));
+    fetchFinto.mockResolvedValue(ok({ choices: [{ message: { content: "   " } }] }));
+    await expect(askCoach("Sei il Coach", domanda)).resolves.toBe("Non ho una risposta ora, riprova.");
+  });
+});

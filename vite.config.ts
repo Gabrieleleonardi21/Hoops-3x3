@@ -4,7 +4,9 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
 // Copertura minima (%) della logica dell'app: sotto una di queste soglie `npm test -- --coverage` esce con errore e la CI si ferma.
-// Vale per ogni cartella separatamente, così i componenti (che si provano più dal browser) non abbassano la media della logica
+// Vale per ogni file di queste cartelle, uno per uno (perFile): con la media della cartella un file piccolo senza test (safeUrl, che
+// è l'unica difesa contro gli URL javascript:) restava nascosto dietro i file grandi ben provati. I componenti si provano più dal
+// browser e non hanno soglia
 const SOGLIA_80 = { lines: 80, functions: 80, branches: 80, statements: 80 };
 
 export default defineConfig({
@@ -21,6 +23,7 @@ export default defineConfig({
       provider: "v8",
       include: ["src/**/*.{ts,tsx}"],
       thresholds: {
+        perFile: true,
         "src/domain/**": SOGLIA_80,
         "src/utils/**": SOGLIA_80,
         "src/stores/**": SOGLIA_80,
