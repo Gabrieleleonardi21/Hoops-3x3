@@ -65,6 +65,8 @@ describe("Tabelle con <caption> per i lettori di schermo", () => {
 
   it("classifica circuito (pagina della lega): dice che è la classifica del circuito", () => {
     const tappa = tappaDiProva("t1", { Alfa: ["Mario Rossi"], Beta: ["Luigi Verdi"] }, [{ a: "Alfa", b: "Beta" }]);
+    // La classifica compare solo con una squadra che ha punti ranking
+    tappa.squadre[0].rank = "40";
     useAppStore.setState({
       user: { name: "Ospite", guest: true }, legaId: "l1", legaName: "Lega",
       leghe: [{ id: "l1", nome: "Lega", ts: 1, nTappe: 1 }], tappe: [tappa],

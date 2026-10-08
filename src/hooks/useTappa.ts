@@ -1,3 +1,4 @@
+import { useCallback, useMemo } from "react";
 import { useAppStore, tappaCorrente } from "../stores/useAppStore";
 import { useStatoArchivio } from "./useStatoArchivio";
 import { anagrafeApi } from "../services/anagrafeApi";
@@ -82,7 +83,14 @@ function scollegaSenzaVoce(t: Tappa, regs: RegSquadra[]): Tappa {
 }
 
 export function useTappa(id: string | undefined) {
-  const { user, legaName, tappe, updateTappa, replaceTappa, removeTappa } = useAppStore();
+  // Selettori mirati, uno per campo: con useAppStore() intero la pagina si ridisegnava a ogni cambiamento dello store (anche i
+  // contatori della coda dei salvataggi), e con lei le schede di tutte le partite (F11). Le azioni dello store sono stabili
+  const user = useAppStore((s) => s.user);
+  const legaName = useAppStore((s) => s.legaName);
+  const tappe = useAppStore((s) => s.tappe);
+  const updateTappa = useAppStore((s) => s.updateTappa);
+  const replaceTappa = useAppStore((s) => s.replaceTappa);
+  const removeTappa = useAppStore((s) => s.removeTappa);
   const tappa = tappe.find((t) => t.id === id) || null;
   // La pubblicazione nell'Archivio circuito: che cosa se ne sa e quelle in corso
   const archivio = useStatoArchivio(id, user);
@@ -103,26 +111,30 @@ export function useTappa(id: string | undefined) {
         return cambia(s);
       }),
     }));
-  /** `aggiorna` per una partita: le altre restano come sono */
-  const aggiornaPartita = (matchId: string, cambia: (m: Partita) => Partita) =>
-    aggiorna((t) => ({
+  /** Come `aggiorna`, per una partita: le altre restano come sono. Parte dalla tappa di adesso nello store (non dalla copia del
+   *  render) e dipende solo da id e store: è stabile tra i render, come le azioni delle schede che la usano (azioniPartita) */
+  const aggiornaPartita = useCallback((matchId: string, cambia: (m: Partita) => Partita) => {
+    const corrente = tappaCorrente(id);
+    if (!corrente) return;
+    updateTappa(corrente.id, (t) => ({
       ...t,
       partite: t.partite.map((m) => {
         if (m.id !== matchId) return m;
         return cambia(m);
       }),
     }));
+  }, [id, updateTappa]);
   /** Applica un'operazione di tappaOps alla tappa com'è adesso nello store e salva il risultato. Se l'operazione è
    *  rifiutata non salva niente e restituisce il messaggio da mostrare; null = fatto. Se restituisce la stessa tappa
-   *  (niente da cambiare, per esempio lo stesso numero di gironi) non parte nessun salvataggio. */
-  const applica = (operazione: (t: Tappa) => Esito): string | null => {
+   *  (niente da cambiare, per esempio lo stesso numero di gironi) non parte nessun salvataggio. Stabile tra i render */
+  const applica = useCallback((operazione: (t: Tappa) => Esito): string | null => {
     const corrente = tappaCorrente(id);
     if (!corrente) return "Tappa non trovata.";
     const esito = operazione(corrente);
     if (!esito.ok) return esito.errore;
     if (esito.tappa !== corrente) replaceTappa(esito.tappa);
     return null;
-  };
+  }, [id, replaceTappa]);
 
   /* ── helper di lettura ── */
   const nameOf = (teamId: string) => nomeSquadra(tappa?.squadre, teamId);
@@ -273,7 +285,9 @@ export function useTappa(id: string | undefined) {
   };
 
   /* ── punteggi: le regole 3x3 sul punteggio sono in tappaOps, qui i controlli sui roster ── */
-  const saveScore = (m: Partita, draft: MatchDraft): string | null => {
+  // useCallback: la scheda di ogni partita (MatchCard, memo) riceve queste azioni e si ridisegna solo se cambiano; dipendono da id,
+  // utente e store, non dalla copia della tappa di questo render
+  const saveScore = useCallback((m: Partita, draft: MatchDraft): string | null => {
     const corrente = tappaCorrente(id);
     if (!corrente || !user) return "Tappa non trovata.";
     const sa = parseInt(draft.sa, 10);
@@ -296,16 +310,19 @@ export function useTappa(id: string | undefined) {
     }
     replaceTappa(esito.tappa);
     return null;
-  };
+  }, [id, user, replaceTappa]);
 
   /** «Correggi»: la partita torna da giocare (tappaOps la rifiuta se la fase finale è già stata generata) */
-  const reopenScore = (matchId: string) => applica((t) => ops.annullaRisultato(t, matchId));
+  const reopenScore = useCallback((matchId: string) => applica((t) => ops.annullaRisultato(t, matchId)), [applica]);
 
   /* ── eventi di gara ── */
-  const addEvent = (matchId: string, ev: Omit<EventoGara, "id">) =>
-    aggiornaPartita(matchId, (m) => ({ ...m, eventi: [...(m.eventi || []), { ...ev, id: uid() }] }));
-  const removeEvent = (matchId: string, evId: string) =>
-    aggiornaPartita(matchId, (m) => ({ ...m, eventi: (m.eventi || []).filter((e) => e.id !== evId) }));
+  const addEvent = useCallback((matchId: string, ev: Omit<EventoGara, "id">) =>
+    aggiornaPartita(matchId, (m) => ({ ...m, eventi: [...(m.eventi || []), { ...ev, id: uid() }] })), [aggiornaPartita]);
+  const removeEvent = useCallback((matchId: string, evId: string) =>
+    aggiornaPartita(matchId, (m) => ({ ...m, eventi: (m.eventi || []).filter((e) => e.id !== evId) })), [aggiornaPartita]);
+  /** Le azioni che la scheda di una partita (MatchCard) può fare, in un oggetto che cambia solo se cambiano loro: così la scheda,
+   *  che è memo, non si ridisegna a ogni tasto scritto altrove nella tappa (F11) */
+  const azioniPartita = useMemo(() => ({ saveScore, reopenScore, addEvent, removeEvent }), [saveScore, reopenScore, addEvent, removeEvent]);
 
   /* ── video + pubblicazione ── */
   /** Una tappa conclusa con i video cambiati si ripubblica (solo chi ha un account pubblica) */
@@ -362,7 +379,7 @@ export function useTappa(id: string | undefined) {
     renameTeam, setTeamRank, setTeamWebsite, setTeamLogo, applyReg, unlinkReg, syncFromAnagrafe,
     addPlayer, renamePlayer, removePlayer,
     sorteggia, saveScore, reopenScore,
-    addEvent, removeEvent,
+    addEvent, removeEvent, azioniPartita,
     addVideo, removeVideo, concludi, riapri,
     removeTappa,
   };

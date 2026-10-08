@@ -6,6 +6,7 @@ import { useTappa } from "../../src/hooks/useTappa";
 import { useAppStore } from "../../src/stores/useAppStore";
 import { legheApi } from "../../src/services/legheApi";
 import { DEFAULT_RULES } from "../../src/constants/rules";
+import { squadraDi } from "../../src/utils/tappaInfo";
 import type { Partita, SquadraTappa, Tappa, User } from "../../src/types";
 
 // Si sostituisce solo la rete delle leghe (per l'utente registrato, che salva sul server): scheda, hook, store e coda dei
@@ -44,12 +45,15 @@ const giocata: Partial<Partita> = {
   pb: { b1: { pt: 8, rb: 3 } },
 };
 
-/** La scheda della prima partita della tappa, con l'hook vero: com'è nella pagina della tappa */
+/** La scheda della prima partita della tappa, con l'hook vero: com'è nella pagina della tappa (le prop che le dà GironeSection) */
 function Scheda() {
   const h = useTappa("t1");
   const m = h.tappa?.partite[0];
-  if (!m) return null;
-  return <MatchCard m={m} h={h} label="Girone A · Partita 1" />;
+  if (!m || !h.tappa) return null;
+  return (
+    <MatchCard m={m} label="Girone A · Partita 1" guest={!!h.user?.guest} azioni={h.azioniPartita}
+      squadraA={squadraDi(h.tappa.squadre, m.a)} squadraB={squadraDi(h.tappa.squadre, m.b)} />
+  );
 }
 
 /** Mette `t` nello store, per `user`, e mostra la scheda */
