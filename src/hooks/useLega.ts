@@ -3,7 +3,7 @@ import { useAppStore } from "../stores/useAppStore";
 import { uid } from "../utils/uid";
 import { creaTappa, erroreLimitiTappa } from "../domain/tappaOps";
 import type { Esito } from "../domain/tappaOps";
-import { nomeSegnaposto } from "../constants/rules";
+import { MAX_TAPPE_LEGA, nomeSegnaposto } from "../constants/rules";
 
 export interface NuovaTappaInput {
   nome: string;
@@ -18,8 +18,10 @@ export function useLega() {
 
   /** Crea la tappa con squadre segnaposto «Squadra N». Limiti uguali a quelli del Coach (tappaOps): da 2 a 64 squadre,
    *  un numero di gironi intero tra 1 e metà delle squadre e i limiti del server per nome, luogo e data; fuori dai
-   *  limiti non crea niente e dice perché. */
+   *  limiti non crea niente e dice perché. Anche il tetto di tappe per lega del server (MAX_TAPPE_LEGA) si controlla qui: la
+   *  POST della centunesima riceverebbe comunque un 400, che la barra degli avvisi mostra con il messaggio del server. */
   const createTappa = (input: NuovaTappaInput): Esito => {
+    if (tappe.length >= MAX_TAPPE_LEGA) return { ok: false, errore: `Una lega può avere al massimo ${MAX_TAPPE_LEGA} tappe.` };
     const nSquadre = Number(input.nTeams);
     const nGironi = Number(input.nGironi);
     const nome = input.nome.trim() || `Tappa ${tappe.length + 1}`;
