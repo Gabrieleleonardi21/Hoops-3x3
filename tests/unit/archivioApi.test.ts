@@ -42,6 +42,53 @@ describe("archivioApi.pubblica: il server costruisce la copia dalla tappa che ha
   });
 });
 
+/** Le intestazioni della n-esima chiamata a fetch */
+const intestazioni = (n: number) => (fetchFinto.mock.calls[n][1] as RequestInit).headers as Record<string, string>;
+
+describe("archivioApi.get: una tappa pubblicata", () => {
+  it("GET /api/archivio/{tappaId} senza corpo; restituisce la pubblicazione com'è", async () => {
+    await expect(archivioApi.get("t1")).resolves.toEqual(risposta);
+    const [url, init] = fetchFinto.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/archivio/t1");
+    expect(init.method).toBe("GET");
+    expect(init.body).toBeUndefined();
+  });
+
+  it("la lettura è pubblica: senza account parte senza Bearer, con un account lo porta", async () => {
+    await archivioApi.get("t1");
+    expect(intestazioni(0).Authorization).toBeUndefined();
+    token.set(jwt());
+    await archivioApi.get("t1");
+    expect(intestazioni(1).Authorization).toBe(`Bearer ${token.get()}`);
+  });
+
+  it("il 404 (la tappa non è in archivio) arriva a chi chiama come ApiError con lo status: useStatoArchivio lo legge così", async () => {
+    fetchFinto.mockImplementation(async () => new Response(JSON.stringify({ message: "Tappa non pubblicata" }), { status: 404 }));
+    const esito = await archivioApi.get("t1").catch((e: unknown) => e);
+    expect(esito).toBeInstanceOf(ApiError);
+    expect(esito).toMatchObject({ status: 404, message: "Tappa non pubblicata" });
+  });
+});
+
+describe("archivioApi.rimuovi: ritira la pubblicazione", () => {
+  it("DELETE /api/archivio/{tappaId} senza corpo, con il Bearer; il 204 senza corpo non è un errore", async () => {
+    token.set(jwt());
+    fetchFinto.mockImplementation(async () => new Response(null, { status: 204 }));
+    await expect(archivioApi.rimuovi("t1")).resolves.toBeUndefined();
+    const [url, init] = fetchFinto.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/archivio/t1");
+    expect(init.method).toBe("DELETE");
+    expect(init.body).toBeUndefined();
+    expect(intestazioni(0).Authorization).toBe(`Bearer ${token.get()}`);
+  });
+
+  it("un rifiuto del server (non sei l'autore) arriva a chi chiama con lo status e il messaggio", async () => {
+    token.set(jwt());
+    fetchFinto.mockImplementation(async () => new Response(JSON.stringify({ message: "Solo l'autore può ritirarla" }), { status: 403 }));
+    await expect(archivioApi.rimuovi("t1")).rejects.toMatchObject({ status: 403, message: "Solo l'autore può ritirarla" });
+  });
+});
+
 /** Una voce dell'elenco com'è nella risposta di GET /api/archivio dal backend della T2.2 (otto campi, senza la tappa intera) */
 const voce = (tappaId: string, ts: number) => ({
   tappaId, nome: `Tappa ${tappaId}`, luogo: "Roma", data: "2025-09-13", nSquadre: 8, lega: "Circuito", autore: "Admin", ts,

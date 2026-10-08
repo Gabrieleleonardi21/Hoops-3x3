@@ -24,11 +24,11 @@
 
   --color-court: #ff6a1f;       /* accento: CTA, nav attiva, rank #1 */
   --color-court-hover: #ff7f3f;
-  --color-gold: #f5c542;        /* solo 1° posto / MVP */
+  --color-gold: #f5c542;        /* 1° posto e miglior valore, finale e campione del tabellone, stelle dei Campetti */
   --color-win: #3dd68c;
   --color-loss: #ff4d4d;
   --color-live: #ff3b3b;
-  --color-navy: #17203a;        /* brand: solo logo e overlay hero */
+  --color-navy: #17203a;        /* brand (colore del logo): solo l'overlay della hero */
 
   --font-display: "Barlow Condensed", "Arial Narrow", sans-serif;
   --font-sans: "IBM Plex Sans", system-ui, sans-serif;
@@ -95,7 +95,7 @@
     @apply focus:border-court focus:outline-none;
   }
   .cellin {
-    @apply w-[46px] text-center bg-asphalt-800 border border-asphalt-700 rounded-sm px-0.5 py-1 text-[13px] font-semibold text-chalk;
+    @apply w-[46px] text-center bg-asphalt-800 border border-asphalt-500 rounded-sm px-0.5 py-1 text-[13px] font-semibold text-chalk;
     @apply focus:border-court focus:outline-none;
   }
 

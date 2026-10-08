@@ -194,6 +194,7 @@ export function GiocatorePage() {
         <Section title="Storico tappe" kicker="Lega attiva" className="mb-0">
           <div className="overflow-x-auto rounded border border-asphalt-700">
             <table className="standtable">
+              <caption className="sr-only">Storico tappe di {g.nome} {g.cognome}: piazzamento e statistiche per tappa</caption>
               {/* la colonna tappa prende lo spazio rimanente, le numeriche sono fisse */}
               <colgroup><col /><col className="w-14" /><col className="w-10" /><col className="w-12" /><col className="w-12" /><col className="w-12" /></colgroup>
               <thead><tr><th className="text-left" scope="col">Tappa</th><th scope="col">Piazz.</th><th scope="col">G</th><th scope="col">PT</th><th scope="col">REB</th><th scope="col">AST</th></tr></thead>

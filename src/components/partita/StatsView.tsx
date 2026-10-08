@@ -10,6 +10,7 @@ export function StatsView({ teamName, players, sheet }: {
     <div className="overflow-x-auto">
       <div className="kicker mb-1">{teamName}</div>
       <table className="statstable">
+        <caption className="sr-only">Statistiche registrate dei giocatori di {teamName}</caption>
         {/* colonne stat a larghezza fissa (44px); GIOCATORE occupa il resto */}
         <colgroup>
           <col />

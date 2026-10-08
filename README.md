@@ -4,18 +4,29 @@ App web per la gestione di un circuito italiano di basket 3x3: tornei, gironi, s
 
 ## Funzionalità
 
-- **Lega** — crea e configura la tua lega con nome, stagione e regole personalizzate
-- **Tappe** — organizza tornei con sorteggio gironi (casuale o con teste di serie), calendario partite e avanzamento automatico
-- **Live scoring** — inserisci i punteggi in tempo reale con log eventi (canestro da 1, canestro da 2, fallo, timeout)
-- **Statistiche** — traccia punti, rimbalzi, assist, palle rubate e stoppate per ogni giocatore
-- **Anagrafe** — archivio centralizzato di giocatori e squadre (con logo e sito web cliccabile) riutilizzabile tra le tappe; i dati personali (data di nascita, misure, note, autore) li vede solo chi ha un account
-- **Archivio** — storico di tutte le tappe concluse con classifiche finali
-- **Leaderboard** — classifiche individuali per categoria statistica su tutta la stagione
-- **Video** — galleria di highlight e partite (link YouTube)
-- **Coach AI** — assistente virtuale che conosce le regole FIBA 3x3 e i dati della lega corrente (gratuito via Groq API)
+- **Leghe** — un utente registrato ha più leghe, ognuna con le sue tappe: si creano, si rinominano, si aprono dall'elenco e si eliminano (con conferma). Una lega si esporta in un file JSON e si importa da file (l'import crea sempre una lega nuova); la classifica del circuito ordina le squadre per il punteggio ranking più alto ottenuto nelle tappe, con il numero di tappe giocate
+- **Tappe** — nome, luogo, data, da 2 a 64 squadre con roster di 3-4 giocatori (almeno 3 per sorteggiare), un numero di gironi da 1 a metà delle squadre (al massimo 32) e regole di gara per tappa; sorteggio dei gironi casuale o a serpentina per ranking, calendario all'italiana, fase finale a eliminazione diretta, conclusione e riapertura
+- **Gironi e fase finale** — classifica del girone con vittorie, scontri diretti, punti fatti e differenza canestri (regolamento FIBA 3x3); tabellone a turni (ottavi, quarti, semifinali, finale), con le migliori teste di serie che passano il primo turno senza giocare quando le qualificate non riempiono i posti (serve più di un girone)
+- **Punteggi** — risultato di ogni gara (niente pareggi), tabellino per giocatore (punti, rimbalzi, assist, palle rubate, stoppate, palle perse, falli) e log eventi di gara (fallo, sostituzione, timeout, infortunio, altro). Ai registrati i punti dei giocatori sono richiesti e devono sommare al totale; l'Ospite fa prove libere
+- **Timer di gara** — finestra per il tavolo con countdown, shot clock, punteggio +1/+2, fine partita rilevata da sola e supplementare
+- **Statistiche** — leader della tappa per categoria (punti, rimbalzi, assist, palle rubate, stoppate) e statistiche di stagione per giocatore, sommate su tutte le tappe della lega, nella scheda «Statistiche stagione» dell'Anagrafe
+- **Anagrafe** — archivio condiviso di giocatori e squadre (con logo e sito web cliccabile) che le tappe riutilizzano
+  - scrivendo il nome di una squadra di tappa, questa si collega alla voce dell'anagrafe (nome, logo, ranking e sito; il roster non si copia) o ne crea una
+  - modifica ed eliminazione solo per l'autore o un ADMIN
+  - i dati personali (del giocatore: data di nascita, città, nazionalità, altezza, peso, esperienza, note e autore; della squadra: referente e autore) li vede solo chi ha un account
+- **Archivio** — le tappe concluse e pubblicate (la pubblicazione è dei registrati), consultabili senza account in `/archivio` e `/tappa/:id`
+  - squadre e roster, risultati, classifiche dei gironi, tabellone, leader e video, con «Stampa / PDF»
+  - il link pubblico di una tappa conclusa si copia dalla sua pagina
+- **Video** — link video per tappa: quelli di YouTube si incorporano nella pagina, gli altri si aprono in una nuova scheda
+- **Coach AI** — assistente virtuale che conosce le regole FIBA 3x3 e i dati della lega corrente
+  - agisce nell'app con 10 strumenti: crea lega e tappa, sorteggia, registra e annulla risultati, genera le fasi dirette, conclude la tappa, scrive nell'anagrafe
+  - chiede conferma prima di sorteggiare su una tappa con risultati, annullare un risultato e concludere una tappa
+  - solo per i registrati, via backend (vedi «Coach AI» e `docs/coach-ai-tool-calling.md`)
+- **Conferme** — ciò che fa perdere dati (eliminare una tappa, una lega, il tabellone o una voce dell'anagrafe; rifare il sorteggio o cambiare squadre e gironi con dei risultati; rimuovere una squadra con dati; riaprire una tappa pubblicata) apre una finestra che dice che cosa si perde
 - **Home dashboard** — tappa in corso, classifica live, ultimo risultato registrato, prossime partite e leader
-- **Profilo giocatore** — pagina `/giocatore/:id` con statistiche aggregate, andamento punti e storico tappe
+- **Profilo giocatore** — pagina `/giocatore/:id` con statistiche aggregate, andamento punti, storico tappe e ultime partite
 - **Campetti** — ricerca campi con filtri e mappa schematica (*dati di esempio*, dichiarati da un avviso in cima alla pagina; senza persistenza)
+- **Ospite** — accesso senza account per provare l'app: la lega sta nel `localStorage` del browser, anagrafe e archivio sono in sola lettura, la pubblicazione e il Coach AI non sono disponibili
 - **Sessione persistente** — login e dati salvati nel browser; la sessione si rinnova da sola e «Esci» la chiude anche sul server; gli ospiti hanno dati locali separati
 
 ### Regole FIBA 3x3 (default)
@@ -35,11 +46,21 @@ App web per la gestione di un circuito italiano di basket 3x3: tornei, gironi, s
 - [React Hook Form](https://react-hook-form.com/) + [Zod](https://zod.dev/) — form e validazione
 - [Tailwind CSS 4](https://tailwindcss.com/) — styling; i token del design system "Asphalt" sono in `src/index.css` (`@theme`), documentati in `docs/design-system.md`; [tailwind-merge](https://github.com/dcastil/tailwind-merge) unisce le classi dei pulsanti, così quelle passate dall'esterno vincono su quelle della variante
 - Backend [Spring Boot 4](https://spring.io/projects/spring-boot) (Java 25) con Spring Security + JWT, JPA/Hibernate e PostgreSQL — repo separato [hoop3x3-backend](https://github.com/Gabrieleleonardi21/hoop3x3-backend)
-- `localStorage` — lega dell'Ospite, JWT di accesso e utente di sessione (dati che restano nel browser)
+- `localStorage` — lega dell'Ospite, JWT di accesso e utente di sessione (dati che restano nel browser); `sessionStorage` — cronologia del Coach AI (si azzera alla chiusura della scheda)
+- [Vitest](https://vitest.dev/) + Testing Library (test unitari) e [Playwright](https://playwright.dev/) (test end-to-end)
+
+## Requisiti
+
+| Per | Serve |
+|---|---|
+| Il frontend | [Node](https://nodejs.org/) `^20.19.0`, `^22.13.0` o `>=24` (il vincolo più stretto è quello di jsdom 29, usato dai test; Vite 6 e React Router 7 ne chiedono meno) e npm. `package.json` non dichiara `engines` e non c'è un `.nvmrc`: la CI e Render usano la 22 |
+| Le funzioni da registrato | Il backend [hoop3x3-backend](https://github.com/Gabrieleleonardi21/hoop3x3-backend) in ascolto su `localhost:3001`: JDK 25 e PostgreSQL su `localhost:5432` (Maven lo scarica il wrapper `./mvnw`) |
+
+Il backend serve per registrazione e accesso, leghe e tappe sul server, anagrafe, archivio e Coach AI. Senza, l'app parte lo stesso e l'Ospite può creare e giocare una tappa nel browser; le pagine che leggono dal server mostrano l'errore con «Riprova». I test unitari e quelli end-to-end non hanno bisogno del backend.
+
+**Variabili d'ambiente.** Il frontend ne ha una sola, facoltativa: `VITE_API_URL` (origine del backend, letta in `src/services/api.ts` e tipizzata in `src/vite-env.d.ts`; modello in `.env.example`, da copiare in `.env`, che git ignora). Vuota va bene in sviluppo, dove il proxy di Vite (`vite.config.ts`) inoltra `/api` e `/actuator/health` a `http://localhost:3001`, e dietro un reverse proxy sulla stessa origine; va impostata solo se il backend ha un'origine propria (vedi sotto). La chiave del Coach AI non è qui ma nell'`env.properties` del backend.
 
 ## Avvio rapido
-
-Servono Node 20.19 o superiore, JDK 25 e PostgreSQL in ascolto su `localhost:5432` (Maven lo scarica il wrapper `./mvnw` del backend).
 
 **1. Backend** — clona [hoop3x3-backend](https://github.com/Gabrieleleonardi21/hoop3x3-backend) e segui il suo README (crea un database `hoop3x3` vuoto, compila `env.properties`, poi `./mvnw spring-boot:run`: le tabelle le crea Flyway all'avvio, non c'è nessuno script da eseguire):
 
@@ -87,75 +108,78 @@ Il sito statico inoltra `/api/*` al backend con una regola di rewrite: per il br
 
 Ogni push su `main` di uno dei due repository ripubblica il servizio corrispondente.
 
-**Ordine di pubblicazione della fase 2** — frontend e backend non vanno online nello stesso istante, quindi l'ordine conta: prima questo frontend, subito dopo il backend, in un momento senza tornei in corso (nessuno sta salvando una tappa), poi si ricaricano le schede aperte. Perché non il contrario e che cosa succede nei minuti tra le due pubblicazioni: sezione «Ordine di pubblicazione della fase 2» nel README di [hoop3x3-backend](https://github.com/Gabrieleleonardi21/hoop3x3-backend).
+**Ordine di pubblicazione** — frontend e backend non vanno online nello stesso istante, quindi l'ordine conta: prima questo frontend, subito dopo il backend, in un momento senza tornei in corso (nessuno sta salvando una tappa), poi si ricaricano le schede aperte. Il backend nuovo rifiuta con 400 il salvataggio di una tappa senza `versione`: una scheda di questo frontend rimasta aperta dal backend precedente rilegge la lega e rimanda da sola (vedi «Versioni e conflitti» qui sotto), una scheda del frontend precedente continua a ricevere il 400 finché non si ricarica la pagina. Il perché dell'ordine, visto dal backend, è nel README di [hoop3x3-backend](https://github.com/Gabrieleleonardi21/hoop3x3-backend): sezioni «Sessioni e refresh token» («Ordine di pubblicazione») e «Tappe e modifiche da più dispositivi» («Compatibilità»).
 
 ## Script disponibili
 
 | Comando | Descrizione |
 |---|---|
-| `npm run dev` | Avvia il dev server con hot reload |
-| `npm run build` | Build di produzione |
-| `npm run preview` | Anteprima della build di produzione |
-| `npm run test` | Esegue i test unitari (Vitest) |
-| `npm run test:e2e` | Esegue i test end-to-end (Playwright) |
-| `npm run lint` | Linting del codice sorgente |
+| `npm run dev` | Dev server con hot reload su `http://localhost:5173` (le chiamate a `/api` passano dal proxy verso il backend) |
+| `npm run build` | Controllo dei tipi (`tsc -b`) e build di produzione in `dist/` |
+| `npm run preview` | Serve `dist/` su `http://localhost:4173` (dopo `npm run build`); è tra le origini che il backend ammette di base |
+| `npm run lint` | ESLint su tutto il progetto, senza avvisi ammessi (`--max-warnings 0`) |
+| `npm run typecheck` | Controllo dei tipi (`tsc -b`) |
+| `npm test` | Test unitari (Vitest, `tests/unit/`) |
+| `npm run check` | `lint` + `typecheck` + `test`: il controllo da fare prima di ogni commit (non comprende copertura, build ed end-to-end) |
+| `npm run test:e2e` | Test end-to-end (Playwright, `tests/e2e/`): avviano da soli il dev server sulla porta 5199 |
+
+Prima volta con i test end-to-end: `npx playwright install chromium` (sono provati solo con Chromium). Non serve il backend: i percorsi da registrato rispondono alle chiamate a `/api` con risposte finte (`tests/e2e/helpers.ts`) e gli altri lavorano da Ospite.
+
+**Copertura.** `npm test -- --coverage` misura la copertura di `src/` e **fallisce** se una di queste cartelle scende sotto l'80% di righe, funzioni, rami o istruzioni, ognuna per conto suo: `src/domain`, `src/utils`, `src/stores`, `src/services` (soglie in `vite.config.ts`; i componenti si provano più dal browser e non hanno soglia). Il report è in `coverage/`.
+
+**Integrazione continua.** `.github/workflows/ci.yml` gira a ogni push su `main` e a ogni pull request, con Node 22: `npm ci`, lint, controllo dei tipi, `npm test -- --coverage` (con le soglie di sopra), build, installazione di Chromium e `npm run test:e2e`. Un solo passo che fallisce ferma la CI.
 
 ## Coach AI (opzionale)
 
-Il Coach AI usa [Groq](https://console.groq.com/) (tier gratuito, modello `openai/gpt-oss-120b`) attraverso il backend (`POST /api/coach/chat`), così la chiave non arriva mai al browser. Impostala nell'`env.properties` del backend:
+Il Coach AI usa [Groq](https://console.groq.com/) (tier gratuito) attraverso il backend (`POST /api/coach/chat`), così la chiave non arriva mai al browser. Il modello lo sceglie il backend (`GROQ_MODEL`, di base `openai/gpt-oss-120b`). Impostala nell'`env.properties` del backend:
 
 ```properties
 GROQ_API_KEY=gsk_...
 ```
 
-Senza chiave il Coach risponde "non configurato" e il resto dell'app funziona normalmente. Il Coach è riservato agli utenti registrati.
+Senza chiave il Coach risponde "non configurato" e il resto dell'app funziona normalmente. Il Coach è riservato agli utenti registrati: un ospite riceve in chat l'invito a creare un account e non parte nessuna chiamata. Strumenti, conferme, chiamate al backend e limiti del ciclo sono in [`docs/coach-ai-tool-calling.md`](docs/coach-ai-tool-calling.md).
 
 ## API REST
 
-Tutte le risposte di errore hanno il formato `{ "message": "...", "timestamp": "..." }`. Gli endpoint protetti richiedono `Authorization: Bearer <jwt>`.
+Il contratto del backend (endpoint per endpoint, chi può chiamarlo, codici di stato) sta nella sezione «Endpoint» del README di [hoop3x3-backend](https://github.com/Gabrieleleonardi21/hoop3x3-backend), che la ricava dai test di accesso; i limiti (dimensioni, lunghezze, frequenza delle richieste) nelle sezioni «Limiti dell'API» e «Limiti di frequenza». Qui non si ripetono, per non farli divergere. Il frontend chiama il backend solo da `src/services/`, e ogni servizio ha il suo gruppo di endpoint:
 
-| Metodo | Endpoint | Accesso | Descrizione |
-|---|---|---|---|
-| POST | `/api/auth/register` | pubblico | Crea l'account (ruolo `USER`), imposta il cookie di refresh e restituisce token + utente |
-| POST | `/api/auth/login` | pubblico | Login, imposta il cookie di refresh e restituisce token + utente |
-| POST | `/api/auth/refresh` | pubblico, con il cookie di refresh | Ruota il refresh token e restituisce un nuovo token + utente |
-| POST | `/api/auth/logout` | pubblico | Revoca il refresh token e cancella il cookie (204) |
-| GET | `/api/auth/me` | login | Utente del token corrente |
-| GET | `/api/utenti` | ADMIN | Elenco utenti |
-| GET/POST | `/api/leghe` | login | Indice leghe dell'utente / nuova lega (anche import con `tappe`) |
-| GET/PATCH/DELETE | `/api/leghe/{id}` | proprietario | Dettaglio con tappe / rinomina / elimina |
-| POST | `/api/leghe/{id}/tappe` | proprietario | Nuova tappa (id UUID generato dal client), con la `versione` 0 (409 se esiste già) |
-| PUT/DELETE | `/api/tappe/{id}` | proprietario | Sostituisce la tappa, con la `versione` dell'ultima risposta (400 se manca, 409 se nel frattempo un altro dispositivo l'ha salvata; il 200 porta la versione nuova) / elimina la tappa (409 se salvata nello stesso istante: la tappa resta) |
-| GET | `/api/anagrafe/giocatori`, `/squadre` | pubblico | Anagrafe circuito |
-| POST | `/api/anagrafe/giocatori`, `/squadre` | login | Nuova voce (autore = utente) |
-| PUT/DELETE | `/api/anagrafe/giocatori/{id}`, `/squadre/{id}` | autore o ADMIN | Modifica / elimina |
-| GET | `/api/archivio` | pubblico | Elenco sintetico delle tappe pubblicate, già dalla più recente: per ogni voce `tappaId`, `nome`, `luogo`, `data`, `nSquadre`, `lega`, `autore`, `ts`, senza la tappa intera. Il client lo valida (zod) e non lo riordina: una risposta con un'altra forma, come quella di prima, dà l'errore con «Riprova» |
-| GET | `/api/archivio/{tappaId}` | pubblico | Dettaglio: la tappa intera con lega, autore e `ts` (404 se non c'è) |
-| PUT | `/api/archivio/{tappaId}` | proprietario della lega o ADMIN | Pubblica o ripubblica una tappa conclusa, senza corpo: la copia la costruisce il server da ciò che ha salvato (404 se la tappa non esiste, 403 se non è sua, 409 se non è conclusa) |
-| DELETE | `/api/archivio/{tappaId}` | autore o ADMIN | Ritira la pubblicazione |
-| GET | `/api/coach/status` | login | `{ available }` (chiave Groq configurata) |
-| POST | `/api/coach/chat` | login | Proxy verso Groq (messaggi + tool in formato OpenAI) |
+| Servizio | Gruppo di endpoint |
+|---|---|
+| `api.ts` (client HTTP: JWT, rinnovo, tempo massimo) | `POST /api/auth/refresh` (il rinnovo della sessione) e `GET /actuator/health` (appena si apre l'app, per svegliare il backend dei piani free: `svegliaServer`). Se l'utente esce mentre un rinnovo è in corso, chiama anche `POST /api/auth/logout` per chiudere la sessione appena rinnovata; se il rinnovo è respinto (401) toglie solo il token e avvisa l'app che la sessione è finita |
+| `authService.ts` | `/api/auth/*`: registrazione, accesso, uscita e verifica della sessione (`/api/auth/me`) |
+| `legheApi.ts` | `/api/leghe` (indice, nuova lega, import con le tappe), `/api/leghe/{id}` (dettaglio, rinomina, eliminazione), `/api/leghe/{id}/tappe` (nuova tappa), `/api/tappe/{id}` (salvataggio ed eliminazione di una tappa) |
+| `anagrafeApi.ts` | `/api/anagrafe/giocatori` e `/api/anagrafe/squadre` (lettura, creazione, modifica, eliminazione) |
+| `archivioApi.ts` | `/api/archivio` (elenco) e `/api/archivio/{tappaId}` (dettaglio, pubblicazione, ritiro) |
+| `aiService.ts` | `POST /api/coach/chat` (il Coach AI) |
+
+Non usa `GET /api/utenti` (solo ADMIN) né `GET /api/coach/status`: la chiave Groq mancante la scopre dal 503 della chat. Negli store e nelle pagine il client mostra all'utente il campo `message` delle risposte d'errore del backend (`testoErrore`), o «Errore <status>» se il corpo manca; la chat del Coach ha testi suoi (`errorMsg` in `useCoachAI.ts`) e riporta il `message` del backend solo per il 400.
 
 Un utente `ADMIN` iniziale viene creato al primo avvio dalle proprietà `ADMIN_EMAIL` / `ADMIN_PASSWORD` di `env.properties`.
 
 ## Struttura del progetto
 
 ```
+tests/
+├── unit/             # Test unitari e di componenti (Vitest; jsdom dove serve il DOM)
+└── e2e/              # Test end-to-end (Playwright)
+docs/                 # Coach AI, design system e mockup di riferimento
+.github/workflows/    # CI (ci.yml)
+render.yaml           # Blueprint di Render
 src/
 ├── components/       # Componenti UI suddivisi per dominio
 │   ├── anagrafe/     # Giocatori e squadre
 │   ├── archivio/     # Storico tappe
-│   ├── auth/         # Login e registrazione
+│   ├── auth/         # Login, registrazione e rotta riservata (RequireAuth)
 │   ├── coach/        # Pannello Coach AI
 │   ├── gironi/       # Gestione gironi e classifiche
-│   ├── layout/       # Header (con navigazione) e Hero
+│   ├── layout/       # Header (con navigazione), Hero e barra degli avvisi (SyncBanner)
 │   ├── profile/      # Sparkline del profilo giocatore
-│   ├── leaderboard/  # Classifiche stagionali
+│   ├── leaderboard/  # Leader della tappa per categoria statistica e classifica a righe (StandingsTable)
 │   ├── partita/      # Live scoring e statistiche
 │   ├── squadra/      # Roster editor
 │   ├── tappa/        # Gestione tappa
-│   ├── ui/           # Componenti base (Button, Input, Card, Badge, StatTile, Section, Modal, Icon…)
-│   └── video/        # Galleria video
+│   ├── ui/           # Componenti base (Button, Input, Card, Badge, StatTile, Section, Modal, ConfirmDialog, Icon…)
+│   └── video/        # Video della tappa
 ├── coach/            # Coach AI: definizioni dei tool (toolDefs) ed esecutori (toolHandlers)
 ├── constants/        # Regole, ruoli, tipi di evento
 ├── data/             # Dati di esempio (campetti)

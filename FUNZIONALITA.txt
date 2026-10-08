@@ -1,6 +1,6 @@
 HOOP 3X3 — Gestionale per circuiti di basket 3x3
 =================================================
-Documento generato il 17/06/2026
+Documento aggiornato il 07/10/2026
 
 
 PANORAMICA
@@ -28,11 +28,23 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
   modificare o eliminare qualsiasi lega, scheda o pubblicazione.
 - Modalità Ospite: accesso immediato senza credenziali per provare l'app;
   i dati vengono salvati solo localmente, i controlli obbligatori su roster
-  e punteggi sono disattivati, la pubblicazione nell'archivio è bloccata.
+  e punteggi sono disattivati, la pubblicazione nell'archivio è bloccata,
+  l'anagrafe e l'archivio si consultano in sola lettura e il Coach AI non è
+  disponibile.
   «Esci» dall'Ospite chiude solo l'Ospite: se un'altra scheda del browser ha
   una sessione registrata, il suo token resta e quella scheda non esce.
 - Solo utenti registrati possono scrivere nell'anagrafe condivisa e
   concludere/pubblicare una tappa.
+- Sessione: il JWT si rinnova da solo con il refresh token, in anticipo
+  (quando mancano meno di 2 minuti alla scadenza, anche a pagina ferma) oppure
+  dopo un 401; le schede dello stesso browser condividono la sessione e la
+  rinnovano una alla volta. Quando la sessione finisce (refresh token scaduto
+  o revocato, «Esci» in un'altra scheda, sessione scaduta all'avvio) si torna
+  al form di accesso con «Sessione scaduta: accedi di nuovo» e il numero delle
+  tappe con modifiche non salvate, se ce n'erano. «Esci» salva prima ciò che è
+  in attesa e, se qualche tappa non arriva al server, chiede conferma. Il
+  logout chiude la sessione di questo browser: un JWT già emesso resta valido
+  fino a 30 minuti e gli altri dispositivi non vengono toccati.
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -42,6 +54,8 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
 - Creazione di più leghe distinte (es. "Circuito Roma 2025", "Milano 3x3").
 - Lista leghe con switch rapido tra una lega e l'altra.
 - Ogni lega ha un nome personalizzabile in qualsiasi momento.
+- Eliminazione di una lega con conferma: la finestra dice quante tappe si
+  perdono.
 - Export della lega corrente come file JSON (backup / trasferimento).
 - Import di una lega da file JSON (ripristino / migrazione da altro dispositivo).
   Il file viene controllato prima di importarlo: se è incompleto o supera i limiti
@@ -56,15 +70,28 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
 3. GESTIONE TAPPE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-- Creazione tappa con: nome, luogo, data, numero di gironi.
-- Aggiunta e rimozione squadre iscritte (minimo 3 giocatori per squadra
-  obbligatori per il sorteggio, controllo disattivato in modalità Ospite).
+- Creazione tappa con: nome (fino a 120 caratteri), luogo (fino a 160), data
+  (vuota o aaaa-mm-gg), numero di squadre (da 2 a 64) e di gironi (un intero
+  da 1 a metà delle squadre, al massimo 32). I limiti sono gli stessi per
+  l'interfaccia e per il Coach AI e si controllano prima di salvare.
+- Aggiunta e rimozione squadre iscritte. Il roster di ogni squadra ha da 3 a 4
+  giocatori: almeno 3, con il nome, per poter sorteggiare (controllo
+  disattivato in modalità Ospite), al massimo 4 (al quarto sparisce il
+  pulsante «Aggiungi giocatore»).
 - Modifica dei dati della tappa in qualsiasi momento prima della conclusione.
 - Eliminazione tappa con conferma: la finestra dice che cosa si perde (le squadre,
   il sorteggio, i risultati).
-- Collegamento automatico all'anagrafe: quando si digita il nome di una squadra,
-  l'app cerca in anagrafe e, se trovata, importa logo, sito, rank e roster.
-  Se non trovata, crea automaticamente la scheda in anagrafe. Una squadra
+- Collegamento all'anagrafe (solo registrati): quando si scrive il nome di una
+  squadra e si esce dal campo, l'app lo cerca in anagrafe (prima nella cache,
+  poi sul server) e, se lo trova, collega la squadra alla voce e ne copia
+  nome, logo, ranking e sito. Il roster non si copia: i giocatori di una
+  squadra di tappa si scrivono nella tappa; solo il Coach AI, creando una
+  tappa, porta con sé i giocatori del roster dell'anagrafe (al massimo 4 per
+  squadra, come il tetto dell'interfaccia). Se il nome non
+  c'è, l'app crea la scheda in anagrafe con il ranking, il logo e il sito che
+  la squadra ha. Se il collegamento non riesce il motivo compare sotto il
+  nome, con «Riprova». All'apertura della tappa le squadre collegate si
+  riallineano ai dati dell'anagrafe (nome, logo, ranking, sito). Una squadra
   collegata a una voce poi eliminata dall'anagrafe si scollega all'apertura
   della tappa (tiene nome, logo e ranking che ha) e il suo nome torna
   modificabile. Lo scollegamento si decide sulla lista fresca del server,
@@ -99,10 +126,14 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
 - Sorteggio casuale: le squadre vengono distribuite nei gironi in modo
   completamente random.
 - Sorteggio per ranking (seeded): distribuzione a serpentina in base ai punti
-  ranking, per evitare che le squadre più forti si incontrino subito.
+  ranking, per evitare che le squadre più forti si incontrino subito. Ai
+  registrati serve il ranking di almeno una squadra (l'Ospite sorteggia
+  comunque).
 - Generazione automatica di tutti i match del girone (ogni squadra affronta
   tutte le altre una volta sola).
-- Possibilità di risorteggiare finché non si è soddisfatti del tabellone.
+- Possibilità di risorteggiare finché non si è soddisfatti del tabellone: un
+  nuovo sorteggio riparte da zero e, se ci sono risultati registrati, chiede
+  conferma dicendo che cosa si perde.
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -129,6 +160,9 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
 - Statistiche individuali per partita (tabellino):
     • Punti (PT), Rimbalzi (RIMB), Assist (AST), Palle rubate (RUB),
       Stoppate (STO), Palle perse (PER), Falli (FALLI).
+    • Per i registrati i punti (PT) di ogni giocatore sono obbligatori (anche
+      0) e la loro somma deve dare il totale della squadra; l'Ospite può
+      registrare il solo risultato.
 - Log degli eventi di gara: registrazione cronologica di Falli,
   Sostituzioni, Timeout, Infortuni e altri eventi con il giocatore coinvolto.
 
@@ -137,17 +171,31 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
 6. FASE A ELIMINAZIONE DIRETTA (PLAYOFF BRACKET)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-- Quando tutti i gironi sono conclusi, compare il bottone "Genera bracket".
-- Il bracket viene costruito automaticamente con logica di cross-seeding:
-    • 1° classificato Girone A vs 2° classificato Girone B (e viceversa)
-    per evitare rivincite immediate tra squadre dello stesso girone.
-- Le partite del bracket si giocano in sequenza: Semifinali → Finale.
-- Inserimento dei punteggi; il vincitore avanza automaticamente al turno
-  successivo (slot TBD aggiornato in tempo reale).
-- Nomi dei turni generati dinamicamente: "Semifinale 1", "Semifinale 2",
-  "Finale" in base al numero di squadre qualificate.
+- Quando tutti i gironi sono conclusi, compare il bottone "Genera bracket
+  eliminazione diretta". Con un solo girone non c'è la fase finale (servono
+  almeno 2 gironi): vale la classifica del girone, e la pagina lo spiega.
+- Si qualificano le prime 2 di ogni girone (il Coach AI può indicarne un altro
+  numero). Il tabellone ha tanti posti quanti la potenza di due che le
+  contiene tutte: con 2 gironi sono le semifinali, con 3 o 4 si parte dai
+  quarti di finale, con più gironi da un turno più largo (ottavi e oltre). Se
+  le qualificate non riempiono i posti, le migliori teste di serie passano il
+  primo turno senza giocare (bye).
+- Le teste di serie si ordinano per piazzamento nel girone (prima tutte le
+  prime classificate, poi le seconde…) e, a parità, per percentuale di
+  vittorie, media punti e differenza punti: la 1 e la 2 possono incontrarsi
+  solo in finale. Al primo turno si evitano, dove possibile, le rivincite tra
+  squadre dello stesso girone (con 2 gironi: 1° A vs 2° B e 2° A vs 1° B).
+- Le partite del bracket si giocano turno dopo turno fino alla Finale.
+- Inserimento dei punteggi (niente pareggi); il vincitore avanza
+  automaticamente al turno successivo, nel posto che gli spetta per posizione
+  nel tabellone (slot TBD aggiornato in tempo reale).
+- Nomi dei turni generati dinamicamente in base alle gare del turno: "Ottavo
+  di finale N", "Quarto di finale N", "Semifinale N", "Finale" (i turni più
+  larghi degli ottavi sono "Turno N · Gara M").
+- Con il tabellone generato i risultati dei gironi non si correggono.
+  «Elimina bracket e ricomincia» chiede sempre conferma e dice quanti
+  risultati del tabellone si perdono (quelli dei gironi restano).
 - Il bracket è visibile in sola lettura anche nell'Archivio circuito.
-
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 7. TIMER DI GARA
@@ -262,7 +310,8 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
 12. ANAGRAFE CONDIVISA
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-L'anagrafe è uno spazio condiviso tra tutti gli utenti del circuito.
+L'anagrafe è uno spazio condiviso tra tutti gli utenti del circuito; gli
+ospiti la consultano in sola lettura.
 I dati personali sono riservati a chi ha un account: senza un token il server
 manda solo nome, cognome, soprannome, ruolo, numero e squadra del giocatore
 (della squadra: nome, città, anno, ranking, roster, logo, sito, Instagram e
@@ -278,7 +327,8 @@ Scheda GIOCATORE
   - Dati sportivi: ruolo (Playmaker / Ala / Centro / ecc.), anni di
     esperienza nel 3x3, squadra di appartenenza, note libere.
   - Ricerca per nome, cognome, soprannome, città, squadra, ruolo.
-  - Modifica e cancellazione (solo per l'autore o utenti autorizzati).
+  - Modifica e cancellazione solo per l'autore o un ADMIN; la cancellazione
+    chiede conferma.
 
 Scheda SQUADRA
   - Dati squadra: nome, città, anno di fondazione, punteggio ranking
@@ -287,7 +337,8 @@ Scheda SQUADRA
   - Roster collegato: aggiunta dei giocatori presenti in anagrafe.
   - Logo visibile nelle card delle squadre durante la tappa.
   - Ricerca per nome, città, referente.
-  - Modifica e cancellazione con modale di dettaglio.
+  - Modifica e cancellazione (autore o ADMIN) con modale di dettaglio; la
+    cancellazione chiede conferma.
 
 Statistiche stagione (tab dedicato)
   - Tabella aggregata di tutti i giocatori su tutte le tappe della lega.
@@ -298,8 +349,8 @@ Statistiche stagione (tab dedicato)
     Limite: chi cambia squadra compare su due righe, perché i giocatori di
     tappa non sono collegati all'anagrafe.
   - Colonne: posizione, giocatore, squadra, partite giocate, punti totali,
-    media punti/partita, rimbalzi totali, media rimbalzi, assist, recuperi,
-    stoppate.
+    media punti/partita, rimbalzi totali, media rimbalzi, assist, palle
+    rubate, stoppate.
   - Ordinata per media punti decrescente.
   - La scheda del giocatore (dall'anagrafe) somma le sue statistiche per
     nome, anche di squadre diverse, ed elenca le squadre da cui vengono.
@@ -309,42 +360,83 @@ Statistiche stagione (tab dedicato)
 13. COACH AI — ASSISTENTE INTELLIGENTE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Il Coach AI è un assistente conversazionale (LLM Llama 3.3 70B via Groq)
-integrato in un pannello flottante accessibile da qualsiasi pagina. Il
-pannello non blocca la pagina: all'apertura il focus va nel campo di
-scrittura e alla chiusura torna al pulsante che l'ha aperto (se nel frattempo
-l'utente l'ha portato altrove, resta lì); si chiude con Esc, ma solo se non
-c'è una finestra aperta sopra di lui (prima si chiude quella). I messaggi sono
-una regione che il lettore di schermo annuncia da sola; a chat piena (30
-messaggi) quelli già mostrati non vengono riscritti quando ne arriva uno nuovo.
+Il Coach AI è un assistente conversazionale integrato in un pannello
+flottante accessibile da qualsiasi pagina. Il modello gira su Groq ed è
+scelto dal backend (GROQ_MODEL, di base openai/gpt-oss-120b): il browser non
+conosce né la chiave né il modello. Il pannello non blocca la pagina:
+all'apertura il focus va nel campo di scrittura e alla chiusura torna al
+pulsante che l'ha aperto (se nel frattempo l'utente l'ha portato altrove,
+resta lì); si chiude con Esc, ma solo se non c'è una finestra aperta sopra di
+lui (prima si chiude quella). I messaggi sono una regione che il lettore di
+schermo annuncia da sola; a chat piena (30 messaggi) quelli già mostrati non
+vengono riscritti quando ne arriva uno nuovo.
 Risponde in italiano, conosce le regole FIBA 3x3 e ha visibilità in tempo
 reale sui dati della lega (tappe, squadre, risultati, classifica circuito).
 
-Azioni che il Coach AI può eseguire nell'app tramite tool calling:
+Azioni che il Coach AI può eseguire nell'app tramite tool calling (10
+strumenti). Il modello li usa solo se l'utente chiede un'azione
+esplicitamente:
 
-  crea_lega          Crea una nuova lega e la imposta come attiva.
-  crea_tappa         Crea una tappa con tutte le squadre in un'unica chiamata;
-                     cerca le squadre in anagrafe e, se mancanti, le registra
-                     automaticamente con i dati minimi.
-  sorteggia_gironi   Esegue il sorteggio (casuale o per ranking) su una tappa.
-  registra_risultato Registra il punteggio di una partita (gironi o fase
-                     diretta) con le stesse regole dell'inserimento manuale;
-                     più risultati di seguito non si sovrascrivono.
-  annulla_risultato  Annulla un risultato già inserito (riporta la partita a
-                     "non disputata").
-  registra_squadra   Aggiunge una squadra all'anagrafe condivisa.
-  aggiorna_squadra   Modifica i dati di una squadra esistente in anagrafe
-                     (logo, città, referente, rank, ecc.); aggiorna solo i
-                     campi passati, gli altri restano invariati.
-  registra_giocatore Aggiunge un giocatore all'anagrafe condivisa.
-  concludi_tappa     Conclude e pubblica la tappa nell'Archivio circuito
-                     (richiede account non ospite).
+  crea_lega           Crea una nuova lega e la imposta come attiva.
+  crea_tappa          Crea una tappa con tutte le squadre in un'unica chiamata
+                      (da 2 a 64, con gli stessi limiti dell'interfaccia);
+                      cerca le squadre in anagrafe (nome esatto, oppure una
+                      parte che corrisponde a una squadra sola: se ne
+                      corrispondono più d'una si ferma e chiede il nome
+                      completo; con due squadre dallo stesso nome esatto
+                      collega quella creata dall'utente se è una sola,
+                      altrimenti si ferma), ne porta con sé i giocatori del
+                      roster, al massimo 4 per squadra (il modello sa chi è
+                      rimasto fuori), e registra con i dati minimi quelle
+                      mancanti. Se l'anagrafe non risponde non crea la tappa
+                      e non registra niente.
+  sorteggia_gironi    Esegue il sorteggio (casuale o per ranking) su una tappa.
+                      Se la tappa ha già dei risultati chiede conferma.
+  genera_fasi_dirette Genera il tabellone a eliminazione diretta dalla
+                      classifica dei gironi (le prime N di ogni girone, di
+                      base 2); servono i gironi conclusi e almeno 2 gironi.
+  registra_risultato  Registra il punteggio di una partita (gironi o fase
+                      diretta) con le stesse regole dell'inserimento manuale;
+                      più risultati di seguito non si sovrascrivono. Registra
+                      solo il totale: il tabellino dei giocatori non c'è.
+  annulla_risultato   Annulla un risultato di girone già inserito (riporta la
+                      partita a "non disputata", i punteggi restano come
+                      bozza). Chiede sempre conferma.
+  registra_squadra    Aggiunge una squadra all'anagrafe condivisa.
+  aggiorna_squadra    Modifica i dati di una squadra esistente in anagrafe
+                      (logo, città, referente, rank, ecc.); la squadra si
+                      sceglie come per crea_tappa, e con due squadre dallo
+                      stesso nome esatto modifica quella che l'utente può
+                      modificare se è una sola (altrimenti si ferma e rimanda
+                      alla pagina Anagrafe); aggiorna solo i campi passati,
+                      gli altri restano invariati. Se l'anagrafe non risponde
+                      lo dice, senza modificare niente.
+  registra_giocatore  Aggiunge un giocatore all'anagrafe condivisa.
+  concludi_tappa      Conclude e pubblica la tappa nell'Archivio circuito
+                      (richiede account non ospite). Chiede sempre conferma.
 
-Contesto fornito al Coach AI:
-  - Nome della lega e numero di tappe.
-  - Per ogni tappa: nome, luogo, data, squadre iscritte, numero gironi,
-    partite giocate/mancanti, classifica di ogni girone.
+Conferme: prima di sorteggiare su una tappa con risultati, annullare un
+risultato o concludere una tappa il Coach mostra nella chat che cosa
+succede, con «Annulla» e «Conferma». Senza «Conferma» non cambia niente e il
+modello lo sa (non riprova da solo). Se l'azione verrebbe comunque rifiutata
+(tappa conclusa, partite mancanti) non si chiede niente e il motivo arriva al
+modello. Gli altri strumenti non chiedono conferma.
+
+Limiti del ciclo: in una richiesta il Coach concatena al massimo 8 giri di
+strumenti, poi risponde; una chiamata identica a una già fatta non si ripete.
+Uno strumento che fallisce non ferma gli altri: il motivo arriva al modello e
+l'azione non compare tra i badge sotto la risposta.
+
+Contesto fornito al Coach AI (in un blocco <dati_lega>):
+  - Nome della lega e, per ogni tappa, nome, data, luogo ed eventuale
+    «conclusa».
   - Classifica circuito aggregata (vittorie/partite totali per squadra).
+  - Solo per la tappa in primo piano (l'ultima non conclusa, altrimenti
+    l'ultima): squadre iscritte, classifica di ogni girone, partite
+    disputate/totali e i 5 migliori marcatori.
+
+Dettagli di ogni strumento, chiamate al backend e regole di conferma:
+docs/coach-ai-tool-calling.md.
 
 La chat vive nello store, non nel pannello: chiudendo il pannello durante
 l'attesa la risposta arriva lo stesso e si trova alla riapertura; si tengono
@@ -354,7 +446,7 @@ si azzera alla chiusura della scheda e a ogni cambio di utente (uscita
 compresa). Il Coach passa dal backend
 (POST /api/coach/chat) che inoltra a Groq con la chiave GROQ_API_KEY di
 env.properties del backend: la chiave non arriva mai al browser. Riservato agli
-utenti registrati.
+utenti registrati: un ospite riceve in chat l'invito a creare un account.
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -446,7 +538,9 @@ utenti registrati.
   cambio del numero di gironi o delle squadre con dei risultati registrati;
   rimuovi squadra con un nome scritto, dei giocatori o dei risultati nella
   tappa (una squadra appena aggiunta si toglie subito); riapri una tappa
-  pubblicata. «Annulla», Esc e la X non cambiano niente. Per i lettori di
+  pubblicata. «Annulla», Esc e la X non cambiano niente. Il Coach AI chiede
+  la stessa conferma, nella chat, per il nuovo sorteggio con risultati,
+  «annulla risultato» e la conclusione di una tappa. Per i lettori di
   schermo la finestra di conferma è un avviso che chiede una decisione
   (ruolo alertdialog), non una finestra qualsiasi.
 - Finestre e tastiera: le finestre (schede, conferme, timer) stanno in una

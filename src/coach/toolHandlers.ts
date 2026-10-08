@@ -12,6 +12,7 @@ import { useAnagrafeStore } from "../stores/useAnagrafeStore";
 import { anagrafeApi } from "../services/anagrafeApi";
 import { testoErrore } from "../services/api";
 import { uid } from "../utils/uid";
+import { MAX_ROSTER } from "../constants/rules";
 import { pulisci, senzaTag } from "../utils/buildCoachContext";
 import {
   annullaRisultato, concludi, creaTappa, erroreLimitiTappa, generaFasiDirette, perditaRisultati, registraRisultato,
@@ -19,6 +20,7 @@ import {
 } from "../domain/tappaOps";
 import type { Tappa, RegSquadra, RegGiocatore, SquadraTappa, GiocatoreRoster } from "../types";
 import { squadraDi } from "../utils/tappaInfo";
+import { puoModificare } from "../utils/permessi";
 
 /** Ciò che l'hook dà agli strumenti */
 export interface ContestoStrumenti {
@@ -123,21 +125,71 @@ async function confermata(ctx: ContestoStrumenti, titolo: string, testo: string)
   throw new Error("L'utente ha annullato: azione non eseguita. Non riprovarla se non te lo chiede di nuovo.");
 }
 
-/** Trova una tappa per nome, maiuscole a parte; se il nome manca restituisce l'ultima. Vince il nome esatto, altrimenti
- *  basta una parte del nome purché si trovi in una tappa sola: con «Roma Open» e «Roma Open 2» aperte insieme, «Roma» è
- *  un errore e non la prima delle due (registra_risultato non chiede conferma e il risultato finirebbe sulla tappa
- *  sbagliata senza che nessuno se ne accorga) */
-function findTappa(tappe: Tappa[], nomeTappa?: string): Tappa | null {
-  if (!nomeTappa) return tappe.length > 0 ? tappe[tappe.length - 1] : null;
-  const nl = nomeTappa.toLowerCase();
-  const esatta = tappe.find((t) => t.nome.toLowerCase() === nl);
-  if (esatta) return esatta;
-  const simili = tappe.filter((t) => t.nome.toLowerCase().includes(nl));
+/** La regola con cui un nome dato dal modello sceglie una tappa o una squadra, maiuscole a parte: vince il nome esatto,
+ *  altrimenti basta una parte del nome purché corrisponda a un elemento solo. Se ne corrispondono più d'uno è un errore che
+ *  li elenca (nomi scritti dagli utenti: passano da pulisci) e chiede il nome completo: scegliere il primo della lista
+ *  metterebbe un risultato sulla tappa sbagliata, o una modifica sulla squadra sbagliata dell'anagrafe condivisa, senza che
+ *  nessuno se ne accorga. `plurale` completa la frase dell'errore («Più tappe corrispondono a…») */
+function trovaPerNome<T>(elementi: T[], nome: string, nomeDi: (e: T) => string, plurale: string): T | null {
+  const nl = nome.toLowerCase();
+  const esatto = elementi.find((e) => nomeDi(e).toLowerCase() === nl);
+  if (esatto) return esatto;
+  const simili = elementi.filter((e) => nomeDi(e).toLowerCase().includes(nl));
   if (simili.length > 1) {
-    const nomi = simili.map((t) => `"${pulisci(t.nome)}"`).join(", ");
-    throw new Error(`Più tappe corrispondono a "${nomeTappa}": ${nomi}. Indica il nome completo.`);
+    const nomi = simili.map((e) => `"${pulisci(nomeDi(e))}"`).join(", ");
+    throw new Error(`Più ${plurale} corrispondono a "${nome}": ${nomi}. Indica il nome completo.`);
   }
   return simili[0] ?? null;
+}
+
+/** Trova una tappa per nome (trovaPerNome); se il nome manca restituisce l'ultima. Con «Roma Open» e «Roma Open 2» aperte
+ *  insieme, «Roma» è un errore e non la prima delle due (registra_risultato non chiede conferma) */
+function findTappa(tappe: Tappa[], nomeTappa?: string): Tappa | null {
+  if (!nomeTappa) return tappe.length > 0 ? tappe[tappe.length - 1] : null;
+  return trovaPerNome(tappe, nomeTappa, (t) => t.nome, "tappe");
+}
+
+/** Come si distingue una squadra da un'omonima: città e autore (scritti da altri utenti: passano da pulisci) */
+function descrizione(s: RegSquadra): string {
+  const citta = pulisci(s.citta) || "città non indicata";
+  return `"${pulisci(s.nome)}" (${citta}, di ${pulisci(s.autore)})`;
+}
+
+/** L'errore per più squadre dallo stesso nome esatto: le elenca per città e autore e dice che fare */
+function erroreOmonime(omonime: RegSquadra[], cosaFare: string): Error {
+  return new Error(`Più squadre in anagrafe si chiamano "${pulisci(omonime[0].nome)}": ${omonime.map(descrizione).join("; ")}. ${cosaFare}`);
+}
+
+/** aggiorna_squadra tra più squadre dallo stesso nome esatto: quelle che l'utente di adesso può modificare (le sue, o tutte se è
+ *  ADMIN), come sul server. Se ne resta una è quella; se nessuna, l'errore lo dice invece di lasciar arrivare il 403 (e un ADMIN
+ *  non modifica per caso la squadra di un altro); se più d'una, non si indovina */
+function traLeModificabili(omonime: RegSquadra[]): RegSquadra {
+  const { user } = useAppStore.getState();
+  const modificabili = omonime.filter((s) => puoModificare(user, s.autoreId));
+  if (modificabili.length === 1) return modificabili[0];
+  if (modificabili.length === 0) {
+    throw erroreOmonime(omonime, "Nessuna è tua: le modifica solo l'autore o un ADMIN, e non ho modificato niente.");
+  }
+  throw erroreOmonime(modificabili, "Il Coach non sa quale di queste modificare: aprila dalla pagina Anagrafe.");
+}
+
+/** crea_tappa (che legge la squadra per collegarla, non la modifica) tra più squadre dallo stesso nome esatto: quella creata
+ *  dall'utente di adesso, se è una sola; altrimenti non si indovina. Conta l'autore e non il permesso: un ADMIN può modificarle
+ *  tutte, ma questo non dice quale voleva collegare */
+function traLeMie(omonime: RegSquadra[]): RegSquadra {
+  const { user } = useAppStore.getState();
+  const mie = omonime.filter((s) => s.autoreId === user?.id);
+  if (mie.length === 1) return mie[0];
+  throw erroreOmonime(omonime, "Il Coach non sa quale collegare alla tappa: sistema i doppioni dalla pagina Anagrafe e riprova.");
+}
+
+/** Trova una squadra dell'anagrafe condivisa per nome, con la stessa regola delle tappe: con «Roma Kings» elencata prima di
+ *  «Roma», chiedere «Roma» sceglie «Roma». In più, l'anagrafe può avere due squadre dallo stesso nome esatto (nessuno lo impedisce):
+ *  tra quelle sceglie `traLeOmonime` (traLeModificabili o traLeMie), che restituisce la squadra o lancia l'errore */
+function findSquadra(squadre: RegSquadra[], nome: string, traLeOmonime: (omonime: RegSquadra[]) => RegSquadra): RegSquadra | null {
+  const omonime = squadre.filter((s) => s.nome.toLowerCase() === nome.toLowerCase());
+  if (omonime.length > 1) return traLeOmonime(omonime);
+  return trovaPerNome(squadre, nome, (s) => s.nome, "squadre in anagrafe");
 }
 
 /** La tappa indicata da `tappa_nome` (o l'ultima, se manca) com'è adesso nello store. Un tappa_nome passato ma non
@@ -195,12 +247,19 @@ function squadraDellaPartita(tappa: Tappa, id: string | null): SquadraTappa {
   return squadra;
 }
 
-/** Anagrafe dal backend; in caso di errore lista vuota (il tool risponde comunque). */
+/** L'anagrafe non ha risposto: lo strumento si ferma con il motivo vero. Una lista vuota al suo posto farebbe passare per nuove
+ *  le squadre che esistono già (crea_tappa le registrerebbe due volte nell'anagrafe condivisa) e per assenti quelle da
+ *  aggiornare (aggiorna_squadra direbbe «non trovata» anche se il server non ha risposto) */
+function anagrafeNonRisponde(e: unknown): never {
+  throw new Error(`L'anagrafe condivisa non risponde (${senzaTag(testoErrore(e))}): non ho registrato né modificato niente, riprova tra poco.`);
+}
+
+/** Anagrafe dal backend, sempre fresca; se il server non risponde lancia un errore (anagrafeNonRisponde). */
 async function fetchSquadre(): Promise<RegSquadra[]> {
-  return anagrafeApi.listSquadre().catch(() => []);
+  return anagrafeApi.listSquadre().catch(anagrafeNonRisponde);
 }
 async function fetchGiocatori(): Promise<RegGiocatore[]> {
-  return anagrafeApi.listGiocatori().catch(() => []);
+  return anagrafeApi.listGiocatori().catch(anagrafeNonRisponde);
 }
 
 /* ── Gli strumenti ── */
@@ -236,14 +295,14 @@ async function eseguiCreaTappa(args: Argomenti, ctx: ContestoStrumenti): Promise
   // Chat cancellata durante la lettura: nessuna squadra registrata nell'anagrafe condivisa per una tappa che non ci sarà
   fermaSeCancellata(ctx.segnale);
 
-  // Abbina ogni nome richiesto a una squadra in anagrafe; se non trovata, la registra in automatico
+  // Prima si abbinano tutti i nomi: se uno corrisponde a più squadre lo strumento si ferma senza aver registrato niente
+  const abbinate = nomiRichiesti.map((nome) => ({ nome, trovata: findSquadra(tutteSquadre, nome, traLeMie) }));
+
+  // Le richieste senza squadra in anagrafe si registrano in automatico
   const autoRegistrate: string[] = [];
-  const squadreTappa: SquadraTappa[] = await Promise.all(
-    nomiRichiesti.map(async (nomeRichiesto) => {
-      const nl = nomeRichiesto.toLowerCase();
-      let reg = tutteSquadre.find(
-        (s) => s.nome.toLowerCase() === nl || s.nome.toLowerCase().includes(nl),
-      );
+  const abbinamenti = await Promise.all(
+    abbinate.map(async ({ nome: nomeRichiesto, trovata }) => {
+      let reg = trovata;
 
       if (!reg) {
         // Squadra non in anagrafe: la registra con dati minimi (dallo store, così la cache resta allineata)
@@ -257,25 +316,34 @@ async function eseguiCreaTappa(args: Argomenti, ctx: ContestoStrumenti): Promise
       }
 
       // Carica i giocatori del roster dell'anagrafe
-      const giocatori: GiocatoreRoster[] = reg.roster
+      const delRoster: GiocatoreRoster[] = reg.roster
         .map((gId) => {
           const g = tuttiGiocatori.find((x) => x.id === gId);
           return g ? { id: uid(), nome: `${g.nome} ${g.cognome}` } : null;
         })
         .filter((g): g is GiocatoreRoster => g !== null);
+      // Al massimo MAX_ROSTER, il tetto che l'interfaccia impone alle squadre di una tappa: gli altri (dopo i primi dell'anagrafe)
+      // restano fuori e lo strumento ne dice i nomi, perché chi gioca lo decide l'utente dalla pagina della tappa
+      const giocatori = delRoster.slice(0, MAX_ROSTER);
 
       return {
-        id: uid(),
-        nome: reg.nome,
-        giocatori,
-        rank: reg.rank || "",
-        regId: reg.id,
-        logo: reg.logo || undefined,
-        website: reg.website || undefined,
-        instagram: reg.instagram || undefined,
+        squadra: {
+          id: uid(),
+          nome: reg.nome,
+          giocatori,
+          rank: reg.rank || "",
+          regId: reg.id,
+          logo: reg.logo || undefined,
+          website: reg.website || undefined,
+          instagram: reg.instagram || undefined,
+        },
+        fuori: delRoster.slice(MAX_ROSTER).map((g) => g.nome),
       };
     })
   );
+  const squadreTappa: SquadraTappa[] = abbinamenti.map((a) => a.squadra);
+  // Le squadre con giocatori rimasti fuori, nell'ordine in cui sono state richieste
+  const tagliate = abbinamenti.filter((a) => a.fuori.length > 0);
 
   // Chat cancellata durante le registrazioni (già spedite, finiscono comunque): la tappa non va creata
   fermaSeCancellata(ctx.segnale);
@@ -295,7 +363,16 @@ async function eseguiCreaTappa(args: Argomenti, ctx: ContestoStrumenti): Promise
   let msg = `Tappa "${nomeTappa}" creata con ${squadreTappa.length} squadre`;
   if (trovate > 0) msg += `, ${trovate} trovate in anagrafe con i rispettivi giocatori`;
   if (autoRegistrate.length) msg += `. Registrate automaticamente nell'anagrafe: ${autoRegistrate.join(", ")}`;
-  return msg + ".";
+  msg += ".";
+  if (tagliate.length) {
+    // «Squadra: giocatore, giocatore» e le squadre separate da «;»: un nome di squadra che finisce con un numero («Roma Open 2»)
+    // non si confonde con un conteggio. Nomi dall'anagrafe condivisa, scritti da altri: passano da pulisci
+    const elenco = tagliate.map((a) => `${pulisci(a.squadra.nome)}: ${a.fuori.map(pulisci).join(", ")}`).join("; ");
+    // Nella pagina della tappa i giocatori si scrivono a mano (RosterEditor): non c'è una scelta dall'anagrafe
+    msg += ` Giocatori oltre il massimo di ${MAX_ROSTER} per squadra, rimasti fuori dal roster (tenuti i primi dell'anagrafe): ${elenco}.`;
+    msg += " Nella pagina della tappa il roster si cambia a mano: l'utente toglie un giocatore e scrive il nome di chi vuole al suo posto.";
+  }
+  return msg;
 }
 
 async function eseguiRegistraSquadra(args: Argomenti): Promise<string> {
@@ -473,10 +550,7 @@ async function eseguiAggiornaSquadra(args: Argomenti, ctx: ContestoStrumenti): P
   const tutteSquadre = await fetchSquadre();
   // Chat cancellata durante la lettura: niente scrittura nell'anagrafe condivisa
   fermaSeCancellata(ctx.segnale);
-  const nl = nomeRicerca.toLowerCase();
-  const reg = tutteSquadre.find(
-    (s) => s.nome.toLowerCase() === nl || s.nome.toLowerCase().includes(nl),
-  );
+  const reg = findSquadra(tutteSquadre, nomeRicerca, traLeModificabili);
   if (!reg) throw new Error(`Squadra "${nomeRicerca}" non trovata in anagrafe.`);
 
   // Aggiorna solo i campi presenti negli argomenti

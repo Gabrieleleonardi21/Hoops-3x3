@@ -146,6 +146,47 @@ describe("standings (classifica girone)", () => {
     expect(rows.map((r) => r.g)).toEqual([1, 1, 2]);
   });
 
+  // Il girone si prova in due ordini d'ingresso: l'esito non deve dipendere da come le squadre sono elencate
+  for (const girone of [["a", "b", "c", "d"], ["b", "a", "d", "c"]]) {
+    it(`a pari vittorie senza una partita tra loro decidono i punti fatti, non la differenza (girone ${girone.join(", ")})`, () => {
+      // a e b hanno 1 vittoria e non si sono incontrate. a ha segnato di più (21 contro 12), b ha la differenza migliore
+      // (+12 contro +1): per FIBA si guardano prima i punti fatti, quindi a. c e d, a 0 vittorie, li separano i punti fatti
+      const rows = standings(girone, [match("a", "c", 21, 20), match("b", "d", 12, 0)], nameOf);
+      expect(rows.map((r) => r.v)).toEqual([1, 1, 0, 0]);
+      expect(rows.map((r) => r.id)).toEqual(["a", "b", "c", "d"]);
+    });
+
+    it(`a pari vittorie e punti fatti, senza una partita tra loro, decide la differenza punti (girone ${girone.join(", ")})`, () => {
+      // a e b hanno 1 vittoria e 21 punti fatti; la differenza è +1 per a e +21 per b: b davanti, anche se a è elencata prima
+      const rows = standings(girone, [match("a", "c", 21, 20), match("b", "d", 21, 0)], nameOf);
+      expect(rows.map((r) => r.pf)).toEqual([21, 21, 20, 0]);
+      expect(rows.map((r) => r.id)).toEqual(["b", "a", "c", "d"]);
+    });
+  }
+
+  // Il girone si prova in due ordini d'ingresso: l'esito non deve dipendere da come le squadre sono elencate
+  for (const girone of [["a", "b", "c", "d", "e"], ["c", "e", "b", "d", "a"]]) {
+    it(`tre squadre a pari che gli scontri diretti separano del tutto: contano questi, anche se i punti fatti dicono il contrario (girone ${girone.join(", ")})`, () => {
+      // Girone a metà da 5. a, b e c hanno 2 vittorie; tra loro a batte b e c, b batte c: a 2, b 1, c 0. Contro le altre
+      // vincono b su d e c su d ed e, mentre a perde con d. I punti fatti di tutto il girone sono a 42, b 62 e c 82: per
+      // quelli l'ordine sarebbe c, b, a. d ha 1 vittoria, e nessuna
+      const partite = [
+        match("a", "b", 21, 20), match("a", "c", 21, 20), match("b", "c", 21, 20),
+        match("d", "a", 21, 0), match("b", "d", 21, 0), match("c", "d", 21, 0), match("c", "e", 21, 0),
+      ];
+      const rows = standings(girone, partite, nameOf);
+      expect(rows.map((r) => r.v)).toEqual([2, 2, 2, 1, 0]);
+      expect(rows.map((r) => r.pf)).toEqual([42, 62, 82, 21, 0]);
+      expect(rows.map((r) => r.id)).toEqual(["a", "b", "c", "d", "e"]);
+    });
+  }
+
+  it("senza nessuna partita giocata resta l'ordine del girone: tutte a zero, nessuna davanti", () => {
+    const rows = standings(["c", "a", "b"], [], nameOf);
+    expect(rows.map((r) => r.id)).toEqual(["c", "a", "b"]);
+    expect(rows.every((r) => r.g === 0 && r.v === 0 && r.pf === 0 && r.ps === 0)).toBe(true);
+  });
+
   it("a parità completa, anche dopo gli scontri diretti, resta l'ordine del girone", () => {
     // cerchio perfetto: 1 vittoria, 31 punti fatti e 31 subiti per tutte e tre
     const cerchio = [match("a", "b", 21, 10), match("b", "c", 21, 10), match("c", "a", 21, 10)];

@@ -126,6 +126,12 @@ describe("Profilo del giocatore: le statistiche di stagione", () => {
     expect(vociUltimePartite().map((voce) => voce[3])).toEqual(["10 PT · 0 REB · 2 AST", "12 PT · 3 REB · 0 AST"]);
   });
 
+  it("lo storico tappe è una tabella con il suo <caption> per i lettori di schermo", () => {
+    apriProfilo(mario, dueSquadre());
+    const tabella = screen.getByRole<HTMLTableElement>("table", { name: "Storico tappe di Mario Rossi: piazzamento e statistiche per tappa" });
+    expect(tabella.caption?.classList.contains("sr-only")).toBe(true);
+  });
+
   it("somma anche due squadre della stessa tappa con lo stesso nome: totali, storico, vittorie e partite", () => {
     // Due «Mario Rossi» nello stesso torneo, uno per squadra, e tutte e due vincono: il profilo non può sapere quale sia il
     // suo, quindi li somma e dice le due squadre
