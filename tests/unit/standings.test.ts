@@ -66,35 +66,47 @@ describe("standings (classifica girone)", () => {
     expect(rows.map((r) => r.id)).toEqual(["a", "b", "c", "d"]);
   });
 
-  it("anche la differenza punti è quella di tutto il girone, non dei soli scontri diretti", () => {
-    // a, b e c si battono a cerchio con lo stesso punteggio: nelle partite tra loro hanno 40 punti fatti e differenza 0
-    // a testa. In tutto il girone fanno 61 punti fatti a testa (21 contro d), ma contro d subiscono 0, 10 e 5: la
-    // differenza di tutto il girone è +21, +11 e +16, quindi l'ordine è a, c, b (con i soli scontri diretti sarebbe
-    // quello del girone: b, c, a)
+  it("la differenza punti non conta (il regolamento FIBA 3x3 non la prevede): a pari media resta l'ordine del girone", () => {
+    // a, b e c si battono a cerchio con lo stesso punteggio e fanno 61 punti a testa in 3 gare: stessa media. Contro d
+    // subiscono 0, 10 e 5: la differenza di tutto il girone (+21, +11, +16) darebbe a, c, b, ma dopo la media decide la testa
+    // di serie, cioè l'ordine del girone: b, c, a
     const partite = [
       match("a", "b", 21, 19), match("b", "c", 21, 19), match("c", "a", 21, 19),
       match("a", "d", 21, 0), match("b", "d", 21, 10), match("c", "d", 21, 5),
     ];
     const rows = standings(["b", "c", "a", "d"], partite, nameOf);
     expect(rows.map((r) => r.pf)).toEqual([61, 61, 61, 15]);
-    expect(rows.map((r) => r.id)).toEqual(["a", "c", "b", "d"]);
+    expect(rows.map((r) => r.id)).toEqual(["b", "c", "a", "d"]);
   });
 
-  it("dopo i punti fatti non si torna agli scontri diretti: tra due squadre ancora pari decide la differenza punti", () => {
-    // a batte b, b batte c, c batte a: 1 vittoria a testa. a e b hanno 40 punti fatti a testa; b ha differenza +9
-    // contro 0 e sta davanti anche se a ha vinto la loro partita. Poi c, con 31 punti fatti
-    const partite = [match("a", "b", 21, 19), match("b", "c", 21, 10), match("c", "a", 21, 19)];
-    const rows = standings(["a", "b", "c"], partite, nameOf);
-    expect(rows.map((r) => r.pf)).toEqual([40, 40, 31]);
-    expect(rows.map((r) => r.id)).toEqual(["b", "a", "c"]);
-  });
+  // Il girone si prova in due ordini d'ingresso: tra a e b deve decidere quello, non la loro partita né la differenza
+  for (const girone of [["a", "b", "c"], ["b", "a", "c"]]) {
+    it(`dopo la media punti non si torna agli scontri diretti: tra due squadre ancora pari decide la testa di serie (girone ${girone.join(", ")})`, () => {
+      // a batte b, b batte c, c batte a: 1 vittoria a testa. a e b hanno 40 punti fatti in 2 gare a testa (media 20): a ha
+      // vinto la loro partita e b ha la differenza migliore (+9 contro 0), ma nessuno dei due conta. Poi c, con 31 punti
+      const partite = [match("a", "b", 21, 19), match("b", "c", 21, 10), match("c", "a", 21, 19)];
+      const rows = standings(girone, partite, nameOf);
+      expect(rows.map((r) => r.pf)).toEqual([40, 40, 31]);
+      expect(rows.map((r) => r.id)).toEqual([...girone.slice(0, 2), "c"]);
+    });
+  }
 
-  it("se lo scontro diretto separa solo in parte, chi resta a pari passa ai punti fatti: non si rifà tra loro (FIBA)", () => {
+  it("se lo scontro diretto separa solo in parte, chi resta a pari passa alla media punti: non si rifà tra loro (FIBA)", () => {
     // Girone a metà (in uno completo da 4 lo scontro diretto non può separare solo in parte): a>b, b>c, c>d, quindi
     // a, b e c hanno 1 vittoria. Tra loro a 1, b 1, c 0: c scende dietro. a e b restano pari e il regolamento FIBA 3x3
-    // passa al criterio successivo, i punti fatti (b 40, a 21): b davanti, anche se a ha vinto la loro partita
-    const partite = [match("a", "b", 21, 19), match("b", "c", 21, 5), match("c", "d", 15, 12)];
+    // passa al criterio successivo, la media punti (b 43 in 2 gare = 21,5; a 21 in una): b davanti, anche se a ha vinto la loro
+    const partite = [match("a", "b", 21, 20), match("b", "c", 23, 5), match("c", "d", 15, 12)];
     expect(standings(["a", "b", "c", "d"], partite, nameOf).map((r) => r.id)).toEqual(["b", "a", "c", "d"]);
+  });
+
+  it("a metà girone conta la media per gara, non il totale: tre squadre a pari vittorie con gare diverse", () => {
+    // a, b ed e hanno 1 vittoria. Lo scontro diretto c'è solo tra b ed e (e ha vinto): e davanti, poi a e b restano pari.
+    // a ha 21 punti in una gara (media 21), b 41 in due (media 20,5): per il totale sarebbe b, per la media è a.
+    // c e d, a 0 vittorie, li separa la media (d 10, c 5)
+    const partite = [match("a", "c", 21, 5), match("b", "d", 22, 10), match("b", "e", 19, 21)];
+    const rows = standings(["a", "b", "c", "d", "e"], partite, nameOf);
+    expect(rows.map((r) => r.v)).toEqual([1, 1, 1, 0, 0]);
+    expect(rows.map((r) => r.id)).toEqual(["e", "a", "b", "d", "c"]);
   });
 
   // Il girone si prova in due ordini d'ingresso: l'esito non deve dipendere da come le squadre sono elencate
@@ -156,11 +168,13 @@ describe("standings (classifica girone)", () => {
       expect(rows.map((r) => r.id)).toEqual(["a", "b", "c", "d"]);
     });
 
-    it(`a pari vittorie e punti fatti, senza una partita tra loro, decide la differenza punti (girone ${girone.join(", ")})`, () => {
-      // a e b hanno 1 vittoria e 21 punti fatti; la differenza è +1 per a e +21 per b: b davanti, anche se a è elencata prima
+    it(`a pari vittorie e media punti, senza una partita tra loro, decide l'ordine del girone, non la differenza (girone ${girone.join(", ")})`, () => {
+      // a e b hanno 1 vittoria e 21 punti fatti in una gara; la differenza è +1 per a e +21 per b, ma non conta: vale la
+      // testa di serie, cioè chi è elencata prima nel girone
       const rows = standings(girone, [match("a", "c", 21, 20), match("b", "d", 21, 0)], nameOf);
+      const aEbNellOrdineDelGirone = girone.filter((id) => id === "a" || id === "b");
       expect(rows.map((r) => r.pf)).toEqual([21, 21, 20, 0]);
-      expect(rows.map((r) => r.id)).toEqual(["b", "a", "c", "d"]);
+      expect(rows.map((r) => r.id)).toEqual([...aEbNellOrdineDelGirone, "c", "d"]);
     });
   }
 
