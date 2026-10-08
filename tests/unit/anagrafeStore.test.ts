@@ -297,8 +297,17 @@ describe("useAnagrafeStore (cache dell'anagrafe)", () => {
     const { api, store } = await nuovoStore();
     await store.getState().load();
     expect(await store.getState().trovaSquadra("Sconosciuti")).toBeUndefined();
-    api.listSquadre.mockRejectedValueOnce(new Error("server spento"));
-    expect(await store.getState().trovaSquadra("Sconosciuti")).toBeUndefined();
+    expect(api.listSquadre).toHaveBeenCalledTimes(2);
+  });
+
+  it("trovaSquadra non risponde «non trovata» se la lista del server fallisce: l'errore arriva a chi chiama (niente doppioni)", async () => {
+    const { api, store, ApiError } = await nuovoStore();
+    await store.getState().load();
+    api.listSquadre.mockRejectedValueOnce(new ApiError(0, "Server non raggiungibile"));
+    await expect(store.getState().trovaSquadra("Sconosciuti")).rejects.toMatchObject({ status: 0, message: "Server non raggiungibile" });
+    // Una squadra in cache si trova anche a server spento: il server non si interroga
+    api.listSquadre.mockRejectedValueOnce(new ApiError(0, "Server non raggiungibile"));
+    expect(await store.getState().trovaSquadra("Ballers")).toEqual(squadra("s1", "Ballers", ["g1"]));
   });
 
   it("una scrittura arrivata durante il caricamento non convalida la cache: il load successivo riscarica", async () => {

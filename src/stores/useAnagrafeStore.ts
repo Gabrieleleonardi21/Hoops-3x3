@@ -34,7 +34,8 @@ interface AnagrafeState {
    *  riscarica con il token di adesso. Un caricamento già in corso non conta più: la sua risposta, partita con il token di prima,
    *  si scarta quando arriva e non riempie la cache con la forma sbagliata. */
   svuota: () => void;
-  /** Cerca una squadra per nome (case-insensitive): prima in cache, poi sul server */
+  /** Cerca una squadra per nome (case-insensitive): prima in cache, poi sul server. Se la lista del server non arriva rifiuta la
+   *  promessa: «non trovata» farebbe creare un doppione di una squadra che sul server c'è */
   trovaSquadra: (nome: string) => Promise<RegSquadra | undefined>;
   /** Mette in cache voci lette dal server fuori dal caricamento (la ricerca per nome, la verifica di una tappa): in testa quelle nuove,
    *  aggiornate quelle già presenti con lo stesso id. Non conta come scrittura e non invalida la cache (`scritture` e `caricata`
@@ -111,10 +112,11 @@ export const useAnagrafeStore = create<AnagrafeState>((set, get) => {
       const stessoNome = (s: RegSquadra) => s.nome.toLowerCase() === cercato;
       const inCache = (get().squadre ?? []).find(stessoNome);
       if (inCache) return inCache;
-      // Non in cache: un altro utente può averla registrata dopo il caricamento, quindi prima di
-      // farne un doppione si ricontrolla sul server (a server spento vale la risposta della cache)
+      // Non in cache: un altro utente può averla registrata dopo il caricamento, quindi prima di farne un doppione si ricontrolla
+      // sul server. Un errore della lista arriva a chi chiama: a server spento rispondere «non trovata» farebbe creare la squadra
+      // una seconda volta nell'anagrafe condivisa
       const epocaAllInizio = get().epoca;
-      const fresche = await anagrafeApi.listSquadre().catch(() => []);
+      const fresche = await anagrafeApi.listSquadre();
       const trovata = fresche.find(stessoNome);
       // La voce entra in cache: chi la vedrà collegata a una squadra (la pagina della tappa, che scollega le squadre senza voce)
       // la ritrova, e non la crede eliminata. Non se nel frattempo la cache è stata svuotata: la voce ha la forma del token di prima
