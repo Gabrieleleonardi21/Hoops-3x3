@@ -3,7 +3,7 @@ import {
   sorteggia, registraRisultato, registraRisultatoBracket, generaFasiDirette, concludi,
   aggiungiSquadra, rimuoviSquadra, impostaNumeroGironi, perditaRisultati, annullaRisultato, rinominaTappa,
   erroreLimitiTappa, erroreTestiTappa, creaTappa,
-  perditaTappa, perditaTabellone, perditaSquadra, eSegnaposto, annullaRisultatoBracket,
+  perditaTappa, perditaTabellone, perditaSquadra, eSegnaposto, annullaRisultatoBracket, perditaGiocatore,
 } from "../../src/domain/tappaOps";
 import type { Esito } from "../../src/domain/tappaOps";
 import type { Tappa } from "../../src/types";
@@ -592,6 +592,40 @@ describe("perditaSquadra: che cosa cancella «Rimuovi squadra» (si chiede solo 
 
   it("una squadra che non c'è non fa chiedere niente", () => {
     expect(perditaSquadra(tappaGironiConclusi(), "inesistente")).toBeNull();
+  });
+});
+
+describe("perditaGiocatore: che cosa cancella la X accanto a un giocatore (si chiede solo se ha statistiche)", () => {
+  /** Alfa con Mario e Luigi; Mario ha un tabellino in due partite (una giocata, una come bozza), Luigi in nessuna */
+  const conTabellini = (): Tappa => {
+    const t = tappaSorteggiata();
+    return {
+      ...t,
+      squadre: t.squadre.map((s) => {
+        if (s.id !== "a") return s;
+        return { ...s, giocatori: [{ id: "p1", nome: "Mario" }, { id: "p2", nome: "Luigi" }] };
+      }),
+      partite: [
+        { ...t.partite[0], sa: 21, sb: 15, done: true, pa: { p1: { pt: 12 } } },
+        { ...t.partite[1], pb: { p1: { pt: 3 } } },
+      ],
+    };
+  };
+
+  it("con statistiche dice in quante partite e dove spariscono", () => {
+    expect(perditaGiocatore(conTabellini(), "a", "p1"))
+      .toBe("Il giocatore «Mario» ha statistiche in 2 partite: spariranno da tabellini, leader e statistiche della tappa.");
+  });
+
+  it("senza statistiche (o giocatore che non c'è) non chiede: null", () => {
+    expect(perditaGiocatore(conTabellini(), "a", "p2")).toBeNull();
+    expect(perditaGiocatore(conTabellini(), "a", "inesistente")).toBeNull();
+  });
+
+  it("senza nome scritto parla del giocatore e basta", () => {
+    const t = conTabellini();
+    t.squadre[0].giocatori = [{ id: "p1", nome: " " }];
+    expect(perditaGiocatore(t, "a", "p1")).toMatch(/^Il giocatore ha statistiche in 2 partite/);
   });
 });
 

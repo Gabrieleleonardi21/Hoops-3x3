@@ -228,6 +228,20 @@ export function perditaSquadra(tappa: Tappa, squadraId: string): string | null {
   return fraseEliminati([voce, ...datiDiGioco(tappa)]);
 }
 
+/** Che cosa cancella la X accanto a un giocatore del roster: le sue statistiche. Restano scritte nei tabellini delle partite, ma
+ *  contano solo i giocatori del roster (statGiocatori), quindi spariscono da tabellini, leader e statistiche, e riaggiungerlo crea
+ *  un giocatore nuovo. null = nessuna statistica, si toglie senza chiedere. */
+export function perditaGiocatore(tappa: Tappa, squadraId: string, pid: string): string | null {
+  const giocatore = tappa.squadre.find((s) => s.id === squadraId)?.giocatori?.find((p) => p.id === pid);
+  if (!giocatore) return null;
+  // Partite in cui il giocatore ha un tabellino, in una delle due schede
+  const conStatistiche = tappa.partite.filter((m) => pid in (m.pa ?? {}) || pid in (m.pb ?? {})).length;
+  if (conStatistiche === 0) return null;
+  const chi = nominata("Il giocatore", giocatore.nome);
+  return `${chi} ha statistiche in ${conteggio(conStatistiche, "partita", "partite")}: spariranno da tabellini, leader e statistiche `
+    + "della tappa.";
+}
+
 /** Aggiunge una squadra con il nome provvisorio «Squadra N». Il sorteggio fatto non vale più. */
 export function aggiungiSquadra(tappa: Tappa): Esito {
   if (tappa.conclusa) return ko(CONCLUSA);

@@ -148,6 +148,8 @@ export function useTappa(id: string | undefined) {
   const perditaTappa = () => perdita(ops.perditaTappa);
   /** Che cosa cancellerebbe «Rimuovi squadra»; null per una squadra appena aggiunta, che si toglie senza chiedere */
   const perditaSquadra = (teamId: string) => perdita((t) => ops.perditaSquadra(t, teamId));
+  /** Che cosa cancellerebbe la X accanto a un giocatore; null se non ha statistiche */
+  const perditaGiocatore = (teamId: string, pid: string) => perdita((t) => ops.perditaGiocatore(t, teamId, pid));
   /** Che cosa cancellerebbe «Riapri»: la pubblicazione nell'archivio, che solo chi ha un account può avere. Una tappa che non è
    *  in archivio non ha niente da perdere (il testo direbbe il falso); nel dubbio, se la verifica non è riuscita, si avverte. */
   const perditaRiapertura = () => {
@@ -339,7 +341,7 @@ export function useTappa(id: string | undefined) {
   return {
     user, legaName, tappa, statoArchivio, pubblicando: archivio.pubblicando,
     nameOf, playersOf, playerNameById, teamComplete,
-    setInfo, rinomina, perditaRisultati, perditaTappa, perditaSquadra, perditaRiapertura, setNGironi, setRule, addTeam, removeTeam,
+    setInfo, rinomina, perditaRisultati, perditaTappa, perditaSquadra, perditaGiocatore, perditaRiapertura, setNGironi, setRule, addTeam, removeTeam,
     renameTeam, setTeamRank, setTeamWebsite, setTeamLogo, applyReg, syncFromAnagrafe,
     addPlayer, renamePlayer, removePlayer,
     sorteggia, saveScore, reopenScore,

@@ -22,7 +22,7 @@ App web per la gestione di un circuito italiano di basket 3x3: tornei, gironi, s
   - agisce nell'app con 10 strumenti: crea lega e tappa, sorteggia, registra e annulla risultati, genera le fasi dirette, conclude la tappa, scrive nell'anagrafe
   - chiede conferma prima di sorteggiare su una tappa con risultati, annullare un risultato e concludere una tappa
   - solo per i registrati, via backend (vedi «Coach AI» e `docs/coach-ai-tool-calling.md`)
-- **Conferme** — ciò che fa perdere dati (eliminare una tappa, una lega, il tabellone o una voce dell'anagrafe; rifare il sorteggio o cambiare squadre e gironi con dei risultati; rimuovere una squadra con dati; riaprire una tappa pubblicata) apre una finestra che dice che cosa si perde
+- **Conferme** — ciò che fa perdere dati (eliminare una tappa, una lega, il tabellone o una voce dell'anagrafe; rifare il sorteggio o cambiare squadre e gironi con dei risultati; rimuovere una squadra con dati o un giocatore con statistiche; riaprire una tappa pubblicata) apre una finestra che dice che cosa si perde
 - **Home dashboard** — tappa in corso, classifica live, ultimo risultato registrato, prossime partite e leader
 - **Profilo giocatore** — pagina `/giocatore/:id` con statistiche aggregate, andamento punti, storico tappe e ultime partite
 - **Campetti** — ricerca campi con filtri e mappa schematica (*dati di esempio*, dichiarati da un avviso in cima alla pagina; senza persistenza)

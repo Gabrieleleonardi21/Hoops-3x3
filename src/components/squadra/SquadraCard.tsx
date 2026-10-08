@@ -24,6 +24,7 @@ export function SquadraCard({ s, index, h, erroreAnagrafe, onNameCommit }: {
   // Togliere una squadra cancella ciò che vi è stato scritto (nome, giocatori) e azzera il sorteggio: si chiede prima conferma,
   // tranne per una squadra appena aggiunta e vuota, che si toglie subito.
   // Il rifiuto di removeTeam non serve mostrarlo: il pulsante c'è solo con più di 2 squadre.
+  // La stessa finestra serve per la X di un giocatore: si chiede solo se ha statistiche (perditaGiocatore).
   const { chiedi, finestra } = useConfermaPerdita(() => h.perditaSquadra(s.id));
 
   return (
@@ -70,7 +71,7 @@ export function SquadraCard({ s, index, h, erroreAnagrafe, onNameCommit }: {
       <RosterEditor giocatori={s.giocatori || []}
         onAdd={() => h.addPlayer(s.id)}
         onRename={(pid, nome) => h.renamePlayer(s.id, pid, nome)}
-        onRemove={(pid) => h.removePlayer(s.id, pid)} />
+        onRemove={(pid) => chiedi("Rimuovere il giocatore?", () => h.removePlayer(s.id, pid), () => h.perditaGiocatore(s.id, pid))} />
 
       {(h.tappa?.squadre.length ?? 0) > 2 && (
         <Button variant="link" className="mt-2 text-chalk-dim"

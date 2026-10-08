@@ -465,6 +465,50 @@ describe("TappaPage: «Rimuovi squadra» chiede conferma quando si perde qualcos
   });
 });
 
+describe("TappaPage: la X di un giocatore con statistiche chiede conferma", () => {
+  /** Alfa con Mario (12 punti in Alfa-Beta) e Luigi (nessuna statistica) */
+  const conTabellino = (): Tappa => {
+    const t = conUnRisultato();
+    return {
+      ...t,
+      squadre: t.squadre.map((s) => {
+        if (s.id !== "s1") return s;
+        return { ...s, giocatori: [{ id: "p1", nome: "Mario" }, { id: "p2", nome: "Luigi" }] };
+      }),
+      partite: t.partite.map((m) => {
+        if (m.id !== "m1") return m;
+        return { ...m, pa: { p1: { pt: 12 } } };
+      }),
+    };
+  };
+  const giocatoriAlfa = () => store().tappe[0].squadre[0].giocatori.map((p) => p.nome);
+  /** La X del giocatore `n` della prima squadra (Alfa) */
+  const rimuovi = (n: number) => fireEvent.click(screen.getAllByRole("button", { name: "Rimuovi giocatore" })[n]);
+
+  beforeEach(() => {
+    useAppStore.setState({ user: ospite, tappe: [conTabellino()] });
+  });
+
+  it("un giocatore con statistiche: la finestra dice che cosa sparisce; «Annulla» lo lascia, «Conferma» lo toglie", () => {
+    apriPagina({});
+    rimuovi(0);
+    expect(screen.getByRole("alertdialog", { name: "Rimuovere il giocatore?" }).textContent)
+      .toContain("Il giocatore «Mario» ha statistiche in 1 partita: spariranno da tabellini, leader e statistiche della tappa.");
+    fireEvent.click(screen.getByRole("button", { name: "Annulla" }));
+    expect(giocatoriAlfa()).toEqual(["Mario", "Luigi"]);
+    rimuovi(0);
+    fireEvent.click(screen.getByRole("button", { name: "Conferma" }));
+    expect(giocatoriAlfa()).toEqual(["Luigi"]);
+  });
+
+  it("un giocatore senza statistiche si toglie subito, senza finestra", () => {
+    apriPagina({});
+    rimuovi(1);
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(giocatoriAlfa()).toEqual(["Mario"]);
+  });
+});
+
 describe("TappaPage: copiare il link pubblico di una tappa conclusa (FS-9)", () => {
   const apriCondivisione = () => {
     useAppStore.setState({ tappe: [{ ...conUnRisultato(), conclusa: true }] });

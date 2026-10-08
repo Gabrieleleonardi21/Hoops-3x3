@@ -546,8 +546,9 @@ utenti registrati: un ospite riceve in chat l'invito a creare un account.
   (dalla card e dalla scheda). Quando si perde qualcosa: nuovo sorteggio e
   cambio del numero di gironi o delle squadre con dei risultati registrati;
   rimuovi squadra con un nome scritto, dei giocatori o dei risultati nella
-  tappa (una squadra appena aggiunta si toglie subito); riapri una tappa
-  pubblicata. «Annulla», Esc e la X non cambiano niente. Il Coach AI chiede
+  tappa (una squadra appena aggiunta si toglie subito); la X di un giocatore
+  che ha statistiche in qualche partita (dice in quante: spariscono da
+  tabellini, leader e statistiche); riapri una tappa pubblicata. «Annulla», Esc e la X non cambiano niente. Il Coach AI chiede
   la stessa conferma, nella chat, per il nuovo sorteggio con risultati,
   «annulla risultato» e la conclusione di una tappa. Per i lettori di
   schermo la finestra di conferma è un avviso che chiede una decisione
