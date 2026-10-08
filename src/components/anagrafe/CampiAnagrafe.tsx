@@ -7,8 +7,9 @@ import { Input } from "../ui/Input";
 import type { GiocatoreInput, SquadraInput } from "../../services/anagrafeApi";
 import type { RegSquadra } from "../../types";
 
-/** I dati di una squadra che questi campi scrivono: il roster ha la sua interfaccia, solo nel form di creazione */
-type DatiSquadra = Omit<SquadraInput, "roster">;
+/** I dati di una squadra che questi campi scrivono: il roster ha la sua interfaccia, solo nel form di creazione; la versione la
+ *  decide il server */
+type DatiSquadra = Omit<SquadraInput, "roster" | "versione">;
 
 /** «Nome *» dove il campo è obbligatorio e lo si segna (nel form di creazione), altrimenti «Nome» */
 function etichetta(testo: string, segna: boolean): string {
@@ -78,7 +79,8 @@ export function CampiSquadra({ valori, set, segnaObbligatori = false, children }
         <Input label="Anno di fondazione" type="number" value={valori.anno} onChange={set("anno")} />
         <Input label="Ranking circuito (punti)" type="number" min={0} value={valori.rank} onChange={set("rank")} />
         <Input label="Referente / capitano" value={valori.referente} onChange={set("referente")} maxLength={120} />
-        <Input label="Logo (URL o /logos/nome.svg)" value={valori.logo} onChange={set("logo")} placeholder="/logos/squadra.svg" maxLength={500} />
+        {/* Logo, sito e Instagram: vuoti oppure http(s)://, come vuole il server (utils/safeUrl.erroreUrl, controllato prima dell'invio) */}
+        <Input label="Logo (URL dell'immagine)" value={valori.logo} onChange={set("logo")} placeholder="https://squadra.it/logo.png" maxLength={500} />
         <Input label="Sito web (opzionale)" value={valori.website} onChange={set("website")} placeholder="https://squadra.it" maxLength={500} />
         <Input label="Instagram (opzionale)" value={valori.instagram} onChange={set("instagram")} placeholder="https://instagram.com/squadra" maxLength={500} />
       </div>

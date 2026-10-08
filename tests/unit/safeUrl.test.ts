@@ -1,5 +1,32 @@
 import { describe, it, expect } from "vitest";
-import { safeUrl } from "../../src/utils/safeUrl";
+import { erroreUrl, erroreUrlSquadra, MAX_URL, safeUrl } from "../../src/utils/safeUrl";
+
+describe("erroreUrl: il criterio del server per gli indirizzi scritti dagli utenti (B10), controllato prima dell'invio", () => {
+  it.each(["", "   ", "https://esempio.it/logo.png", "http://esempio.it", "  HTTPS://ESEMPIO.IT/x  "])("«%s» va bene", (valore) => {
+    expect(erroreUrl(valore)).toBeNull();
+  });
+
+  it.each([
+    ["uno schema pericoloso", "javascript:alert(1)"],
+    ["un percorso relativo (safeUrl lo accetta, il server no)", "/logos/squadra.svg"],
+    ["un sito senza schema", "esempio.it/logo.png"],
+    ["un URL malformato", "https://"],
+    ["un «protocol-relative»", "//esempio.it"],
+  ])("%s è rifiutato dicendo che serve http:// o https://", (_caso, valore) => {
+    expect(erroreUrl(valore)).toBe("l'indirizzo deve cominciare con http:// o https:// (oppure lascia il campo vuoto).");
+  });
+
+  it(`oltre ${MAX_URL} caratteri è rifiutato per la lunghezza`, () => {
+    expect(erroreUrl(`https://esempio.it/${"a".repeat(MAX_URL)}`)).toBe(`l'indirizzo può avere al massimo ${MAX_URL} caratteri.`);
+    expect(erroreUrl(`https://e.it/${"a".repeat(MAX_URL - 13)}`)).toBeNull();
+  });
+
+  it("erroreUrlSquadra nomina il primo campo che non va, tra logo, sito e Instagram", () => {
+    expect(erroreUrlSquadra({ logo: "", website: "", instagram: "" })).toBeNull();
+    expect(erroreUrlSquadra({ logo: "https://e.it/l.png", website: "e.it", instagram: "x" })).toMatch(/^Sito web: l'indirizzo deve/);
+    expect(erroreUrlSquadra({ logo: "", website: "", instagram: "instagram.com/squadra" })).toMatch(/^Instagram: /);
+  });
+});
 
 // safeUrl è l'unica difesa del frontend sugli URL scritti dagli utenti (logo, sito, Instagram, video), che il server accetta come
 // testo qualsiasi: ogni ramo che blocca va provato, perché un href javascript: in una pagina pubblica è un XSS

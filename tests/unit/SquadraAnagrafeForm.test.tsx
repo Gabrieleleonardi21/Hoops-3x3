@@ -39,6 +39,19 @@ describe("SquadraAnagrafeForm: il limite del roster che il form dichiara è quel
     expect(onSave.mock.calls[0][0].roster).toEqual(giocatori.slice(0, MAX_ROSTER_ANAGRAFE).map((g) => g.id));
   });
 
+  it("un logo che non è un URL http(s) ferma il salvataggio prima dell'invio, con il campo e il motivo (B10)", async () => {
+    const onSave = vi.fn(async (_dati: SquadraInput) => {});
+    render(<SquadraAnagrafeForm giocatori={[]} onSave={onSave} />);
+    fireEvent.change(screen.getByLabelText("Nome squadra *"), { target: { value: "Ballers" } });
+    fireEvent.change(screen.getByLabelText("Logo (URL dell'immagine)"), { target: { value: "/logos/ballers.svg" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salva nell'anagrafe" }));
+    expect(screen.getByRole("alert").textContent).toBe("Logo: l'indirizzo deve cominciare con http:// o https:// (oppure lascia il campo vuoto).");
+    expect(onSave).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("Logo (URL dell'immagine)"), { target: { value: "https://ballers.it/logo.svg" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salva nell'anagrafe" }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+  });
+
   it("togliendo un giocatore dal roster pieno si può aggiungerne un altro", () => {
     const giocatori = Array.from({ length: MAX_ROSTER_ANAGRAFE + 1 }, (_, i) => giocatore(i + 1));
     render(<SquadraAnagrafeForm giocatori={giocatori} onSave={vi.fn(async () => {})} />);

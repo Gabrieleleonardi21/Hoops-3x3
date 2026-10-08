@@ -9,6 +9,7 @@ import { CampiSquadra } from "./CampiAnagrafe";
 import type { SquadraInput } from "../../services/anagrafeApi";
 import type { RegGiocatore } from "../../types";
 import { MAX_ROSTER_ANAGRAFE } from "../../constants/rules";
+import { erroreUrlSquadra } from "../../utils/safeUrl";
 
 /** I campi che il server fa scrivere (senza id, autore, autoreId e ts) */
 type Draft = SquadraInput;
@@ -34,6 +35,9 @@ export function SquadraAnagrafeForm({ giocatori, onSave }: { giocatori: RegGioca
 
   const save = async () => {
     if (!d.nome.trim()) { setErrore("Il nome della squadra è obbligatorio."); return; }
+    // Gli indirizzi si controllano qui con il criterio del server (B10): un 400 dopo l'invio direbbe la stessa cosa, più tardi
+    const urlNonValido = erroreUrlSquadra(d);
+    if (urlNonValido) { setErrore(urlNonValido); return; }
     // Si svuota solo se il server ha accettato: altrimenti chi scrive ritrova ciò che aveva scritto
     if (await esegui(() => onSave(d), "Salvataggio non riuscito")) setD(EMPTY);
   };
