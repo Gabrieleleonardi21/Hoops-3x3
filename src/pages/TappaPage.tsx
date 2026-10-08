@@ -140,7 +140,8 @@ export function TappaPage() {
       <div>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2.5">
           {badge}
-          <span className="flex flex-wrap gap-2">
+          {/* comandi della pagina: in stampa non servono (index.css nasconde solo .no-print) */}
+          <span className="no-print flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={() => navigate("/lega")}><Icon name="arrowLeft" size={14} /> Tutte le tappe</Button>
             <Button variant="outline" size="sm" onClick={() => setShareOpen((o) => !o)}><Icon name="share" size={14} /> Condividi</Button>
             <Button variant="ghost" size="sm" disabled={riapertura.invio || h.pubblicando}
@@ -154,7 +155,7 @@ export function TappaPage() {
 
         {/* Pannello condivisione link pubblico */}
         {shareOpen && (
-          <Card className="mb-3">
+          <Card className="no-print mb-3">
             <div className="kicker mb-1.5">Link pubblico — chiunque può consultare questa tappa</div>
             <div className="flex flex-wrap items-center gap-2">
               <code className="flex-1 min-w-[200px] break-all rounded-sm border border-asphalt-700 bg-asphalt-950 px-2.5 py-1.5 text-[13px] text-chalk">{publicUrl}</code>
@@ -164,7 +165,7 @@ export function TappaPage() {
           </Card>
         )}
 
-        <Card className="mb-4"><VideoForm compact onAdd={h.addVideo} /></Card>
+        <Card className="no-print mb-4"><VideoForm compact onAdd={h.addVideo} /></Card>
         <ArchivioTappaView t={t} lega={h.legaName} autore={user.name} />
         {riapri.finestra}
       </div>
