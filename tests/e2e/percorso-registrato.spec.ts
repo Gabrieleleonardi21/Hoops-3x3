@@ -97,7 +97,7 @@ test("rete assente al salvataggio: l'avviso dice quante tappe aspettano e perch�
   // Il server non risponde: l'avviso dice che la tappa non è salvata e il motivo, e ciò che si è scritto resta sullo schermo
   const avviso = page.getByRole("status");
   await expect(avviso).toContainText("1 tappa ha modifiche non salvate");
-  await expect(avviso).toContainText("Server non raggiungibile: controlla la connessione o avvia il backend.");
+  await expect(avviso).toContainText("Server non raggiungibile: controlla la connessione e riprova.");
   await expect(page.getByLabel("Luogo")).toHaveValue("Testaccio");
 
   // Un nuovo tentativo salva la tappa e l'avviso scompare

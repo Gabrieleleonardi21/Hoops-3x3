@@ -54,7 +54,25 @@ function erroreDiRete(e: unknown): ApiError {
   if (e instanceof DOMException && e.name === "TimeoutError") {
     return new ApiError(0, "Il server non risponde: controlla la connessione e riprova.");
   }
-  return new ApiError(0, "Server non raggiungibile: controlla la connessione o avvia il backend.");
+  // Testo per chi usa l'app, non per chi la sviluppa: «avvia il backend» non è un'istruzione per l'utente
+  return new ApiError(0, "Server non raggiungibile: controlla la connessione e riprova.");
+}
+
+/** Scarto tra l'orologio del server e quello del dispositivo, in secondi: `iat` del JWT (l'ora del server quando lo ha emesso) meno
+ *  l'ora locale al suo arrivo. Il giudizio di scadenza si fa nell'ora del server: con l'orologio del dispositivo avanti un JWT valido
+ *  sembrerebbe scaduto (un rinnovo a ogni controllo), con l'orologio indietro un JWT scaduto sembrerebbe valido (401 alla chiusura
+ *  della pagina, quando non c'è tempo per rinnovare). Vale per la vita della pagina: si ricalcola a ogni token che arriva (accesso,
+ *  registrazione, rinnovo) e torna a zero all'uscita */
+let scartoOrologio = 0;
+
+/** Il payload del JWT, letto senza verificare la firma: serve solo a decidere quando rinnovare, la verifica vera la fa il server.
+ *  null se il token non si legge */
+function payloadDi(t: string): Record<string, unknown> | null {
+  try {
+    return JSON.parse(atob(t.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+  } catch {
+    return null;
+  }
 }
 
 /** Token JWT in localStorage: sopravvive al reload, sparisce al logout.
@@ -71,23 +89,24 @@ export const token = {
     } catch {
       throw new ApiError(507, SPAZIO_ESAURITO_ACCESSO);
     }
+    // Un token appena arrivato dal server dice che ora è sul server (iat): da qui lo scarto con l'orologio del dispositivo
+    const iat = payloadDi(t)?.iat;
+    if (typeof iat === "number") scartoOrologio = iat - Date.now() / 1000;
   },
-  clear: () => { localStorage.removeItem(TOKEN_KEY); },
+  clear: () => {
+    localStorage.removeItem(TOKEN_KEY);
+    scartoOrologio = 0;
+  },
 };
 
-/** Secondi che mancano alla scadenza del JWT salvato (negativi se è già scaduto); null se manca o non è
- *  leggibile. La scadenza (exp) si legge dal payload senza verificare la firma: serve solo a decidere
- *  quando rinnovare, la verifica vera la fa il server. */
+/** Secondi che mancano alla scadenza del JWT salvato (negativi se è già scaduto), nell'ora del server (scartoOrologio); null se
+ *  manca o non è leggibile */
 function secondiRimasti(): number | null {
   const t = token.get();
   if (!t) return null;
-  try {
-    const payload = JSON.parse(atob(t.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
-    if (typeof payload.exp !== "number") return null;
-    return payload.exp - Date.now() / 1000;
-  } catch {
-    return null;
-  }
+  const exp = payloadDi(t)?.exp;
+  if (typeof exp !== "number") return null;
+  return exp - (Date.now() / 1000 + scartoOrologio);
 }
 
 /** true se il JWT salvato è già scaduto */

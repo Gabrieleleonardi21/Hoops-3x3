@@ -1438,8 +1438,31 @@ describe("Coach AI: errore a metà del ciclo e limiti del server", () => {
     await chiedi(c, "Alfa 21, Gamma 18");
     expect(store().tappe[0].partite[1]).toMatchObject({ sa: 21, sb: 18, done: true });
     expect(c.current.msgs.at(-1)).toEqual({
-      role: "assistant", content: "Limite richieste raggiunto: aspetta qualche secondo e riprova.", tools: ["registra_risultato"],
+      role: "assistant", content: "Troppe richieste", tools: ["registra_risultato"],
     });
+  });
+
+  // Un testo per l'utente per ogni esito del server: il 429 e il 400 riportano il messaggio del server (dice quale limite è finito,
+  // o che cosa fare), gli altri un testo fisso senza istruzioni da sviluppatore
+  it.each([
+    [401, "Sessione scaduta o token non valido", "Sessione scaduta: esci e accedi di nuovo per usare Coach AI."],
+    [429, "Troppe richieste al Coach AI: riprova domani", "Troppe richieste al Coach AI: riprova domani"],
+    [503, "Coach AI non configurato", "Coach AI non è disponibile su questo server. Il resto dell'app funziona normalmente."],
+    [400, "Conversazione troppo lunga: cancella la chat e riprova", "Conversazione troppo lunga: cancella la chat e riprova"],
+    [500, "Errore interno", "Si è verificato un errore, riprova tra poco."],
+  ])("un %s dal server diventa un messaggio per l'utente, senza istruzioni da sviluppatore", async (status, message, atteso) => {
+    modello(new Response(JSON.stringify({ message, timestamp: "2026-10-08T10:00:00" }), { status }));
+    const c = coach();
+    await chiedi(c, "Come si organizza un girone?");
+    expect(c.current.msgs.at(-1)).toEqual({ role: "assistant", content: atteso });
+    expect(atteso).not.toMatch(/GROQ_API_KEY|env\.properties|backend/);
+  });
+
+  it("senza rete il messaggio dice di controllare la connessione, non di avviare il backend", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
+    const c = coach();
+    await chiedi(c, "Come si organizza un girone?");
+    expect(c.current.msgs.at(-1)).toEqual({ role: "assistant", content: "Server non raggiungibile: controlla la connessione e riprova." });
   });
 
   it("nessuna richiesta supera i 60 messaggi del server: 30 di cronologia e 8 giri di strumenti si fanno stare", async () => {
