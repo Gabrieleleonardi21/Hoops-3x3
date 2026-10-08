@@ -1,7 +1,8 @@
 /** Vista tabellone a eliminazione diretta, puramente presentazionale: una colonna per round
  *  (su mobile i round si impilano), ogni match una card con due righe squadra/punteggio.
  *  In un match `bye` (turno superato d'ufficio) la seconda riga dice «Passa il turno».
- *  I controlli di inserimento arrivano da `renderControls` così la logica resta nel chiamante. */
+ *  I controlli (punteggi da inserire, «Correggi» di un risultato) arrivano da `renderControls` così la logica resta nel
+ *  chiamante. */
 import type { BracketMatch } from "../../types";
 import { Badge } from "../ui/Badge";
 import { Icon } from "../ui/Icon";
@@ -81,7 +82,8 @@ export function Bracket({ rounds, nameOf, logoOf, renderControls }: Props) {
                         winner={m.done && m.pB > m.pA} loser={m.done && m.pB < m.pA} tbd={!m.squadraB} />
                     </>
                   )}
-                  {renderControls && !m.done && m.squadraA && m.squadraB && (
+                  {/* controlli per ogni match con due squadre: da giocare (punteggi) o giocato («Correggi»); un bye non ne ha */}
+                  {renderControls && !m.bye && m.squadraA && m.squadraB && (
                     <div className="border-t border-asphalt-700 px-3 py-2">{renderControls(m)}</div>
                   )}
                 </div>

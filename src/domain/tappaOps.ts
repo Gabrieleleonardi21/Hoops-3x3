@@ -7,7 +7,7 @@ import type { Partita, Regole, SquadraTappa, StatSheet, Tappa } from "../types";
 import { buildGironi } from "../utils/buildGironi";
 import { buildGironiSeeded } from "../utils/buildGironiSeeded";
 import { buildMatches } from "../utils/buildMatches";
-import { buildBracket, nextBracketSlot } from "../utils/buildBracket";
+import { buildBracket, nextBracketSlot, splitRounds } from "../utils/buildBracket";
 import { replaceById } from "../utils/replaceById";
 import { uid } from "../utils/uid";
 import { conteggio } from "../utils/testi";
@@ -321,6 +321,36 @@ export function registraRisultatoBracket(tappa: Tappa, matchId: string, pA: numb
       if (m.id === next.id) return { ...m, ...next.patch };
       return m;
     });
+  }
+  return ok({ ...tappa, bracket: nuovo });
+}
+
+/** Annulla il risultato di un match della fase finale («Correggi» del tabellone): il match torna da giocare e il vincitore
+ *  esce dal posto che occupava nel turno dopo. Ammesso solo finché quella gara non è stata giocata: altrimenti il turno dopo
+ *  conterrebbe una squadra che non ha più vinto, e il suo risultato va annullato prima. Un turno superato d'ufficio (`bye`)
+ *  non è un risultato e non si annulla. */
+export function annullaRisultatoBracket(tappa: Tappa, matchId: string): Esito {
+  if (tappa.conclusa) return ko(CONCLUSA);
+  const bracket = tappa.bracket ?? [];
+  const match = bracket.find((m) => m.id === matchId);
+  if (!match) return ko("Match non trovato nella fase a eliminazione diretta.");
+  if (match.bye) return ko(`${match.label}: turno superato d'ufficio, non c'è un risultato da annullare.`);
+  if (!match.done) return ko(`${match.label}: è già da giocare, non c'è niente da annullare.`);
+
+  let vincitoreId = match.squadraB;
+  if (match.pA > match.pB) vincitoreId = match.squadraA;
+  // La gara del turno dopo in cui il vincitore è avanzato (nessuna dopo la finale)
+  const turni = splitRounds(bracket);
+  const t = turni.findIndex((turno) => turno.some((m) => m.id === matchId));
+  const successiva = (turni[t + 1] ?? []).find((m) => m.squadraA === vincitoreId || m.squadraB === vincitoreId);
+  if (successiva?.done) return ko(`${successiva.label}: è già stata giocata. Annulla prima quel risultato.`);
+
+  let nuovo = replaceById(bracket, { ...match, pA: 0, pB: 0, done: false });
+  if (successiva) {
+    const libera = { ...successiva };
+    if (libera.squadraA === vincitoreId) libera.squadraA = null;
+    if (libera.squadraB === vincitoreId) libera.squadraB = null;
+    nuovo = replaceById(nuovo, libera);
   }
   return ok({ ...tappa, bracket: nuovo });
 }

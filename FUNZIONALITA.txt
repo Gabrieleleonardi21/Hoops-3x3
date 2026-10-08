@@ -195,6 +195,11 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
 - Nomi dei turni generati dinamicamente in base alle gare del turno: "Ottavo
   di finale N", "Quarto di finale N", "Semifinale N", "Finale" (i turni più
   larghi degli ottavi sono "Turno N · Gara M").
+- «Correggi» su un match giocato del tabellone lo riporta da giocare (i
+  punteggi restano nei campi come bozza) e toglie il vincitore dal turno
+  dopo; si può solo finché quella gara del turno dopo non è stata giocata
+  (altrimenti va corretta prima lei). I turni superati d'ufficio non hanno
+  un risultato da correggere.
 - Con il tabellone generato i risultati dei gironi non si correggono.
   «Elimina bracket e ricomincia» chiede sempre conferma e dice quanti
   risultati del tabellone si perdono (quelli dei gironi restano).

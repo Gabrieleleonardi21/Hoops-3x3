@@ -3,7 +3,7 @@ import {
   sorteggia, registraRisultato, registraRisultatoBracket, generaFasiDirette, concludi,
   aggiungiSquadra, rimuoviSquadra, impostaNumeroGironi, perditaRisultati, annullaRisultato, rinominaTappa,
   erroreLimitiTappa, erroreTestiTappa, creaTappa,
-  perditaTappa, perditaTabellone, perditaSquadra, eSegnaposto,
+  perditaTappa, perditaTabellone, perditaSquadra, eSegnaposto, annullaRisultatoBracket,
 } from "../../src/domain/tappaOps";
 import type { Esito } from "../../src/domain/tappaOps";
 import type { Tappa } from "../../src/types";
@@ -282,6 +282,52 @@ describe("registraRisultatoBracket (fase a eliminazione diretta)", () => {
     const originale = tappaConBracket();
     registraRisultatoBracket(originale, "sf1", 21, 17);
     expect(originale).toEqual(tappaConBracket());
+  });
+});
+
+describe("annullaRisultatoBracket: «Correggi» del tabellone", () => {
+  it("il match torna da giocare e il vincitore esce dalla finale", () => {
+    const dopoSf1 = nuova(registraRisultatoBracket(tappaConBracket(), "sf1", 21, 17));
+    const t = nuova(annullaRisultatoBracket(dopoSf1, "sf1"));
+    expect(t.bracket).toEqual(tappaConBracket().bracket);
+  });
+
+  it("toglie dalla finale solo il vincitore annullato: l'altra finalista resta", () => {
+    const dopoSf1 = nuova(registraRisultatoBracket(tappaConBracket(), "sf1", 21, 17));
+    const dopoSf2 = nuova(registraRisultatoBracket(dopoSf1, "sf2", 15, 21));
+    const t = nuova(annullaRisultatoBracket(dopoSf2, "sf2"));
+    expect(t.bracket![1]).toMatchObject({ id: "sf2", done: false });
+    expect(t.bracket![2]).toMatchObject({ id: "fin", squadraA: "a", squadraB: null, done: false });
+  });
+
+  it("dopo l'annullamento il risultato corretto si registra e fa avanzare l'altra squadra", () => {
+    const dopoSf1 = nuova(registraRisultatoBracket(tappaConBracket(), "sf1", 21, 17));
+    const corretta = nuova(registraRisultatoBracket(nuova(annullaRisultatoBracket(dopoSf1, "sf1")), "sf1", 17, 21));
+    expect(corretta.bracket![2]).toMatchObject({ squadraA: "b", squadraB: null });
+  });
+
+  it("rifiuta se il vincitore ha già giocato il turno dopo", () => {
+    let t = nuova(registraRisultatoBracket(tappaConBracket(), "sf1", 21, 17));
+    t = nuova(registraRisultatoBracket(t, "sf2", 15, 21));
+    t = nuova(registraRisultatoBracket(t, "fin", 21, 19));
+    expect(errore(annullaRisultatoBracket(t, "sf1"))).toBe("Finale: è già stata giocata. Annulla prima quel risultato.");
+    // la finale invece si annulla: dopo non c'è nessun turno
+    expect(nuova(annullaRisultatoBracket(t, "fin")).bracket![2]).toMatchObject({ squadraA: "a", squadraB: "c", done: false });
+  });
+
+  it("rifiuta un match da giocare, un turno superato d'ufficio e un match che non esiste", () => {
+    expect(errore(annullaRisultatoBracket(tappaConBracket(), "sf1"))).toMatch(/già da giocare/);
+    const conBye = tappaConBracket();
+    conBye.bracket = [{ ...conBye.bracket![0], squadraB: null, done: true, bye: true }, ...conBye.bracket!.slice(1)];
+    expect(errore(annullaRisultatoBracket(conBye, "sf1"))).toMatch(/turno superato d'ufficio/);
+    expect(annullaRisultatoBracket(tappaConBracket(), "inesistente").ok).toBe(false);
+  });
+
+  it("non modifica la tappa ricevuta", () => {
+    const dopoSf1 = nuova(registraRisultatoBracket(tappaConBracket(), "sf1", 21, 17));
+    const copia = structuredClone(dopoSf1);
+    annullaRisultatoBracket(dopoSf1, "sf1");
+    expect(dopoSf1).toEqual(copia);
   });
 });
 
@@ -585,6 +631,7 @@ describe("una tappa conclusa non si modifica (R5)", () => {
     ["registraRisultato", () => registraRisultato(conclusa(tappaSorteggiata()), "m1", { sa: 21, sb: 15 })],
     ["annullaRisultato", () => annullaRisultato(conclusa(tappaGironiConclusi()), "m1")],
     ["registraRisultatoBracket", () => registraRisultatoBracket(conclusa(tappaConBracket()), "sf1", 21, 17)],
+    ["annullaRisultatoBracket", () => annullaRisultatoBracket(conclusa(nuova(registraRisultatoBracket(tappaConBracket(), "sf1", 21, 17))), "sf1")],
     ["generaFasiDirette", () => generaFasiDirette(conclusa(tappaGironiConclusi()))],
     ["concludi", () => concludi(conclusa(tappaGironiConclusi()))],
     ["aggiungiSquadra", () => aggiungiSquadra(conclusa(tappaGironiConclusi()))],
