@@ -145,6 +145,47 @@ describe("TappaPage: collegare una squadra all'anagrafe", () => {
   });
 });
 
+describe("TappaPage: il collegamento all'anagrafe vale solo per il nome per cui è partito", () => {
+  const regAlfaB: RegSquadra = { ...regAlfa, id: "r2", nome: "Alfa B" };
+
+  it("se intanto il nome è cambiato (l'utente ha continuato a scrivere), la risposta non collega niente", async () => {
+    const ricerca = differita<RegSquadra>();
+    apriPagina({ trovaSquadra: vi.fn(() => ricerca.p) });
+    scrivi(0, "Falc");
+    fireEvent.blur(campiNome()[0]);  // esce dal campo con il nome a metà
+    scrivi(0, "Falchi");             // e torna a scrivere prima della risposta
+    await act(async () => { ricerca.ok({ ...regAlfa, nome: "Falc" }); await ricerca.p; });
+    expect(store().tappe[0].squadre[0]).toMatchObject({ nome: "Falchi" });
+    expect(store().tappe[0].squadre[0].regId).toBeUndefined();
+  });
+
+  it("con due uscite ravvicinate vince l'ultima, anche se la sua risposta arriva prima", async () => {
+    const prima = differita<RegSquadra>();
+    const seconda = differita<RegSquadra>();
+    const risposte = [prima.p, seconda.p];
+    apriPagina({ trovaSquadra: vi.fn(() => risposte.shift()!) });
+    scrivi(0, "Alfa");
+    fireEvent.blur(campiNome()[0]);
+    scrivi(0, "Alfa B");
+    fireEvent.blur(campiNome()[0]);
+    await act(async () => { seconda.ok(regAlfaB); await seconda.p; });
+    await act(async () => { prima.ok(regAlfa); await prima.p; }); // la più lenta arriva per ultima
+    expect(store().tappe[0].squadre[0]).toMatchObject({ nome: "Alfa B", regId: "r2" });
+  });
+
+  it("«Scollega» toglie il collegamento: il nome torna modificabile e il resto della squadra resta", () => {
+    useAppStore.setState({
+      tappe: [{ ...tappa(), squadre: [{ id: "s1", nome: "Alfa", giocatori: [], rank: "40", regId: "r1" }, tappa().squadre[1]] }],
+    });
+    apriPagina({ squadre: [regAlfa] });
+    expect(campiNome()[0].readOnly).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Scollega" }));
+    expect(store().tappe[0].squadre[0]).toMatchObject({ nome: "Alfa", rank: "40" });
+    expect(store().tappe[0].squadre[0].regId).toBeUndefined();
+    expect(campiNome()[0].readOnly).toBe(false);
+  });
+});
+
 describe("TappaPage: una squadra collegata a una voce eliminata dall'anagrafe torna modificabile (FS-9)", () => {
   const collegata = (): Tappa => ({
     ...tappa(),

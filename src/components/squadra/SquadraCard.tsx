@@ -34,7 +34,13 @@ export function SquadraCard({ s, index, h, erroreAnagrafe, onNameCommit }: {
           <TeamLogo src={s.logo} alt={`Logo ${s.nome}`} className="h-10 w-10" />
           <span className="font-display text-lg text-chalk-dim">#{index + 1}</span>
         </div>
-        {linked && <Badge tone="court"><Icon name="check" size={11} /> Anagrafe</Badge>}
+        {linked && (
+          <div className="flex flex-col items-end gap-1">
+            <Badge tone="court"><Icon name="check" size={11} /> Anagrafe</Badge>
+            {/* Il collegamento può essere partito da un nome scritto a metà: «Scollega» rende di nuovo modificabile il nome */}
+            <Button variant="link" className="text-chalk-muted" onClick={() => h.unlinkReg(s.id)}>Scollega</Button>
+          </div>
+        )}
       </div>
 
       {/* Nome: editabile solo se non collegata; onBlur trigger sync anagrafe */}

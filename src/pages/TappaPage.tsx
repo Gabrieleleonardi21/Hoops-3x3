@@ -89,8 +89,9 @@ export function TappaPage() {
       // Prima in cache, poi sul server: un altro utente può averla registrata dopo il caricamento
       // della cache e non va creato un doppione nell'anagrafe condivisa
       const existing = await trovaSquadra(trimmed);
+      // applyReg collega solo se la squadra ha ancora `trimmed` come nome e non è stata collegata nel frattempo
       if (existing) {
-        h.applyReg(teamId, existing);
+        h.applyReg(teamId, existing, trimmed);
       } else {
         // Crea una nuova RegSquadra nell'anagrafe e collega subito
         const newReg = await saveSquadra({
@@ -98,7 +99,7 @@ export function TappaPage() {
           referente: "", roster: [], logo: s.logo || "", website: s.website || "",
           instagram: "", note: "",
         });
-        h.applyReg(teamId, newReg);
+        h.applyReg(teamId, newReg, trimmed);
       }
     } catch (e) {
       // Chiamata dal campo del nome (onBlur), dove nessuno aspetta la promessa: se non si prende qui l'errore va perso, e l'utente

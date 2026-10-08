@@ -11,7 +11,7 @@ App web per la gestione di un circuito italiano di basket 3x3: tornei, gironi, s
 - **Timer di gara** — finestra per il tavolo con countdown, shot clock, punteggio +1/+2, fine partita rilevata da sola e supplementare
 - **Statistiche** — leader della tappa per categoria (punti, rimbalzi, assist, palle rubate, stoppate) e statistiche di stagione per giocatore, sommate su tutte le tappe della lega, nella scheda «Statistiche stagione» dell'Anagrafe
 - **Anagrafe** — archivio condiviso di giocatori e squadre (con logo e sito web cliccabile) che le tappe riutilizzano
-  - scrivendo il nome di una squadra di tappa, questa si collega alla voce dell'anagrafe (nome, logo, ranking e sito; il roster non si copia) o ne crea una
+  - scrivendo il nome di una squadra di tappa, questa si collega alla voce dell'anagrafe (nome, logo, ranking e sito; il roster non si copia) o ne crea una, solo se all'arrivo della risposta la squadra ha ancora quel nome; «Scollega» toglie il collegamento e rende di nuovo modificabile il nome
   - modifica ed eliminazione solo per l'autore o un ADMIN
   - i dati personali (del giocatore: data di nascita, città, nazionalità, altezza, peso, esperienza, note e autore; della squadra: referente e autore) li vede solo chi ha un account
 - **Archivio** — le tappe concluse e pubblicate (la pubblicazione è dei registrati), consultabili senza account in `/archivio` e `/tappa/:id`

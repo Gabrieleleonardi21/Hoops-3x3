@@ -90,7 +90,12 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
   squadra, come il tetto dell'interfaccia). Se il nome non
   c'è, l'app crea la scheda in anagrafe con il ranking, il logo e il sito che
   la squadra ha. Se il collegamento non riesce il motivo compare sotto il
-  nome, con «Riprova». All'apertura della tappa le squadre collegate si
+  nome, con «Riprova». La risposta collega la squadra solo se ha ancora il
+  nome per cui è partita la ricerca (se intanto si è continuato a scrivere,
+  o una seconda uscita dal campo ha già collegato, non cambia niente).
+  «Scollega», sotto il badge «Anagrafe», toglie il collegamento e rende di
+  nuovo modificabile il nome (la voce dell'anagrafe resta: si elimina dalla
+  pagina Anagrafe). All'apertura della tappa le squadre collegate si
   riallineano ai dati dell'anagrafe (nome, logo, ranking, sito). Una squadra
   collegata a una voce poi eliminata dall'anagrafe si scollega all'apertura
   della tappa (tiene nome, logo e ranking che ha) e il suo nome torna
