@@ -48,6 +48,11 @@ abilita i flussi multi-step in un solo messaggio (es. *"crea la tappa e sorteggi
   all'ottavo il modello chiede ancora tool, il ciclo si ferma e parte una chiamata finale **senza** strumenti che costringe il
   modello a chiudere con una risposta (testo di ripiego: «Fatto!»). Il numero copre un flusso completo di tappa (crea →
   sorteggia → risultati → fasi dirette → risultati → concludi).
+- **Limiti del server.** Ogni richiesta al Coach del server ha al massimo 60 messaggi (preambolo compreso) e 100.000 caratteri
+  (`CoachAiService.valida`); 30 messaggi di cronologia più 8 giri di strumenti li superano. Prima di ogni chiamata
+  (`neiLimiti` in `aiService.ts`) si tolgono i messaggi più vecchi della cronologia, mai il preambolo, la domanda di adesso né
+  gli scambi con gli strumenti della richiesta. Se nemmeno così la richiesta ci sta, il ciclo si chiude senza chiamare il
+  modello, con «Ho eseguito le azioni indicate qui sotto, ma la conversazione è diventata troppo lunga…» e i badge delle azioni.
 - **Guardia anti-stallo.** La firma di una chiamata è «nome dello strumento + argomenti» (il testo JSON del modello). Una
   chiamata con la stessa firma di una già fatta nella richiesta, riuscita o no, **non viene rieseguita**: il modello riceve
   `Azione "<nome dello strumento>" già chiamata con gli stessi argomenti in questa richiesta (vedi il suo risultato): non
@@ -59,12 +64,14 @@ abilita i flussi multi-step in un solo messaggio (es. *"crea la tappa e sorteggi
   **non** hanno il badge sotto la risposta.
 - **Richiesta abbandonata.** «Cancella» e il logout interrompono la richiesta (`AbortController` in `useCoachAI`): prima di ogni
   chiamata al modello e di ogni strumento si controlla il segnale, quindi non partono altre chiamate né altre azioni. Gli
-  strumenti che leggono l'anagrafe prima di scrivere (`crea_tappa`, `aggiorna_squadra`) lo controllano di nuovo dopo la lettura.
+  strumenti che leggono l'anagrafe prima di scrivere (`crea_tappa`, `aggiorna_squadra`, `registra_squadra`, `registra_giocatore`)
+  lo controllano di nuovo dopo la lettura.
   Le scritture già spedite al server finiscono comunque. Una conferma in attesa si chiude come «Annulla».
 - **Tempo massimo.** 65 secondi per ogni chiamata alla chat (il server aspetta Groq fino a 60). Gli errori del backend arrivano
   all'utente così: 401 «Sessione scaduta», 429 «Limite richieste raggiunto», 503 «Coach AI non è configurato sul server»
   (manca `GROQ_API_KEY`), rete assente «Server non raggiungibile», 400 con il messaggio del server (es. «Conversazione troppo
-  lunga»), il resto «Si è verificato un errore» (`errorMsg` in `useCoachAI.ts`).
+  lunga»), il resto «Si è verificato un errore» (`errorMsg` in `useCoachAI.ts`). Un errore a metà del ciclo, dopo strumenti già
+  eseguiti, non le nasconde: l'`AiError` porta gli strumenti eseguiti (`calledTools`) e il messaggio d'errore ha i loro badge.
 
 ### Come si sceglie la tappa
 
@@ -209,7 +216,7 @@ omonimi esatti):
 - **Descrizione:** Registra una nuova squadra nell'anagrafe condivisa del circuito.
 - **Parametri obbligatori:** `nome`
 - **Parametri opzionali:** `citta`, `anno`, `rank`, `referente`, `logo`, `website`, `instagram`, `note`
-- **Azione:** `saveSquadra` di `useAnagrafeStore`: `POST /api/anagrafe/squadre` sul backend e aggiornamento della cache dell'anagrafe. Il roster parte vuoto
+- **Azione:** legge l'anagrafe (`GET /api/anagrafe/squadre`): se c'è già una squadra con lo stesso nome (maiuscole e spazi ai lati a parte) non registra niente e l'errore la descrive (città, autore) e rimanda ad `aggiorna_squadra`. Altrimenti `saveSquadra` di `useAnagrafeStore`: `POST /api/anagrafe/squadre` sul backend e aggiornamento della cache dell'anagrafe. Il roster parte vuoto
 - **Esempio:** *"Registra la squadra Ballers Roma, città Roma"*
 
 ---
@@ -218,7 +225,7 @@ omonimi esatti):
 - **Descrizione:** Registra un nuovo giocatore nell'anagrafe condivisa del circuito.
 - **Parametri obbligatori:** `nome`, `cognome`
 - **Parametri opzionali:** `squadra`, `ruolo`, `nascita`, `citta`, `nazionalita`, `altezza`, `peso`, `numero`, `soprannome`, `esperienza`, `note`
-- **Azione:** `saveGiocatore` di `useAnagrafeStore`: `POST /api/anagrafe/giocatori` sul backend e aggiornamento della cache dell'anagrafe
+- **Azione:** legge l'anagrafe (`GET /api/anagrafe/giocatori`): se c'è già un giocatore con lo stesso nome e cognome non registra niente (un omonimo vero si registra dalla pagina Anagrafe). Altrimenti `saveGiocatore` di `useAnagrafeStore`: `POST /api/anagrafe/giocatori` sul backend e aggiornamento della cache dell'anagrafe
 - **Esempio:** *"Aggiungi il giocatore Marco Rossi, ruolo Playmaker, squadra Ballers Roma"*
 
 ---
@@ -275,8 +282,8 @@ tappa e nuovi tentativi dopo 2, 5 e 15 secondi). Per un utente registrato, le ch
 | (ogni giro di conversazione) | `POST /api/coach/chat` — `aiService.chiamaCoach` |
 | `crea_lega` | `POST /api/leghe` — `legheApi.create`, da `createLega` |
 | `crea_tappa` | `GET /api/anagrafe/squadre` e `GET /api/anagrafe/giocatori` (insieme); `POST /api/anagrafe/squadre` per ogni squadra non trovata; poi, dalla coda, `POST /api/leghe/{legaId}/tappe` (tappa nuova) |
-| `registra_squadra` | `POST /api/anagrafe/squadre` |
-| `registra_giocatore` | `POST /api/anagrafe/giocatori` |
+| `registra_squadra` | `GET /api/anagrafe/squadre`; `POST /api/anagrafe/squadre` se non c'è già |
+| `registra_giocatore` | `GET /api/anagrafe/giocatori`; `POST /api/anagrafe/giocatori` se non c'è già |
 | `aggiorna_squadra` | `GET /api/anagrafe/squadre`; `PUT /api/anagrafe/squadre/{id}` |
 | `sorteggia_gironi`, `genera_fasi_dirette`, `registra_risultato`, `annulla_risultato` | nessuna diretta: `replaceTappa` mette la tappa in coda → `PUT /api/tappe/{id}` (con la `versione` nota) |
 | `concludi_tappa` | `replaceTappa` (tappa conclusa) → `pubblica`: prima si svuota la coda (`PUT /api/tappe/{id}` e, se c'è una rinomina in attesa, `PATCH /api/leghe/{id}`), poi `PUT /api/archivio/{tappaId}` senza corpo |

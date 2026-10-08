@@ -384,9 +384,19 @@ async function eseguiCreaTappa(args: Argomenti, ctx: ContestoStrumenti): Promise
   return msg;
 }
 
-async function eseguiRegistraSquadra(args: Argomenti): Promise<string> {
+/** Stesso nome, maiuscole e spazi ai lati a parte: per riconoscere un doppione nell'anagrafe condivisa */
+const stessoNome = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+
+async function eseguiRegistraSquadra(args: Argomenti, ctx: ContestoStrumenti): Promise<string> {
   // L'anagrafe è condivisa: senza nome niente «Nuova squadra» visibile a tutti
   const nome = obbligatorio(args, "nome", "il nome della squadra");
+  // Un modello che ripete la chiamata, o una squadra già registrata da altri, farebbe un doppione visibile a tutti: non si registra
+  const omonime = (await fetchSquadre()).filter((s) => stessoNome(s.nome, nome));
+  fermaSeCancellata(ctx.segnale);
+  if (omonime.length) {
+    throw new Error(`In anagrafe c'è già la squadra ${omonime.map(descrizione).join("; ")}: non ne registro un'altra. `
+      + "Per cambiarne i dati usa aggiorna_squadra.");
+  }
   // Le scritture in anagrafe passano dallo store: aggiornano il server e la cache usata dalle pagine
   await useAnagrafeStore.getState().saveSquadra({
     nome,
@@ -403,9 +413,17 @@ async function eseguiRegistraSquadra(args: Argomenti): Promise<string> {
   return `Squadra "${nome}" registrata nell'anagrafe.`;
 }
 
-async function eseguiRegistraGiocatore(args: Argomenti): Promise<string> {
+async function eseguiRegistraGiocatore(args: Argomenti, ctx: ContestoStrumenti): Promise<string> {
   const nome    = obbligatorio(args, "nome", "il nome del giocatore");
   const cognome = obbligatorio(args, "cognome", "il cognome del giocatore");
+  // Come per le squadre: niente doppioni nell'anagrafe condivisa. Un omonimo vero (un'altra persona) si registra dalla pagina Anagrafe
+  const omonimi = (await fetchGiocatori()).filter((g) => stessoNome(g.nome, nome) && stessoNome(g.cognome, cognome));
+  fermaSeCancellata(ctx.segnale);
+  if (omonimi.length) {
+    const chi = `"${pulisci(omonimi[0].nome)} ${pulisci(omonimi[0].cognome)}"`;
+    throw new Error(`In anagrafe c'è già il giocatore ${chi} (di ${pulisci(omonimi[0].autore)}): non ne registro un altro. `
+      + "Se è un'altra persona con lo stesso nome, l'utente può registrarla dalla pagina Anagrafe.");
+  }
   await useAnagrafeStore.getState().saveGiocatore({
     nome, cognome,
     soprannome:  str(args, "soprannome"),

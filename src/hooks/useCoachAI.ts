@@ -195,7 +195,10 @@ export function useCoachAI() {
       salvaChat([...history, assistantMsg]);
     } catch (err) {
       if (!attiva()) return;
-      salvaChat([...history, { role: "assistant", content: errorMsg(err) }]);
+      // Un errore a metà del ciclo non cancella le azioni già fatte: l'errore le mostra come badge, come una risposta
+      const erroreMsg: ChatMsg = { role: "assistant", content: errorMsg(err) };
+      if (err instanceof AiError && err.calledTools.length) erroreMsg.tools = err.calledTools;
+      salvaChat([...history, erroreMsg]);
     } finally {
       if (attiva()) useChat.setState({ loading: false });
       if (richiestaInCorso === richiesta) richiestaInCorso = null;

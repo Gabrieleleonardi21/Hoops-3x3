@@ -410,7 +410,8 @@ esplicitamente:
   annulla_risultato   Annulla un risultato di girone già inserito (riporta la
                       partita a "non disputata", i punteggi restano come
                       bozza). Chiede sempre conferma.
-  registra_squadra    Aggiunge una squadra all'anagrafe condivisa.
+  registra_squadra    Aggiunge una squadra all'anagrafe condivisa; se ce n'è
+                      già una con lo stesso nome non ne crea un doppione.
   aggiorna_squadra    Modifica i dati di una squadra esistente in anagrafe
                       (logo, città, referente, rank, ecc.); la squadra si
                       sceglie come per crea_tappa, e con due squadre dallo
@@ -419,7 +420,9 @@ esplicitamente:
                       alla pagina Anagrafe); aggiorna solo i campi passati,
                       gli altri restano invariati. Se l'anagrafe non risponde
                       lo dice, senza modificare niente.
-  registra_giocatore  Aggiunge un giocatore all'anagrafe condivisa.
+  registra_giocatore  Aggiunge un giocatore all'anagrafe condivisa; se ce n'è
+                      già uno con lo stesso nome e cognome non ne crea un
+                      doppione (un omonimo si registra dalla pagina Anagrafe).
   concludi_tappa      Conclude e pubblica la tappa nell'Archivio circuito
                       (richiede account non ospite). Chiede sempre conferma.
 
