@@ -63,3 +63,43 @@ describe("HomePage: «Ultimo risultato» segue l'ordine d'inserimento (FD-10)", 
     expect(within(carta).queryByText("Beta")).toBeNull();
   });
 });
+
+describe("HomePage: con la fase finale le prossime partite e il conteggio delle gare la includono", () => {
+  /** Due gironi conclusi e il tabellone: semifinali da giocare, finale da definire */
+  const conTabellone = (): Tappa => ({
+    ...tappa([
+      { id: "m1", g: 0, a: "s1", b: "s2", sa: 21, sb: 15, done: true, ts: 1 },
+      { id: "m2", g: 1, a: "s3", b: "s4", sa: 21, sb: 18, done: true, ts: 2 },
+    ]),
+    nGironi: 2,
+    squadre: [
+      { id: "s1", nome: "Alfa", giocatori: [], rank: "" },
+      { id: "s2", nome: "Beta", giocatori: [], rank: "" },
+      { id: "s3", nome: "Gamma", giocatori: [], rank: "" },
+      { id: "s4", nome: "Delta", giocatori: [], rank: "" },
+    ],
+    gironi: [["s1", "s2"], ["s3", "s4"]],
+    bracket: [
+      { id: "sf1", label: "Semifinale 1", squadraA: "s1", squadraB: "s4", pA: 0, pB: 0, done: false },
+      { id: "sf2", label: "Semifinale 2", squadraA: "s3", squadraB: "s2", pA: 0, pB: 0, done: false },
+      { id: "fin", label: "Finale", squadraA: null, squadraB: null, pA: 0, pB: 0, done: false },
+    ],
+  });
+
+  it("mostra le semifinali da giocare, non «Nessuna partita in attesa»", () => {
+    useAppStore.setState({ user: registrato, legaId: "l1", legaName: "Lega", tappe: [conTabellone()], ready: true });
+    render(<MemoryRouter><HomePage /></MemoryRouter>);
+    expect(screen.queryByText("Nessuna partita in attesa.")).toBeNull();
+    expect(screen.getByText("Semifinale 1")).toBeTruthy();
+    expect(screen.getByText("Semifinale 2")).toBeTruthy();
+    // la finale ha ancora i posti vuoti: non è in programma
+    expect(screen.queryByText("Finale")).toBeNull();
+  });
+
+  it("conta le gare della fase finale e la tappa resta «Live»", () => {
+    useAppStore.setState({ user: registrato, legaId: "l1", legaName: "Lega", tappe: [conTabellone()], ready: true });
+    render(<MemoryRouter><HomePage /></MemoryRouter>);
+    expect(screen.getByText(/2\/5 gare giocate/)).toBeTruthy();
+    expect(screen.getAllByText("Live").length).toBeGreaterThan(0);
+  });
+});
