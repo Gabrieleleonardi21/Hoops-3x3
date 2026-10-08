@@ -1,17 +1,18 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { LegaPage } from "../../src/pages/LegaPage";
 import { useAppStore } from "../../src/stores/useAppStore";
-import type { User } from "../../src/types";
+import { DEFAULT_RULES } from "../../src/constants/rules";
+import type { Tappa, User } from "../../src/types";
 
 const store = () => useAppStore.getState();
 const ospite: User = { name: "Ospite", guest: true };
 
-/** Apre la pagina della lega; dopo la creazione l'app va alla pagina della tappa, qui un segnaposto */
+/** Apre la pagina della lega con le tappe già nello store; dopo la creazione l'app va alla pagina della tappa, qui un segnaposto */
 function apriLega() {
-  useAppStore.setState({ user: ospite, legaId: "l1", leghe: [{ id: "l1", nome: "Lega", ts: 1, nTappe: 0 }], legaName: "Lega", tappe: [] });
+  useAppStore.setState({ user: ospite, legaId: "l1", leghe: [{ id: "l1", nome: "Lega", ts: 1, nTappe: 0 }], legaName: "Lega" });
   render(
     <MemoryRouter initialEntries={["/lega"]}>
       <Routes>
@@ -28,12 +29,41 @@ const crea = () => fireEvent.click(screen.getByRole("button", { name: "Crea la t
 
 beforeEach(() => {
   localStorage.clear();
+  useAppStore.setState({ tappe: [] });
 });
 
 afterEach(() => {
   cleanup(); // senza le globali di Vitest, Testing Library non smonta da sola
   store().reset();
   localStorage.clear();
+});
+
+/** La tappa «Roma» con queste squadre (nome e punti ranking), senza partite */
+const tappaCon = (squadre: [string, string][]): Tappa => ({
+  id: "t1", nome: "Roma", luogo: "", data: "", nGironi: 1, regole: { ...DEFAULT_RULES }, gironi: null, partite: [], video: [],
+  squadre: squadre.map(([nome, rank], i) => ({ id: `s${i}`, nome, rank, giocatori: [] })),
+});
+
+describe("LegaPage: la classifica del circuito", () => {
+  it("non elenca le squadre segnaposto né quelle senza punti ranking, e con nessuna classificata non compare", () => {
+    useAppStore.setState({ tappe: [tappaCon([["Squadra 1", "50"], ["Alfa", ""], ["Beta", "30"], ["Gamma", "0"]])] });
+    apriLega();
+    const tabella = screen.getByRole("table", { name: "Classifica circuito" });
+    expect(within(tabella).getAllByRole("row").slice(1).map((r) => r.textContent)).toEqual(["1Beta301"]);
+
+    cleanup();
+    useAppStore.setState({ tappe: [tappaCon([["Squadra 1", "50"], ["Alfa", ""]])] });
+    apriLega();
+    expect(screen.queryByText("Classifica circuito")).toBeNull();
+  });
+
+  it("per ogni squadra vale il rank più alto tra le tappe e si contano le tappe giocate", () => {
+    const t2 = { ...tappaCon([["alfa", "40"], ["Beta", "10"]]), id: "t2" };
+    useAppStore.setState({ tappe: [tappaCon([["Alfa", "25"], ["Beta", "30"]]), t2] });
+    apriLega();
+    const tabella = screen.getByRole("table", { name: "Classifica circuito" });
+    expect(within(tabella).getAllByRole("row").slice(1).map((r) => r.textContent)).toEqual(["1Alfa402", "2Beta302"]);
+  });
 });
 
 describe("LegaPage: «Crea la tappa» con gli stessi limiti del Coach (R8)", () => {
