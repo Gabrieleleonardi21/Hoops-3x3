@@ -13,10 +13,9 @@ async function serverFinto(page: Page) {
   return nonPreviste;
 }
 
-/** La card di un match del tabellone, trovata dall'etichetta della sua intestazione («Semifinale 1», «Finale»): il tabellone non ha ruoli
- *  né nomi accessibili per le sue card, e la colonna con il titolo del turno («Finale») sta fuori dalla card */
-const cardDelMatch = (page: Page, etichetta: string) =>
-  page.locator("div.overflow-hidden").filter({ has: page.getByText(etichetta, { exact: true }) });
+/** La card di un match del tabellone: un gruppo il cui nome accessibile comincia con l'etichetta del match («Semifinale 1: Alfa contro
+ *  Beta»); il resto del nome cambia man mano che i posti si assegnano, per questo si guarda solo l'inizio */
+const cardDelMatch = (page: Page, etichetta: string) => page.getByRole("group", { name: new RegExp(`^${etichetta}:`) });
 
 /** La squadra A di un match ancora da giocare, letta dal nome del suo primo campo punteggio («Punti Squadra 3»). Con il 21 a 15 che
  *  scrivono gli helper vince lei: il vincitore si conosce prima di giocare */

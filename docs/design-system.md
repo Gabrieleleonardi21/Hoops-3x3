@@ -40,7 +40,8 @@ della mappa (80%) e il fondo dei modali (`asphalt-950` all'80%).
 | `navy`             | `#17203A` | solo l'overlay della hero (colore del logo, brand esistente) |
 
 Testo su `court`: usare `asphalt-950` (6.8:1), mai bianco (2.9:1).
-Il colore non è mai l'unico indicatore: W/L come lettera, DIFF con segno +/−.
+Il colore non è mai l'unico indicatore: W/L come lettera, DIFF con segno +/−, chi vince nel tabellone e nella `ScoreCard` con la
+spunta e il testo «vince» per i lettori di schermo.
 
 ## Tipografia
 
@@ -88,8 +89,8 @@ etichette 11 px. Line-height 1.5 nel corpo (default di Tailwind), 1.0 per il dis
 | `Card`, `Section`, `Kicker`, `Badge`, `StatTile`, `Modal`, `Icon` | `ui/` | primitive di layout, etichette, modali, icone SVG |
 | `ConfirmDialog` | `ui/ConfirmDialog.tsx` | finestra di conferma per ciò che fa perdere dati (ruolo `alertdialog`), sopra `Modal` |
 | `StandingsTable` | `leaderboard/StandingsTable.tsx` | `<table>` semantica, ordinamento per colonna con `aria-sort`, rail arancio sulla riga evidenziata, loghi |
-| `ScoreCard` | `partita/ScoreCard.tsx` | scoreboard con slot `center` (input) e `footer` (azioni, eventi); `size="lg"` c'è ma oggi nessuna pagina lo usa |
-| `Bracket` | `gironi/Bracket.tsx` | tabellone per round, presentazionale; i controlli arrivano da `renderControls` |
+| `ScoreCard` | `partita/ScoreCard.tsx` | scoreboard con slot `center` (input) e `footer` (azioni, eventi); a partita conclusa «vince» (`sr-only`) segue il punteggio più alto; `size="lg"` c'è ma oggi nessuna pagina lo usa |
+| `Bracket` | `gironi/Bracket.tsx` | tabellone per round, presentazionale; ogni card è un `role="group"` con il nome «Semifinale 1: Alfa contro Beta» («posto da assegnare», «Alfa passa il turno»); i controlli arrivano da `renderControls` |
 | `Sparkline` | `profile/Sparkline.tsx` | barre SVG inline, nessuna libreria chart |
 | `Hero` | `layout/Hero.tsx` | banda hero con foto e overlay |
 
@@ -119,7 +120,9 @@ Lo stato reale, con dove è garantito:
   navigazione, le schede dell'anagrafe (Giocatori, Squadre, Statistiche stagione) e i nomi delle card. Provato in
   `tests/e2e/area-di-tocco.spec.ts` a 390px di larghezza.
 - **Movimento.** `prefers-reduced-motion` azzera transizioni e animazioni (`index.css`).
-- **Icone e colore.** Icone SVG, mai emoji (`ui/Icon.tsx`); il colore non è l'unico indicatore (W/L come lettera, DIFF con segno).
+- **Icone e colore.** Icone SVG, mai emoji (`ui/Icon.tsx`); il colore non è l'unico indicatore (W/L come lettera, DIFF con segno;
+  chi vince nel tabellone e nella `ScoreCard` ha la spunta e il testo «vince» solo per i lettori di schermo). I test di `Bracket` e
+  `ScoreCard` leggono ruoli e testi, non le classi di stile: un solo test per componente fissa i token di colore, come documentazione.
 - **Tabelle.** `<th scope="col">` e `<caption className="sr-only">` (visibile solo ai lettori di schermo, che con quello annunciano la
   tabella) in tutte e sette: classifiche (`StandingsTable`, classifica del circuito), statistiche di stagione, tabellini
   (`StatsView`, `StatsEditor`), analisi del giocatore (`GiocatoreAnalisi`) e storico tappe del profilo. Provato in
