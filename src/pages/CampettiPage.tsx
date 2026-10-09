@@ -1,143 +1,162 @@
-/** Campetti: ricerca dei campi da streetball con filtri, lista e mappa schematica.
- *  ATTENZIONE: usa i campetti di prova di tests/fixtures/campetti.ts (nessuna lettura dall'API né geolocalizzazione); la mappa è un
- *  SVG stilizzato, non una mappa reale. Il Task 3 della fase 5 rifà questa pagina con i dati dell'API, la mappa vera, la posizione
- *  dell'utente e le distanze: qui è cambiato solo il minimo perché compili con il modello nuovo (niente valutazioni, distanze
- *  e ultima tappa inventate; i pin alle posizioni vere). */
-import { useMemo, useState } from "react";
-import { CAMPETTI_DEMO } from "../../tests/fixtures/campetti";
-import type { Campetto } from "../types/campetto";
-import { inquadra, proietta } from "../utils/geo";
-import { Badge } from "../components/ui/Badge";
+/** Campetti: i campi da streetball del circuito, dall'API (`GET /api/campetti`, D9). All'apertura quelli intorno a Roma; con «Usa la mia
+ *  posizione» quelli intorno all'utente, con le distanze e in ordine di distanza; la casella di ricerca cerca per nome o città su tutta
+ *  l'Italia. I filtri lavorano sui risultati, nel browser. La mappa (MappaCampetti) inquadra solo i campetti mostrati. La posizione
+ *  dell'utente va al nostro server solo come centro della ricerca (lat/lng), mai a Google (D7). Aggiunta e modifica: Task 4. */
+import { useEffect, useMemo, useState } from "react";
+import { STATI_CAMPETTO, type Campetto, type StatoCampetto } from "../types/campetto";
+import type { RicercaCampetti } from "../services/campettiApi";
+import { useCampettiStore } from "../stores/useCampettiStore";
+import { usePosizione } from "../hooks/usePosizione";
+import { distanzaKm, type Coordinate } from "../utils/geo";
+import { conteggio } from "../utils/testi";
+import { MappaCampetti } from "../components/campetti/MappaCampetti";
+import { PosizioneUtente } from "../components/campetti/PosizioneUtente";
+import { CampettoCard } from "../components/campetti/CampettoCard";
+import { ErroreCaricamento } from "../components/ui/ErroreCaricamento";
+import { Loading } from "../components/ui/Loading";
 import { Button } from "../components/ui/Button";
 import { Icon } from "../components/ui/Icon";
 
-type Filtro = "illuminato" | "coperto" | "gratuito" | "canestri";
-const FILTRI: [Filtro, string][] = [["illuminato", "Illuminato"], ["coperto", "Coperto"], ["canestri", "4 canestri"], ["gratuito", "Gratuito"]];
+/** Dove si apre la pagina (contratto della fase 5) e il raggio della ricerca intorno a un punto, anche intorno all'utente */
+const ROMA: Coordinate = { lat: 41.9028, lng: 12.4964 };
+const RAGGIO_KM = 20;
+/** Attesa dopo l'ultimo tasto prima di interrogare il server: una richiesta per parola, non per lettera */
+const ATTESA_RICERCA_MS = 300;
 
-/** La mappa schematica è un quadrato di 100 unità (percentuali): i pin si proiettano lì dentro */
-const LATO_MAPPA = 100;
+type Filtro = "illuminato" | "coperto" | "gratuito" | "canestri" | "retine" | "fontanella";
+const FILTRI: [Filtro, string][] = [
+  ["illuminato", "Illuminato"], ["coperto", "Coperto"], ["canestri", "4 canestri"], ["gratuito", "Gratuito"], ["retine", "Retine"], ["fontanella", "Fontanella"],
+];
 
-/** Mappa schematica: griglia "strade" + pin alle posizioni vere (proiezione Web Mercator sul riquadro dei campetti mostrati).
- *  Sostituibile con una mappa reale mantenendo le stesse props. */
-function MappaSchematica({ campetti, selected, onSelect }: { campetti: Campetto[]; selected: string | null; onSelect: (id: string) => void }) {
-  const { centro, zoom } = inquadra(campetti, LATO_MAPPA);
-  return (
-    <div className="relative h-full min-h-[320px] overflow-hidden rounded border border-asphalt-700 bg-asphalt-900">
-      <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 h-full w-full" aria-hidden="true">
-        {/* isoipse/strade decorative */}
-        {[15, 35, 55, 75, 95].map((y) => <line key={y} x1="0" y1={y} x2="100" y2={y} stroke="var(--color-asphalt-700)" strokeWidth="0.3" />)}
-        {[12, 30, 48, 66, 84].map((x) => <line key={x} x1={x} y1="0" x2={x} y2="100" stroke="var(--color-asphalt-700)" strokeWidth="0.3" />)}
-        <path d="M60 0 C 62 30, 70 60, 78 100" fill="none" stroke="var(--color-asphalt-600)" strokeWidth="1.2" />
-        <path d="M0 58 C 30 52, 60 66, 100 60" fill="none" stroke="var(--color-asphalt-600)" strokeWidth="0.8" />
-      </svg>
-      {campetti.map((c) => {
-        const sel = c.id === selected;
-        const { x, y } = proietta(c.lat, c.lng, centro, zoom, LATO_MAPPA);
-        return (
-          <button key={c.id} onClick={() => onSelect(c.id)} aria-label={c.nome} aria-pressed={sel}
-            className={`absolute -translate-x-1/2 -translate-y-full transition-transform ${sel ? "z-10 scale-125" : "hover:scale-110"}`}
-            style={{ left: `${x}%`, top: `${y}%` }}>
-            <Icon name="pin" size={28} className={sel ? "text-court" : "text-chalk-muted"} fill={sel ? "var(--color-court)" : "var(--color-asphalt-800)"} />
-          </button>
-        );
-      })}
-      <div className="absolute bottom-2 left-2 rounded-sm bg-asphalt-950/80 px-2 py-1 text-[10.5px] uppercase tracking-[0.08em] text-chalk-dim">
-        Mappa schematica · dati di esempio
-      </div>
-    </div>
-  );
+/** true se il campetto passa il filtro */
+function passa(c: Campetto, f: Filtro): boolean {
+  if (f === "canestri") return c.canestri >= 4;
+  return c[f];
 }
+
+/** Per città e poi per nome, come il server senza posizione: i filtri non cambiano l'ordine ma lo si rende esplicito */
+const perCittaENome = (a: Campetto, b: Campetto) => a.citta.localeCompare(b.citta) || a.nome.localeCompare(b.nome);
 
 export function CampettiPage() {
   const [q, setQ] = useState("");
+  /** Il testo della casella com'era ATTESA_RICERCA_MS fa: è quello che va al server */
+  const [testo, setTesto] = useState("");
   const [filtri, setFiltri] = useState<Set<Filtro>>(new Set());
-  const [sel, setSel] = useState<string | null>(CAMPETTI_DEMO[0]?.id ?? null);
+  const [stato, setStato] = useState<"" | StatoCampetto>("");
+  const [sel, setSel] = useState<string | null>(null);
+  const posizioneUtente = usePosizione();
+  const { campetti, errore, carica } = useCampettiStore();
 
+  useEffect(() => {
+    const timer = setTimeout(() => setTesto(q.trim()), ATTESA_RICERCA_MS);
+    return () => clearTimeout(timer);
+  }, [q]);
+
+  /** La ricerca che vale adesso (D9): il testo su tutta l'Italia (con la posizione, se c'è, per l'ordine di distanza); altrimenti i
+   *  campetti intorno all'utente o, senza posizione, intorno a Roma. Lo store scarta le risposte delle ricerche superate */
+  const posizione = posizioneUtente.posizione;
+  const ricerca = useMemo<RicercaCampetti>(() => {
+    if (testo && posizione) return { q: testo, lat: posizione.lat, lng: posizione.lng };
+    if (testo) return { q: testo };
+    if (posizione) return { lat: posizione.lat, lng: posizione.lng, raggioKm: RAGGIO_KM };
+    return { ...ROMA, raggioKm: RAGGIO_KM };
+  }, [testo, posizione]);
+  useEffect(() => { void carica(ricerca); }, [ricerca, carica]);
+
+  /** I risultati filtrati nel browser e ordinati: per distanza con la posizione, altrimenti per città e nome */
   const lista = useMemo(() => {
-    const s = q.trim().toLowerCase();
-    return CAMPETTI_DEMO
-      .filter((c) => !s || `${c.nome} ${c.indirizzo} ${c.citta}`.toLowerCase().includes(s))
-      .filter((c) => !filtri.has("illuminato") || c.illuminato)
-      .filter((c) => !filtri.has("coperto") || c.coperto)
-      .filter((c) => !filtri.has("gratuito") || c.gratuito)
-      .filter((c) => !filtri.has("canestri") || c.canestri >= 4)
-      .sort((a, b) => a.nome.localeCompare(b.nome)); // per nome finché non c'è la posizione (Task 3)
-  }, [q, filtri]);
-
+    const filtrati = (campetti ?? [])
+      .filter((c) => [...filtri].every((f) => passa(c, f)))
+      .filter((c) => !stato || c.stato === stato);
+    if (posizione) return filtrati.sort((a, b) => distanzaKm(posizione, a) - distanzaKm(posizione, b));
+    return filtrati.sort(perCittaENome);
+  }, [campetti, filtri, stato, posizione]);
 
   const toggle = (f: Filtro) => setFiltri((prev) => {
     const next = new Set(prev);
-    if (next.has(f)) next.delete(f); else next.add(f);
+    if (next.has(f)) next.delete(f);
+    else next.add(f);
     return next;
   });
 
+  /** Dove si sta cercando, accanto al conteggio */
+  let dove = "intorno a Roma";
+  if (testo) dove = "in tutta Italia";
+  else if (posizione) dove = "intorno a te";
+
+  /** L'elenco: il caricamento, l'errore con «Riprova», nessun risultato (dal server o dai filtri) o le card. Un caricamento non riuscito
+   *  non si mostra come zona vuota */
+  const elenco = () => {
+    if (campetti === null && errore) {
+      return <ErroreCaricamento cosa="Non è stato possibile caricare i campetti." motivo={errore} onRiprova={() => { void carica(ricerca); }} />;
+    }
+    if (campetti === null) return <Loading>Sto cercando i campetti…</Loading>;
+    if (campetti.length === 0) return <p className="text-[13px] text-chalk-muted">Nessun campetto trovato.</p>;
+    if (lista.length === 0) return <p className="text-[13px] text-chalk-muted">Nessun campetto con questi filtri.</p>;
+    return lista.map((c) => {
+      let distanza: number | undefined;
+      if (posizione) distanza = distanzaKm(posizione, c);
+      return <CampettoCard key={c.id} campetto={c} selezionato={c.id === sel} onSeleziona={setSel} distanzaKm={distanza} />;
+    });
+  };
+
   return (
     <>
-      {/* I dati sono di prova (tests/fixtures/campetti.ts): la pagina resta nella navigazione, e lo dice chiaramente in cima */}
-      <p role="note" className="mb-4 rounded border border-court/40 bg-court/10 px-3.5 py-2.5 text-[13px] font-medium text-chalk">
-        <span className="font-semibold text-court">Dati di esempio.</span> I campetti qui sotto sono
-        di prova, per mostrare come sarà la pagina: non sono campi reali.
-      </p>
-
       <div className="mb-4">
         <h1 className="font-display text-4xl">Campetti</h1>
         <p className="mt-1 text-[13px] text-chalk-muted">Trova un campo, organizza la prossima tappa.</p>
       </div>
 
-      {/* Filtri */}
+      <div className="mb-3">
+        <PosizioneUtente stato={posizioneUtente.stato} onChiedi={posizioneUtente.chiedi} />
+      </div>
+
+      {/* Ricerca e filtri */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <label className="relative flex-1 min-w-[200px] max-w-sm">
           <span className="sr-only">Cerca città o campo</span>
           <Icon name="search" size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-chalk-dim" />
-          <input className="statin pl-9" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cerca città o campo…" />
+          <input className="statin pl-9" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cerca città o campo in tutta Italia…" />
         </label>
-        {FILTRI.map(([f, label]) => (
-          <button key={f} onClick={() => toggle(f)} aria-pressed={filtri.has(f)}
-            className={`h-9 rounded-sm border px-3 text-xs font-semibold uppercase tracking-[0.06em] transition-colors ${
-              filtri.has(f) ? "border-court bg-court/15 text-court" : "border-asphalt-700 text-chalk-muted hover:border-asphalt-500 hover:text-chalk"}`}>
-            {label}
-          </button>
-        ))}
+        {FILTRI.map(([f, label]) => {
+          let classe = "border-asphalt-700 text-chalk-muted hover:border-asphalt-500 hover:text-chalk";
+          if (filtri.has(f)) classe = "border-court bg-court/15 text-court";
+          return (
+            <button key={f} type="button" onClick={() => toggle(f)} aria-pressed={filtri.has(f)}
+              className={`h-9 rounded-sm border px-3 text-xs font-semibold uppercase tracking-[0.06em] transition-colors ${classe}`}>
+              {label}
+            </button>
+          );
+        })}
+        <label className="flex items-center gap-2 text-xs text-chalk-muted">
+          <span className="sr-only">Stato del campo</span>
+          <select className="statin h-9" value={stato} onChange={(e) => setStato(e.target.value as "" | StatoCampetto)}>
+            <option value="">Ogni stato del campo</option>
+            {STATI_CAMPETTO.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </label>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[5fr_6fr]">
-        {/* Lista */}
+        {/* Elenco */}
         <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between">
-            <span className="kicker">{lista.length} {lista.length === 1 ? "campetto" : "campetti"} · Torino</span>
-          </div>
-          {lista.length === 0 && <p className="text-[13px] text-chalk-muted">Nessun campetto con questi filtri.</p>}
-          {lista.map((c) => {
-            const active = c.id === sel;
-            return (
-              <button key={c.id} onClick={() => setSel(c.id)} aria-pressed={active}
-                className={`flex w-full gap-3 rounded border bg-asphalt-900 p-3 text-left transition-colors ${
-                  active ? "border-court shadow-[inset_3px_0_0_var(--color-court)]" : "border-asphalt-700 hover:border-asphalt-500"}`}>
-                <div className="h-16 w-20 shrink-0 overflow-hidden rounded-sm bg-asphalt-800">
-                  <img src="/hero-court.jpg" alt="" className="h-full w-full object-cover opacity-70" loading="lazy" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <span className="font-display text-lg text-chalk">{c.nome}</span>
-                  <div className="text-xs text-chalk-muted">{c.indirizzo}, {c.citta}</div>
-                  <div className="mt-1.5 flex flex-wrap gap-1">
-                    <Badge>{c.superficie}</Badge>
-                    {c.illuminato && <Badge>Illuminato</Badge>}
-                    {c.coperto && <Badge>Coperto</Badge>}
-                    <Badge>{c.canestri} canestri</Badge>
-                    {!c.gratuito && <Badge tone="court">A pagamento</Badge>}
-                  </div>
-                </div>
-              </button>
-            );
-          })}
-          <Button className="mt-1 w-full" disabled title="Funzionalità non ancora disponibile"><Icon name="plus" size={16} /> Aggiungi un campetto</Button>
+          <span className="kicker">{conteggio(lista.length, "campetto", "campetti")} · {dove}</span>
+          {elenco()}
+          <Button className="mt-1 w-full" disabled title="In arrivo"><Icon name="plus" size={16} /> Aggiungi un campetto</Button>
         </div>
 
         {/* Mappa */}
-        <div className="lg:sticky lg:top-[7.5rem] lg:h-[calc(100vh-9rem)]">
-          <MappaSchematica campetti={lista} selected={sel} onSelect={setSel} />
+        <div className="lg:sticky lg:top-[7.5rem]">
+          <MappaCampetti campetti={lista} selezionato={sel} onSeleziona={setSel} posizioneUtente={posizione ?? undefined} />
         </div>
       </div>
+
+      {/* Attribuzione (D5): i campetti vengono da Pick-Roll, con il permesso del proprietario; le coordinate dei campetti di esempio
+          (il seed del backend) dai centroidi di OpenStreetMap, licenza ODbL */}
+      <p className="mt-6 text-xs text-chalk-dim">
+        Campetti: dati di <a href="https://pick-roll.com" target="_blank" rel="noopener noreferrer" className="underline underline-offset-4 hover:text-chalk">Pick-Roll</a>.
+        Coordinate dei campetti di esempio © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" className="underline underline-offset-4 hover:text-chalk">OpenStreetMap</a> contributors.
+      </p>
     </>
   );
 }

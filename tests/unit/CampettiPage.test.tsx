@@ -55,7 +55,7 @@ afterEach(() => {
 describe("CampettiPage: all'apertura i campetti intorno a Roma, dall'API", () => {
   it("chiede al server i campetti intorno a Roma (raggio 20 km), li mostra e dice quanti sono e dove", async () => {
     render(<CampettiPage />);
-    expect(screen.getByRole("status").textContent).toContain("Sto cercando i campetti");
+    expect(screen.getByText(/Sto cercando i campetti/).getAttribute("role")).toBe("status");
     await screen.findByRole("article", { name: ruffini.nome });
     expect(api.list).toHaveBeenCalledWith(ROMA);
     expect(screen.getAllByRole("article")).toHaveLength(6);
@@ -167,7 +167,7 @@ describe("CampettiPage: la posizione dell'utente (D7, D9)", () => {
     await apri();
     fireEvent.click(screen.getByRole("button", { name: "Usa la mia posizione" }));
     await waitFor(() => expect(api.list).toHaveBeenLastCalledWith({ ...UTENTE, raggioKm: 20 }));
-    await screen.findByText(/intorno a te/);
+    await screen.findByText(/6 campetti · intorno a te/);
     expect(screen.getByRole("status").textContent).toContain("Posizione trovata");
     const perDistanza = [...CAMPETTI_DEMO].sort((a, b) => distanzaKm(UTENTE, a) - distanzaKm(UTENTE, b));
     expect(ordineCard()).toEqual(perDistanza.map((c) => c.nome));
@@ -222,7 +222,8 @@ describe("CampettiPage: la casella di ricerca interroga il server su tutta l'Ita
 });
 
 describe("CampettiPage: i filtri si applicano ai risultati, nel browser", () => {
-  const filtro = (nome: string) => screen.getByRole("button", { name, exact: true });
+  /** Il nome esatto (la regex ancorata): «Retine» non deve prendere il pulsante della card, che nel nome ha anche indirizzo e città */
+  const filtro = (nome: string) => screen.getByRole("button", { name: new RegExp(`^${nome}$`) });
 
   it("Retine e Fontanella tolgono i campetti che non le hanno; il filtro acceso ha aria-pressed", async () => {
     await apri();
