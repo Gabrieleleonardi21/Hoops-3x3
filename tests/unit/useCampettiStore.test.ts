@@ -62,6 +62,37 @@ describe("useCampettiStore: la cache dei campetti dell'ultima ricerca", () => {
     expect(store.getState()).toMatchObject({ campetti: [dora], ricerca: DORA, inCorso: false });
   });
 
+  it("una ricerca abbandonata (la casella svuotata prima della risposta) non sovrascrive l'elenco mostrato", async () => {
+    const { api, store } = await nuovoStore();
+    await store.getState().carica(ROMA);
+    const lenta = differita<Campetto[]>();
+    api.list.mockReturnValueOnce(lenta.promessa);
+    const dora1 = store.getState().carica(DORA); // l'utente scrive «Dora»
+    // Svuota la casella prima che il server risponda: torna Roma, che è già quella mostrata, e la richiesta di Dora è superata
+    await store.getState().carica(ROMA);
+    expect(store.getState()).toMatchObject({ campetti: CAMPETTI_DEMO, ricerca: ROMA, inCorso: false });
+    lenta.risolvi([dora]);
+    await dora1;
+    expect(store.getState()).toMatchObject({ campetti: CAMPETTI_DEMO, ricerca: ROMA, inCorso: false });
+    expect(api.list).toHaveBeenCalledTimes(2); // nessuna richiesta in più per tornare a Roma
+  });
+
+  it("con un salvataggio rifiutato con 409 mentre una ricerca è in volo, si ricarica l'ultima ricerca chiesta, non quella mostrata", async () => {
+    const { api, store, ApiError } = await nuovoStore();
+    await store.getState().carica(ROMA);
+    const lenta = differita<Campetto[]>();
+    api.list.mockReturnValueOnce(lenta.promessa); // «Dora» in volo
+    const doraInVolo = store.getState().carica(DORA);
+    api.update.mockRejectedValueOnce(new ApiError(409, "conflitto"));
+    api.list.mockResolvedValueOnce([dora]); // la ricarica: deve essere di Dora, la ricerca che l'utente sta guardando
+    await expect(store.getState().update(ruffini.id, inputRuffini)).rejects.toMatchObject({ status: 409 });
+    expect(api.list).toHaveBeenLastCalledWith(DORA);
+    expect(store.getState()).toMatchObject({ campetti: [dora], ricerca: DORA, inCorso: false });
+    lenta.risolvi(CAMPETTI_DEMO); // la risposta di Dora arrivata dopo la ricarica si scarta
+    await doraInVolo;
+    expect(store.getState().campetti).toEqual([dora]);
+  });
+
   it("la prima ricerca: `ricerca` resta null finché l'elenco non arriva", async () => {
     const { api, store } = await nuovoStore();
     const lenta = differita<Campetto[]>();
