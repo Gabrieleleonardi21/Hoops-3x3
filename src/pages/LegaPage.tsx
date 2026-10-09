@@ -12,6 +12,8 @@ import { Icon } from "../components/ui/Icon";
 import { Section } from "../components/ui/Section";
 import { ApiError } from "../services/api";
 import { useAppStore } from "../stores/useAppStore";
+import { eSegnaposto } from "../domain/tappaOps";
+import { MAX_NOME_LEGA } from "../constants/rules";
 import { leggiFileLega, testoFileLega } from "../utils/legaFile";
 
 export function LegaPage() {
@@ -77,13 +79,15 @@ export function LegaPage() {
     e.target.value = "";
   };
 
-  // Classifica circuito: aggrega tutte le squadre da tutte le tappe,
-  // prende il rank massimo per squadra (nome case-insensitive) e ordina in modo decrescente
+  // Classifica circuito: aggrega tutte le squadre da tutte le tappe, prende il rank massimo per squadra (nome case-insensitive) e
+  // ordina in modo decrescente. Le squadre con il nome segnaposto («Squadra 3», mai scritto da nessuno) restano fuori, e lo stesso
+  // chi non ha punti ranking in nessuna tappa: una riga a «—» non classifica niente.
   // Deve stare prima degli early return per rispettare le rules-of-hooks
   const circuitRanking = useMemo(() => {
     const map = new Map<string, { nome: string; rank: number; nTappe: number }>();
     for (const tappa of tappe) {
       for (const s of tappa.squadre) {
+        if (eSegnaposto(s.nome)) continue;
         const key = s.nome.trim().toLowerCase();
         const r = Number(s.rank) || 0;
         const cur = map.get(key);
@@ -95,7 +99,7 @@ export function LegaPage() {
         }
       }
     }
-    return [...map.values()].sort((a, b) => b.rank - a.rank);
+    return [...map.values()].filter((r) => r.rank > 0).sort((a, b) => b.rank - a.rank);
   }, [tappe]);
 
   // Se nessuna lega è attiva, manda alla lista per selezionarne una
@@ -115,8 +119,9 @@ export function LegaPage() {
 
       <div className="mb-6 flex flex-wrap items-end gap-3">
         <div className="min-w-[240px] max-w-md flex-1">
+          {/* Il nome non va oltre il limite del server (PatchLegaDTO): oltre, la rinomina sarebbe un 400 */}
           <Input label="La tua lega — circuito italiano 3x3" labelClassName="form-label"
-            value={legaName} onChange={(e) => setLegaName(e.target.value)}
+            value={legaName} onChange={(e) => setLegaName(e.target.value)} maxLength={MAX_NOME_LEGA}
             placeholder="Es. Roma Streetball League" className="font-display text-2xl h-12" />
         </div>
         {/* Import / Export JSON */}
@@ -156,7 +161,7 @@ export function LegaPage() {
                   <tr key={row.id}>
                     <td className={`font-display text-base ${i === 0 ? "text-court" : "text-chalk-muted"}`}>{i + 1}</td>
                     <td className="tname font-display text-base">{row.nome}</td>
-                    <td className="font-semibold text-court">{row.v > 0 ? row.v : "—"}</td>
+                    <td className="font-semibold text-court">{row.v}</td>
                     <td className="text-chalk-muted">{row.g}</td>
                   </tr>
                 ))}

@@ -126,6 +126,25 @@ describe("Profilo del giocatore: le statistiche di stagione", () => {
     expect(vociUltimePartite().map((voce) => voce[3])).toEqual(["10 PT · 0 REB · 2 AST", "12 PT · 3 REB · 0 AST"]);
   });
 
+  it("«Ultime partite» segue il momento di registrazione del risultato, non il calendario; quelle senza momento stanno in coda", () => {
+    // In t1 la seconda partita del calendario è stata registrata prima della prima; in t2 una partita è di prima che il momento
+    // esistesse (senza ts) e una è la più recente di tutte
+    const tappe = [
+      tappaDiProva("t1", { Alfa: ["Mario Rossi"], Beta: ["Anna Verdi"], Gamma: ["Piero Neri"] }, [
+        { a: "Alfa", b: "Beta", ts: 200, pa: { "Mario Rossi": { pt: 1 } } },
+        { a: "Alfa", b: "Gamma", ts: 100, pa: { "Mario Rossi": { pt: 2 } } },
+      ]),
+      tappaDiProva("t2", { Alfa: ["Mario Rossi"], Delta: ["Luca Bianchi"], Zeta: ["Ugo Blu"] }, [
+        { a: "Alfa", b: "Delta", pa: { "Mario Rossi": { pt: 3 } } },
+        { a: "Alfa", b: "Zeta", ts: 300, pa: { "Mario Rossi": { pt: 4 } } },
+      ]),
+    ];
+    apriProfilo(mario, tappe);
+    expect(vociUltimePartite().map((voce) => voce[1])).toEqual([
+      "vs Zeta · Tappa t2", "vs Beta · Tappa t1", "vs Gamma · Tappa t1", "vs Delta · Tappa t2",
+    ]);
+  });
+
   it("lo storico tappe è una tabella con il suo <caption> per i lettori di schermo", () => {
     apriProfilo(mario, dueSquadre());
     const tabella = screen.getByRole<HTMLTableElement>("table", { name: "Storico tappe di Mario Rossi: piazzamento e statistiche per tappa" });

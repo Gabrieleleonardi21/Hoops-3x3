@@ -16,7 +16,6 @@ import { ErroreCaricamento } from "../components/ui/ErroreCaricamento";
 import { Loading } from "../components/ui/Loading";
 import { Button } from "../components/ui/Button";
 import { Icon } from "../components/ui/Icon";
-import type { RegGiocatore, RegSquadra } from "../types";
 import { useUtente } from "../hooks/useUtente";
 
 export function AnagrafePage() {
@@ -29,10 +28,14 @@ export function AnagrafePage() {
   // in corso la X di tutte le card è disattivata: useInvio scarta in silenzio un secondo invio, e una conferma che poi non fa
   // niente né dice niente sarebbe peggio di una X ferma
   const eliminazione = useInvio();
-  const [selSquadra, setSelSquadra] = useState<RegSquadra | null>(null);
-  const [selGiocatore, setSelGiocatore] = useState<RegGiocatore | null>(null);
+  // La scheda aperta si ricorda per id e si legge dalla cache: così mostra sempre la voce com'è nello store, anche quando a cambiarla è
+  // stato un conflitto (409: la cache prende la versione del server) e non chi ha la scheda davanti
+  const [selSquadraId, setSelSquadraId] = useState<string | null>(null);
+  const [selGiocatoreId, setSelGiocatoreId] = useState<string | null>(null);
   const anagrafe = useAnagrafe();
   const { giocatori, squadre, errore, load, saveGiocatore, saveSquadra, removeGiocatore, removeSquadra, updateSquadra, updateGiocatore } = anagrafe;
+  const selSquadra = squadre?.find((s) => s.id === selSquadraId) ?? null;
+  const selGiocatore = giocatori?.find((g) => g.id === selGiocatoreId) ?? null;
 
   // Filtra un array su più campi testuali con la query di ricerca
   const filtered = <T,>(arr: T[] | null, fields: (keyof T)[]): T[] => {
@@ -120,7 +123,7 @@ export function AnagrafePage() {
         { vuoto: "Nessun giocatore registrato: aggiungi il primo.", nessuno: "Nessun giocatore trovato con questa ricerca." },
         (g) => (
           <GiocatoreCard key={g.id} g={g} user={user} squadre={squadre || []} disabled={eliminazione.invio}
-            onOpen={() => setSelGiocatore(g)}
+            onOpen={() => setSelGiocatoreId(g.id)}
             onRemove={() => elimina(() => removeGiocatore(g.id))} />
         ))}
 
@@ -128,7 +131,7 @@ export function AnagrafePage() {
         { vuoto: "Nessuna squadra registrata: aggiungi la prima.", nessuno: "Nessuna squadra trovata con questa ricerca." },
         (s) => (
           <SquadraAnagrafeCard key={s.id} s={s} giocatori={giocatori || []} user={user} disabled={eliminazione.invio}
-            onOpen={() => setSelSquadra(s)}
+            onOpen={() => setSelSquadraId(s.id)}
             onRemove={() => elimina(() => removeSquadra(s.id))} />
         ))}
       {tab === "stats" && (
@@ -147,9 +150,9 @@ export function AnagrafePage() {
           g={selGiocatore}
           user={user}
           squadre={squadre || []}
-          onClose={() => setSelGiocatore(null)}
+          onClose={() => setSelGiocatoreId(null)}
           onRemove={() => removeGiocatore(selGiocatore.id)}
-          onUpdate={async (updated) => setSelGiocatore(await updateGiocatore(updated))}
+          onUpdate={async (updated) => { await updateGiocatore(updated); }}
         />
       )}
       {selSquadra && (
@@ -157,9 +160,9 @@ export function AnagrafePage() {
           s={selSquadra}
           giocatori={giocatori || []}
           user={user}
-          onClose={() => setSelSquadra(null)}
+          onClose={() => setSelSquadraId(null)}
           onRemove={() => removeSquadra(selSquadra.id)}
-          onUpdate={async (updated) => setSelSquadra(await updateSquadra(updated))}
+          onUpdate={async (updated) => { await updateSquadra(updated); }}
         />
       )}
     </div>

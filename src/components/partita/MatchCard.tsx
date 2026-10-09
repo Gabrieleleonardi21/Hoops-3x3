@@ -1,6 +1,9 @@
 /** Card di una partita: gestisce tre stati — inserimento punteggi, vista risultato e
- *  log eventi. In modalità guest i controlli sui roster e la somma dei punti sono disattivati. */
-import { useState } from "react";
+ *  log eventi. In modalità guest i controlli sui roster e la somma dei punti sono disattivati.
+ *  È `memo` e riceve solo ciò che le serve (la partita, le sue due squadre, se l'utente è ospite e le azioni di useTappa, che sono
+ *  stabili): così un tasto scritto in un'altra squadra, nelle regole o in un'altra partita non ridisegna le 112 schede di una
+ *  tappa da 32 squadre (F11), ma solo quelle della squadra toccata, le cui prop cambiano. */
+import { memo, useState } from "react";
 import { ScoreCard } from "./ScoreCard";
 import { ScoreInputs } from "./ScoreInputs";
 import { StatsEditor, type SheetDraft } from "./StatsEditor";
@@ -8,9 +11,9 @@ import { StatsView } from "./StatsView";
 import { EventLog } from "./EventLog";
 import { EventForm } from "./EventForm";
 import { Button } from "../ui/Button";
-import type { Partita, StatLine } from "../../types";
-import type { MatchDraft, useTappa } from "../../hooks/useTappa";
-import { logoSquadra } from "../../utils/tappaInfo";
+import type { Partita, SquadraTappa, StatLine } from "../../types";
+import type { useTappa } from "../../hooks/useTappa";
+import { giocatoriDi, logoSquadra, nomeGiocatore, nomeSquadra } from "../../utils/tappaInfo";
 import { toStatLine } from "../../utils/statLine";
 
 /** normalizza una scheda salvata (anche formato legacy) in bozza modificabile */
@@ -23,9 +26,16 @@ function toDraftSheet(sheet: Partita["pa"]): SheetDraft {
   );
 }
 
-export function MatchCard({ m, h, label }: { m: Partita; h: ReturnType<typeof useTappa>; label?: string }) {
-  const guest = !!h.user?.guest;
-  const [draft, setDraft] = useState<MatchDraft>({
+export const MatchCard = memo(function MatchCard({ m, squadraA, squadraB, guest, azioni, label }: {
+  m: Partita;
+  /** Le due squadre della partita, com'è ciascuna nella tappa (undefined se non si trova: dati incoerenti) */
+  squadraA: SquadraTappa | undefined;
+  squadraB: SquadraTappa | undefined;
+  guest: boolean;
+  azioni: ReturnType<typeof useTappa>["azioniPartita"];
+  label?: string;
+}) {
+  const [draft, setDraft] = useState<SheetDraftConPunteggi>({
     sa: m.done ? String(m.sa) : "", sb: m.done ? String(m.sb) : "",
     pa: toDraftSheet(m.pa), pb: toDraftSheet(m.pb),
   });
@@ -33,25 +43,31 @@ export function MatchCard({ m, h, label }: { m: Partita; h: ReturnType<typeof us
   const [eventsOpen, setEventsOpen] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
 
+  // Le letture per id lavorano sulle sole due squadre della partita: gli stessi aiuti di tappaInfo, con lo stesso ripiego
+  const squadre = [squadraA, squadraB].filter((s): s is SquadraTappa => s !== undefined);
+  const nameOf = (teamId: string) => nomeSquadra(squadre, teamId);
+  const playersOf = (teamId: string) => giocatoriDi(squadre, teamId);
+  const playerNameById = (pid: string) => nomeGiocatore(squadre, pid);
+  const logoOf = (teamId: string) => logoSquadra(squadre, teamId);
+
   const setSheet = (side: "pa" | "pb") => (pid: string, key: keyof StatLine, v: string) => {
     setDraft((d) => ({ ...d, [side]: { ...d[side], [pid]: { ...d[side][pid], [key]: v } } }));
     setError(null);
   };
 
-  const save = () => setError(h.saveScore(m, draft));
+  const save = () => setError(azioni.saveScore(m, draft));
   const eventi = m.eventi || [];
   const hasSheets = Object.keys(m.pa || {}).length > 0 || Object.keys(m.pb || {}).length > 0;
 
   // Compatibilità con il formato legacy (solo punti come numero anziché oggetto StatLine)
   const ptOf = (raw: StatLine | number | undefined) => toStatLine(raw).pt ?? 0;
-  const logoOf = (id: string) => logoSquadra(h.tappa?.squadre, id);
 
   /* Riepilogo punti per giocatore in una riga (solo a partita conclusa) */
   const summary = [[m.a, m.pa], [m.b, m.pb]]
     .map(([tid, pts]) =>
       pts && Object.keys(pts as object).length
-        ? `${h.nameOf(tid as string)}: ` +
-          h.playersOf(tid as string)
+        ? `${nameOf(tid as string)}: ` +
+          playersOf(tid as string)
             .filter((p) => (pts as Record<string, unknown>)[p.id] !== undefined)
             .map((p) => `${p.nome} ${ptOf((pts as Record<string, StatLine | number>)[p.id])}`)
             .join(", ")
@@ -65,15 +81,15 @@ export function MatchCard({ m, h, label }: { m: Partita; h: ReturnType<typeof us
     <ScoreInputs sa={draft.sa} sb={draft.sb}
       onSa={(v) => { setDraft({ ...draft, sa: v }); setError(null); }}
       onSb={(v) => { setDraft({ ...draft, sb: v }); setError(null); }}
-      labelA={h.nameOf(m.a)} labelB={h.nameOf(m.b)} />
+      labelA={nameOf(m.a)} labelB={nameOf(m.b)} />
   );
 
   const footer = (
     <div className="flex flex-col gap-2">
       {!m.done && (
         <div className="grid gap-2">
-          <StatsEditor teamName={h.nameOf(m.a)} players={h.playersOf(m.a)} sheet={draft.pa} guest={guest} onChange={setSheet("pa")} />
-          <StatsEditor teamName={h.nameOf(m.b)} players={h.playersOf(m.b)} sheet={draft.pb} guest={guest} onChange={setSheet("pb")} />
+          <StatsEditor teamName={nameOf(m.a)} players={playersOf(m.a)} sheet={draft.pa} guest={guest} onChange={setSheet("pa")} />
+          <StatsEditor teamName={nameOf(m.b)} players={playersOf(m.b)} sheet={draft.pb} guest={guest} onChange={setSheet("pb")} />
         </div>
       )}
 
@@ -82,8 +98,8 @@ export function MatchCard({ m, h, label }: { m: Partita; h: ReturnType<typeof us
           <p className="text-xs text-chalk-muted m-0">{summary}</p>
           {statsOpen && (
             <div className="grid gap-2 mt-1">
-              {m.pa && Object.keys(m.pa).length > 0 && <StatsView teamName={h.nameOf(m.a)} players={h.playersOf(m.a)} sheet={m.pa} />}
-              {m.pb && Object.keys(m.pb).length > 0 && <StatsView teamName={h.nameOf(m.b)} players={h.playersOf(m.b)} sheet={m.pb} />}
+              {m.pa && Object.keys(m.pa).length > 0 && <StatsView teamName={nameOf(m.a)} players={playersOf(m.a)} sheet={m.pa} />}
+              {m.pb && Object.keys(m.pb).length > 0 && <StatsView teamName={nameOf(m.b)} players={playersOf(m.b)} sheet={m.pb} />}
             </div>
           )}
         </>
@@ -96,9 +112,9 @@ export function MatchCard({ m, h, label }: { m: Partita; h: ReturnType<typeof us
               Registra falli, sostituzioni, timeout, infortuni e qualsiasi altro evento della gara.
             </p>
           )}
-          <EventLog eventi={eventi} nameOf={h.nameOf} playerNameById={h.playerNameById}
-            onRemove={(evId) => h.removeEvent(m.id, evId)} />
-          <EventForm m={m} nameOf={h.nameOf} playersOf={h.playersOf} onAdd={(ev) => h.addEvent(m.id, ev)} />
+          <EventLog eventi={eventi} nameOf={nameOf} playerNameById={playerNameById}
+            onRemove={(evId) => azioni.removeEvent(m.id, evId)} />
+          <EventForm m={m} nameOf={nameOf} playersOf={playersOf} onAdd={(ev) => azioni.addEvent(m.id, ev)} />
         </div>
       )}
 
@@ -107,7 +123,7 @@ export function MatchCard({ m, h, label }: { m: Partita; h: ReturnType<typeof us
       {/* Barra azioni: salva/correggi + toggle statistiche ed eventi */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
         {m.done ? (
-          <Button variant="link" className="text-chalk-muted" onClick={() => setError(h.reopenScore(m.id))}>Correggi</Button>
+          <Button variant="link" className="text-chalk-muted" onClick={() => setError(azioni.reopenScore(m.id))}>Correggi</Button>
         ) : (
           <Button size="sm" onClick={save}>Salva risultato</Button>
         )}
@@ -125,10 +141,13 @@ export function MatchCard({ m, h, label }: { m: Partita; h: ReturnType<typeof us
 
   return (
     <ScoreCard
-      a={{ name: h.nameOf(m.a), logo: logoOf(m.a) }}
-      b={{ name: h.nameOf(m.b), logo: logoOf(m.b) }}
+      a={{ name: nameOf(m.a), logo: logoOf(m.a) }}
+      b={{ name: nameOf(m.b), logo: logoOf(m.b) }}
       sa={m.done ? m.sa : null} sb={m.done ? m.sb : null}
       done={m.done} label={label} center={center} footer={footer}
     />
   );
-}
+});
+
+/** La bozza della scheda: i due punteggi e i tabellini (MatchDraft di useTappa) */
+type SheetDraftConPunteggi = Parameters<ReturnType<typeof useTappa>["saveScore"]>[1];

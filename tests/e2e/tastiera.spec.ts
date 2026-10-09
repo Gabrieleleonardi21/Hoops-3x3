@@ -210,7 +210,8 @@ async function provaLaModifica(page: Page, scheda: Locator, primoCampo: Locator)
 
 test("scheda: «Modifica» porta il focus sul primo campo del form, «Annulla» e «Salva modifiche» lo riportano a «Modifica» (giocatore e squadra)", async ({ page }) => {
   // La squadra ha un logo e un sito, come molte: i loro collegamenti sono i primi elementi raggiungibili della sua scheda
-  const ballers = { ...squadraDiAnna("s1", "Ballers"), citta: "Roma", logo: "/logos/ballers.svg", website: "https://ballers.example" };
+  // Il logo è un URL http(s), come vuole il server: con un percorso relativo «Salva modifiche» si fermerebbe prima dell'invio (B10)
+  const ballers = { ...squadraDiAnna("s1", "Ballers"), citta: "Roma", logo: "https://ballers.example/logo.svg", website: "https://ballers.example" };
   await utenteRegistrato(page, { giocatori: [giocatoreDiAnna("g1", "Mario", "Rossi")], squadre: [ballers] });
   // Le modifiche: il server finto risponde con la voce com'è
   await page.route("**/api/anagrafe/giocatori/g1", (route) => route.fulfill(json(giocatoreDiAnna("g1", "Mario", "Rossi"))));

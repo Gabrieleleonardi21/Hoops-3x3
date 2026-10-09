@@ -221,6 +221,45 @@ describe("api: rinnovo in anticipo", () => {
   });
 });
 
+describe("api: orologio del dispositivo sfasato (lo scarto si legge da iat del JWT)", () => {
+  /** JWT con `iat` spostato di `scartoIat` secondi rispetto all'ora locale e `exp` a `durata` secondi da iat: come lo emette un
+   *  server il cui orologio è avanti o indietro rispetto al dispositivo */
+  function jwtEmesso(scartoIat: number, durata: number): string {
+    const iat = Math.floor(Date.now() / 1000) + scartoIat;
+    const payload = btoa(JSON.stringify({ sub: "u1", iat, exp: iat + durata }));
+    return `intestazione.${payload}.firma`;
+  }
+  afterEach(() => { token.clear(); }); // azzera lo scarto per i test dopo
+
+  it("dispositivo avanti di un'ora: un JWT valido da 30 minuti non si rinnova (per l'orologio locale sarebbe scaduto da mezz'ora)", async () => {
+    token.set(jwtEmesso(-3600, 1800));
+    fetchFinto.mockResolvedValueOnce(ok([]));
+    await api("/api/leghe");
+    expect(fetchFinto).toHaveBeenCalledTimes(1);
+    expect(chiamata(0).url).toBe("/api/leghe");
+  });
+
+  it("dispositivo indietro di un'ora: un JWT scaduto da 10 secondi si rinnova prima della richiesta (per l'orologio locale varrebbe un'ora)", async () => {
+    token.set(jwtEmesso(3600, -10));
+    fetchFinto
+      .mockResolvedValueOnce(ok({ token: "jwt-nuovo", user: {} }))
+      .mockResolvedValueOnce(ok([]));
+    await api("/api/leghe");
+    expect(chiamata(0).url).toBe("/api/auth/refresh");
+    expect(header(1, "Authorization")).toBe("Bearer jwt-nuovo");
+  });
+
+  it("lo scarto si aggiorna con ogni token che arriva e torna a zero all'uscita", async () => {
+    token.set(jwtEmesso(3600, -10)); // orologio indietro: il JWT è scaduto
+    token.clear();
+    token.set(jwt(1800));            // senza iat (come i test qui sopra): niente scarto, 30 minuti di validità
+    fetchFinto.mockResolvedValueOnce(ok([]));
+    await api("/api/leghe");
+    expect(fetchFinto).toHaveBeenCalledTimes(1);
+    expect(chiamata(0).url).toBe("/api/leghe");
+  });
+});
+
 describe("api: più schede, logout e lock", () => {
   it("se un'altra scheda ha già rinnovato mentre si aspettava il lock non chiama il server", async () => {
     token.set(jwt(-10));

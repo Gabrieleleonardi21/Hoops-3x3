@@ -10,6 +10,7 @@ import { CampiGiocatore } from "./CampiAnagrafe";
 import { eta } from "../../utils/eta";
 import { puoModificare } from "../../utils/permessi";
 import { perditaGiocatore } from "../../utils/testi";
+import { ApiError } from "../../services/api";
 import type { GiocatoreInput } from "../../services/anagrafeApi";
 import type { RegGiocatore, RegSquadra, User } from "../../types";
 import { TeamLogo } from "../ui/TeamLogo";
@@ -56,14 +57,32 @@ export function GiocatoreModal({
   // Con la conferma aperta Esc è della conferma: Modal manda l'Esc solo alla finestra in primo piano
   const chiudi = () => { if (!invio) onClose(); };
   const saveEdit = async () => {
-    // Si esce dalla modifica solo se il server ha accettato: se rifiuta, i campi restano come scritti
-    if (await esegui(() => onUpdate({ ...g, ...draft }), "Modifica non riuscita")) setEditing(false);
+    // Si esce dalla modifica se il server ha accettato, oppure se ha risposto 409 (modificato da un altro dispositivo): in cache c'è
+    // già la voce del server (store) e la scheda la mostra, con il motivo; ciò che era scritto non si salva sopra. Per ogni altro
+    // rifiuto i campi restano come scritti
+    const riuscito = await esegui(async () => {
+      try {
+        await onUpdate({ ...g, ...draft });
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 409) setEditing(false);
+        throw e;
+      }
+    }, "Modifica non riuscita");
+    if (riuscito) setEditing(false);
   };
   const handleRemove = async () => {
     if (await esegui(() => onRemove(), "Eliminazione non riuscita")) onClose();
   };
-  // Entrando in modifica il messaggio di un'azione fallita prima (per esempio un'eliminazione) non resta sopra il form
-  const iniziaModifica = () => { setEditing(true); setErrore(null); };
+  // Entrando in modifica il messaggio di un'azione fallita prima (per esempio un'eliminazione) non resta sopra il form, e i campi
+  // ripartono dalla voce com'è adesso (dopo un 409 è quella del server)
+  const iniziaModifica = () => {
+    setDraft({
+      nome: g.nome, cognome: g.cognome, soprannome: g.soprannome, nascita: g.nascita, citta: g.citta, nazionalita: g.nazionalita,
+      altezza: g.altezza, peso: g.peso, ruolo: g.ruolo, numero: g.numero, squadra: g.squadra, esperienza: g.esperienza, note: g.note,
+    });
+    setEditing(true);
+    setErrore(null);
+  };
   const annullaModifica = () => { setEditing(false); setErrore(null); };
   const canEdit = puoModificare(user, g.autoreId);
   const age = eta(g.nascita);

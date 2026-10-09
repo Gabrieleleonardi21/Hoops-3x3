@@ -20,7 +20,9 @@ export function VideoCard({ v, onRemove }: { v: VideoItem; onRemove?: (id: strin
       </div>
       {id ? (
         <div className="relative pt-[56.25%]">
-          <iframe src={`https://www.youtube.com/embed/${id}`} title={v.titolo} allowFullScreen loading="lazy"
+          {/* youtube-nocookie: l'embed senza cookie di profilazione finché non si avvia il video; è anche l'unico host che la
+              Content-Security-Policy ammette in frame-src (render.yaml, vite.config.ts) */}
+          <iframe src={`https://www.youtube-nocookie.com/embed/${id}`} title={v.titolo} allowFullScreen loading="lazy"
             sandbox="allow-scripts allow-same-origin allow-presentation allow-fullscreen"
             className="absolute inset-0 h-full w-full border-0" />
         </div>

@@ -151,7 +151,7 @@ describe("AuthForm: registrazione", () => {
     register.mockRejectedValue(new TypeError("Failed to fetch"));
     monta();
     registra("Anna", "anna@example.it", "password-lunga");
-    expect((await screen.findByRole("alert")).textContent).toBe("Errore imprevisto, riprova.");
+    expect((await screen.findByRole("alert")).textContent).toBe("errore imprevisto"); // il generico di testoErrore, lo stesso di tutta l'app
   });
 });
 

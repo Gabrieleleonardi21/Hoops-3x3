@@ -58,6 +58,15 @@ describe("testi di ciò che si perde eliminando una lega o una voce dell'anagraf
     expect(perditaLega(lega(0))).toBe("Verrà eliminata la lega «Estate», che non ha tappe.");
   });
 
+  it("lega di chi ha un account: dice anche che le tappe pubblicate escono dall'archivio (l'ospite non pubblica niente)", () => {
+    const lega = (nTappe: number): LegaMeta => ({ id: "l1", nome: "Estate", ts: 1, nTappe });
+    expect(perditaLega(lega(2), true)).toBe(
+      "Verrà eliminata la lega «Estate» con 2 tappe, squadre e risultati compresi. "
+      + "Le tappe pubblicate usciranno dall'Archivio circuito e i loro link pubblici smetteranno di funzionare.",
+    );
+    expect(perditaLega(lega(0), true)).toBe("Verrà eliminata la lega «Estate», che non ha tappe.");
+  });
+
   it("giocatore: sparisce dall'anagrafe condivisa e dai roster in cui c'è, contati; se non è in nessun roster non ne parla", () => {
     const g = { id: "g1", nome: "Mario", cognome: "Rossi" } as RegGiocatore;
     const squadra = (id: string, roster: string[]) => ({ id, roster }) as RegSquadra;

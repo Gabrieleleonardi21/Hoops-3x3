@@ -19,6 +19,9 @@ export interface RegGiocatore {
   autore: string;   // nome visualizzato dell'autore (non è unico: non decide i permessi)
   autoreId: string | null; // id dell'autore: decide chi può modificare (utils/permessi); null nella forma pubblica, letta senza account
   ts: number;
+  /** Numero di versione sul server, come per le tappe: la PUT lo rimanda (409 se un altro dispositivo ha salvato nel frattempo).
+   *  Manca finché il server non lo manda (un server precedente) e allora non si invia */
+  versione?: number;
 }
 
 /** Squadra registrata nell'anagrafe condivisa */
@@ -37,6 +40,8 @@ export interface RegSquadra {
   autore: string;   // nome visualizzato dell'autore (non è unico: non decide i permessi)
   autoreId: string | null; // id dell'autore: decide chi può modificare (utils/permessi); null nella forma pubblica, letta senza account
   ts: number;
+  /** Versione sul server, come per RegGiocatore */
+  versione?: number;
 }
 
 /** Tappa conclusa e pubblicata nell'archivio del circuito */

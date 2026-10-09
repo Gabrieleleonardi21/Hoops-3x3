@@ -17,8 +17,11 @@ import { giocatoriDi, logoSquadra, nomeGiocatore, nomeSquadra } from "../../util
 import { letteraGirone } from "../../utils/formato";
 import { TeamLogo } from "../ui/TeamLogo";
 
-/** Vista in sola lettura di una tappa: tappe concluse e archivio del circuito */
-export function ArchivioTappaView({ t, lega, autore }: { t: Tappa; lega?: string; autore?: string }) {
+/** Vista in sola lettura di una tappa: tappe concluse e archivio del circuito. `onRemoveVideo` c'è solo nella pagina della tappa
+ *  conclusa di chi la organizza, dove i video si tolgono; nell'archivio pubblico manca e i video non hanno la X */
+export function ArchivioTappaView({ t, lega, autore, onRemoveVideo }: {
+  t: Tappa; lega?: string; autore?: string; onRemoveVideo?: (id: string) => void;
+}) {
   const [open, setOpen] = useState<string | null>(null);
   const [selPid, setSelPid] = useState<string | null>(null);
   const [selSquadra, setSelSquadra] = useState<SquadraTappa | null>(null);
@@ -110,7 +113,7 @@ export function ArchivioTappaView({ t, lega, autore }: { t: Tappa; lega?: string
 
       {(t.video || []).length > 0 && (
         <Section title="Video della tappa">
-          <VideoGrid videos={t.video || []} />
+          <VideoGrid videos={t.video || []} onRemove={onRemoveVideo} />
         </Section>
       )}
 

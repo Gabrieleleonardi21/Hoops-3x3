@@ -3,9 +3,24 @@ import {
   anagrafeApi, toGiocatoreInput, toSquadraInput,
   type GiocatoreInput, type SquadraInput,
 } from "../services/anagrafeApi";
-import { testoErrore } from "../services/api";
+import { ApiError, testoErrore } from "../services/api";
 import { replaceById } from "../utils/replaceById";
+import { voceAnagrafeModificataAltrove } from "../utils/testi";
 import type { RegGiocatore, RegSquadra } from "../types";
+
+/** Il 409 di una PUT (B6): la voce è stata modificata da un altro dispositivo, e la versione mandata è vecchia. Si rilegge la voce
+ *  dal server e `metti` la mette in cache (senza contare una scrittura: ciò che il server ha non l'abbiamo cambiato noi), così la
+ *  scheda aperta mostra la versione nuova e il prossimo salvataggio parte da quella; a chi ha salvato torna un 409 con il testo
+ *  per l'utente. Ogni altro errore, anche della rilettura, passa com'è. Se la voce sul server non c'è più resta il 409 del server */
+async function dopoUnConflitto<T extends { id: string }>(
+  e: unknown, id: string, rileggi: () => Promise<T[]>, metti: (voce: T) => void, frase: string,
+): Promise<never> {
+  if (!(e instanceof ApiError) || e.status !== 409) throw e;
+  const voce = (await rileggi()).find((v) => v.id === id);
+  if (!voce) throw e;
+  metti(voce);
+  throw new ApiError(409, frase);
+}
 
 /**
  * Cache dell'anagrafe condivisa del circuito (giocatori e squadre).
@@ -34,7 +49,8 @@ interface AnagrafeState {
    *  riscarica con il token di adesso. Un caricamento già in corso non conta più: la sua risposta, partita con il token di prima,
    *  si scarta quando arriva e non riempie la cache con la forma sbagliata. */
   svuota: () => void;
-  /** Cerca una squadra per nome (case-insensitive): prima in cache, poi sul server */
+  /** Cerca una squadra per nome (case-insensitive): prima in cache, poi sul server. Se la lista del server non arriva rifiuta la
+   *  promessa: «non trovata» farebbe creare un doppione di una squadra che sul server c'è */
   trovaSquadra: (nome: string) => Promise<RegSquadra | undefined>;
   /** Mette in cache voci lette dal server fuori dal caricamento (la ricerca per nome, la verifica di una tappa): in testa quelle nuove,
    *  aggiornate quelle già presenti con lo stesso id. Non conta come scrittura e non invalida la cache (`scritture` e `caricata`
@@ -44,11 +60,12 @@ interface AnagrafeState {
   saveGiocatore: (data: GiocatoreInput) => Promise<void>;
   saveSquadra: (data: SquadraInput) => Promise<RegSquadra>;
   removeGiocatore: (id: string) => Promise<void>;
-  /** Sovrascrive un giocatore esistente (id e autore restano, il server aggiorna ts).
+  /** Sovrascrive un giocatore esistente (id e autore restano, il server aggiorna ts e versione). Con un 409 (modificato da un altro
+   *  dispositivo) la cache prende la voce del server e la promessa è rifiutata con il testo per l'utente (dopoUnConflitto).
    *  @returns il giocatore com'è sul server: è quello da mostrare, non ciò che si è scritto */
   updateGiocatore: (updated: RegGiocatore) => Promise<RegGiocatore>;
   removeSquadra: (id: string) => Promise<void>;
-  /** Sovrascrive una squadra esistente (roster compreso).
+  /** Sovrascrive una squadra esistente (roster compreso); il 409 come per updateGiocatore.
    *  @returns la squadra com'è sul server */
   updateSquadra: (updated: RegSquadra) => Promise<RegSquadra>;
 }
@@ -111,10 +128,11 @@ export const useAnagrafeStore = create<AnagrafeState>((set, get) => {
       const stessoNome = (s: RegSquadra) => s.nome.toLowerCase() === cercato;
       const inCache = (get().squadre ?? []).find(stessoNome);
       if (inCache) return inCache;
-      // Non in cache: un altro utente può averla registrata dopo il caricamento, quindi prima di
-      // farne un doppione si ricontrolla sul server (a server spento vale la risposta della cache)
+      // Non in cache: un altro utente può averla registrata dopo il caricamento, quindi prima di farne un doppione si ricontrolla
+      // sul server. Un errore della lista arriva a chi chiama: a server spento rispondere «non trovata» farebbe creare la squadra
+      // una seconda volta nell'anagrafe condivisa
       const epocaAllInizio = get().epoca;
-      const fresche = await anagrafeApi.listSquadre().catch(() => []);
+      const fresche = await anagrafeApi.listSquadre();
       const trovata = fresche.find(stessoNome);
       // La voce entra in cache: chi la vedrà collegata a una squadra (la pagina della tappa, che scollega le squadre senza voce)
       // la ritrova, e non la crede eliminata. Non se nel frattempo la cache è stata svuotata: la voce ha la forma del token di prima
@@ -159,9 +177,15 @@ export const useAnagrafeStore = create<AnagrafeState>((set, get) => {
     },
 
     updateGiocatore: async (updated) => {
-      const rec = await anagrafeApi.updateGiocatore(updated.id, toGiocatoreInput(updated));
-      aggiorna((giocatori) => ({ giocatori: replaceById(giocatori, rec) }));
-      return rec;
+      try {
+        const rec = await anagrafeApi.updateGiocatore(updated.id, toGiocatoreInput(updated));
+        aggiorna((giocatori) => ({ giocatori: replaceById(giocatori, rec) }));
+        return rec;
+      } catch (e) {
+        return dopoUnConflitto(e, updated.id, anagrafeApi.listGiocatori,
+          (voce) => set((s) => ({ giocatori: replaceById(s.giocatori ?? [], voce) })),
+          voceAnagrafeModificataAltrove("Il giocatore", `${updated.nome} ${updated.cognome}`));
+      }
     },
 
     removeSquadra: async (id) => {
@@ -170,9 +194,14 @@ export const useAnagrafeStore = create<AnagrafeState>((set, get) => {
     },
 
     updateSquadra: async (updated) => {
-      const rec = await anagrafeApi.updateSquadra(updated.id, toSquadraInput(updated));
-      aggiorna((_giocatori, squadre) => ({ squadre: replaceById(squadre, rec) }));
-      return rec;
+      try {
+        const rec = await anagrafeApi.updateSquadra(updated.id, toSquadraInput(updated));
+        aggiorna((_giocatori, squadre) => ({ squadre: replaceById(squadre, rec) }));
+        return rec;
+      } catch (e) {
+        return dopoUnConflitto(e, updated.id, anagrafeApi.listSquadre, (voce) => get().registraInCache([voce]),
+          voceAnagrafeModificataAltrove("La squadra", updated.nome));
+      }
     },
   };
 });

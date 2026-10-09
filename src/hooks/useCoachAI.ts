@@ -124,13 +124,16 @@ useAppStore.subscribe((stato, prima) => {
   if (autore(stato.user) !== autore(prima.user)) cancellaChat();
 });
 
-/** Il messaggio per l'utente secondo il codice dell'errore (AiError, da aiService). */
-function errorMsg(err: unknown): string {
+/** Il messaggio per l'utente secondo il codice dell'errore (AiError, da aiService). Testi per chi usa l'app: che cosa è successo e
+ *  che cosa fare, senza istruzioni da sviluppatore (la chiave del server la imposta chi lo amministra, non chi chatta). */
+export function messaggioErroreCoach(err: unknown): string {
   if (err instanceof AiError) {
     if (err.code === "AUTH") return "Sessione scaduta: esci e accedi di nuovo per usare Coach AI.";
-    if (err.code === "RATE") return "Limite richieste raggiunto: aspetta qualche secondo e riprova.";
-    if (err.code === "UNAVAILABLE") return "Coach AI non è configurato sul server: imposta GROQ_API_KEY in env.properties del backend. Il resto dell'app funziona senza.";
-    if (err.code === "NETWORK") return "Server non raggiungibile: controlla la rete o avvia il backend.";
+    // Il server dice quale limite è finito («Troppe richieste al Coach AI», al minuto o al giorno): «qualche secondo» per una quota
+    // giornaliera sarebbe falso
+    if (err.code === "RATE") return err.message;
+    if (err.code === "UNAVAILABLE") return "Coach AI non è disponibile su questo server. Il resto dell'app funziona normalmente.";
+    if (err.code === "NETWORK") return "Server non raggiungibile: controlla la connessione e riprova.";
     // Il server spiega il rifiuto, es. «Conversazione troppo lunga: cancella la chat e riprova»
     if (err.code === "BAD_REQUEST") return err.message;
   }
@@ -196,7 +199,7 @@ export function useCoachAI() {
     } catch (err) {
       if (!attiva()) return;
       // Un errore a metà del ciclo non cancella le azioni già fatte: l'errore le mostra come badge, come una risposta
-      const erroreMsg: ChatMsg = { role: "assistant", content: errorMsg(err) };
+      const erroreMsg: ChatMsg = { role: "assistant", content: messaggioErroreCoach(err) };
       if (err instanceof AiError && err.calledTools.length) erroreMsg.tools = err.calledTools;
       salvaChat([...history, erroreMsg]);
     } finally {

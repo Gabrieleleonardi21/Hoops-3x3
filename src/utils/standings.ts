@@ -33,23 +33,32 @@ function fasce(righe: StandingRow[], chiave: (r: StandingRow) => number): Standi
   return out;
 }
 
-/** Ordina le squadre a pari vittorie come il regolamento FIBA 3x3: i criteri si applicano nell'ordine, ciascuno una volta
- *  sola, e chi resta a pari dopo uno passa al successivo.
- *  1. Scontri diretti, calcolati una volta su tutto il gruppo: le vittorie nelle sole partite giocate tra le squadre del
- *     gruppo (contano vittorie e sconfitte, non i punti). Non si rifanno tra le squadre rimaste a pari.
- *  2. Punti fatti in tutto il girone, non nei soli scontri diretti.
- *  3. Differenza punti in tutto il girone.
- *  4. A parità completa, l'ordine d'ingresso (il sort è stabile). */
+/** Media dei punti fatti per gara giocata; 0 senza gare */
+function mediaPunti(r: StandingRow): number {
+  if (r.g === 0) return 0;
+  return r.pf / r.g;
+}
+
+/** Ordina le squadre a pari vittorie come l'articolo 13 («Classification») delle FIBA 3x3 Official Rules of the Game, lo stesso
+ *  ordine del formato di gara del FIBA 3x3 World Cup 2019 (fiba.basketball/3x3wc/2019/competition-format): i criteri si applicano
+ *  nell'ordine, ciascuno una volta sola, e chi resta a pari dopo uno passa al successivo.
+ *  1. Scontri diretti («head-to-head confrontation, only taking win/loss into account»), calcolati una volta su tutto il gruppo: le
+ *     vittorie nelle sole partite giocate tra le squadre del gruppo (contano vittorie e sconfitte, non i punti). Non si rifanno tra
+ *     le squadre rimaste a pari.
+ *  2. Media dei punti fatti per gara giocata in tutto il girone («most points scored in average»): non il totale, che a metà girone
+ *     premierebbe chi ha giocato di più, e non la differenza punti, che il regolamento non prevede.
+ *  3. A parità completa decide la testa di serie («the one(s) with the highest seeding»): qui l'ordine d'ingresso (il sort è stabile),
+ *     che con il sorteggio per ranking è quello delle teste di serie. */
 function risolviParita(gruppo: StandingRow[], giocate: Partita[]): StandingRow[] {
   const ids = new Set(gruppo.map((r) => r.id));
   const tra = giocate.filter((m) => ids.has(m.a) && ids.has(m.b));
   return fasce(gruppo, (r) => tra.filter((m) => vincitore(m) === r.id).length)
-    .flatMap((livello) => [...livello].sort((x, y) => (y.pf - x.pf) || ((y.pf - y.ps) - (x.pf - x.ps))));
+    .flatMap((livello) => [...livello].sort((x, y) => mediaPunti(y) - mediaPunti(x)));
 }
 
-/** Classifica di un girone: vittorie; a pari vittorie gli scontri diretti, una volta sola; poi punti fatti e differenza punti
- *  (regolamento FIBA 3x3, vedi risolviParita). Tutte le classifiche di girone dell'app (tabella, home, archivio, tabellone,
- *  Coach AI) passano da qui: il criterio sta in questo solo punto */
+/** Classifica di un girone: vittorie; a pari vittorie gli scontri diretti, una volta sola; poi la media dei punti fatti, poi
+ *  l'ordine d'ingresso (regolamento FIBA 3x3, art. 13: vedi risolviParita). Tutte le classifiche di girone dell'app (tabella, home,
+ *  archivio, tabellone, Coach AI) passano da qui: il criterio sta in questo solo punto */
 export function standings(
   girone: string[],
   partite: Partita[],

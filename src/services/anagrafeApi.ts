@@ -2,7 +2,8 @@
 import { api } from "./api";
 import type { RegGiocatore, RegSquadra } from "../types";
 
-/** Campi compilabili (id, autore, autoreId e ts li assegna il server) */
+/** Campi compilabili (id, autore, autoreId e ts li assegna il server). `versione` resta: la PUT la rimanda per dire su quale versione
+ *  si basano le modifiche; se la voce non ce l'ha (server precedente) è undefined e JSON.stringify la lascia fuori */
 export type GiocatoreInput = Omit<RegGiocatore, "id" | "autore" | "autoreId" | "ts">;
 export type SquadraInput = Omit<RegSquadra, "id" | "autore" | "autoreId" | "ts">;
 

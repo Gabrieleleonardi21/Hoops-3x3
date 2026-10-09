@@ -190,6 +190,56 @@ describe("useAnagrafeStore (cache dell'anagrafe)", () => {
     for (const campo of ["id", "autore", "autoreId", "ts"]) expect(corpo, campo).not.toHaveProperty(campo);
   });
 
+  it("la PUT rimanda la versione che la voce ha; se la voce non ce l'ha (server precedente) non la manda (B6)", async () => {
+    const { api, store } = await nuovoStore();
+    api.listSquadre.mockResolvedValue([{ ...squadra("s1", "Ballers", ["g1"]), versione: 3 }]);
+    await store.getState().load();
+    api.updateSquadra.mockResolvedValue({ ...squadra("s1", "Ballers Roma", ["g1"]), versione: 4 });
+    await store.getState().updateSquadra({ ...squadra("s1", "Ballers Roma", ["g1"]), versione: 3 });
+    expect(api.updateSquadra.mock.calls[0][1]).toMatchObject({ versione: 3 });
+    expect(store.getState().squadre![0].versione).toBe(4);
+    api.updateGiocatore.mockResolvedValue(giocatore("g1", "Mario"));
+    await store.getState().updateGiocatore(giocatore("g1", "Mario"));
+    expect(JSON.stringify(api.updateGiocatore.mock.calls[0][1])).not.toContain("versione");
+  });
+
+  it("409 sulla PUT (modificata da un altro dispositivo): la cache prende la voce del server e l'errore dice di ricontrollare (B6)", async () => {
+    const { api, store, ApiError } = await nuovoStore();
+    await store.getState().load();
+    const dalServer = { ...squadra("s1", "Ballers Milano", ["g1"]), versione: 5 };
+    api.updateSquadra.mockRejectedValueOnce(new ApiError(409, "La squadra è stata modificata da un altro dispositivo"));
+    api.listSquadre.mockResolvedValueOnce([dalServer]);
+    await expect(store.getState().updateSquadra({ ...squadra("s1", "Ballers Roma", ["g1"]), versione: 4 })).rejects.toMatchObject({
+      status: 409,
+      message: "La squadra «Ballers Roma» è stata modificata da un altro dispositivo: la scheda mostra ora la versione salvata sul server. "
+        + "Le modifiche scritte qui non sono state salvate: se servono ancora, riscrivile con «Modifica».",
+    });
+    expect(store.getState().squadre).toEqual([dalServer]);
+    // La cache resta valida: rileggere la voce del server non è una scrittura
+    await store.getState().load();
+    expect(api.listSquadre).toHaveBeenCalledTimes(2);
+
+    // Lo stesso per un giocatore
+    const giocatoreDalServer = { ...giocatore("g1", "Mario Jr"), versione: 2 };
+    api.updateGiocatore.mockRejectedValueOnce(new ApiError(409, "modificato"));
+    api.listGiocatori.mockResolvedValueOnce([giocatoreDalServer]);
+    await expect(store.getState().updateGiocatore(giocatore("g1", "Mario"))).rejects.toMatchObject({
+      status: 409, message: expect.stringMatching(/^Il giocatore «Mario Rossi» è stato modificato da un altro dispositivo/),
+    });
+    expect(store.getState().giocatori).toEqual([giocatoreDalServer]);
+  });
+
+  it("un 409 di una voce che sul server non c'è più resta il 409 del server; un altro errore passa com'è", async () => {
+    const { api, store, ApiError } = await nuovoStore();
+    await store.getState().load();
+    api.updateSquadra.mockRejectedValueOnce(new ApiError(409, "Eliminata"));
+    api.listSquadre.mockResolvedValueOnce([]);
+    await expect(store.getState().updateSquadra(squadra("s1", "Ballers"))).rejects.toMatchObject({ status: 409, message: "Eliminata" });
+    api.updateSquadra.mockRejectedValueOnce(new ApiError(403, "Non puoi"));
+    await expect(store.getState().updateSquadra(squadra("s1", "Ballers"))).rejects.toMatchObject({ status: 403, message: "Non puoi" });
+    expect(api.listSquadre).toHaveBeenCalledTimes(2); // la rilettura solo dopo il 409
+  });
+
   it("una scrittura prima del caricamento non crea una cache parziale", async () => {
     const { api, store } = await nuovoStore();
     api.createSquadra.mockResolvedValue(squadra("s2", "Wildcats"));
@@ -297,8 +347,17 @@ describe("useAnagrafeStore (cache dell'anagrafe)", () => {
     const { api, store } = await nuovoStore();
     await store.getState().load();
     expect(await store.getState().trovaSquadra("Sconosciuti")).toBeUndefined();
-    api.listSquadre.mockRejectedValueOnce(new Error("server spento"));
-    expect(await store.getState().trovaSquadra("Sconosciuti")).toBeUndefined();
+    expect(api.listSquadre).toHaveBeenCalledTimes(2);
+  });
+
+  it("trovaSquadra non risponde «non trovata» se la lista del server fallisce: l'errore arriva a chi chiama (niente doppioni)", async () => {
+    const { api, store, ApiError } = await nuovoStore();
+    await store.getState().load();
+    api.listSquadre.mockRejectedValueOnce(new ApiError(0, "Server non raggiungibile"));
+    await expect(store.getState().trovaSquadra("Sconosciuti")).rejects.toMatchObject({ status: 0, message: "Server non raggiungibile" });
+    // Una squadra in cache si trova anche a server spento: il server non si interroga
+    api.listSquadre.mockRejectedValueOnce(new ApiError(0, "Server non raggiungibile"));
+    expect(await store.getState().trovaSquadra("Ballers")).toEqual(squadra("s1", "Ballers", ["g1"]));
   });
 
   it("una scrittura arrivata durante il caricamento non convalida la cache: il load successivo riscarica", async () => {

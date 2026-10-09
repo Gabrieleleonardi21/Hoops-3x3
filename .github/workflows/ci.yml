@@ -7,6 +7,15 @@ on:
     branches: [main]
   pull_request:
 
+# Il token del workflow legge il repository e basta: nessun job scrive su GitHub
+permissions:
+  contents: read
+
+# Un solo giro per ramo: un push nuovo sulla stessa pull request ferma quello in corso, che non servirebbe più
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   frontend:
     runs-on: ubuntu-latest
@@ -21,8 +30,19 @@ jobs:
       - run: npm run typecheck
       - run: npm test -- --coverage
       - run: npm run build
-      # Solo Chromium, con le librerie di sistema che gli servono sul runner
-      - run: npx playwright install --with-deps chromium
+      # Chromium dalla cache quando la versione di Playwright è la stessa: scaricarlo ogni volta è il passo più lento del job.
+      # Le librerie di sistema servono comunque (install-deps), il browser solo se la cache manca
+      - run: echo "PLAYWRIGHT_VERSION=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_ENV"
+      - uses: actions/cache@v4
+        id: browser
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ env.PLAYWRIGHT_VERSION }}
+      - if: steps.browser.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+      - if: steps.browser.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+      # Sul server di anteprima della build (vite preview), con la Content-Security-Policy di produzione (playwright.config.ts)
       - run: npm run test:e2e
 
   # Percorsi da registrato con il backend vero (tests/e2e-backend/, playwright.backend.config.ts): il jar si compila dal ramo main del
@@ -64,7 +84,17 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      # La stessa cache di Chromium del job frontend
+      - run: echo "PLAYWRIGHT_VERSION=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_ENV"
+      - uses: actions/cache@v4
+        id: browser
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ env.PLAYWRIGHT_VERSION }}
+      - if: steps.browser.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+      - if: steps.browser.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
       - run: npm run test:e2e:backend
         env:
           E2E_DB_NAME: hoop3x3_e2e

@@ -1,0 +1,20 @@
+# Aggiornamenti delle dipendenze proposti da Dependabot come pull request, una volta alla settimana, poche alla volta: la CI
+# (lint, tipi, test con copertura, end-to-end) dice se l'aggiornamento rompe qualcosa prima di unirlo
+version: 2
+updates:
+  # Pacchetti npm (dipendenze e devDependencies di package.json)
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    # Le versioni minori e le patch di uno stesso gruppo arrivano in una pull request sola: meno rumore
+    groups:
+      minori-e-patch:
+        update-types: [minor, patch]
+  # Le action di .github/workflows (checkout, setup-node, cache…)
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3

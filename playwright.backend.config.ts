@@ -39,6 +39,9 @@ export default defineConfig({
         CORS_ORIGINS: `http://localhost:${PORTA_VITE}`,
         // Più test insieme registrano e accedono dallo stesso indirizzo: il limite di produzione (10 al minuto) li respingerebbe
         LIMITE_AUTH_AL_MINUTO: "100000",
+        // Il cookie di refresh nasce Secure (T5): la pagina dei test gira su http://localhost, e non dipendiamo da come
+        // il browser tratta localhost
+        AUTH_COOKIE_SECURE: "false",
       },
     },
     {

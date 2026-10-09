@@ -8,7 +8,8 @@ import { Icon } from "../ui/Icon";
 import { CampiSquadra } from "./CampiAnagrafe";
 import type { RegGiocatore, RegSquadra, User } from "../../types";
 import { puoModificare } from "../../utils/permessi";
-import { safeUrl } from "../../utils/safeUrl";
+import { erroreUrlSquadra, safeUrl } from "../../utils/safeUrl";
+import { ApiError } from "../../services/api";
 import { perditaSquadraAnagrafe } from "../../utils/testi";
 import { TeamLogo } from "../ui/TeamLogo";
 
@@ -60,11 +61,32 @@ export function SquadraAnagrafeModal({
   // Con la conferma aperta Esc è della conferma: Modal manda l'Esc solo alla finestra in primo piano
   const chiudi = () => { if (!invio) onClose(); };
   const saveEdit = async () => {
-    // Si esce dalla modifica solo se il server ha accettato: se rifiuta, i campi restano come scritti
-    if (await esegui(() => onUpdate({ ...s, ...draft }), "Modifica non riuscita")) setEditing(false);
+    // Gli indirizzi si controllano prima dell'invio, con il criterio del server (B10)
+    const urlNonValido = erroreUrlSquadra(draft);
+    if (urlNonValido) { setErrore(`Modifica non riuscita: ${urlNonValido}`); return; }
+    // Si esce dalla modifica se il server ha accettato, oppure se ha risposto 409 (modificata da un altro dispositivo): in cache c'è
+    // già la voce del server (store) e la scheda la mostra, con il motivo; ciò che era scritto non si salva sopra. Per ogni altro
+    // rifiuto i campi restano come scritti
+    const riuscito = await esegui(async () => {
+      try {
+        await onUpdate({ ...s, ...draft });
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 409) setEditing(false);
+        throw e;
+      }
+    }, "Modifica non riuscita");
+    if (riuscito) setEditing(false);
   };
-  // Entrando in modifica il messaggio di un'azione fallita prima (per esempio un'eliminazione) non resta sopra il form
-  const iniziaModifica = () => { setEditing(true); setErrore(null); };
+  // Entrando in modifica il messaggio di un'azione fallita prima (per esempio un'eliminazione) non resta sopra il form, e i campi
+  // ripartono dalla voce com'è adesso (dopo un 409 è quella del server)
+  const iniziaModifica = () => {
+    setDraft({
+      nome: s.nome, citta: s.citta, anno: s.anno, rank: s.rank, referente: s.referente, logo: s.logo,
+      website: s.website, instagram: s.instagram || "", note: s.note,
+    });
+    setEditing(true);
+    setErrore(null);
+  };
   const annullaModifica = () => { setEditing(false); setErrore(null); };
 
   const gName = (id: string) => {

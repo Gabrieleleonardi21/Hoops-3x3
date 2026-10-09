@@ -8,6 +8,7 @@ import { useConfermaPerdita } from "../../hooks/useConfermaPerdita";
 import type { useTappa } from "../../hooks/useTappa";
 import { TeamLogo } from "../ui/TeamLogo";
 import { MIN_ROSTER } from "../../constants/rules";
+import { erroreUrl } from "../../utils/safeUrl";
 
 export function SquadraCard({ s, index, h, erroreAnagrafe, onNameCommit }: {
   s: SquadraTappa;
@@ -26,6 +27,8 @@ export function SquadraCard({ s, index, h, erroreAnagrafe, onNameCommit }: {
   // Il rifiuto di removeTeam non serve mostrarlo: il pulsante c'è solo con più di 2 squadre.
   // La stessa finestra serve per la X di un giocatore: si chiede solo se ha statistiche (perditaGiocatore).
   const { chiedi, finestra } = useConfermaPerdita(() => h.perditaSquadra(s.id));
+  const erroreLogo = erroreUrl(s.logo ?? "");
+  const erroreSito = erroreUrl(s.website ?? "");
 
   return (
     <div className={`rounded border bg-asphalt-900 p-3 ${ok ? "border-asphalt-700" : "border-loss/60"}`}>
@@ -58,15 +61,17 @@ export function SquadraCard({ s, index, h, erroreAnagrafe, onNameCommit }: {
       )}
 
       {/* Logo, rank, sito: visibili e modificabili solo se non collegata all'anagrafe.
-          Se collegata, questi dati vengono dall'anagrafe e si modificano lì. */}
+          Se collegata, questi dati vengono dall'anagrafe e si modificano lì. Logo e sito si salvano con la tappa a ogni tasto: un
+          indirizzo che il server rifiuterebbe (non http(s)://, B10) si segnala sotto il campo, con lo stesso criterio del server */}
       {!linked && (
         <div className="mt-2 flex flex-col gap-1.5">
           <Input label="Logo (URL)" className={small} value={s.logo ?? ""} onChange={(e) => h.setTeamLogo(s.id, e.target.value)}
-            placeholder="https://... oppure /logos/squadra.svg" />
+            placeholder="https://squadra.it/logo.png" error={!!erroreLogo} hint={erroreLogo ?? undefined} />
           <Input label="Ranking circuito (punti)" className={small} type="number" min={0}
             value={s.rank ?? ""} onChange={(e) => h.setTeamRank(s.id, e.target.value)} placeholder="0" />
           <Input label="Sito web (opzionale)" className={small} value={s.website ?? ""}
-            onChange={(e) => h.setTeamWebsite(s.id, e.target.value)} placeholder="https://squadra.it" />
+            onChange={(e) => h.setTeamWebsite(s.id, e.target.value)} placeholder="https://squadra.it"
+            error={!!erroreSito} hint={erroreSito ?? undefined} />
         </div>
       )}
 

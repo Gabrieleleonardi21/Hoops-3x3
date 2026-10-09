@@ -1,5 +1,5 @@
 import { DEFAULT_RULES } from "../../src/constants/rules";
-import type { StatLine, StatSheet, Tappa } from "../../src/types";
+import type { Partita, StatLine, StatSheet, Tappa } from "../../src/types";
 
 /** Un tabellino scritto per nome del giocatore (com'è nel roster): la tappa di prova lo converte negli id */
 export type TabellinoPerNome = Record<string, StatLine | number>;
@@ -15,6 +15,8 @@ export interface GaraDiProva {
   /** Il punteggio non conta per le statistiche dei giocatori: se mancano sono 21 e 15 */
   sa?: number;
   sb?: number;
+  /** Quando il risultato è stato registrato (Partita.ts); assente nelle partite di prima che esistesse */
+  ts?: number;
 }
 
 /** Una tappa di prova. `rose`: nome della squadra → nomi dei suoi giocatori. Gli id nascono da tappa, squadra e nome: come
@@ -28,10 +30,15 @@ export function tappaDiProva(id: string, rose: Record<string, string[]>, gare: G
   const squadre = Object.entries(rose).map(([nome, giocatori]) => ({
     id: idSquadra(nome), nome, rank: "", giocatori: giocatori.map((n) => ({ id: idGiocatore(nome, n), nome: n })),
   }));
-  const partite = gare.map((g, i) => ({
-    id: `${id}:m${i}`, g: 0, a: idSquadra(g.a), b: idSquadra(g.b), sa: g.sa ?? 21, sb: g.sb ?? 15, done: g.done ?? true,
-    pa: scheda(g.a, g.pa), pb: scheda(g.b, g.pb),
-  }));
+  const partite = gare.map((g, i) => {
+    const partita: Partita = {
+      id: `${id}:m${i}`, g: 0, a: idSquadra(g.a), b: idSquadra(g.b), sa: g.sa ?? 21, sb: g.sb ?? 15, done: g.done ?? true,
+      pa: scheda(g.a, g.pa), pb: scheda(g.b, g.pb),
+    };
+    // Solo se c'è: una chiave `ts: undefined` sparirebbe nel JSON mandato al server e i confronti sui corpi non tornerebbero
+    if (g.ts !== undefined) partita.ts = g.ts;
+    return partita;
+  });
   return {
     id, nome: `Tappa ${id}`, luogo: "", data: "", nGironi: 1, regole: { ...DEFAULT_RULES },
     squadre, gironi: [squadre.map((s) => s.id)], partite, video: [],

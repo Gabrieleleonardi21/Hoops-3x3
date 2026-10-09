@@ -50,6 +50,14 @@ services:
       - path: /*
         name: Referrer-Policy
         value: strict-origin-when-cross-origin
+      # Content-Security-Policy: solo ciò che l'app usa davvero (vedi «Deploy su Render» nel README: come aggiornarla se si aggiunge
+      # una risorsa esterna). DEVE restare uguale a CSP in vite.config.ts, dove `vite preview` la applica ai test end-to-end (un
+      # test unitario confronta le due copie). Script e stili sono quelli della build (gli stili inline di React passano dal CSSOM,
+      # che la CSP non blocca); i font da Google Fonts; i loghi delle squadre da qualsiasi host https; le chiamate al backend
+      # passano dalla rewrite di /api, quindi sono sulla stessa origine; i video di YouTube dall'embed senza cookie
+      - path: /*
+        name: Content-Security-Policy
+        value: "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self'; frame-src https://www.youtube-nocookie.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'"
 
   # ── Backend: Spring Boot in un container (Dockerfile del repository hoop3x3-backend) ──
   - type: web
@@ -61,9 +69,11 @@ services:
     # riavvio della JVM (anche più di un minuto): per una demo dal vivo conviene il piano starter
     plan: free
     region: frankfurt
-    # Render considera pronto il nuovo deploy solo quando qui risponde 200 (server e database funzionanti): un deploy
-    # rotto non sostituisce quello attivo, e un servizio che smette di rispondere viene riavviato
-    healthCheckPath: /actuator/health
+    # Render considera pronto il nuovo deploy solo quando qui risponde 200, e riavvia un servizio che smette di rispondere. La
+    # sonda di liveness dice se il processo è vivo: /actuator/health intero comprende il database, e un database in pausa o lento
+    # farebbe riavviare un backend sano, a vuoto. Il backend espone le sonde (management.endpoint.health.probes) dalla revisione
+    # di Byte; l'app, per svegliarlo, continua a chiamare /actuator/health (la rewrite qui sopra)
+    healthCheckPath: /actuator/health/liveness
     envVars:
       # Connessione al database qui sotto (rete interna di Render, stessa regione)
       - key: DB_HOST

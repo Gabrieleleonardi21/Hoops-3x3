@@ -12,6 +12,8 @@ describe("TeamLogo: il logo di una squadra, che sparisce se non si carica", () =
     expect(img.getAttribute("src")).toBe("https://esempio.it/logo.png");
     expect(img.className).toContain("object-contain");
     expect(img.className).toContain("h-5 w-5");
+    // Host qualsiasi: niente Referer verso chi ospita il logo
+    expect(img.getAttribute("referrerpolicy")).toBe("no-referrer");
   });
 
   it("senza logo non mostra niente, oppure il ripiego", () => {

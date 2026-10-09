@@ -2,30 +2,15 @@
  *  e aggiungere squadre. Aggiungere squadre o cambiare i gironi azzera il sorteggio: se ci sono risultati si chiede
  *  prima conferma. Nome e numero di gironi si applicano all'uscita dal campo o con Invio e solo se cambiano: mentre
  *  si scrive, sorteggio e risultati restano e un nome svuotato non arriva alla tappa. */
-import { useState, type InputHTMLAttributes } from "react";
+import { useState } from "react";
 import { Input } from "../ui/Input";
+import { CampoConfermato } from "../ui/CampoConfermato";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import { Icon } from "../ui/Icon";
 import { impostaNumeroGironi, MAX_LUOGO, MAX_NOME_TAPPA } from "../../domain/tappaOps";
 import { useConfermaPerdita } from "../../hooks/useConfermaPerdita";
 import type { useTappa } from "../../hooks/useTappa";
-
-/** Campo che si applica all'uscita o con Invio, non a ogni tasto: mentre si scrive mostra la bozza e la tappa non
- *  cambia; dopo torna a mostrare il valore della tappa (quello nuovo, oppure quello di prima se è stato rifiutato). */
-function CampoConfermato({ valore, onConferma, ...campo }: {
-  label: string; valore: string; onConferma: (valore: string) => void;
-} & Pick<InputHTMLAttributes<HTMLInputElement>, "type" | "min" | "maxLength">) {
-  const [bozza, setBozza] = useState<string | null>(null);
-  const conferma = () => {
-    if (bozza !== null) onConferma(bozza);
-    setBozza(null);
-  };
-  return (
-    <Input {...campo} value={bozza ?? valore} onChange={(e) => setBozza(e.target.value)} onBlur={conferma}
-      onKeyDown={(e) => { if (e.key === "Enter") conferma(); }} />
-  );
-}
 
 export function TappaEditPanel({ h }: { h: ReturnType<typeof useTappa> }) {
   // Il motivo dell'ultima modifica rifiutata (numero di gironi non valido, troppe squadre)

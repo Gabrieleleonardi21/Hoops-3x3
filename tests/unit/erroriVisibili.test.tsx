@@ -240,7 +240,7 @@ describe("Dati vecchi dell'ospite nel browser (Ruling 3, T1.12)", () => {
     expect(screen.getByRole("alert").textContent)
       .toBe("I dati della lega «Estate» non ci sono più nel browser o sono danneggiati: puoi eliminarla dall'elenco delle leghe.");
     // Le due leghe sono ancora nell'elenco, e l'app si usa
-    expect(store().leghe.map((m) => m.id)).toEqual(["l1", "l2"]);
+    expect(store().leghe!.map((m) => m.id)).toEqual(["l1", "l2"]);
     expect(screen.getByText("Apri una lega esistente o creane una nuova.")).toBeTruthy();
   });
 
@@ -545,7 +545,7 @@ describe("Elenco delle leghe: errori di creazione, apertura ed eliminazione", ()
   const estate = { id: "l1", nome: "Estate", ts: 1, nTappe: 2 };
 
   /** Apre l'elenco delle leghe di questo utente; la pagina della lega è un segnaposto per vedere se si naviga */
-  function apriLeghe(utente: User, elenco = [estate]) {
+  function apriLeghe(utente: User, elenco: typeof estate[] | null = [estate]) {
     useAppStore.setState({ user: utente, leghe: elenco });
     render(
       <MemoryRouter initialEntries={["/leghe"]}>
@@ -558,6 +558,21 @@ describe("Elenco delle leghe: errori di creazione, apertura ed eliminazione", ()
   }
   const campoNome = () => screen.getByLabelText(/Nome della nuova lega/) as HTMLInputElement;
   const creaLega = () => screen.getByRole("button", { name: /Crea lega/ }) as HTMLButtonElement;
+
+  it("elenco non arrivato dal server: non «Nessuna lega ancora» ma il motivo con «Riprova», che rilegge le leghe (F1)", async () => {
+    useAppStore.setState({ erroreLeghe: "Server non raggiungibile" });
+    apriLeghe(registrato, null);
+    expect(screen.queryByText(/Nessuna lega ancora/)).toBeNull();
+    expect(screen.getByRole("alert").textContent).toContain("Non è stato possibile caricare le tue leghe.");
+    expect(screen.getByRole("alert").textContent).toContain("Server non raggiungibile");
+    // Il modulo per creare una lega resta: con il server tornato si può creare senza ricaricare la pagina
+    expect(campoNome()).toBeTruthy();
+    leghe.list.mockResolvedValueOnce([estate]);
+    fireEvent.click(screen.getByRole("button", { name: "Riprova" }));
+    await screen.findByText("Estate");
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(leghe.list).toHaveBeenCalledTimes(1);
+  });
 
   it("creazione che fallisce: il messaggio dice perché, il nome resta nel campo e non si cambia pagina", async () => {
     leghe.create.mockRejectedValue(rete());
@@ -866,6 +881,41 @@ describe("Anagrafe: il server rifiuta, la pagina non mostra il dato come salvato
     expect(scheda.getByText("Mario Rossi")).toBeTruthy();
     expect(scheda.queryByText("Luigi Rossi")).toBeNull();
     expect(useAnagrafeStore.getState().giocatori![0].nome).toBe("Mario");
+  });
+
+  it("409 (modificata da un altro dispositivo): la scheda resta in modifica con il testo scritto, mostra la versione del server e il nuovo salvataggio riparte da quella (B6)", async () => {
+    anagrafe.listSquadre.mockResolvedValue([{ ...squadra("s1", "Ballers"), versione: 1 }]);
+    const dalServer = { ...squadra("s1", "Ballers"), citta: "Milano", versione: 2 };
+    anagrafe.updateSquadra
+      .mockRejectedValueOnce(new ApiError(409, "modificata"))
+      .mockImplementationOnce(async (_id, dati) => ({ ...dalServer, ...dati, versione: 3 }));
+    apri("/anagrafe");
+    fireEvent.click(await screen.findByRole("tab", { name: /Squadre/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Ballers" }));
+    const scheda = within(screen.getByRole("dialog"));
+    fireEvent.click(scheda.getByRole("button", { name: "Modifica" }));
+    fireEvent.change(scheda.getByLabelText("Referente / capitano"), { target: { value: "Luca" } });
+    // Intanto un altro dispositivo ha scritto la città: il server rifiuta la versione 1 e la pagina rilegge la voce
+    anagrafe.listSquadre.mockResolvedValue([dalServer]);
+    fireEvent.click(scheda.getByRole("button", { name: "Salva modifiche" }));
+    const avviso = await scheda.findByRole("alert");
+    expect(avviso.textContent).toContain("Modifica non riuscita: La squadra «Ballers» è stata modificata da un altro dispositivo");
+    expect(avviso.textContent).toContain("riscrivile con «Modifica»");
+    expect(anagrafe.updateSquadra.mock.calls[0][1]).toMatchObject({ versione: 1 });
+    // Si è usciti dalla modifica: la scheda mostra la versione del server (la città scritta dall'altro), non il referente scritto qui
+    expect(scheda.queryByRole("button", { name: "Salva modifiche" })).toBeNull();
+    expect(scheda.getByText("Milano")).toBeTruthy();
+    expect(scheda.queryByText("Luca")).toBeNull();
+    expect(useAnagrafeStore.getState().squadre![0]).toEqual(dalServer);
+    // «Modifica» riparte dalla voce del server: il nuovo salvataggio porta la versione 2 e la città dell'altro
+    fireEvent.click(scheda.getByRole("button", { name: "Modifica" }));
+    expect((scheda.getByLabelText("Città") as HTMLInputElement).value).toBe("Milano");
+    fireEvent.change(scheda.getByLabelText("Referente / capitano"), { target: { value: "Luca" } });
+    fireEvent.click(scheda.getByRole("button", { name: "Salva modifiche" }));
+    await waitFor(() => expect(anagrafe.updateSquadra).toHaveBeenCalledTimes(2));
+    expect(anagrafe.updateSquadra.mock.calls[1][1]).toMatchObject({ versione: 2, referente: "Luca", citta: "Milano" });
+    expect(await scheda.findByText("Luca")).toBeTruthy();
+    expect(scheda.queryByRole("button", { name: "Salva modifiche" })).toBeNull();
   });
 
   it("modifica accettata: la scheda mostra il record che restituisce il server", async () => {

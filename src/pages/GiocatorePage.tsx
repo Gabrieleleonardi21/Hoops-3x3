@@ -37,7 +37,8 @@ interface TappaRow { tappa: Tappa; row: Totali; piazzamento: number | null }
 /** Come finisce una partita per il giocatore. La parità c'è solo in un file di lega importato (tappaOps la rifiuta): non è né
  *  una vittoria né una sconfitta */
 type Esito = "vinta" | "persa" | "pari";
-interface GameRow { tappa: string; avversario: string; mio: number; suo: number; esito: Esito; pt: number; rb: number; as: number }
+/** `ts` è il momento in cui il risultato è stato registrato (Partita.ts): manca nelle partite registrate prima che esistesse */
+interface GameRow { tappa: string; avversario: string; mio: number; suo: number; esito: Esito; pt: number; rb: number; as: number; ts?: number }
 
 const esitoDi = (mio: number, suo: number): Esito => {
   if (mio > suo) return "vinta";
@@ -108,11 +109,18 @@ export function GiocatorePage() {
         // Punti fatti, punti subiti e squadra avversaria, dal lato della scheda in cui sta il tabellino
         let mio = m.sa, suo = m.sb, avversario = m.b;
         if (lato === "b") { mio = m.sb; suo = m.sa; avversario = m.a; }
-        out.push({ tappa: t.nome, avversario: nameOf(avversario), mio, suo, esito: esitoDi(mio, suo), pt: stat.pt, rb: stat.rb, as: stat.as });
+        out.push({ tappa: t.nome, avversario: nameOf(avversario), mio, suo, esito: esitoDi(mio, suo), pt: stat.pt, rb: stat.rb, as: stat.as, ts: m.ts });
       }
     }
     return out;
   }, [g, tappe]);
+
+  // «Ultime partite, dalla più recente»: l'ordine è quello di registrazione del risultato (ts), non del calendario. Le partite senza
+  // ts (registrate prima che esistesse) contano come più vecchie e stanno in coda, nell'ordine inverso del calendario (il sort è stabile)
+  const ultime = useMemo(
+    () => [...games].reverse().sort((x, y) => (y.ts ?? 0) - (x.ts ?? 0)).slice(0, 6),
+    [games],
+  );
 
   if (giocatori === null && errore) {
     return <ErroreCaricamento cosa="Non è stato possibile caricare l'anagrafe." motivo={errore} onRiprova={() => { void load(); }} />;
@@ -216,7 +224,7 @@ export function GiocatorePage() {
       {games.length > 0 && (
         <Section title="Ultime partite" kicker="Dalla più recente" className="mt-8">
           <ol className="m-0 list-none divide-y divide-asphalt-700 rounded border border-asphalt-700 bg-asphalt-900 p-0">
-            {[...games].reverse().slice(0, 6).map((x, i) => {
+            {ultime.map((x, i) => {
               const { tone, lettera } = BADGE_ESITO[x.esito];
               return (
                 <li key={i} className="flex flex-wrap items-center gap-3 px-3 py-2 text-[13px]">
