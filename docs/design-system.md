@@ -75,8 +75,12 @@ etichette 11 px. Line-height 1.5 nel corpo (default di Tailwind), 1.0 per il dis
 2. **Player profile**: header con numero maglia gigante → 6 stat tile → andamento punti (sparkline) | storico tappe → ultime partite. L'analisi 3x3 (punti di forza, aree di miglioramento) sta nella finestra del giocatore dell'Archivio (`GiocatoreAnalisi`).
 3. **Campetti**: «Usa la mia posizione» con il suo esito → ricerca e filtri → lista card (5fr, circa il 45%) + mappa (6fr, circa il 55%,
    quadrata: l'immagine della Maps Static API, o la griglia schematica senza chiave) con i pin disegnati dall'app (il selezionato in
-   `court`, più grande; il segno dell'utente in `chalk`) → attribuzione dei dati in fondo. Nella card le caratteristiche sono
-   badge di testo (mai solo un'icona o un colore) e la distanza, solo con la posizione, in `court`.
+   `court`, più grande; il segno dell'utente in `chalk`) → «Aggiungi un campetto» (primary, a tutta larghezza sotto la lista) →
+   attribuzione dei dati in fondo. Nella card le caratteristiche sono badge di testo (mai solo un'icona o un colore), la distanza,
+   solo con la posizione, in `court`, e per chi può «Modifica» ed «Elimina» come link (`Button variant="link"`, «Elimina» in `loss`)
+   a destra dei link a Google Maps. Il form del campetto sta in una finestra più larga delle schede (560px) perché contiene la
+   stessa mappa, su cui si sceglie la posizione: il pin provvisorio è un pin di 32px riempito in `court` e non cliccabile; i tre
+   modi di dare la posizione stanno in un `fieldset` con la legenda «Posizione *».
 4. **Punteggio partita** (`MatchCard`): `ScoreCard` compatta con i punteggi al centro (campi finché la gara è aperta) → tabellino
    dei giocatori editabile → eventi di gara apribili → barra delle azioni nel piede della card («Salva risultato» o «Correggi»,
    statistiche, eventi). Il **timer di gara** (`MatchTimer`) è una finestra a parte, pensata per il tavolo: punteggio gigante,
