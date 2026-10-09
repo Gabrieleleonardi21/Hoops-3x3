@@ -47,7 +47,9 @@ export type RicercaCampetti =
   | { lat: number; lng: number; raggioKm: number }
   | { q: string; lat?: number; lng?: number };
 
-/** La query string della ricerca, codificata da URLSearchParams (spazi e caratteri speciali del testo non rompono l'URL) */
+/** La query string della ricerca, codificata da URLSearchParams (spazi e caratteri speciali del testo non rompono l'URL).
+ *  Un testo vuoto (o di soli spazi, che per il server è assente) è un errore di chi chiama, non una ricerca: il server risponderebbe
+ *  400, e la pagina dei Campetti con la casella vuota non arriva qui perché torna da sola alla ricerca per raggio */
 function queryDi(ricerca: RicercaCampetti): string {
   const p = new URLSearchParams();
   if ("raggioKm" in ricerca) {
@@ -56,7 +58,9 @@ function queryDi(ricerca: RicercaCampetti): string {
     p.set("raggioKm", String(ricerca.raggioKm));
     return p.toString();
   }
-  p.set("q", ricerca.q);
+  const q = ricerca.q.trim();
+  if (!q) throw new Error("campettiApi.list: testo di ricerca vuoto, usare la ricerca per raggio");
+  p.set("q", q);
   // La posizione si manda solo intera: una coordinata sola il server la respingerebbe (400)
   if (ricerca.lat !== undefined && ricerca.lng !== undefined) {
     p.set("lat", String(ricerca.lat));

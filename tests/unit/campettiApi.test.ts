@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { ApiError, token } from "../../src/services/api";
 import { campettiApi } from "../../src/services/campettiApi";
 import type { Campetto, CampettoInput } from "../../src/types/campetto";
-import { azzeraRete, chiamata, jwtFinto, rispondi, rispondiConErrore, rispondiSenzaCorpo } from "./reteFinta";
+import { azzeraRete, chiamata, fetchFinto, jwtFinto, rispondi, rispondiConErrore, rispondiSenzaCorpo } from "./reteFinta";
 import { CAMPETTI_DEMO } from "../fixtures/campetti";
 
 /** Le richieste vere che il client manda al backend: URL, metodo e corpo di ogni funzione. La rete è finta, `api` è quella vera */
@@ -28,12 +28,20 @@ describe("campettiApi.list: la lettura pubblica, con i parametri nella query str
     ["per testo, ordinati per distanza da un punto", { q: "Torino", lat: 45.0703, lng: 7.6869 }, "/api/campetti?q=Torino&lat=45.0703&lng=7.6869"],
     ["per testo con una coordinata sola: la posizione non si manda a metà", { q: "Torino", lat: 45.0703 }, "/api/campetti?q=Torino"],
     ["il testo è codificato: spazi e caratteri speciali non rompono l'URL", { q: "Parco Dora & co" }, "/api/campetti?q=Parco+Dora+%26+co"],
+    ["gli spazi ai lati del testo non partono", { q: "  Dora " }, "/api/campetti?q=Dora"],
   ];
 
   it.each(casi)("%s", async (_nome, parametri, url) => {
     rispondi([]);
     await campettiApi.list(parametri);
     expect(chiamata()).toMatchObject({ url, metodo: "GET", corpo: undefined });
+  });
+
+  it("un testo vuoto o di soli spazi non parte: il server risponderebbe 400, e la pagina con la casella vuota cerca per raggio", async () => {
+    for (const q of ["", "   "]) {
+      await expect(campettiApi.list({ q, lat: 45.0703, lng: 7.6869 })).rejects.toThrow("testo di ricerca vuoto");
+    }
+    expect(fetchFinto).not.toHaveBeenCalled();
   });
 
   it("senza account parte senza Bearer, con un account lo porta", async () => {
