@@ -84,6 +84,18 @@ describe("usePosizione: la posizione dell'utente solo su richiesta (D7)", () => 
     expect(result.current.posizione).toEqual(ATTESA);
   });
 
+  it.each([["negata (1)", 1], ["tempo scaduto (3)", 3]])("dopo una posizione concessa una nuova richiesta %s toglie anche la posizione: il messaggio e l'elenco dicono la stessa cosa", (_nome, code) => {
+    let esito: (ok: PositionCallback, ko: PositionErrorCallback) => void = concede;
+    browserCon((ok, ko) => esito(ok, ko));
+    const { result } = renderHook(() => usePosizione());
+    act(() => result.current.chiedi());
+    expect(result.current.posizione).toEqual(ATTESA);
+    esito = rifiuta(code);
+    act(() => result.current.chiedi());
+    expect(result.current.stato).not.toBe("concessa");
+    expect(result.current.posizione).toBeNull();
+  });
+
   it("una risposta arrivata dopo lo smontaggio non tocca niente (nessun avviso di React)", () => {
     let rispondi: PositionCallback = () => {};
     browserCon((ok) => { rispondi = ok; });

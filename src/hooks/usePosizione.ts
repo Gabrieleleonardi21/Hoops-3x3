@@ -38,6 +38,8 @@ export function usePosizione(): { stato: StatoPosizione; posizione: Coordinate |
       },
       (e) => {
         if (!montato.current) return;
+        // Anche la posizione di una richiesta precedente se ne va: il messaggio dice «ordine per città e nome», e l'elenco deve fare lo stesso
+        setPosizione(null);
         if (e.code === PERMESSO_NEGATO) setStato("negata");
         else setStato("non disponibile");
       },
