@@ -7,7 +7,7 @@ import type { StatoPosizione } from "../../hooks/usePosizione";
 /** Il messaggio per ogni stato; «mai chiesta» non ne ha */
 const MESSAGGI: Partial<Record<StatoPosizione, string>> = {
   "in corso": "Sto leggendo la tua posizione…",
-  concessa: "Posizione trovata: i campetti intorno a te, in ordine di distanza. La posizione resta nel browser.",
+  concessa: "Posizione trovata: i campetti intorno a te, in ordine di distanza. La posizione non va a Google e non si salva: al server arriva solo come centro della ricerca.",
   negata: "Posizione negata: i campetti sono in ordine di città e nome. Per usarla, consentila nelle impostazioni del browser.",
   "non disponibile": "Posizione non disponibile: i campetti sono in ordine di città e nome. Riprova più tardi.",
 };
