@@ -1,16 +1,21 @@
-import { test, expect, type Page } from "@playwright/test";
-import { bloccaApiNonPreviste, errore, json, rispondiAlRisveglio } from "./helpers";
+import { test, expect, type Page, type Route } from "@playwright/test";
+import { bloccaApiNonPreviste, creato, errore, json, rispondiAlRisveglio, utenteAnna, utenteRegistrato } from "./helpers";
 import { CAMPETTI_DEMO } from "../fixtures/campetti";
 
 /* La pagina dei Campetti sulla build di produzione, senza la chiave di Google (la CI non ce l'ha): si esercita la mappa schematica.
- * Il server finto imita GET /api/campetti del contratto (D9): per raggio ordina per distanza, per testo filtra su nome e città. */
+ * Il server finto imita /api/campetti del contratto: GET per raggio ordina per distanza, per testo filtra su nome e città (D9); POST
+ * risponde 201 con il campetto (autore = chi ha il token, versione 0), PUT 200 con la versione aumentata di uno, DELETE 204. Lo
+ * stesso percorso con il backend vero sta in tests/e2e-backend/campetti.spec.ts. */
 
-/** Due campetti di Roma, dove la pagina si apre, oltre ai sei di Torino della fixture */
-function campettoDiRoma(n: number, nome: string, lat: number, lng: number) {
-  return { ...CAMPETTI_DEMO[0], id: `r0000000-0000-4000-8000-00000000000${n}`, nome, indirizzo: "", citta: "Roma", lat, lng };
+type Campetto = (typeof CAMPETTI_DEMO)[number];
+
+/** Due campetti di Roma, dove la pagina si apre, oltre ai sei di Torino della fixture: Testaccio l'ha scritto Anna (l'utente registrata
+ *  dei test, id "u1"), Villa Pamphili un altro utente */
+function campettoDiRoma(n: number, nome: string, lat: number, lng: number, autoreId: string): Campetto {
+  return { ...CAMPETTI_DEMO[0], id: `r0000000-0000-4000-8000-00000000000${n}`, nome, indirizzo: "", citta: "Roma", lat, lng, autoreId };
 }
-const TESTACCIO = campettoDiRoma(1, "Campo Testaccio", 41.8768, 12.4761);
-const PAMPHILI = campettoDiRoma(2, "Villa Pamphili — Playground", 41.8838, 12.4440);
+const TESTACCIO = campettoDiRoma(1, "Campo Testaccio", 41.8768, 12.4761, utenteAnna.id);
+const PAMPHILI = campettoDiRoma(2, "Villa Pamphili — Playground", 41.8838, 12.4440, "u2");
 const TUTTI = [...CAMPETTI_DEMO, PAMPHILI, TESTACCIO];
 
 /** Il centro di Torino: dove sta l'utente dei test (Playwright lo dà al browser come posizione) */
@@ -25,34 +30,59 @@ function km(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
 
 /** La risposta del server vero ai parametri della richiesta: per raggio i campetti entro il raggio ordinati per distanza; per testo
  *  quelli con il testo nel nome o nella città, per città e nome, o per distanza se ci sono anche lat e lng */
-function rispostaDelServer(url: URL) {
+function rispostaDelServer(url: URL, tutti: Campetto[]) {
   const p = url.searchParams;
   const q = p.get("q");
   const centro = { lat: Number(p.get("lat")), lng: Number(p.get("lng")) };
-  const perDistanza = (a: typeof TESTACCIO, b: typeof TESTACCIO) => km(centro, a) - km(centro, b);
+  const perDistanza = (a: Campetto, b: Campetto) => km(centro, a) - km(centro, b);
   if (q !== null) {
     const testo = q.toLowerCase();
-    const trovati = TUTTI.filter((c) => c.nome.toLowerCase().includes(testo) || c.citta.toLowerCase().includes(testo));
+    const trovati = tutti.filter((c) => c.nome.toLowerCase().includes(testo) || c.citta.toLowerCase().includes(testo));
     if (p.has("lat") && p.has("lng")) return trovati.sort(perDistanza);
     return trovati.sort((a, b) => a.citta.localeCompare(b.citta) || a.nome.localeCompare(b.nome));
   }
   const raggio = Number(p.get("raggioKm"));
-  return TUTTI.filter((c) => km(centro, c) <= raggio).sort(perDistanza);
+  return tutti.filter((c) => km(centro, c) <= raggio).sort(perDistanza);
 }
 
-/** Il server finto dei campetti: risponde come quello vero e registra le query string ricevute. Con `giu` risponde 500.
- *  @returns le query string delle richieste e le chiamate non previste (a fine test devono essere nessuna) */
+/** Il server finto dei campetti: risponde come quello vero e registra le query string delle letture e i corpi delle scritture. Le
+ *  scritture (di Anna, l'unica che accede nei test) cambiano l'elenco che le letture successive restituiscono. Con `giu` risponde 500.
+ *  @returns le query string delle letture, i corpi di POST e PUT, gli id delle DELETE e le chiamate non previste (a fine test nessuna) */
 async function serverFinto(page: Page, stato = { giu: false }) {
   const nonPreviste = await bloccaApiNonPreviste(page);
   await rispondiAlRisveglio(page);
   const richieste: string[] = [];
-  await page.route("**/api/campetti?**", (route) => {
+  const scritture: { metodo: string; id: string | null; corpo: unknown }[] = [];
+  let tutti = [...TUTTI];
+  let prossimoId = 1;
+  const scrivi = (route: Route) => {
+    const r = route.request();
+    const id = new URL(r.url()).pathname.split("/api/campetti/")[1] ?? null;
+    const corpo = r.postDataJSON();
+    scritture.push({ metodo: r.method(), id, corpo });
+    if (r.method() === "POST") {
+      const nuovo: Campetto = { ...corpo, id: `n0000000-0000-4000-8000-00000000000${prossimoId++}`, tipo: "campetto", autore: utenteAnna.name, autoreId: utenteAnna.id, versione: 0, ts: 1 };
+      tutti = [nuovo, ...tutti];
+      return route.fulfill(creato(nuovo));
+    }
+    if (r.method() === "PUT") {
+      const prima = tutti.find((c) => c.id === id);
+      if (!prima) return route.fulfill(errore(404, "Campetto non trovato"));
+      const dopo: Campetto = { ...prima, ...corpo, versione: prima.versione + 1, ts: 2 };
+      tutti = tutti.map((c) => { if (c.id === id) return dopo; return c; });
+      return route.fulfill(json(dopo));
+    }
+    tutti = tutti.filter((c) => c.id !== id);
+    return route.fulfill({ status: 204, body: "" });
+  };
+  await page.route("**/api/campetti**", (route) => {
+    if (route.request().method() !== "GET") return scrivi(route);
     const url = new URL(route.request().url());
     richieste.push(url.search);
     if (stato.giu) return route.fulfill(errore(500, "Errore interno"));
-    return route.fulfill(json(rispostaDelServer(url)));
+    return route.fulfill(json(rispostaDelServer(url, tutti)));
   });
-  return { richieste, nonPreviste };
+  return { richieste, scritture, nonPreviste };
 }
 
 /** Entra come Ospite e apre i Campetti dal menu */
@@ -66,7 +96,7 @@ async function apriCampetti(page: Page) {
 /** I nomi delle card, nell'ordine in cui compaiono */
 const nomiDelleCard = (page: Page) => page.getByRole("article").evaluateAll((card) => card.map((c) => c.getAttribute("aria-label")));
 
-test("all'apertura i campetti intorno a Roma dall'API, la mappa schematica con i pin, «Aggiungi» in arrivo; nessuna posizione chiesta", async ({ page }) => {
+test("all'apertura i campetti intorno a Roma dall'API, la mappa schematica con i pin; l'ospite legge soltanto; nessuna posizione chiesta", async ({ page }) => {
   const { richieste, nonPreviste } = await serverFinto(page);
   await apriCampetti(page);
   await expect(page.getByRole("article", { name: "Campo Testaccio" })).toBeVisible();
@@ -78,12 +108,74 @@ test("all'apertura i campetti intorno a Roma dall'API, la mappa schematica con i
   await expect(page.getByRole("button", { name: "Campo Testaccio", exact: true })).toBeVisible();
   await expect(page.locator("img[src*='maps.googleapis.com']")).toHaveCount(0);
   await expect(page.getByText("Dati di esempio")).toHaveCount(0);
+  // L'ospite: «Aggiungi» disattivato con il titolo che dice perché, e nessun «Modifica» o «Elimina» (D3)
   const aggiungi = page.getByRole("button", { name: /Aggiungi un campetto/ });
   await expect(aggiungi).toBeDisabled();
-  await expect(aggiungi).toHaveAttribute("title", "In arrivo");
+  await expect(aggiungi).toHaveAttribute("title", /account/i);
+  await expect(page.getByRole("button", { name: /^(Modifica|Elimina) / })).toHaveCount(0);
   // Un clic sul pin seleziona la card
   await page.getByRole("button", { name: "Villa Pamphili — Playground", exact: true }).click();
   await expect(page.getByRole("article", { name: "Villa Pamphili — Playground" }).getByRole("button")).toHaveAttribute("aria-pressed", "true");
+  expect(nonPreviste).toEqual([]);
+});
+
+test("registrata: aggiunge un campetto con un clic sulla mappa schematica, lo modifica e lo elimina con la conferma; comandi solo sui suoi", async ({ page }) => {
+  // Accesso, creazione, modifica ed eliminazione in un test solo: i 15 secondi della configurazione bastano a un passo, non a una macchina carica
+  test.setTimeout(30_000);
+  const { scritture, nonPreviste } = await serverFinto(page);
+  await utenteRegistrato(page); // Anna, con il token nel browser
+  await page.goto("/campetti");
+  await expect(page.getByRole("article", { name: "Campo Testaccio" })).toBeVisible();
+
+  // I comandi solo sul campetto di Anna (Testaccio), non su quello di un altro utente
+  await expect(page.getByRole("button", { name: "Modifica Campo Testaccio" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Elimina Campo Testaccio" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Villa Pamphili — Playground$/ }).filter({ hasText: /Modifica|Elimina/ })).toHaveCount(0);
+
+  // Aggiunta: la finestra con il form; la posizione con un clic sulla mappa schematica (il pin provvisorio compare), poi il nome
+  await page.getByRole("button", { name: /Aggiungi un campetto/ }).click();
+  const finestra = page.getByRole("dialog", { name: "Nuovo campetto" });
+  await expect(finestra.getByLabel("Latitudine")).toHaveValue("");
+  await finestra.locator("[role='presentation']").click({ position: { x: 120, y: 90 } });
+  await expect(finestra.getByLabel("Latitudine")).not.toHaveValue("");
+  await expect(finestra.getByLabel("Longitudine")).not.toHaveValue("");
+  await expect(finestra.getByText("Posizione scelta")).toHaveCount(1);
+  await finestra.getByLabel("Nome *").fill("Campo nuovo");
+  await finestra.getByLabel("Illuminato").check();
+  await finestra.getByRole("button", { name: "Salva il campetto" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByRole("article", { name: "Campo nuovo" })).toBeVisible();
+  expect(scritture).toHaveLength(1);
+  expect(scritture[0]).toMatchObject({ metodo: "POST", id: null, corpo: { nome: "Campo nuovo", illuminato: true, superficie: "Asfalto", canestri: 2 } });
+  const corpoPost = scritture[0].corpo as { lat: number; lng: number; versione?: number };
+  expect(typeof corpoPost.lat).toBe("number"); // la posizione del clic, come numeri
+  expect(Math.abs(corpoPost.lat - 41.88)).toBeLessThan(0.1); // dentro l'inquadratura di Roma
+  expect(corpoPost).not.toHaveProperty("versione"); // la prima versione la decide il server
+  await expect(page.getByText("3 campetti · intorno a Roma")).toBeVisible();
+
+  // Modifica: lo stesso form precompilato; la PUT porta la versione letta (0) e la card prende il nome nuovo
+  await page.getByRole("button", { name: "Modifica Campo nuovo" }).click();
+  const modifica = page.getByRole("dialog", { name: "Modifica campetto Campo nuovo" });
+  await expect(modifica.getByLabel("Nome *")).toHaveValue("Campo nuovo");
+  await modifica.getByLabel("Nome *").fill("Campo nuovo di Anna");
+  await modifica.getByRole("button", { name: "Salva il campetto" }).click();
+  await expect(page.getByRole("article", { name: "Campo nuovo di Anna" })).toBeVisible();
+  await expect(page.getByRole("article", { name: "Campo nuovo", exact: true })).toHaveCount(0);
+  expect(scritture[1]).toMatchObject({ metodo: "PUT", id: "n0000000-0000-4000-8000-000000000001", corpo: { nome: "Campo nuovo di Anna", versione: 0 } });
+
+  // Eliminazione: «Annulla» non manda niente; «Conferma» manda la DELETE e la card sparisce
+  await page.getByRole("button", { name: "Elimina Campo nuovo di Anna" }).click();
+  const conferma = page.getByRole("alertdialog", { name: "Eliminare il campetto?" });
+  await expect(conferma).toContainText("Verrà eliminato il campetto «Campo nuovo di Anna»");
+  await conferma.getByRole("button", { name: "Annulla" }).click();
+  await expect(page.getByRole("article", { name: "Campo nuovo di Anna" })).toBeVisible();
+  expect(scritture).toHaveLength(2);
+  await page.getByRole("button", { name: "Elimina Campo nuovo di Anna" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Conferma" }).click();
+  await expect(page.getByRole("article", { name: "Campo nuovo di Anna" })).toHaveCount(0);
+  expect(scritture[2]).toMatchObject({ metodo: "DELETE", id: "n0000000-0000-4000-8000-000000000001" });
+  await expect(page.getByText("2 campetti · intorno a Roma")).toBeVisible();
+  await expect(page.getByRole("alert")).toHaveCount(0);
   expect(nonPreviste).toEqual([]);
 });
 
