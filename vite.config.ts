@@ -30,6 +30,11 @@ export const CSP = [
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  // Oltre alle VITE_*, al browser arriva MAPS_API_KEY: la chiave della Maps Static API tiene il nome che ha nella shell di Gabriele e
+  // tra le variabili di Render, senza una copia rinominata da tenere allineata. Sta nella pagina per costruzione (ogni chiave di
+  // Google Maps lato browser lo è): la proteggono le restrizioni per referrer e per API impostate in Google Cloud Console, non il
+  // nome (README, «Campetti»). Nessuna altra variabile senza prefisso entra nella build
+  envPrefix: ["VITE_", "MAPS_API_KEY"],
   // In sviluppo /api va al backend Spring (porta 3001, o BACKEND_URL: i test con il backend vero ne avviano uno su un'altra porta):
   // per il browser è la stessa origine. Il proxy però riscrive l'Host, quindi il backend controlla lo stesso l'Origin: la porta di
   // Vite deve essere tra le sue cors.origins. Anche /actuator/health, che l'app chiama all'avvio per svegliare il backend

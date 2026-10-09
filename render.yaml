@@ -19,6 +19,11 @@ services:
       - key: NODE_VERSION
         value: "22"
       # VITE_API_URL resta vuota: le chiamate a /api passano dalla rewrite qui sotto, sulla stessa origine
+      # Chiave della Maps Static API (mappa dei Campetti), richiesta da Render alla creazione (sync: false = non sta nel repository).
+      # Entra nella build e quindi nella pagina: va limitata in Google Cloud Console ai referrer del sito e alla sola Maps Static API
+      # (README, «Campetti»). Vuota o assente, la pagina mostra la mappa schematica
+      - key: MAPS_API_KEY
+        sync: false
     routes:
       # URL del backend. Le richieste a /api/* vanno al backend attraverso Render: per il browser pagina e API
       # hanno la stessa origine, quindi il cookie di refresh (SameSite=Lax) funziona senza modifiche
