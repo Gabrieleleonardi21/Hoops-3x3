@@ -42,6 +42,16 @@ async function apri() {
   await screen.findByRole("article", { name: ruffini.nome });
 }
 
+/** Una promessa che si risolve quando lo decide il test: il server finto che risponde in ritardo */
+function differita<T>() {
+  let risolvi: (valore: T) => void = () => {};
+  const promessa = new Promise<T>((ok) => { risolvi = ok; });
+  return { promessa, risolvi };
+}
+
+/** L'immagine della Maps Static API, se è nella pagina */
+const immagineDiGoogle = () => document.querySelector("img[src*='maps.googleapis.com']");
+
 beforeEach(() => {
   vi.resetAllMocks();
   // Senza chiave: la chiave vera, se è nella shell di chi lancia i test, non deve finire nell'URL dell'immagine (né nei log)
@@ -102,6 +112,24 @@ describe("CampettiPage: all'apertura i campetti intorno a Roma, dall'API", () =>
     const aggiungi = screen.getByRole("button", { name: /Aggiungi un campetto/ });
     expect(aggiungi).toHaveProperty("disabled", false);
     expect(aggiungi.getAttribute("title")).toBeNull();
+  });
+
+  it("con la chiave, l'immagine di Google (a pagamento) non si monta finché l'elenco non è arrivato, né se la ricerca fallisce", async () => {
+    vi.stubEnv("MAPS_API_KEY", "chiave-finta");
+    const lenta = differita<Campetto[]>();
+    api.list.mockReturnValueOnce(lenta.promessa);
+    render(<CampettiPage />);
+    expect(screen.getByText(/Sto cercando i campetti/)).toBeTruthy();
+    expect(immagineDiGoogle()).toBeNull();
+    lenta.risolvi(CAMPETTI_DEMO);
+    await screen.findByRole("article", { name: ruffini.nome });
+    expect(immagineDiGoogle()).not.toBeNull();
+    cleanup();
+    api.list.mockRejectedValueOnce(new ApiError(503, "Servizio non disponibile"));
+    useCampettiStore.setState({ campetti: null, ricerca: null, errore: null, inCorso: false, epoca: 0, svuotata: 0 });
+    render(<CampettiPage />);
+    await screen.findByRole("alert");
+    expect(immagineDiGoogle()).toBeNull();
   });
 
   it("in fondo l'attribuzione dei dati: Pick-Roll con il link all'app e OpenStreetMap per le coordinate di esempio (D5)", async () => {
@@ -180,6 +208,24 @@ describe("CampettiPage: la posizione dell'utente (D7, D9)", () => {
     expect(ordineCard()).toEqual(perDistanza.map((c) => c.nome));
     for (const c of CAMPETTI_DEMO) expect(within(card(c)).getByText(fmtDistanza(distanzaKm(UTENTE, c)))).toBeTruthy();
     expect(screen.getByText("La tua posizione")).toBeTruthy(); // il pin dell'utente sulla mappa
+  });
+
+  it("mentre arriva l'elenco intorno all'utente, etichetta, distanze e ordine restano quelli dell'elenco di Roma ancora mostrato", async () => {
+    geolocalizzazione("concessa");
+    await apri();
+    const lenta = differita<Campetto[]>();
+    api.list.mockReturnValueOnce(lenta.promessa);
+    fireEvent.click(screen.getByRole("button", { name: "Usa la mia posizione" }));
+    await waitFor(() => expect(api.list).toHaveBeenLastCalledWith({ ...UTENTE, raggioKm: 20 }));
+    expect(screen.getByRole("status").textContent).toContain("Posizione trovata");
+    // L'elenco è ancora quello di Roma: l'etichetta non dice «intorno a te», niente distanze, ordine per città e nome
+    expect(screen.getByText(/6 campetti · intorno a Roma/)).toBeTruthy();
+    expect(screen.queryByText(/\d (km|m)$/)).toBeNull();
+    expect(ordineCard()[0]).toBe(vanchiglia.nome);
+    lenta.risolvi(CAMPETTI_DEMO);
+    await screen.findByText(/6 campetti · intorno a te/);
+    expect(ordineCard()[0]).toBe(giardini.nome);
+    expect(within(card(giardini)).getByText(fmtDistanza(distanzaKm(UTENTE, giardini)))).toBeTruthy();
   });
 
   it("posizione negata: il messaggio lo dice, niente distanze, ordine per città e nome, e il server non riceve nessuna posizione", async () => {

@@ -15,7 +15,9 @@ import type { Campetto, CampettoInput } from "../types/campetto";
 interface CampettiState {
   /** null = non ancora caricati, o l'ultima ricerca è fallita (`errore` dice perché): un caricamento fallito non è una zona vuota */
   campetti: Campetto[] | null;
-  /** La ricerca di cui `campetti` è il risultato, o quella in corso; null all'inizio e dopo svuota */
+  /** La ricerca a cui appartiene ciò che si mostra: l'elenco (`campetti`) o l'errore. Non quella in volo: mentre arriva l'elenco
+   *  intorno all'utente la pagina mostra ancora quello di Roma, e da qui legge «intorno a Roma» e nessuna distanza. null all'inizio e
+   *  dopo svuota */
   ricerca: RicercaCampetti | null;
   /** Perché l'ultima ricerca non è riuscita; null se è andata bene o è in corso */
   errore: string | null;
@@ -53,19 +55,19 @@ export const useCampettiStore = create<CampettiState>((set, get) => {
   /** Chiede al server i campetti della ricerca, senza guardare la cache */
   const scarica = (ricerca: RicercaCampetti) => {
     const epoca = get().epoca + 1;
-    // L'elenco di prima resta finché non arriva quello nuovo: la mappa non si svuota a ogni ricerca
-    set({ ricerca, errore: null, inCorso: true, epoca });
+    // L'elenco di prima resta, con la sua ricerca, finché non arriva quello nuovo: la mappa non si svuota a ogni ricerca
+    set({ errore: null, inCorso: true, epoca });
     const vecchia = () => get().epoca !== epoca;
     return campettiApi.list(ricerca)
       .then((campetti) => {
         if (vecchia()) return;
-        set({ campetti, inCorso: false });
+        set({ campetti, ricerca, inCorso: false });
       })
       // I campetti vanno a null, non restano quelli di prima: erano i risultati di un'altra ricerca, e sotto l'errore direbbero una
       // cosa falsa. La pagina mostra il motivo con «Riprova»
       .catch((e) => {
         if (vecchia()) return;
-        set({ campetti: null, errore: testoErrore(e), inCorso: false });
+        set({ campetti: null, ricerca, errore: testoErrore(e), inCorso: false });
       });
   };
 

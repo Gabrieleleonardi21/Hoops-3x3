@@ -43,6 +43,14 @@ function passa(c: Campetto, f: Filtro): boolean {
 /** Per città e poi per nome, come il server senza posizione: i filtri non cambiano l'ordine ma lo si rende esplicito */
 const perCittaENome = (a: Campetto, b: Campetto) => a.citta.localeCompare(b.citta) || a.nome.localeCompare(b.nome);
 
+/** Dove si è cercato l'elenco mostrato, accanto al conteggio: dalla ricerca dello store, non da quella che la pagina sta aspettando */
+function dove(r: RicercaCampetti | null): string {
+  if (!r) return "";
+  if ("q" in r) return "in tutta Italia";
+  if (r.lat === ROMA.lat && r.lng === ROMA.lng) return "intorno a Roma";
+  return "intorno a te";
+}
+
 /** Il titolo di «Aggiungi un campetto» disattivato per l'ospite: come l'anagrafe, l'ospite consulta soltanto */
 const SOLO_CON_ACCOUNT = "Serve un account: l'Ospite consulta i campetti in sola lettura.";
 
@@ -60,7 +68,7 @@ export function CampettiPage() {
   // invece di perdersi, come nell'anagrafe
   const avvisi = useInvio();
   const posizioneUtente = usePosizione();
-  const { campetti, errore, carica, svuotata, save, update, remove } = useCampettiStore();
+  const { campetti, ricerca: ricercaMostrata, errore, carica, svuotata, save, update, remove } = useCampettiStore();
 
   useEffect(() => {
     const timer = setTimeout(() => setTesto(q.trim()), ATTESA_RICERCA_MS);
@@ -98,14 +106,19 @@ export function CampettiPage() {
   };
   const elimina = (c: Campetto) => avvisi.esegui(() => remove(c.id), "Eliminazione non riuscita");
 
+  /** La posizione dell'utente, solo se l'elenco mostrato è stato cercato con lei: distanze e ordine per distanza valgono per quell'elenco,
+   *  non per quello vecchio di Roma mentre arriva il nuovo (le due ricerche con la posizione la portano come lat/lng) */
+  let posizioneElenco: Coordinate | null = null;
+  if (posizione && ricercaMostrata && ricercaMostrata.lat === posizione.lat && ricercaMostrata.lng === posizione.lng) posizioneElenco = posizione;
+
   /** I risultati filtrati nel browser e ordinati: per distanza con la posizione, altrimenti per città e nome */
   const lista = useMemo(() => {
     const filtrati = (campetti ?? [])
       .filter((c) => [...filtri].every((f) => passa(c, f)))
       .filter((c) => !stato || c.stato === stato);
-    if (posizione) return filtrati.sort((a, b) => distanzaKm(posizione, a) - distanzaKm(posizione, b));
+    if (posizioneElenco) return filtrati.sort((a, b) => distanzaKm(posizioneElenco, a) - distanzaKm(posizioneElenco, b));
     return filtrati.sort(perCittaENome);
-  }, [campetti, filtri, stato, posizione]);
+  }, [campetti, filtri, stato, posizioneElenco]);
 
   const toggle = (f: Filtro) => setFiltri((prev) => {
     const next = new Set(prev);
@@ -113,11 +126,6 @@ export function CampettiPage() {
     else next.add(f);
     return next;
   });
-
-  /** Dove si sta cercando, accanto al conteggio */
-  let dove = "intorno a Roma";
-  if (testo) dove = "in tutta Italia";
-  else if (posizione) dove = "intorno a te";
 
   /** L'elenco: il caricamento, l'errore con «Riprova», nessun risultato (dal server o dai filtri) o le card. Un caricamento non riuscito
    *  non si mostra come zona vuota */
@@ -130,7 +138,7 @@ export function CampettiPage() {
     if (lista.length === 0) return <p className="text-[13px] text-chalk-muted">Nessun campetto con questi filtri.</p>;
     return lista.map((c) => {
       let distanza: number | undefined;
-      if (posizione) distanza = distanzaKm(posizione, c);
+      if (posizioneElenco) distanza = distanzaKm(posizioneElenco, c);
       // I comandi solo a chi può (autore o ADMIN): senza, la card non li mostra
       let onModifica: (() => void) | undefined;
       let onElimina: (() => void) | undefined;
@@ -189,15 +197,16 @@ export function CampettiPage() {
       <div className="grid gap-4 lg:grid-cols-[5fr_6fr]">
         {/* Elenco */}
         <div className="flex flex-col gap-2">
-          <span className="kicker">{conteggio(lista.length, "campetto", "campetti")} · {dove}</span>
+          <span className="kicker">{conteggio(lista.length, "campetto", "campetti")} · {dove(ricercaMostrata)}</span>
           {avvisi.errore && <p className="m-0 text-[13px] font-semibold text-loss" role="alert">{avvisi.errore}</p>}
           {elenco()}
           {aggiungi}
         </div>
 
-        {/* Mappa */}
+        {/* Mappa: solo con l'elenco arrivato. Montata prima, con la chiave chiederebbe a Google (a pagamento) un'immagine di Roma allo
+            zoom 12 che nessuno guarda, sostituita subito dall'inquadratura dei campetti */}
         <div className="lg:sticky lg:top-[7.5rem]">
-          <MappaCampetti campetti={lista} selezionato={sel} onSeleziona={setSel} posizioneUtente={posizione ?? undefined} />
+          {campetti !== null && <MappaCampetti campetti={lista} selezionato={sel} onSeleziona={setSel} posizioneUtente={posizione ?? undefined} />}
         </div>
       </div>
 

@@ -47,7 +47,7 @@ describe("useCampettiStore: la cache dei campetti dell'ultima ricerca", () => {
     expect(store.getState()).toMatchObject({ campetti: CAMPETTI_DEMO, ricerca: ROMA, errore: null, inCorso: false });
   });
 
-  it("mentre il server risponde `inCorso` è true e i campetti di prima restano: la mappa non si svuota a ogni ricerca", async () => {
+  it("mentre il server risponde `inCorso` è true e i campetti di prima restano, con la loro ricerca: la mappa non si svuota e l'etichetta non mente", async () => {
     const { api, store } = await nuovoStore();
     await store.getState().carica(ROMA);
     const lenta = differita<Campetto[]>();
@@ -55,10 +55,22 @@ describe("useCampettiStore: la cache dei campetti dell'ultima ricerca", () => {
     const ricerca = store.getState().carica(DORA);
     expect(store.getState().inCorso).toBe(true);
     expect(store.getState().campetti).toEqual(CAMPETTI_DEMO);
-    expect(store.getState().ricerca).toEqual(DORA); // la ricerca è già quella nuova: la pagina sa che cosa sta aspettando
+    // `ricerca` è quella dell'elenco mostrato (Roma), non quella in volo: la pagina ci legge «intorno a Roma» e le distanze giuste
+    expect(store.getState().ricerca).toEqual(ROMA);
     lenta.risolvi([dora]);
     await ricerca;
-    expect(store.getState()).toMatchObject({ campetti: [dora], inCorso: false });
+    expect(store.getState()).toMatchObject({ campetti: [dora], ricerca: DORA, inCorso: false });
+  });
+
+  it("la prima ricerca: `ricerca` resta null finché l'elenco non arriva", async () => {
+    const { api, store } = await nuovoStore();
+    const lenta = differita<Campetto[]>();
+    api.list.mockReturnValueOnce(lenta.promessa);
+    const ricerca = store.getState().carica(ROMA);
+    expect(store.getState()).toMatchObject({ ricerca: null, inCorso: true });
+    lenta.risolvi(CAMPETTI_DEMO);
+    await ricerca;
+    expect(store.getState().ricerca).toEqual(ROMA);
   });
 
   it("la stessa ricerca già caricata non richiama il server (tornando sulla pagina si rilegge la cache)", async () => {
