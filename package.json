@@ -15,10 +15,10 @@
     "check": "npm run lint && npm run typecheck && npm test"
   },
   "dependencies": {
-    "@hookform/resolvers": "^3.9.0",
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0",
-    "react-hook-form": "^7.89.0",
+    "@hookform/resolvers": "^5.9.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-hook-form": "^7.54.0",
     "react-router-dom": "^7.0.0",
     "tailwind-merge": "^3.7.0",
     "zod": "^3.24.0",
