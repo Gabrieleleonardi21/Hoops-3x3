@@ -1,9 +1,13 @@
 /** La card di un campetto nell'elenco: nome, indirizzo, distanza (solo con la posizione dell'utente), le caratteristiche scritte (D6:
- *  mai solo un'icona o un colore) e i due link a Google Maps, che non hanno bisogno della chiave. Nome, indirizzo e note li scrivono
+ *  mai solo un'icona o un colore), i due link a Google Maps, che non hanno bisogno della chiave, e per chi può (autore o ADMIN: la
+ *  pagina passa `onModifica` e `onElimina` solo a loro) «Modifica» ed «Elimina», con la conferma. Nome, indirizzo e note li scrivono
  *  gli utenti: qui sono testo React, mai HTML. */
+import { useConfermaPerdita } from "../../hooks/useConfermaPerdita";
 import type { Campetto } from "../../types/campetto";
 import { fmtDistanza } from "../../utils/geo";
+import { perditaCampetto } from "../../utils/testi";
 import { Badge } from "../ui/Badge";
+import { Button } from "../ui/Button";
 
 interface Props {
   campetto: Campetto;
@@ -11,6 +15,12 @@ interface Props {
   onSeleziona: (id: string) => void;
   /** Distanza dall'utente in km; assente senza la posizione */
   distanzaKm?: number;
+  /** Apre il form precompilato; assente per chi non può modificare */
+  onModifica?: () => void;
+  /** Elimina il campetto, dopo la conferma; assente per chi non può */
+  onElimina?: () => void;
+  /** Un'altra eliminazione è in corso: «Elimina» aspetta (un secondo invio verrebbe scartato senza dire niente) */
+  eliminazioneInCorso?: boolean;
 }
 
 /** Le caratteristiche di un campetto come etichette di testo, nell'ordine in cui si leggono: superficie e canestri sempre, poi quelle
@@ -30,7 +40,8 @@ function etichette(c: Campetto): string[] {
 /** Posizione nel formato `lat,lng` dei link di Google Maps: sono numeri validati da zod, non testo dell'utente */
 const punto = (c: Campetto) => `${c.lat},${c.lng}`;
 
-export function CampettoCard({ campetto: c, selezionato, onSeleziona, distanzaKm }: Props) {
+export function CampettoCard({ campetto: c, selezionato, onSeleziona, distanzaKm, onModifica, onElimina, eliminazioneInCorso = false }: Props) {
+  const { chiedi, finestra } = useConfermaPerdita(() => perditaCampetto(c.nome));
   let bordo = "border-asphalt-700 hover:border-asphalt-500";
   if (selezionato) bordo = "border-court shadow-[inset_3px_0_0_var(--color-court)]";
   let luogo = c.citta;
@@ -57,7 +68,16 @@ export function CampettoCard({ campetto: c, selezionato, onSeleziona, distanzaKm
           className="text-court hover:underline underline-offset-4">Indicazioni</a>
         <a href={`https://www.google.com/maps/search/?api=1&query=${punto(c)}`} target="_blank" rel="noopener noreferrer"
           className="text-chalk-muted hover:text-chalk hover:underline underline-offset-4">Apri in Google Maps</a>
+        {/* I comandi, a destra, con il nome nell'etichetta accessibile: nell'elenco ci sono molte card con lo stesso «Modifica» */}
+        {onModifica && (
+          <Button variant="link" className="ml-auto" onClick={onModifica} aria-label={`Modifica ${c.nome}`}>Modifica</Button>
+        )}
+        {onElimina && (
+          <Button variant="link" className="text-loss" onClick={() => chiedi("Eliminare il campetto?", onElimina)} disabled={eliminazioneInCorso}
+            aria-label={`Elimina ${c.nome}`}>Elimina</Button>
+        )}
       </div>
+      {finestra}
     </article>
   );
 }

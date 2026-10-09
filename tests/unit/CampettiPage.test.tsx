@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { CampettiPage } from "../../src/pages/CampettiPage";
+import { useAppStore } from "../../src/stores/useAppStore";
 import { useCampettiStore } from "../../src/stores/useCampettiStore";
 import { campettiApi } from "../../src/services/campettiApi";
 import { ApiError } from "../../src/services/api";
@@ -43,12 +44,18 @@ async function apri() {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  // Senza chiave: la chiave vera, se è nella shell di chi lancia i test, non deve finire nell'URL dell'immagine (né nei log)
+  vi.stubEnv("MAPS_API_KEY", "");
   api.list.mockResolvedValue(CAMPETTI_DEMO);
-  useCampettiStore.setState({ campetti: null, ricerca: null, errore: null, inCorso: false, epoca: 0 });
+  useCampettiStore.setState({ campetti: null, ricerca: null, errore: null, inCorso: false, epoca: 0, svuotata: 0 });
+  // La pagina sta dentro RequireAuth: c'è sempre un utente. Anna, registrata (i permessi sono in campettiGestione.test)
+  useAppStore.setState({ user: { id: "u1", name: "Anna", email: "anna@example.it", ruolo: "USER", guest: false }, tappe: [] });
 });
 
 afterEach(() => {
   cleanup(); // senza le globali di Vitest, Testing Library non smonta da sola
+  vi.unstubAllEnvs();
+  useAppStore.getState().reset();
   Object.defineProperty(navigator, "geolocation", { value: undefined, configurable: true });
 });
 
@@ -90,11 +97,11 @@ describe("CampettiPage: all'apertura i campetti intorno a Roma, dall'API", () =>
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
-  it("«Aggiungi un campetto» resta disattivato, con il titolo che dice che è in arrivo (Task 4)", async () => {
+  it("«Aggiungi un campetto» è attivo per chi ha un account e non dice più «In arrivo» (T5.5)", async () => {
     await apri();
     const aggiungi = screen.getByRole("button", { name: /Aggiungi un campetto/ });
-    expect(aggiungi).toHaveProperty("disabled", true);
-    expect(aggiungi.getAttribute("title")).toBe("In arrivo");
+    expect(aggiungi).toHaveProperty("disabled", false);
+    expect(aggiungi.getAttribute("title")).toBeNull();
   });
 
   it("in fondo l'attribuzione dei dati: Pick-Roll con il link all'app e OpenStreetMap per le coordinate di esempio (D5)", async () => {

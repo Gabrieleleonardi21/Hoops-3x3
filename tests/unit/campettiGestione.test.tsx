@@ -258,9 +258,8 @@ describe("CampettoForm in modifica: precompilato dal campetto, manda la versione
 
 /* ── La pagina: chi può fare che cosa (D3) ── */
 
-// Chi guarda la pagina: Anna (autrice di un campetto), un altro registrato, un ADMIN, l'ospite
+// Chi guarda la pagina: Anna (autrice di un campetto; sugli altri due è «un altro registrato»), un ADMIN, l'ospite
 const anna: User = { id: "u1", name: "Anna", email: "anna@example.it", ruolo: "USER", guest: false };
-const altro: User = { id: "u2", name: "Luca", email: "luca@example.it", ruolo: "USER", guest: false };
 const admin: User = { id: "u9", name: "Responsabile", email: "admin@example.it", ruolo: "ADMIN", guest: false };
 const ospite: User = { name: "Ospite", guest: true };
 
