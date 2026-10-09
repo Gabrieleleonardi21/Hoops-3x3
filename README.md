@@ -25,7 +25,7 @@ App web per la gestione di un circuito italiano di basket 3x3: tornei, gironi, s
 - **Conferme** — ciò che fa perdere dati (eliminare una tappa, una lega, il tabellone o una voce dell'anagrafe; rifare il sorteggio o cambiare squadre e gironi con dei risultati; rimuovere una squadra con dati o un giocatore con statistiche; riaprire una tappa pubblicata) apre una finestra che dice che cosa si perde
 - **Home dashboard** — tappa in corso, classifica live, ultimo risultato registrato, prossime partite e leader
 - **Profilo giocatore** — pagina `/giocatore/:id` con statistiche aggregate, andamento punti, storico tappe e ultime partite
-- **Campetti** — ricerca campi con filtri e mappa schematica (*dati di esempio*, dichiarati da un avviso in cima alla pagina; senza persistenza)
+- **Campetti** — i campi da streetball del circuito, dal server (lettura pubblica): all'apertura quelli intorno a Roma, con «Usa la mia posizione» quelli intorno a chi guarda, con le distanze e in ordine di distanza; la casella di ricerca cerca per nome o città su tutta l'Italia; filtri (illuminato, coperto, 4 canestri, gratuito, retine, fontanella, stato del campo) sui risultati; mappa della Maps Static API con i pin disegnati dall'app (senza chiave, o se l'immagine non carica, una mappa schematica), «Indicazioni» e «Apri in Google Maps» per ogni campo (vedi «Campetti»). Aggiunta e modifica dei campetti in arrivo
 - **Ospite** — accesso senza account per provare l'app: la lega sta nel `localStorage` del browser, anagrafe e archivio sono in sola lettura, la pubblicazione e il Coach AI non sono disponibili
 - **Sessione persistente** — login e dati salvati nel browser; la sessione si rinnova da sola e «Esci» la chiude anche sul server; gli ospiti hanno dati locali separati
 
@@ -58,7 +58,14 @@ App web per la gestione di un circuito italiano di basket 3x3: tornei, gironi, s
 
 Il backend serve per registrazione e accesso, leghe e tappe sul server, anagrafe, archivio e Coach AI. Senza, l'app parte lo stesso e l'Ospite può creare e giocare una tappa nel browser; le pagine che leggono dal server mostrano l'errore con «Riprova». I test unitari e quelli end-to-end di `tests/e2e/` non hanno bisogno del backend; quelli di `tests/e2e-backend/` lo avviano da soli (vedi «Test end-to-end con il backend vero»).
 
-**Variabili d'ambiente.** Il frontend ne ha una sola, facoltativa: `VITE_API_URL` (origine del backend, letta in `src/services/api.ts` e tipizzata in `src/vite-env.d.ts`; modello in `.env.example`, da copiare in `.env`, che git ignora). Vuota va bene in sviluppo, dove il proxy di Vite (`vite.config.ts`) inoltra `/api` e `/actuator/health` a `http://localhost:3001`, e dietro un reverse proxy sulla stessa origine; va impostata solo se il backend ha un'origine propria (vedi sotto). La chiave del Coach AI non è qui ma nell'`env.properties` del backend.
+**Variabili d'ambiente.** Il frontend ne ha due, tutte e due facoltative (tipizzate in `src/vite-env.d.ts`; modello in `.env.example`, da copiare in `.env`, che git ignora):
+
+| Variabile | A che cosa serve |
+|---|---|
+| `VITE_API_URL` | Origine del backend, letta in `src/services/api.ts`. Vuota va bene in sviluppo, dove il proxy di Vite (`vite.config.ts`) inoltra `/api` e `/actuator/health` a `http://localhost:3001`, e dietro un reverse proxy sulla stessa origine; va impostata solo se il backend ha un'origine propria (vedi sotto) |
+| `MAPS_API_KEY` | Chiave della Maps Static API per la mappa dei Campetti (`src/components/campetti/MappaCampetti.tsx`). Senza, la pagina mostra la mappa schematica. Tiene il nome che ha nella shell e su Render: `vite.config.ts` la espone al browser con `envPrefix` (vedi «Campetti», anche per le restrizioni da impostare in Google Cloud) |
+
+La chiave del Coach AI non è qui ma nell'`env.properties` del backend.
 
 ## Avvio rapido
 
@@ -92,7 +99,7 @@ Il sito statico inoltra `/api/*` al backend con una regola di rewrite: per il br
 
 1. Su Render collega l'account GitHub con l'accesso a tutti e due i repository (`Hoops-3x3` e `hoop3x3-backend`).
 2. Dashboard → **New → Blueprint** → scegli questo repository: Render legge `render.yaml` e mostra i tre servizi.
-3. Compila i valori richiesti: `ADMIN_EMAIL` e `ADMIN_PASSWORD` (almeno 8 caratteri, diversa da `admin123`, altrimenti l'admin non viene creato) e, facoltativa, `GROQ_API_KEY` per il Coach AI. `JWT_SECRET` lo genera Render, i dati del database arrivano da soli.
+3. Compila i valori richiesti: `ADMIN_EMAIL` e `ADMIN_PASSWORD` (almeno 8 caratteri, diversa da `admin123`, altrimenti l'admin non viene creato) e, facoltative, `GROQ_API_KEY` per il Coach AI (backend) e `MAPS_API_KEY` per la mappa dei Campetti (frontend: senza, la mappa schematica; vedi «Campetti»). `JWT_SECRET` lo genera Render, i dati del database arrivano da soli.
 4. Al primo avvio il backend crea le tabelle con le migrazioni di Flyway (V1-V4: nessuno script da eseguire e nessuna variabile da impostare) e l'admin.
 5. Render considera il backend pronto quando `/actuator/health/liveness` risponde 200 (`healthCheckPath` in `render.yaml`): è la sonda che dice se il processo è vivo, e con quella Render riavvia un servizio che non risponde. Non si usa `/actuator/health` intero, che comprende il database: un database in pausa o lento farebbe riavviare a vuoto un backend sano. L'app, per svegliare il backend all'apertura, continua a chiamare `/actuator/health` (la rewrite del Blueprint).
 
@@ -151,6 +158,16 @@ GROQ_API_KEY=gsk_...
 
 Senza chiave il Coach risponde "non configurato" e il resto dell'app funziona normalmente. Il Coach è riservato agli utenti registrati: un ospite riceve in chat l'invito a creare un account e non parte nessuna chiamata. Strumenti, conferme, chiamate al backend e limiti del ciclo sono in [`docs/coach-ai-tool-calling.md`](docs/coach-ai-tool-calling.md).
 
+## Campetti
+
+La pagina `/campetti` legge i campi da streetball dal backend (`GET /api/campetti`, pubblico: funziona anche da Ospite) in due modi: intorno a un punto entro un raggio (`?lat=&lng=&raggioKm=`, al massimo 200 campetti, ordinati per distanza) e per testo su tutta l'Italia (`?q=`, cercato nel nome e nella città, ordinati per città e nome, o per distanza se c'è anche la posizione). All'apertura chiede i campetti intorno al centro di Roma (`41.9028, 12.4964`, 20 km); con «Usa la mia posizione» quelli intorno a chi guarda, con lo stesso raggio; la casella di ricerca manda il testo 300 ms dopo l'ultimo tasto, una richiesta per parola, e la risposta di una ricerca superata nel frattempo si scarta (`useCampettiStore`, con un'epoca come l'anagrafe). I filtri lavorano sui risultati, nel browser. I dati vengono da [Pick-Roll](https://pick-roll.com), con il permesso del proprietario (l'attribuzione è in fondo alla pagina); le coordinate dei sei campetti di esempio del seed sono i centroidi delle aree verdi di OpenStreetMap (© OpenStreetMap contributors, ODbL).
+
+**La mappa.** È un'immagine della [Maps Static API](https://developers.google.com/maps/documentation/maps-static) inquadrata sui soli campetti mostrati (`inquadra` in `src/utils/geo.ts`), con i pin disegnati dall'app sopra l'immagine (proiezione Web Mercator, `proietta`): nessuno script di Google nella pagina, quindi la Content-Security-Policy non cambia (`img-src https:` ammette già l'immagine). La chiave sta in `MAPS_API_KEY` (nella shell per `npm run dev`, tra le variabili del sito statico su Render) ed entra nella build, quindi nella pagina: è il modo in cui funziona ogni chiave di Google Maps usata dal browser, e la proteggono le restrizioni da impostare in [Google Cloud Console](https://console.cloud.google.com/google/maps-apis/credentials), non il segreto. Da impostare sulla chiave: **restrizione per referrer** (i soli siti ammessi: `https://hoop3x3.onrender.com/*` e, per lo sviluppo, `http://localhost:5173/*`), **restrizione per API** (solo «Maps Static API») e una **quota giornaliera** (la Static API ne regala 10.000 al mese). Per questo l'immagine non ha `referrerPolicy="no-referrer"`: la restrizione per referrer legge proprio il Referer, e la Referrer-Policy del sito (`strict-origin-when-cross-origin`) manda l'origine, che basta. Per verificare che la restrizione sia attiva: `curl` senza `Referer` all'URL dell'immagine risponde 403. **Senza chiave**, o se l'immagine non carica (rete, quota esaurita, restrizioni), la pagina mostra la mappa schematica di prima con gli stessi pin: tutto il resto funziona uguale. I test unitari e gli end-to-end girano senza chiave, e la chiave non va mai in un test, in un log o in un rapporto.
+
+**Privacy della posizione.** La posizione la chiede solo il pulsante «Usa la mia posizione», mai all'apertura della pagina (`usePosizione`: niente richiesta di permesso a chi non l'ha voluta), e resta nel browser: non entra nell'URL dell'immagine di Google (centro e zoom dipendono dai campetti; il segno dell'utente lo disegna l'app) e non si salva. Al nostro server arriva solo come centro della ricerca per raggio (`lat` e `lng` della query string di `GET /api/campetti`, che il server non registra): è ciò che serve per rispondere «i campetti intorno a te», e niente altro. Con il permesso negato o la posizione non disponibile la pagina lo dice e resta usabile, con i campetti in ordine di città e nome. «Indicazioni» e «Apri in Google Maps» sono link a Google Maps con le coordinate del campetto (senza chiave né posizione dell'utente), in una nuova scheda.
+
+**Se si aggiunge una risorsa esterna** (per esempio una mappa interattiva con lo script di Google, o le tile di un altro fornitore) vale quanto detto in «Deploy su Render» sulla Content-Security-Policy: la direttiva giusta va aggiornata in `render.yaml` e in `vite.config.ts`, e gli end-to-end su `vite preview` la provano prima del deploy.
+
 ## API REST
 
 Il contratto del backend (endpoint per endpoint, chi può chiamarlo, codici di stato) sta nella sezione «Endpoint» del README di [hoop3x3-backend](https://github.com/Gabrieleleonardi21/hoop3x3-backend), che la ricava dai test di accesso; i limiti (dimensioni, lunghezze, frequenza delle richieste) nelle sezioni «Limiti dell'API» e «Limiti di frequenza». Qui non si ripetono, per non farli divergere. Il frontend chiama il backend solo da `src/services/`, e ogni servizio ha il suo gruppo di endpoint:
@@ -162,6 +179,7 @@ Il contratto del backend (endpoint per endpoint, chi può chiamarlo, codici di s
 | `legheApi.ts` | `/api/leghe` (indice, nuova lega, import con le tappe), `/api/leghe/{id}` (dettaglio, rinomina, eliminazione), `/api/leghe/{id}/tappe` (nuova tappa), `/api/tappe/{id}` (salvataggio ed eliminazione di una tappa) |
 | `anagrafeApi.ts` | `/api/anagrafe/giocatori` e `/api/anagrafe/squadre` (lettura, creazione, modifica, eliminazione) |
 | `archivioApi.ts` | `/api/archivio` (elenco) e `/api/archivio/{tappaId}` (dettaglio, pubblicazione, ritiro) |
+| `campettiApi.ts` | `/api/campetti` (lettura pubblica per raggio o per testo, creazione) e `/api/campetti/{id}` (modifica, eliminazione) |
 | `aiService.ts` | `POST /api/coach/chat` (il Coach AI) |
 
 Non usa `GET /api/utenti` (solo ADMIN) né `GET /api/coach/status`: la chiave Groq mancante la scopre dal 503 della chat. Negli store e nelle pagine il client mostra all'utente il campo `message` delle risposte d'errore del backend (`testoErrore`), o «Errore <status>» se il corpo manca; la chat del Coach ha testi suoi (`errorMsg` in `useCoachAI.ts`) e riporta il `message` del backend solo per il 400.
@@ -183,6 +201,7 @@ src/
 │   ├── anagrafe/     # Giocatori e squadre
 │   ├── archivio/     # Storico tappe
 │   ├── auth/         # Login, registrazione e rotta riservata (RequireAuth)
+│   ├── campetti/     # Mappa (MappaCampetti), posizione dell'utente e card dei campetti
 │   ├── coach/        # Pannello Coach AI
 │   ├── gironi/       # Gestione gironi e classifiche
 │   ├── layout/       # Header (con navigazione), Hero e barra degli avvisi (SyncBanner)
@@ -194,15 +213,14 @@ src/
 │   ├── ui/           # Componenti base (Button, Input, Card, Badge, StatTile, Section, Modal, ConfirmDialog, Icon…)
 │   └── video/        # Video della tappa
 ├── coach/            # Coach AI: definizioni dei tool (toolDefs) ed esecutori (toolHandlers)
-├── constants/        # Regole, ruoli, tipi di evento
-├── data/             # Dati di esempio (campetti)
+├── constants/        # Regole, ruoli, tipi di evento, limiti del server
 ├── domain/           # Operazioni di tappa come funzioni pure (sorteggio, risultati, fasi dirette, conclusione)
 ├── hooks/            # Custom hooks
 ├── pages/            # Pagine dell'app
-├── services/         # Client HTTP (api.ts), servizi REST (leghe, anagrafe, archivio, auth) e AI
-├── stores/           # Store Zustand: stato globale (useAppStore, con memoriaBrowser e versioniTappe) e cache dell'anagrafe (useAnagrafeStore)
+├── services/         # Client HTTP (api.ts), servizi REST (leghe, anagrafe, archivio, campetti, auth) e AI
+├── stores/           # Store Zustand: stato globale (useAppStore, con memoriaBrowser e versioniTappe), cache dell'anagrafe (useAnagrafeStore) e dei campetti (useCampettiStore)
 ├── types/            # Definizioni TypeScript
-└── utils/            # Funzioni di utilità (gironi, classifica, ecc.)
+└── utils/            # Funzioni di utilità (gironi, classifica, geometria dei campetti in geo.ts, ecc.)
 ```
 
 ## Design system
