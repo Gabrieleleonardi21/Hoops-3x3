@@ -228,6 +228,25 @@ describe("CampettiPage: la posizione dell'utente (D7, D9)", () => {
     expect(within(card(giardini)).getByText(fmtDistanza(distanzaKm(UTENTE, giardini)))).toBeTruthy();
   });
 
+  it("una ricerca con la posizione in volo, e poi la posizione che fallisce: la risposta vecchia non sostituisce l'elenco di Roma", async () => {
+    // Prima richiesta concessa (la ricerca intorno a te parte e resta in volo), la seconda fallisce: torna Roma, già mostrata
+    let esito: (ok: PositionCallback, ko: PositionErrorCallback) => void = (ok) => ok({ coords: { latitude: UTENTE.lat, longitude: UTENTE.lng } } as GeolocationPosition);
+    Object.defineProperty(navigator, "geolocation", { value: { getCurrentPosition: (ok: PositionCallback, ko: PositionErrorCallback) => esito(ok, ko) }, configurable: true });
+    await apri();
+    const lenta = differita<Campetto[]>();
+    api.list.mockReturnValueOnce(lenta.promessa);
+    fireEvent.click(screen.getByRole("button", { name: "Usa la mia posizione" }));
+    await waitFor(() => expect(api.list).toHaveBeenLastCalledWith({ ...UTENTE, raggioKm: 20 }));
+    esito = (_ok, ko) => ko({ code: 1 } as GeolocationPositionError);
+    fireEvent.click(screen.getByRole("button", { name: "Usa la mia posizione" }));
+    expect(screen.getByRole("status").textContent).toContain("Posizione negata");
+    expect(screen.getByText(/6 campetti · intorno a Roma/)).toBeTruthy();
+    lenta.risolvi([dora]); // la risposta della ricerca intorno a un punto che non c'è più
+    await waitFor(() => expect(screen.getByText(/6 campetti · intorno a Roma/)).toBeTruthy());
+    expect(screen.queryByRole("article", { name: dora.nome })).not.toBeNull();
+    expect(screen.getAllByRole("article")).toHaveLength(6);
+  });
+
   it("posizione negata: il messaggio lo dice, niente distanze, ordine per città e nome, e il server non riceve nessuna posizione", async () => {
     geolocalizzazione("negata");
     await apri();

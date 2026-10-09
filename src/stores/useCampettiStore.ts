@@ -52,8 +52,13 @@ interface CampettiState {
 const stessaRicerca = (a: RicercaCampetti | null, b: RicercaCampetti) => JSON.stringify(a) === JSON.stringify(b);
 
 export const useCampettiStore = create<CampettiState>((set, get) => {
+  /** L'ultima ricerca che la pagina ha chiesto, mostrata o in volo: quella che un 409 deve ricaricare. Non è stato dello store (la
+   *  pagina non la legge): è la memoria di chi scrive, che in `ricerca` ha invece la ricerca mostrata */
+  let ultimaChiesta: RicercaCampetti | null = null;
+
   /** Chiede al server i campetti della ricerca, senza guardare la cache */
   const scarica = (ricerca: RicercaCampetti) => {
+    ultimaChiesta = ricerca;
     const epoca = get().epoca + 1;
     // L'elenco di prima resta, con la sua ricerca, finché non arriva quello nuovo: la mappa non si svuota a ogni ricerca
     set({ errore: null, inCorso: true, epoca });
@@ -87,7 +92,13 @@ export const useCampettiStore = create<CampettiState>((set, get) => {
 
     carica: (ricerca) => {
       const s = get();
-      if (s.campetti && !s.errore && stessaRicerca(s.ricerca, ricerca)) return Promise.resolve();
+      if (s.campetti && !s.errore && stessaRicerca(s.ricerca, ricerca)) {
+        // È già quella mostrata. Se nel frattempo era partita un'altra ricerca (la casella scritta e poi svuotata), la sua risposta
+        // non deve sostituire l'elenco: si invalida con un'epoca nuova, così si scarta quando arriva
+        ultimaChiesta = ricerca;
+        if (s.inCorso) set({ epoca: s.epoca + 1, inCorso: false });
+        return Promise.resolve();
+      }
       return scarica(ricerca);
     },
 
@@ -102,9 +113,9 @@ export const useCampettiStore = create<CampettiState>((set, get) => {
         aggiorna((campetti) => replaceById(campetti, rec));
       } catch (e) {
         if (!(e instanceof ApiError) || e.status !== 409) throw e;
-        // Vale il campetto del server: si rilegge la ricerca corrente (se la pagina ne ha una), poi il motivo a chi ha salvato
-        const { ricerca } = get();
-        if (ricerca) await scarica(ricerca);
+        // Vale il campetto del server: si rilegge l'ultima ricerca chiesta (quella che l'utente sta guardando, anche se la risposta
+        // non è ancora arrivata), poi il motivo a chi ha salvato
+        if (ultimaChiesta) await scarica(ultimaChiesta);
         throw new ApiError(409, campettoModificatoAltrove(input.nome));
       }
     },
@@ -114,6 +125,9 @@ export const useCampettiStore = create<CampettiState>((set, get) => {
       aggiorna((campetti) => campetti.filter((c) => c.id !== id));
     },
 
-    svuota: () => set((s) => ({ campetti: null, ricerca: null, errore: null, inCorso: false, epoca: s.epoca + 1, svuotata: s.svuotata + 1 })),
+    svuota: () => {
+      ultimaChiesta = null;
+      set((s) => ({ campetti: null, ricerca: null, errore: null, inCorso: false, epoca: s.epoca + 1, svuotata: s.svuotata + 1 }));
+    },
   };
 });
