@@ -33,15 +33,15 @@ della mappa (80%) e il fondo dei modali (`asphalt-950` all'80%).
 | `chalk-dim`        | `#8C8780` | note e testo terziario (5.4:1 su 950, 4.6:1 su 800)         |
 | `court`            | `#FF6A1F` | accento: CTA, nav attiva, rank #1, focus ring (6.8:1)      |
 | `court-hover`      | `#FF7F3F` | hover del primario                                         |
-| `gold`             | `#F5C542` | 1° posto e miglior valore (leader, trofeo, barra più alta della sparkline), finale e campione del tabellone, stelle dei Campetti |
+| `gold`             | `#F5C542` | 1° posto e miglior valore (leader, trofeo, barra più alta della sparkline), finale e campione del tabellone |
 | `win`              | `#3DD68C` | vittoria, DIFF positivo (10.4:1)                           |
 | `loss`             | `#FF4D4D` | sconfitta, DIFF negativo, errori (5.9:1)                   |
 | `live`             | `#FF3B3B` | badge LIVE con puntino pulsante                            |
 | `navy`             | `#17203A` | solo l'overlay della hero (colore del logo, brand esistente) |
 
 Testo su `court`: usare `asphalt-950` (6.8:1), mai bianco (2.9:1).
-Il colore non è mai l'unico indicatore: W/L come lettera, DIFF con segno +/−, chi vince nel tabellone e nella `ScoreCard` con la
-spunta e il testo «vince» per i lettori di schermo.
+Il colore non è mai l'unico indicatore: W/L come lettera, DIFF con segno +/−, chi vince nel tabellone con la spunta; nella
+`ScoreCard` il vincitore ha solo il testo «vince» per i lettori di schermo.
 
 ## Tipografia
 
@@ -127,7 +127,7 @@ Lo stato reale, con dove è garantito:
   `tests/e2e/area-di-tocco.spec.ts` a 390px di larghezza.
 - **Movimento.** `prefers-reduced-motion` azzera transizioni e animazioni (`index.css`).
 - **Icone e colore.** Icone SVG, mai emoji (`ui/Icon.tsx`); il colore non è l'unico indicatore (W/L come lettera, DIFF con segno;
-  chi vince nel tabellone e nella `ScoreCard` ha la spunta e il testo «vince» solo per i lettori di schermo). I test di `Bracket` e
+  chi vince nel tabellone ha la spunta, e nella `ScoreCard` il testo «vince» solo per i lettori di schermo). I test di `Bracket` e
   `ScoreCard` leggono ruoli e testi, non le classi di stile: un solo test per componente fissa i token di colore, come documentazione.
 - **Tabelle.** `<th scope="col">` e `<caption className="sr-only">` (visibile solo ai lettori di schermo, che con quello annunciano la
   tabella) in tutte e sette: classifiche (`StandingsTable`, classifica del circuito), statistiche di stagione, tabellini
