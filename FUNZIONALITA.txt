@@ -406,9 +406,9 @@ Statistiche stagione (tab dedicato)
 13. CAMPETTI
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-I campi da streetball del circuito, condivisi tra tutti gli utenti e letti dal
-server (GET /api/campetti, anche da Ospite). I dati vengono da Pick-Roll, con
-il permesso del proprietario (attribuzione in fondo alla pagina).
+I campi da streetball del circuito, condivisi tra tutti gli utenti e letti
+dal server (GET /api/campetti, anche da Ospite). I dati vengono da Pick-Roll,
+con il permesso del proprietario (attribuzione in fondo alla pagina).
 
 - Ricerca: all'apertura i campetti entro 20 km dal centro di Roma; la
   casella cerca per nome o città su tutta l'Italia (una richiesta 300 ms
@@ -659,8 +659,8 @@ utenti registrati: un ospite riceve in chat l'invito a creare un account.
 - Conferme: ciò che fa perdere qualcosa apre una finestra che lo dice, con i
   numeri veri («Verranno eliminati il sorteggio e 12 risultati.»). Sempre:
   elimina tappa, elimina bracket, elimina lega, eliminazioni dell'anagrafe
-  (dalla card e dalla scheda), elimina campetto. Quando si perde qualcosa: nuovo sorteggio e
-  cambio del numero di gironi o delle squadre con dei risultati registrati;
+  (dalla card e dalla scheda), elimina campetto. Quando si perde qualcosa:
+  nuovo sorteggio e cambio del numero di gironi o delle squadre con dei risultati registrati;
   rimuovi squadra con un nome scritto, dei giocatori o dei risultati nella
   tappa (una squadra appena aggiunta si toglie subito); la X di un giocatore
   che ha statistiche in qualche partita (dice in quante: spariscono da

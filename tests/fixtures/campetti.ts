@@ -1,5 +1,5 @@
-/** I sei campetti di Torino del contratto della fase 5, uguali al seed demo del backend (`seed/campetti-torino.json`): solo per i test
- *  e lo sviluppo, finché la pagina non legge dall'API. Coordinate dai centroidi delle aree verdi di OpenStreetMap (© OpenStreetMap
+/** I sei campetti di Torino del contratto della fase 5, uguali al seed demo del backend (`seed/campetti-torino.json`): dati dei test
+ *  unitari e degli e2e con il server finto. La pagina li legge dall'API, come nell'app; qui sono la risposta finta. Coordinate dai centroidi delle aree verdi di OpenStreetMap (© OpenStreetMap
  *  contributors, ODbL), lette il 9 ottobre 2026: sono il centro del parco, non il campo, da verificare sul posto. Id, autore e
  *  tempi sono fissi perché i test li confrontino alla lettera. */
 import type { Campetto } from "../../src/types/campetto";

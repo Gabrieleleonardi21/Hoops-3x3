@@ -203,7 +203,7 @@ src/
 │   ├── anagrafe/     # Giocatori e squadre
 │   ├── archivio/     # Storico tappe
 │   ├── auth/         # Login, registrazione e rotta riservata (RequireAuth)
-│   ├── campetti/     # Mappa (MappaCampetti), posizione dell'utente e card dei campetti
+│   ├── campetti/     # Mappa (MappaCampetti), posizione dell'utente, card, form (CampettoForm) e finestra di un campetto (CampettoModal)
 │   ├── coach/        # Pannello Coach AI
 │   ├── gironi/       # Gestione gironi e classifiche
 │   ├── layout/       # Header (con navigazione), Hero e barra degli avvisi (SyncBanner)
