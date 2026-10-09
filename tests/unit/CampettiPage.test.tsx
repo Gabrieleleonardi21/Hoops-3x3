@@ -228,6 +228,16 @@ describe("CampettiPage: la posizione dell'utente (D7, D9)", () => {
     expect(within(card(giardini)).getByText(fmtDistanza(distanzaKm(UTENTE, giardini)))).toBeTruthy();
   });
 
+  it("con la posizione concessa il messaggio dice dove va e dove no: non a Google, non salvata, al server solo come centro della ricerca", async () => {
+    geolocalizzazione("concessa");
+    await apri();
+    fireEvent.click(screen.getByRole("button", { name: "Usa la mia posizione" }));
+    await screen.findByText(/6 campetti · intorno a te/);
+    const messaggio = screen.getByRole("status").textContent ?? "";
+    expect(messaggio).toContain("La posizione non va a Google e non si salva: al server arriva solo come centro della ricerca.");
+    expect(messaggio).not.toMatch(/resta nel browser/);
+  });
+
   it("una ricerca con la posizione in volo, e poi la posizione che fallisce: la risposta vecchia non sostituisce l'elenco di Roma", async () => {
     // Prima richiesta concessa (la ricerca intorno a te parte e resta in volo), la seconda fallisce: torna Roma, già mostrata
     let esito: (ok: PositionCallback, ko: PositionErrorCallback) => void = (ok) => ok({ coords: { latitude: UTENTE.lat, longitude: UTENTE.lng } } as GeolocationPosition);
