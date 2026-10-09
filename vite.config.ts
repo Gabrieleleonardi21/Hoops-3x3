@@ -33,7 +33,8 @@ export default defineConfig({
   // Oltre alle VITE_*, al browser arriva MAPS_API_KEY: la chiave della Maps Static API tiene il nome che ha nella shell di Gabriele e
   // tra le variabili di Render, senza una copia rinominata da tenere allineata. Sta nella pagina per costruzione (ogni chiave di
   // Google Maps lato browser lo è): la proteggono le restrizioni per referrer e per API impostate in Google Cloud Console, non il
-  // nome (README, «Campetti»). Nessuna altra variabile senza prefisso entra nella build
+  // nome (README, «Campetti»). Nessuna altra variabile senza prefisso entra nella build. Il prefisso vale per ogni nome che ci inizia:
+  // una futura chiave riservata al server (per esempio MAPS_API_KEY_SERVER) finirebbe nel browser, quindi quella va chiamata senza prefisso
   envPrefix: ["VITE_", "MAPS_API_KEY"],
   // In sviluppo /api va al backend Spring (porta 3001, o BACKEND_URL: i test con il backend vero ne avviano uno su un'altra porta):
   // per il browser è la stessa origine. Il proxy però riscrive l'Host, quindi il backend controlla lo stesso l'Origin: la porta di
