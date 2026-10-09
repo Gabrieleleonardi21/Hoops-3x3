@@ -1,15 +1,28 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { CampettoForm } from "../../src/components/campetti/CampettoForm";
+import { CampettiPage } from "../../src/pages/CampettiPage";
+import { useAppStore } from "../../src/stores/useAppStore";
+import { useCampettiStore } from "../../src/stores/useCampettiStore";
+import { campettiApi } from "../../src/services/campettiApi";
 import { ApiError } from "../../src/services/api";
 import { coordinateDa, inquadra, proietta } from "../../src/utils/geo";
 import { MAX_CITTA_CAMPETTO, MAX_INDIRIZZO_CAMPETTO, MAX_NOME_CAMPETTO, MAX_NOTE_CAMPETTO } from "../../src/constants/rules";
-import type { CampettoInput } from "../../src/types/campetto";
+import type { Campetto, CampettoInput } from "../../src/types/campetto";
+import type { User } from "../../src/types";
 import { CAMPETTI_DEMO } from "../fixtures/campetti";
 
-/* T5.5: il form con cui si aggiunge o si corregge un campetto (D6), con i tre modi di dare la posizione (D4). La mappa dentro il form è
- * quella schematica (senza chiave): la chiave vera, se è nella shell, non deve entrare nei test. */
+/* T5.5: il form con cui si aggiunge o si corregge un campetto (D6), con i tre modi di dare la posizione (D4), e la pagina che lo apre:
+ * chi aggiunge (ogni registrato), chi modifica ed elimina (autore o ADMIN, D3), l'ospite in sola lettura. La mappa è quella
+ * schematica (senza chiave): la chiave vera, se è nella shell, non deve entrare nei test. */
+
+// Si sostituisce solo la rete: store e pagina sono quelli veri
+vi.mock("../../src/services/campettiApi", async (importOriginal) => {
+  const reale = await importOriginal<typeof import("../../src/services/campettiApi")>();
+  return { ...reale, campettiApi: { list: vi.fn(), create: vi.fn(), update: vi.fn(), remove: vi.fn() } };
+});
+const api = vi.mocked(campettiApi);
 
 /** Il lato del sistema di coordinate della mappa (`size=640x640` della Maps Static API) */
 const LATO = 640;
@@ -240,5 +253,165 @@ describe("CampettoForm in modifica: precompilato dal campetto, manda la versione
     render(<CampettoForm campetto={ruffini} campetti={CAMPETTI_DEMO} onSave={async () => {}} onAnnulla={() => {}} />);
     expect(screen.queryByRole("button", { name: ruffini.nome })).toBeNull();
     expect(screen.getByRole("button", { name: CAMPETTI_DEMO[1].nome })).toBeTruthy();
+  });
+});
+
+/* ── La pagina: chi può fare che cosa (D3) ── */
+
+// Chi guarda la pagina: Anna (autrice di un campetto), un altro registrato, un ADMIN, l'ospite
+const anna: User = { id: "u1", name: "Anna", email: "anna@example.it", ruolo: "USER", guest: false };
+const altro: User = { id: "u2", name: "Luca", email: "luca@example.it", ruolo: "USER", guest: false };
+const admin: User = { id: "u9", name: "Responsabile", email: "admin@example.it", ruolo: "ADMIN", guest: false };
+const ospite: User = { name: "Ospite", guest: true };
+
+/** Tre campetti: uno di Anna, uno di Luca e uno il cui autore non esiste più (autoreId null, come li vede anche l'ospite) */
+const diAnna: Campetto = { ...CAMPETTI_DEMO[0], autore: "Anna", autoreId: "u1" };
+const diLuca: Campetto = { ...CAMPETTI_DEMO[1], autore: "Luca", autoreId: "u2" };
+const orfano: Campetto = { ...CAMPETTI_DEMO[2], autore: "", autoreId: null };
+const TRE = [diAnna, diLuca, orfano];
+
+const card = (c: Campetto) => screen.getByRole("article", { name: c.nome });
+const comando = (verbo: "Modifica" | "Elimina", c: Campetto) => within(card(c)).queryByRole("button", { name: `${verbo} ${c.nome}` });
+const aggiungi = () => screen.getByRole("button", { name: /Aggiungi un campetto/ }) as HTMLButtonElement;
+
+/** Apre la pagina per `user` e aspetta le card */
+async function apriPagina(user: User) {
+  useAppStore.setState({ user, tappe: [] });
+  render(<CampettiPage />);
+  await screen.findByRole("article", { name: diAnna.nome });
+}
+
+describe("CampettiPage: «Aggiungi», «Modifica» ed «Elimina» secondo chi guarda (D3)", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    api.list.mockResolvedValue(TRE);
+    useCampettiStore.setState({ campetti: null, ricerca: null, errore: null, inCorso: false, epoca: 0, svuotata: 0 });
+  });
+
+  afterEach(() => {
+    useAppStore.getState().reset();
+  });
+
+  it("l'autrice vede «Modifica» ed «Elimina» solo sul suo campetto; «Aggiungi un campetto» è attivo", async () => {
+    await apriPagina(anna);
+    expect(aggiungi().disabled).toBe(false);
+    expect(comando("Modifica", diAnna)).not.toBeNull();
+    expect(comando("Elimina", diAnna)).not.toBeNull();
+    for (const c of [diLuca, orfano]) {
+      expect(comando("Modifica", c), c.nome).toBeNull();
+      expect(comando("Elimina", c), c.nome).toBeNull();
+    }
+  });
+
+  it("l'ADMIN li vede su tutti, anche sul campetto il cui autore non esiste più", async () => {
+    await apriPagina(admin);
+    for (const c of TRE) {
+      expect(comando("Modifica", c), c.nome).not.toBeNull();
+      expect(comando("Elimina", c), c.nome).not.toBeNull();
+    }
+  });
+
+  it("l'ospite non li vede, e «Aggiungi un campetto» è disattivato con il titolo che dice perché", async () => {
+    await apriPagina(ospite);
+    for (const c of TRE) {
+      expect(comando("Modifica", c), c.nome).toBeNull();
+      expect(comando("Elimina", c), c.nome).toBeNull();
+    }
+    expect(aggiungi().disabled).toBe(true);
+    expect(aggiungi().title).toMatch(/account/i);
+    expect(aggiungi().title).not.toBe("In arrivo");
+  });
+
+  it("«Aggiungi un campetto» apre la finestra con il form; il salvataggio crea sul server, chiude la finestra e la card compare", async () => {
+    await apriPagina(anna);
+    fireEvent.click(aggiungi());
+    const finestra = screen.getByRole("dialog", { name: "Nuovo campetto" });
+    fireEvent.change(within(finestra).getByLabelText("Nome *"), { target: { value: "Campo nuovo" } });
+    fireEvent.change(within(finestra).getByLabelText("Latitudine"), { target: { value: "45.07" } });
+    fireEvent.change(within(finestra).getByLabelText("Longitudine"), { target: { value: "7.68" } });
+    api.create.mockResolvedValue({ ...diAnna, id: "nuovo", nome: "Campo nuovo", lat: 45.07, lng: 7.68, versione: 0 });
+    fireEvent.click(within(finestra).getByRole("button", { name: "Salva il campetto" }));
+    await screen.findByRole("article", { name: "Campo nuovo" });
+    expect(api.create).toHaveBeenCalledWith(expect.objectContaining({ nome: "Campo nuovo", lat: 45.07, lng: 7.68 }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getAllByRole("article")).toHaveLength(4);
+  });
+
+  it("se il server rifiuta la creazione la finestra resta, con il motivo e i dati", async () => {
+    await apriPagina(anna);
+    fireEvent.click(aggiungi());
+    const finestra = screen.getByRole("dialog", { name: "Nuovo campetto" });
+    fireEvent.change(within(finestra).getByLabelText("Nome *"), { target: { value: "Campo nuovo" } });
+    fireEvent.change(within(finestra).getByLabelText("Latitudine"), { target: { value: "45.07" } });
+    fireEvent.change(within(finestra).getByLabelText("Longitudine"), { target: { value: "7.68" } });
+    api.create.mockRejectedValue(new ApiError(503, "Servizio non disponibile"));
+    fireEvent.click(within(finestra).getByRole("button", { name: "Salva il campetto" }));
+    expect((await within(finestra).findByRole("alert")).textContent).toBe("Salvataggio non riuscito: Servizio non disponibile");
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    expect((within(finestra).getByLabelText("Nome *") as HTMLInputElement).value).toBe("Campo nuovo");
+  });
+
+  it("«Modifica» apre lo stesso form precompilato; il salvataggio manda la versione e la card si aggiorna", async () => {
+    await apriPagina(anna);
+    fireEvent.click(comando("Modifica", diAnna)!);
+    const finestra = screen.getByRole("dialog", { name: `Modifica campetto ${diAnna.nome}` });
+    expect((within(finestra).getByLabelText("Nome *") as HTMLInputElement).value).toBe(diAnna.nome);
+    fireEvent.change(within(finestra).getByLabelText("Nome *"), { target: { value: "Ruffini rinnovato" } });
+    api.update.mockResolvedValue({ ...diAnna, nome: "Ruffini rinnovato", versione: 1 });
+    fireEvent.click(within(finestra).getByRole("button", { name: "Salva il campetto" }));
+    await screen.findByRole("article", { name: "Ruffini rinnovato" });
+    expect(api.update).toHaveBeenCalledWith(diAnna.id, expect.objectContaining({ nome: "Ruffini rinnovato", versione: diAnna.versione }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("article", { name: diAnna.nome })).toBeNull();
+  });
+
+  it("409 in modifica: la finestra si chiude, l'elenco si ricarica dal server e l'avviso dice «modificato da un altro dispositivo»", async () => {
+    await apriPagina(anna);
+    fireEvent.click(comando("Modifica", diAnna)!);
+    const finestra = screen.getByRole("dialog");
+    fireEvent.change(within(finestra).getByLabelText("Nome *"), { target: { value: "Il mio nome" } });
+    api.update.mockRejectedValue(new ApiError(409, "I dati sono stati modificati o eliminati da un'altra richiesta: ricarica"));
+    api.list.mockResolvedValue([{ ...diAnna, nome: "Nome dell'altro", versione: 1 }, diLuca, orfano]);
+    fireEvent.click(within(finestra).getByRole("button", { name: "Salva il campetto" }));
+    await screen.findByRole("article", { name: "Nome dell'altro" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    const avviso = screen.getByRole("alert");
+    expect(avviso.textContent).toContain("«Il mio nome» è stato modificato da un altro dispositivo");
+    expect(api.list).toHaveBeenCalledTimes(2);
+  });
+
+  it("«Elimina» chiede conferma dicendo che cosa si perde; «Conferma» elimina sul server e la card sparisce, «Annulla» non fa niente", async () => {
+    await apriPagina(anna);
+    fireEvent.click(comando("Elimina", diAnna)!);
+    let conferma = screen.getByRole("alertdialog", { name: "Eliminare il campetto?" });
+    expect(conferma.textContent).toContain(`Verrà eliminato il campetto «${diAnna.nome}»`);
+    fireEvent.click(within(conferma).getByRole("button", { name: "Annulla" }));
+    expect(api.remove).not.toHaveBeenCalled();
+    expect(card(diAnna)).toBeTruthy();
+
+    api.remove.mockResolvedValue(undefined);
+    fireEvent.click(comando("Elimina", diAnna)!);
+    conferma = screen.getByRole("alertdialog", { name: "Eliminare il campetto?" });
+    fireEvent.click(within(conferma).getByRole("button", { name: "Conferma" }));
+    await waitFor(() => expect(screen.queryByRole("article", { name: diAnna.nome })).toBeNull());
+    expect(api.remove).toHaveBeenCalledWith(diAnna.id);
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("se il server rifiuta l'eliminazione il motivo compare nella pagina e la card resta", async () => {
+    await apriPagina(admin);
+    api.remove.mockRejectedValue(new ApiError(403, "Non puoi eliminare questo campetto"));
+    fireEvent.click(comando("Elimina", diLuca)!);
+    fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Conferma" }));
+    expect((await screen.findByRole("alert")).textContent).toBe("Eliminazione non riuscita: Non puoi eliminare questo campetto");
+    expect(card(diLuca)).toBeTruthy();
+  });
+
+  it("la cache svuotata sotto la pagina aperta (accesso o uscita in un'altra scheda) si riscarica da sola", async () => {
+    await apriPagina(anna);
+    expect(api.list).toHaveBeenCalledTimes(1);
+    useCampettiStore.getState().svuota();
+    await waitFor(() => expect(api.list).toHaveBeenCalledTimes(2));
+    await screen.findByRole("article", { name: diAnna.nome });
   });
 });
