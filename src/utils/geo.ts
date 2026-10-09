@@ -12,12 +12,14 @@ export interface Inquadratura { centro: Coordinate; zoom: number }
 const RAGGIO_TERRA_KM = 6371;
 /** Lato di un tile della mappa (px): la base della proiezione a zoom 0 */
 const TILE = 256;
-/** Zoom della Maps Static API tra cui si sceglie l'inquadratura: sotto 1 il mondo è più piccolo dell'immagine, sopra 18 non si
- *  distingue più niente in un campetto */
+/** Zoom minimo della Maps Static API per l'inquadratura: sotto 1 il mondo è più piccolo dell'immagine */
 const ZOOM_MIN = 1;
-const ZOOM_MAX = 18;
-/** Zoom per un solo campetto: il quartiere intorno, non il campo da solo */
+/** Zoom massimo dell'inquadratura, quello di un solo campetto: il quartiere intorno, non il campo da solo. Vale anche per più
+ *  campetti vicini o nello stesso punto: più stretto non si distinguerebbe niente, e i pin si sovrappongono lo stesso */
 const ZOOM_SINGOLO = 15;
+/** Latitudine oltre cui Web Mercator diverge (tan φ → ∞): la proiezione si ferma qui, come le mappe di Google. Nessun campetto sta
+ *  ai poli, ma una coordinata estrema (lat ±90, ammessa dal contratto) non deve dare Infinity o NaN nei pixel */
+const LAT_MAX = 85.0511;
 /** Frazione del lato lasciata libera da ogni bordo quando si inquadrano più punti: i pin ai margini resterebbero tagliati (il pin è
  *  disegnato sopra il punto) */
 const MARGINE = 0.1;
@@ -34,12 +36,15 @@ export function distanzaKm(a: Coordinate, b: Coordinate): number {
   const dLat = inRadianti(b.lat - a.lat);
   const dLng = inRadianti(b.lng - a.lng);
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(inRadianti(a.lat)) * Math.cos(inRadianti(b.lat)) * Math.sin(dLng / 2) ** 2;
-  return 2 * RAGGIO_TERRA_KM * Math.asin(Math.sqrt(h));
+  // Agli antipodi h vale 1, e per arrotondamento può superarlo di un'inezia: asin di un numero sopra 1 è NaN
+  return 2 * RAGGIO_TERRA_KM * Math.asin(Math.sqrt(Math.min(1, h)));
 }
 
-/** La distanza per l'utente: in metri sotto il chilometro («850 m»), altrimenti con un decimale e la virgola italiana («1,2 km») */
+/** La distanza per l'utente: in metri sotto il chilometro («850 m»), altrimenti con un decimale e la virgola italiana («1,2 km»).
+ *  Si arrotonda ai metri prima di decidere: 999,6 m sono 1000, e si scrivono «1,0 km», non «1000 m» */
 export function fmtDistanza(km: number): string {
-  if (km < 1) return `${Math.round(km * 1000)} m`;
+  const metri = Math.round(km * 1000);
+  if (metri < 1000) return `${metri} m`;
   return `${fmtMedia(km)} km`;
 }
 
@@ -49,7 +54,7 @@ const mondo = (zoom: number) => TILE * 2 ** zoom;
 /** Coordinate del mondo (px, origine in alto a sinistra: lng −180, lat +85) di un punto a uno zoom. Web Mercator:
  *  x = (λ + 180) / 360 · mondo, y = (1 − ln(tan φ + sec φ) / π) / 2 · mondo. */
 function nelMondo(lat: number, lng: number, zoom: number): Punto {
-  const fi = inRadianti(lat);
+  const fi = inRadianti(Math.max(-LAT_MAX, Math.min(LAT_MAX, lat)));
   return {
     x: ((lng + 180) / 360) * mondo(zoom),
     y: ((1 - Math.log(Math.tan(fi) + 1 / Math.cos(fi)) / Math.PI) / 2) * mondo(zoom),
@@ -77,8 +82,9 @@ export function coordinateDa(x: number, y: number, centro: Coordinate, zoom: num
 }
 
 /** Centro e zoom che contengono tutti i punti in un'immagine quadrata di lato `dimensione`: il centro è quello del riquadro dei
- *  punti; lo zoom è il più grande intero, tra ZOOM_MIN e ZOOM_MAX, con cui tutti i punti stanno dentro il margine. Senza punti
- *  Roma allo zoom 12; con un solo punto (o tutti nello stesso posto il riquadro non ha misura) lo zoom del quartiere. */
+ *  punti; lo zoom è il più grande intero, tra ZOOM_MIN e ZOOM_SINGOLO, con cui tutti i punti stanno dentro il margine. Senza punti
+ *  Roma allo zoom 12; con un solo punto, o con più punti così vicini da stare tutti nel margine anche a ZOOM_SINGOLO, lo zoom del
+ *  quartiere. */
 export function inquadra(punti: Coordinate[], dimensione: number): Inquadratura {
   if (punti.length === 0) return { centro: ROMA, zoom: ZOOM_ROMA };
   if (punti.length === 1) return { centro: punti[0], zoom: ZOOM_SINGOLO };
@@ -91,7 +97,7 @@ export function inquadra(punti: Coordinate[], dimensione: number): Inquadratura 
     return x >= bordo && x <= dimensione - bordo && y >= bordo && y <= dimensione - bordo;
   };
   // Dal più vicino al più lontano: il primo zoom che li contiene tutti è il massimo possibile
-  for (let zoom = ZOOM_MAX; zoom > ZOOM_MIN; zoom--) {
+  for (let zoom = ZOOM_SINGOLO; zoom > ZOOM_MIN; zoom--) {
     if (punti.every((p) => dentro(p, zoom))) return { centro, zoom };
   }
   return { centro, zoom: ZOOM_MIN };
