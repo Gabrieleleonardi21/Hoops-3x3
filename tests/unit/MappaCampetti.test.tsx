@@ -24,7 +24,8 @@ function senzaChiave(props: Partial<Parameters<typeof MappaCampetti>[0]> = {}) {
 }
 
 const immagine = () => screen.queryByRole("img", { name: /mappa/i }) as HTMLImageElement | null;
-const griglia = () => document.querySelector("svg[aria-hidden='true']");
+/** La griglia schematica è l'unico svg in 100×100 unità (le icone dei pin sono in 24×24) */
+const griglia = () => document.querySelector("svg[viewBox='0 0 100 100']");
 /** Il livello che riceve i clic sulla mappa (contiene immagine o griglia e i pin): è `presentation` perché raccoglie gli eventi dei figli */
 const livelloClic = () => document.querySelector("[role='presentation']") as HTMLElement;
 
