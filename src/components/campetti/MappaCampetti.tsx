@@ -23,6 +23,9 @@ interface Props {
   posizioneUtente?: Coordinate;
   /** Un clic sulla mappa fuori dai pin, con le coordinate del punto (per dare la posizione a un campetto nuovo, D4) */
   onClicMappa?: (punto: Coordinate) => void;
+  /** La posizione scelta per il campetto che si sta compilando (form): un pin non cliccabile, del colore d'accento. Non entra
+   *  nell'inquadratura, che segue solo i campetti: altrimenti ogni clic sposterebbe la mappa sotto il puntatore */
+  pinProvvisorio?: Coordinate;
 }
 
 /** L'URL dell'immagine: niente `markers` (i pin li disegna l'app, e Google non deve sapere dove sono i campetti né l'utente) */
@@ -48,7 +51,15 @@ function Griglia() {
   );
 }
 
-export function MappaCampetti({ campetti, selezionato, onSeleziona, posizioneUtente, onClicMappa }: Props) {
+/** Il punto in pixel se cade nell'immagine, altrimenti null: un segno fuori sarebbe nascosto dall'overflow ma letto dal lettore di schermo */
+function seDentro(punto: Coordinate | undefined, centro: Coordinate, zoom: number): { x: number; y: number } | null {
+  if (!punto) return null;
+  const p = proietta(punto.lat, punto.lng, centro, zoom, LATO);
+  if (p.x < 0 || p.x > LATO || p.y < 0 || p.y > LATO) return null;
+  return p;
+}
+
+export function MappaCampetti({ campetti, selezionato, onSeleziona, posizioneUtente, onClicMappa, pinProvvisorio }: Props) {
   // Letta a ogni render e non una volta per modulo: nei test cambia da un caso all'altro (vi.stubEnv)
   const chiave = import.meta.env.MAPS_API_KEY ?? "";
   // L'URL la cui immagine non ha caricato: con un'inquadratura nuova (altri campetti) l'URL cambia e si riprova da sé
@@ -58,13 +69,10 @@ export function MappaCampetti({ campetti, selezionato, onSeleziona, posizioneUte
   if (chiave) url = urlImmagine(centro, zoom, chiave);
   const conImmagine = url !== null && url !== urlRotto;
 
-  // Il segno dell'utente solo se cade nell'immagine: l'inquadratura segue i campetti, e un utente lontano (Roma, con i campetti
-  // di Torino) finirebbe fuori, nascosto dall'overflow ma letto dal lettore di schermo
-  let segnoUtente: { x: number; y: number } | null = null;
-  if (posizioneUtente) {
-    const p = proietta(posizioneUtente.lat, posizioneUtente.lng, centro, zoom, LATO);
-    if (p.x >= 0 && p.x <= LATO && p.y >= 0 && p.y <= LATO) segnoUtente = p;
-  }
+  // Il segno dell'utente e il pin provvisorio solo se cadono nell'immagine: l'inquadratura segue i campetti, e un utente lontano
+  // (Roma, con i campetti di Torino) finirebbe fuori
+  const segnoUtente = seDentro(posizioneUtente, centro, zoom);
+  const provvisorio = seDentro(pinProvvisorio, centro, zoom);
 
   /** Un clic sul livello della mappa: i clic sui pin (pulsanti) hanno il loro gestore e qui non contano. Il punto cliccato si riporta
    *  dai pixel dello schermo al sistema 640 con il rettangolo disegnato (la mappa nella pagina non è larga 640) */
@@ -106,6 +114,12 @@ export function MappaCampetti({ campetti, selezionato, onSeleziona, posizioneUte
           </button>
         );
       })}
+      {provvisorio && (
+        <span className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full text-court" style={posizione(provvisorio.x, provvisorio.y)}>
+          <Icon name="pin" size={32} fill="var(--color-court)" className="text-asphalt-950" />
+          <span className="sr-only">Posizione scelta</span>
+        </span>
+      )}
       {segnoUtente && (
         <span className="pointer-events-none absolute flex h-4 w-4 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-chalk/40"
           style={posizione(segnoUtente.x, segnoUtente.y)}>

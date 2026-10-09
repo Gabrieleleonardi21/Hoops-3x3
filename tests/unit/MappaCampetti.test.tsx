@@ -125,6 +125,22 @@ describe("MappaCampetti: il pin dell'utente lo disegna l'app", () => {
   });
 });
 
+describe("MappaCampetti: il pin provvisorio del form (T5.5)", () => {
+  it("con `pinProvvisorio` c'è un segno non cliccabile «Posizione scelta» dove dice `proietta`; fuori dall'inquadratura non c'è", () => {
+    senzaChiave({ pinProvvisorio: UTENTE });
+    const testo = screen.getByText("Posizione scelta");
+    expect(testo.closest("button")).toBeNull();
+    const { centro, zoom } = inquadra(CAMPETTI_DEMO, LATO);
+    const { x, y } = proietta(UTENTE.lat, UTENTE.lng, centro, zoom, LATO);
+    const segno = testo.closest("[style]") as HTMLElement;
+    expect(segno.style.left).toBe(`${(x / LATO) * 100}%`);
+    expect(segno.style.top).toBe(`${(y / LATO) * 100}%`);
+    cleanup();
+    senzaChiave({ pinProvvisorio: { lat: 41.9028, lng: 12.4964 } }); // Roma, con i campetti di Torino: l'inquadratura non lo segue
+    expect(screen.queryByText("Posizione scelta")).toBeNull();
+  });
+});
+
 describe("MappaCampetti: un clic sulla mappa (non su un pin) dà le coordinate del punto, con `coordinateDa`", () => {
   /** La mappa è disegnata a 320×320 px nella pagina (metà del sistema 640): il clic si riporta nel sistema 640 con il rettangolo */
   function simulaClic(clientX: number, clientY: number) {

@@ -145,6 +145,18 @@ export function voceAnagrafeModificataAltrove(cosa: string, nome: string): strin
     + "Le modifiche scritte qui non sono state salvate: se servono ancora, riscrivile con «Modifica».";
 }
 
+/** Un campetto salvato con una versione vecchia: un altro dispositivo l'ha modificato nel frattempo (409). Vale il campetto del server:
+ *  l'elenco si ricarica e lo mostra, e ciò che era scritto non è stato salvato (salvarlo sopra cancellerebbe il lavoro dell'altro) */
+export function campettoModificatoAltrove(nome: string): string {
+  return `Il campetto «${nome}» è stato modificato da un altro dispositivo: l'elenco mostra ora la versione salvata sul server. `
+    + "Le modifiche scritte qui non sono state salvate: se servono ancora, riscrivile con «Modifica».";
+}
+
+/** I campetti sono condivisi: eliminarne uno lo toglie dalla mappa per tutti */
+export function perditaCampetto(nome: string): string {
+  return `Verrà eliminato il campetto «${nome}»: sparirà dalla mappa per tutti.`;
+}
+
 /** L'eliminazione di una tappa non è riuscita perché un altro dispositivo l'ha salvata nello stesso istante: la tappa resta */
 export function eliminazioneTappaInConflitto(nome: string): string {
   return `La tappa «${nome}» non è stata eliminata: un altro dispositivo l'ha modificata nello stesso momento. `

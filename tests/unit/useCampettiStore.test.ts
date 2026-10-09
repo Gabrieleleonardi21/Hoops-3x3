@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import type { Campetto } from "../../src/types/campetto";
-import { CAMPETTI_DEMO } from "../fixtures/campetti";
+import { CAMPETTI_DEMO, TS_DEMO } from "../fixtures/campetti";
 
 // Si sostituisce solo la rete (campettiApi): la logica di cache ed epoca dello store è quella vera
 vi.mock("../../src/services/campettiApi", async (importOriginal) => {
@@ -133,5 +133,124 @@ describe("useCampettiStore: la cache dei campetti dell'ultima ricerca", () => {
     api.list.mockRejectedValueOnce(new TypeError("x is not iterable"));
     await store.getState().carica(ROMA);
     expect(store.getState().errore).toBe("errore imprevisto");
+  });
+});
+
+/** Ciò che il form manda per Ruffini (i soli campi compilabili), con la versione del campetto */
+const { id: _id, tipo: _tipo, autore: _autore, autoreId: _autoreId, ts: _ts, ...inputRuffini } = ruffini;
+
+describe("useCampettiStore: le scritture (T5.5) aggiornano server ed elenco", () => {
+  it("save crea il campetto sul server e lo mette in testa all'elenco corrente", async () => {
+    const { api, store } = await nuovoStore();
+    await store.getState().carica(ROMA);
+    const nuovo: Campetto = { ...ruffini, id: "nuovo", nome: "Campo nuovo", versione: 0 };
+    api.create.mockResolvedValue(nuovo);
+    await store.getState().save(inputRuffini);
+    expect(api.create).toHaveBeenCalledWith(inputRuffini);
+    expect(store.getState().campetti?.map((c) => c.id)).toEqual(["nuovo", ...CAMPETTI_DEMO.map((c) => c.id)]);
+  });
+
+  it("save con l'elenco non caricato (o in errore) non crea un elenco parziale: lo porterà la prossima ricerca", async () => {
+    const { api, store } = await nuovoStore();
+    api.create.mockResolvedValue({ ...ruffini, id: "nuovo" });
+    await store.getState().save(inputRuffini);
+    expect(store.getState().campetti).toBeNull();
+  });
+
+  it("save: il rifiuto del server passa a chi chiama e l'elenco non cambia", async () => {
+    const { api, store, ApiError } = await nuovoStore();
+    await store.getState().carica(ROMA);
+    api.create.mockRejectedValueOnce(new ApiError(400, "Il campo «nome» è obbligatorio"));
+    await expect(store.getState().save(inputRuffini)).rejects.toMatchObject({ status: 400 });
+    expect(store.getState().campetti).toEqual(CAMPETTI_DEMO);
+  });
+
+  it("update manda id e campi (con la versione) e sostituisce il campetto con quello restituito dal server", async () => {
+    const { api, store } = await nuovoStore();
+    await store.getState().carica(ROMA);
+    const dalServer: Campetto = { ...ruffini, nome: "Parco Ruffini — Campo 3", versione: 1, ts: TS_DEMO + 1 };
+    api.update.mockResolvedValue(dalServer);
+    await store.getState().update(ruffini.id, { ...inputRuffini, nome: "Parco Ruffini — Campo 3" });
+    expect(api.update).toHaveBeenCalledWith(ruffini.id, { ...inputRuffini, nome: "Parco Ruffini — Campo 3", versione: 0 });
+    expect(store.getState().campetti?.[0]).toEqual(dalServer);
+    expect(store.getState().campetti).toHaveLength(6);
+  });
+
+  it("update con 409 (modificato da un altro dispositivo): ricarica la ricerca corrente dal server e rifiuta con il testo per l'utente", async () => {
+    const { api, store, ApiError } = await nuovoStore();
+    await store.getState().carica(ROMA);
+    api.update.mockRejectedValueOnce(new ApiError(409, "I dati sono stati modificati o eliminati da un'altra richiesta: ricarica"));
+    const dalServer: Campetto = { ...ruffini, nome: "Parco Ruffini — Campo 2 bis", versione: 1 };
+    api.list.mockResolvedValueOnce([dalServer, giardini]);
+    await expect(store.getState().update(ruffini.id, { ...inputRuffini, nome: "Mio nome" })).rejects.toMatchObject({
+      status: 409,
+      message: "Il campetto «Mio nome» è stato modificato da un altro dispositivo: l'elenco mostra ora la versione salvata sul server. "
+        + "Le modifiche scritte qui non sono state salvate: se servono ancora, riscrivile con «Modifica».",
+    });
+    expect(api.list).toHaveBeenCalledTimes(2);
+    expect(api.list).toHaveBeenLastCalledWith(ROMA);
+    expect(store.getState()).toMatchObject({ campetti: [dalServer, giardini], ricerca: ROMA, errore: null, inCorso: false });
+  });
+
+  it("update con 409 senza una ricerca corrente non ricarica niente, ma rifiuta con lo stesso testo", async () => {
+    const { api, store, ApiError } = await nuovoStore();
+    api.update.mockRejectedValueOnce(new ApiError(409, "conflitto"));
+    await expect(store.getState().update(ruffini.id, inputRuffini)).rejects.toMatchObject({ status: 409, message: /modificato da un altro dispositivo/ });
+    expect(api.list).not.toHaveBeenCalled();
+  });
+
+  it("update con un altro errore (403, 404, rete) passa com'è, senza ricaricare, e l'elenco non cambia", async () => {
+    const { api, store, ApiError } = await nuovoStore();
+    await store.getState().carica(ROMA);
+    api.update.mockRejectedValueOnce(new ApiError(403, "Non puoi modificare questo campetto"));
+    await expect(store.getState().update(ruffini.id, inputRuffini)).rejects.toMatchObject({ status: 403, message: "Non puoi modificare questo campetto" });
+    expect(api.list).toHaveBeenCalledTimes(1);
+    expect(store.getState().campetti).toEqual(CAMPETTI_DEMO);
+  });
+
+  it("remove elimina sul server e toglie il campetto dall'elenco; se l'elenco non c'è non fa niente in più", async () => {
+    const { api, store } = await nuovoStore();
+    await store.getState().carica(ROMA);
+    api.remove.mockResolvedValue(undefined);
+    await store.getState().remove(ruffini.id);
+    expect(api.remove).toHaveBeenCalledWith(ruffini.id);
+    expect(store.getState().campetti?.map((c) => c.id)).not.toContain(ruffini.id);
+    expect(store.getState().campetti).toHaveLength(5);
+    store.getState().svuota();
+    await store.getState().remove(giardini.id);
+    expect(store.getState().campetti).toBeNull();
+  });
+
+  it("remove: il rifiuto del server passa a chi chiama e il campetto resta", async () => {
+    const { api, store, ApiError } = await nuovoStore();
+    await store.getState().carica(ROMA);
+    api.remove.mockRejectedValueOnce(new ApiError(404, "Campetto non trovato"));
+    await expect(store.getState().remove(ruffini.id)).rejects.toMatchObject({ status: 404 });
+    expect(store.getState().campetti).toHaveLength(6);
+  });
+});
+
+describe("useCampettiStore: svuota (accesso e uscita: autoreId cambia con il token)", () => {
+  it("toglie elenco, ricerca ed errore, conta lo svuotamento, e la stessa ricerca richiama il server", async () => {
+    const { api, store } = await nuovoStore();
+    await store.getState().carica(ROMA);
+    expect(store.getState().svuotata).toBe(0);
+    store.getState().svuota();
+    expect(store.getState()).toMatchObject({ campetti: null, ricerca: null, errore: null, inCorso: false, svuotata: 1 });
+    await store.getState().carica(ROMA);
+    expect(api.list).toHaveBeenCalledTimes(2);
+    expect(store.getState().campetti).toEqual(CAMPETTI_DEMO);
+  });
+
+  it("una risposta partita prima dello svuotamento (con il token di prima) si scarta quando arriva", async () => {
+    const { api, store } = await nuovoStore();
+    const lenta = differita<Campetto[]>();
+    api.list.mockReturnValueOnce(lenta.promessa);
+    const vecchia = store.getState().carica(ROMA);
+    store.getState().svuota();
+    lenta.risolvi(CAMPETTI_DEMO);
+    await vecchia;
+    expect(store.getState().campetti).toBeNull();
+    expect(store.getState().inCorso).toBe(false);
   });
 });
