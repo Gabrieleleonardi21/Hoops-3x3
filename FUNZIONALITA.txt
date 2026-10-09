@@ -1,6 +1,6 @@
 HOOP 3X3 — Gestionale per circuiti di basket 3x3
 =================================================
-Documento aggiornato il 07/10/2026
+Documento aggiornato il 09/10/2026
 
 
 PANORAMICA
@@ -403,7 +403,59 @@ Statistiche stagione (tab dedicato)
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-13. COACH AI — ASSISTENTE INTELLIGENTE
+13. CAMPETTI
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+I campi da streetball del circuito, condivisi tra tutti gli utenti e letti
+dal server (GET /api/campetti, anche da Ospite). I dati vengono da
+Pick-Roll, con il permesso del proprietario (attribuzione in fondo alla
+pagina).
+
+- Ricerca: all'apertura i campetti entro 20 km dal centro di Roma; la
+  casella cerca per nome o città su tutta l'Italia (una richiesta 300 ms
+  dopo l'ultimo tasto; la risposta di una ricerca superata si scarta); al
+  massimo 200 risultati, già ordinati dal server. Filtri nel browser sui
+  risultati: illuminato, coperto, 4 canestri, gratuito, retine, fontanella,
+  stato del campo. Ordine per città e nome, o per distanza con la posizione.
+- Posizione: solo con «Usa la mia posizione», mai all'apertura; la
+  posizione resta nel browser e va al nostro server solo come centro della
+  ricerca, mai a Google. Con il permesso negato o la posizione non
+  disponibile un messaggio lo dice e la pagina resta usabile.
+- Mappa: un'immagine della Maps Static API inquadrata sui campetti
+  mostrati, con i pin disegnati dall'app (nessuno script esterno); senza
+  chiave, o se l'immagine non carica, una mappa schematica con gli stessi
+  pin. Pin e card si selezionano a vicenda.
+- Ogni card: nome, indirizzo, città, distanza (solo con la posizione), le
+  caratteristiche scritte (superficie, canestri, illuminato, coperto,
+  gratuito o a pagamento, retine, linee, fontanella, stato del campo), le
+  note, «Indicazioni» e «Apri in Google Maps» (link senza chiave).
+- Aggiungi (ogni utente registrato; l'Ospite vede il pulsante disattivato
+  con il motivo): un form in una finestra con nome (obbligatorio, fino a
+  120 caratteri), indirizzo (160), città (120), superficie, canestri (da 1
+  a 8), illuminato, coperto, gratuito, retine, linee, fontanella, stato del
+  campo (buono / discreto / da sistemare), note (2000) e la posizione,
+  obbligatoria, in uno di tre modi: «Usa la mia posizione», un clic sulla
+  mappa dentro il form (il pin provvisorio mostra il punto) o latitudine e
+  longitudine scritte a mano (anche con la virgola). Nome, posizione,
+  coordinate fuori intervallo (−90..90, −180..180) e canestri si
+  controllano prima dell'invio; se il server rifiuta, il motivo compare nel
+  form e i dati restano.
+- Modifica ed elimina: solo l'autore o un ADMIN (il pulsante compare solo
+  a loro; il server lo verifica comunque). Un campetto il cui autore non
+  esiste più resta e lo modifica solo un ADMIN. La modifica usa lo stesso
+  form precompilato e manda la versione del campetto: se nel frattempo un
+  altro dispositivo l'ha modificato (409) la finestra si chiude, l'elenco
+  si ricarica dal server e un avviso dice che le modifiche scritte non
+  sono state salvate. L'eliminazione chiede conferma («sparirà dalla mappa
+  per tutti»).
+- La cache dei campetti si svuota all'accesso e all'uscita (anche in
+  un'altra scheda), perché senza account il server non manda l'autore
+  (autoreId) e l'autore decide chi vede «Modifica»: la pagina aperta
+  riscarica da sola.
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. COACH AI — ASSISTENTE INTELLIGENTE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Il Coach AI è un assistente conversazionale integrato in un pannello
@@ -500,7 +552,7 @@ utenti registrati: un ospite riceve in chat l'invito a creare un account.
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-14. SICUREZZA E ARCHITETTURA
+15. SICUREZZA E ARCHITETTURA
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 - Nessun uso di innerHTML: tutti i contenuti dinamici usano createElement /
@@ -608,8 +660,9 @@ utenti registrati: un ospite riceve in chat l'invito a creare un account.
 - Conferme: ciò che fa perdere qualcosa apre una finestra che lo dice, con i
   numeri veri («Verranno eliminati il sorteggio e 12 risultati.»). Sempre:
   elimina tappa, elimina bracket, elimina lega, eliminazioni dell'anagrafe
-  (dalla card e dalla scheda). Quando si perde qualcosa: nuovo sorteggio e
-  cambio del numero di gironi o delle squadre con dei risultati registrati;
+  (dalla card e dalla scheda), elimina campetto. Quando si perde qualcosa:
+  nuovo sorteggio e cambio del numero di gironi o delle squadre con dei
+  risultati registrati;
   rimuovi squadra con un nome scritto, dei giocatori o dei risultati nella
   tappa (una squadra appena aggiunta si toglie subito); la X di un giocatore
   che ha statistiche in qualche partita (dice in quante: spariscono da
@@ -648,6 +701,6 @@ utenti registrati: un ospite riceve in chat l'invito a creare un account.
   funzioni pure in src/domain/tappaOps.ts: le stesse per l'interfaccia e per
   il Coach AI, coperte da test unitari.
 - Ogni modifica lato server verifica la proprietà: solo l'autore (o un ADMIN)
-  può modificare o eliminare una lega, una scheda anagrafe o una
+  può modificare o eliminare una lega, una scheda anagrafe, un campetto o una
   pubblicazione; tutte le risposte di errore hanno il formato
   {message, timestamp}.

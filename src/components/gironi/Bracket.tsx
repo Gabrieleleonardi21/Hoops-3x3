@@ -27,10 +27,23 @@ function Row({ name, logo, score, winner, loser, tbd }: {
     <div className={`flex h-9 items-center gap-2 px-3 ${winner ? "bg-asphalt-800" : ""}`}>
       <TeamLogo src={logo} className="h-5 w-5 shrink-0" />
       <span className={`min-w-0 flex-1 truncate font-display text-base ${nameCls}`}>{name}</span>
+      {/* chi vince non si distingue solo dal colore (WCAG 1.4.1): la spunta per chi vede, «vince» per i lettori di schermo */}
       {winner && <Icon name="check" size={12} className="shrink-0 text-court" />}
+      {winner && <span className="sr-only">vince</span>}
       <span className={`font-display text-lg ${scoreCls}`}>{score ?? "–"}</span>
     </div>
   );
+}
+
+/** Il nome accessibile della card di un match: «Semifinale 1: Alfa contro Beta», con «posto da assegnare» per un posto ancora
+ *  vuoto e «Alfa passa il turno» per un bye. Il turno è l'etichetta già mostrata nella card */
+function nomeCard(m: BracketMatch, nameOf: Props["nameOf"]): string {
+  const nome = (id: string | null) => {
+    if (!id) return "posto da assegnare";
+    return nameOf(id);
+  };
+  if (m.bye) return `${m.label}: ${nome(m.squadraA ?? m.squadraB)} passa il turno`;
+  return `${m.label}: ${nome(m.squadraA)} contro ${nome(m.squadraB)}`;
 }
 
 /** Righe di un match bye: la squadra presente (`id`) passa il turno senza giocare e, al posto
@@ -66,7 +79,8 @@ export function Bracket({ rounds, nameOf, logoOf, renderControls }: Props) {
               const isFinale = m.label === "Finale";
               const champion = campione(m);
               return (
-                <div key={m.id} className={`overflow-hidden rounded border bg-asphalt-900 ${isFinale ? "border-gold/50" : "border-asphalt-700"}`}>
+                <div key={m.id} role="group" aria-label={nomeCard(m, nameOf)}
+                  className={`overflow-hidden rounded border bg-asphalt-900 ${isFinale ? "border-gold/50" : "border-asphalt-700"}`}>
                   <div className="flex items-center justify-between border-b border-asphalt-700 px-3 py-1">
                     <span className="text-[10.5px] font-semibold uppercase tracking-[0.06em] text-chalk-muted">{m.label}</span>
                     {champion && <Badge tone="gold"><Icon name="trophy" size={11} /> Campione</Badge>}

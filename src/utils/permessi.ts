@@ -13,3 +13,13 @@ export function puoModificare(user: User | null, autoreId: string | null): boole
   if (!user.id) return false;
   return user.id === autoreId;
 }
+
+/** true se l'utente può modificare o eliminare un campetto (T5.5, D3): ne è l'autore oppure è ADMIN, come sul server. Diverso da
+ *  puoModificare per l'`autoreId` null: qui non è una forma pubblica con i dati nascosti (il campetto arriva intero a tutti), ma un
+ *  campetto il cui autore non esiste più, o letto senza token: lo modifica solo l'ADMIN. L'ospite non può mai. */
+export function puoModificareCampetto(user: User | null, autoreId: string | null): boolean {
+  if (!user || user.guest) return false;
+  if (user.ruolo === "ADMIN") return true;
+  if (!user.id || autoreId === null) return false;
+  return user.id === autoreId;
+}
