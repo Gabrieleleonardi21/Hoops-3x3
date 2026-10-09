@@ -73,8 +73,9 @@ etichette 11 px. Line-height 1.5 nel corpo (default di Tailwind), 1.0 per il dis
 
 1. **Home / classifica live**: hero (tappa in corso + LIVE) → tabella classifica (2/3) + prossime partite e score card compatta (1/3) → leader della tappa (5 stat tile).
 2. **Player profile**: header con numero maglia gigante → 6 stat tile → andamento punti (sparkline) | storico tappe → ultime partite. L'analisi 3x3 (punti di forza, aree di miglioramento) sta nella finestra del giocatore dell'Archivio (`GiocatoreAnalisi`).
-3. **Campetti**: filtri → lista card (5fr, circa il 45%) + mappa schematica (6fr, circa il 55%). *Dati di esempio* (`src/data/campetti.ts`),
-   dichiarati da un avviso in cima alla pagina: non c'è un modello dati né una persistenza.
+3. **Campetti**: filtri → lista card (5fr, circa il 45%) + mappa schematica (6fr, circa il 55%). *Dati di esempio* (`tests/fixtures/campetti.ts`, i sei campetti
+   di Torino del contratto della fase 5), dichiarati da un avviso in cima alla pagina: il modello (`types/campetto.ts`) e il client
+   (`services/campettiApi.ts`) ci sono, la pagina li userà con la mappa vera nel Task 3.
 4. **Punteggio partita** (`MatchCard`): `ScoreCard` compatta con i punteggi al centro (campi finché la gara è aperta) → tabellino
    dei giocatori editabile → eventi di gara apribili → barra delle azioni nel piede della card («Salva risultato» o «Correggi»,
    statistiche, eventi). Il **timer di gara** (`MatchTimer`) è una finestra a parte, pensata per il tavolo: punteggio gigante,

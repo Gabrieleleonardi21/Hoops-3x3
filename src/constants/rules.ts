@@ -31,6 +31,13 @@ export const MAX_SQUADRE = 64;
 export const MAX_NOME_LEGA = 120;
 export const MAX_TAPPE_LEGA = 100;
 
+/** Limiti del server su un campetto (CampettoRequestDTO): caratteri di nome, indirizzo, città e note. Oltre, 400. Li usano i campi
+ *  del form dei campetti (maxLength) */
+export const MAX_NOME_CAMPETTO = 120;
+export const MAX_INDIRIZZO_CAMPETTO = 160;
+export const MAX_CITTA_CAMPETTO = 120;
+export const MAX_NOTE_CAMPETTO = 2000;
+
 /** Il nome segnaposto della squadra numero `n` (da 1) di una tappa: lo riconosce eSegnaposto in tappaOps */
 export function nomeSegnaposto(n: number): string {
   return `Squadra ${n}`;

@@ -49,6 +49,9 @@ export const COPIA_LINK_NON_RIUSCITA =
  *  possibile caricare l'archivio», con il «Riprova»: un elenco che non si può leggere non è un elenco vuoto. */
 export const ELENCO_ARCHIVIO_NON_VALIDO = "Risposta del server non valida. Riprova più tardi.";
 
+/** Un campetto, o l'elenco dei campetti, arriva con una forma che l'app non riconosce: stesso testo e stesso uso dell'archivio */
+export const RISPOSTA_CAMPETTI_NON_VALIDA = ELENCO_ARCHIVIO_NON_VALIDO;
+
 /** Il numero con il nome al singolare o al plurale: «1 risultato», «12 risultati» */
 export function conteggio(n: number, singolare: string, plurale: string): string {
   if (n === 1) return `1 ${singolare}`;

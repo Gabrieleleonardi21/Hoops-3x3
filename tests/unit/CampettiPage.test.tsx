@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { CampettiPage } from "../../src/pages/CampettiPage";
-import { CAMPETTI_DEMO } from "../../src/data/campetti";
+import { CAMPETTI_DEMO } from "../fixtures/campetti";
 import { useAppStore } from "../../src/stores/useAppStore";
 import type { User } from "../../src/types";
 

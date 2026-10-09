@@ -1,8 +1,12 @@
 /** Campetti: ricerca dei campi da streetball con filtri, lista e mappa schematica.
- *  ATTENZIONE: usa i DATI DI ESEMPIO di src/data/campetti.ts (nessuna persistenza né geolocalizzazione);
- *  la mappa è un SVG stilizzato, non una mappa reale. L'UI è pronta per collegare dati veri. */
+ *  ATTENZIONE: usa i campetti di prova di tests/fixtures/campetti.ts (nessuna lettura dall'API né geolocalizzazione); la mappa è un
+ *  SVG stilizzato, non una mappa reale. Il Task 3 della fase 5 rifà questa pagina con i dati dell'API, la mappa vera, la posizione
+ *  dell'utente e le distanze: qui è cambiato solo il minimo perché compili con il modello nuovo (niente valutazioni, distanze
+ *  e ultima tappa inventate; i pin alle posizioni vere). */
 import { useMemo, useState } from "react";
-import { CAMPETTI_DEMO, type Campetto } from "../data/campetti";
+import { CAMPETTI_DEMO } from "../../tests/fixtures/campetti";
+import type { Campetto } from "../types/campetto";
+import { inquadra, proietta } from "../utils/geo";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
 import { Icon } from "../components/ui/Icon";
@@ -10,13 +14,13 @@ import { Icon } from "../components/ui/Icon";
 type Filtro = "illuminato" | "coperto" | "gratuito" | "canestri";
 const FILTRI: [Filtro, string][] = [["illuminato", "Illuminato"], ["coperto", "Coperto"], ["canestri", "4 canestri"], ["gratuito", "Gratuito"]];
 
-function fmtData(iso?: string) {
-  if (!iso) return null;
-  return new Date(iso).toLocaleDateString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric" });
-}
+/** La mappa schematica è un quadrato di 100 unità (percentuali): i pin si proiettano lì dentro */
+const LATO_MAPPA = 100;
 
-/** Mappa schematica: griglia "strade" + pin. Sostituibile con una mappa reale mantenendo le stesse props. */
+/** Mappa schematica: griglia "strade" + pin alle posizioni vere (proiezione Web Mercator sul riquadro dei campetti mostrati).
+ *  Sostituibile con una mappa reale mantenendo le stesse props. */
 function MappaSchematica({ campetti, selected, onSelect }: { campetti: Campetto[]; selected: string | null; onSelect: (id: string) => void }) {
+  const { centro, zoom } = inquadra(campetti, LATO_MAPPA);
   return (
     <div className="relative h-full min-h-[320px] overflow-hidden rounded border border-asphalt-700 bg-asphalt-900">
       <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 h-full w-full" aria-hidden="true">
@@ -28,10 +32,11 @@ function MappaSchematica({ campetti, selected, onSelect }: { campetti: Campetto[
       </svg>
       {campetti.map((c) => {
         const sel = c.id === selected;
+        const { x, y } = proietta(c.lat, c.lng, centro, zoom, LATO_MAPPA);
         return (
-          <button key={c.id} onClick={() => onSelect(c.id)} aria-label={`${c.nome}, ${c.distanzaKm} km`} aria-pressed={sel}
+          <button key={c.id} onClick={() => onSelect(c.id)} aria-label={c.nome} aria-pressed={sel}
             className={`absolute -translate-x-1/2 -translate-y-full transition-transform ${sel ? "z-10 scale-125" : "hover:scale-110"}`}
-            style={{ left: `${c.x}%`, top: `${c.y}%` }}>
+            style={{ left: `${x}%`, top: `${y}%` }}>
             <Icon name="pin" size={28} className={sel ? "text-court" : "text-chalk-muted"} fill={sel ? "var(--color-court)" : "var(--color-asphalt-800)"} />
           </button>
         );
@@ -46,7 +51,6 @@ function MappaSchematica({ campetti, selected, onSelect }: { campetti: Campetto[
 export function CampettiPage() {
   const [q, setQ] = useState("");
   const [filtri, setFiltri] = useState<Set<Filtro>>(new Set());
-  const [ordine, setOrdine] = useState<"distanza" | "rating">("distanza");
   const [sel, setSel] = useState<string | null>(CAMPETTI_DEMO[0]?.id ?? null);
 
   const lista = useMemo(() => {
@@ -57,8 +61,8 @@ export function CampettiPage() {
       .filter((c) => !filtri.has("coperto") || c.coperto)
       .filter((c) => !filtri.has("gratuito") || c.gratuito)
       .filter((c) => !filtri.has("canestri") || c.canestri >= 4)
-      .sort((a, b) => (ordine === "distanza" ? a.distanzaKm - b.distanzaKm : b.rating - a.rating));
-  }, [q, filtri, ordine]);
+      .sort((a, b) => a.nome.localeCompare(b.nome)); // per nome finché non c'è la posizione (Task 3)
+  }, [q, filtri]);
 
 
   const toggle = (f: Filtro) => setFiltri((prev) => {
@@ -69,10 +73,10 @@ export function CampettiPage() {
 
   return (
     <>
-      {/* I dati sono inventati (src/data/campetti.ts): la pagina resta nella navigazione, e lo dice chiaramente in cima */}
+      {/* I dati sono di prova (tests/fixtures/campetti.ts): la pagina resta nella navigazione, e lo dice chiaramente in cima */}
       <p role="note" className="mb-4 rounded border border-court/40 bg-court/10 px-3.5 py-2.5 text-[13px] font-medium text-chalk">
-        <span className="font-semibold text-court">Dati di esempio.</span> I campetti, le valutazioni e le distanze qui sotto sono
-        inventati per mostrare come sarà la pagina: non sono campi reali.
+        <span className="font-semibold text-court">Dati di esempio.</span> I campetti qui sotto sono
+        di prova, per mostrare come sarà la pagina: non sono campi reali.
       </p>
 
       <div className="mb-4">
@@ -94,13 +98,6 @@ export function CampettiPage() {
             {label}
           </button>
         ))}
-        <label className="ml-auto flex items-center gap-2 text-xs text-chalk-muted">
-          Ordina
-          <select className="statin h-9 w-auto py-0 text-xs" value={ordine} onChange={(e) => setOrdine(e.target.value as "distanza" | "rating")}>
-            <option value="distanza">Distanza</option>
-            <option value="rating">Valutazione</option>
-          </select>
-        </label>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[5fr_6fr]">
@@ -120,13 +117,8 @@ export function CampettiPage() {
                   <img src="/hero-court.jpg" alt="" className="h-full w-full object-cover opacity-70" loading="lazy" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-2">
-                    <span className="font-display text-lg text-chalk">{c.nome}</span>
-                    <span className="flex shrink-0 items-center gap-1 text-[13px] font-semibold text-gold">
-                      <Icon name="star" size={12} fill="currentColor" /> {c.rating.toFixed(1)} <span className="font-normal text-chalk-dim">({c.recensioni})</span>
-                    </span>
-                  </div>
-                  <div className="text-xs text-chalk-muted">{c.indirizzo}, {c.citta} · {c.distanzaKm.toFixed(1)} km</div>
+                  <span className="font-display text-lg text-chalk">{c.nome}</span>
+                  <div className="text-xs text-chalk-muted">{c.indirizzo}, {c.citta}</div>
                   <div className="mt-1.5 flex flex-wrap gap-1">
                     <Badge>{c.superficie}</Badge>
                     {c.illuminato && <Badge>Illuminato</Badge>}
@@ -134,7 +126,6 @@ export function CampettiPage() {
                     <Badge>{c.canestri} canestri</Badge>
                     {!c.gratuito && <Badge tone="court">A pagamento</Badge>}
                   </div>
-                  {c.ultimaTappa && <div className="mt-1.5 text-[11px] text-chalk-dim">Ultima tappa: {fmtData(c.ultimaTappa)}</div>}
                 </div>
               </button>
             );
