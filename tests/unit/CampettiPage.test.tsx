@@ -65,6 +65,8 @@ beforeEach(() => {
   Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, value: 640 });
   Object.defineProperty(HTMLElement.prototype, "clientHeight", { configurable: true, value: 640 });
   vi.resetAllMocks();
+  // Nessun luogo per impostazione: le ricerche che non trovano campetti ricevono 404 (i test del luogo lo cambiano)
+  luoghi.cerca.mockRejectedValue(new ApiError(404, "Luogo non trovato"));
   // Il finto restituisce tutti i campetti di esempio qualunque sia la ricerca: il filtro per raggio e per testo è del server (lo provano
   // l'e2e e il backend), qui si prova cosa fa la pagina con l'elenco
   api.list.mockResolvedValue(CAMPETTI_DEMO);
@@ -369,6 +371,7 @@ describe("CampettiPage: la ricerca che non trova campetti cerca il luogo", () =>
 
   beforeEach(() => {
     luoghi.cerca.mockReset();
+    luoghi.cerca.mockRejectedValue(new ApiError(404, "Luogo non trovato"));
   });
 
   it("lista vuota e luogo trovato: la mappa va al luogo (zoom 12) e il messaggio dice che la zona è quella", async () => {
