@@ -2,7 +2,11 @@ import { test, expect, type Page, type Route } from "@playwright/test";
 import { bloccaApiNonPreviste, creato, errore, json, rispondiAlRisveglio, utenteAnna, utenteRegistrato } from "./helpers";
 import { CAMPETTI_DEMO } from "../fixtures/campetti";
 
-/* La pagina dei Campetti sulla build di produzione, senza la chiave di Google (la CI non ce l'ha): si esercita la mappa schematica.
+/** Un PNG di un pixel: l'immagine della mappa che il server finto restituisce a /api/mappa-campetti */
+const PNG_FINTO = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "base64");
+
+/* La pagina dei Campetti sulla build di produzione. L'immagine della mappa viene dal backend (/api/mappa-campetti, che ha la chiave di
+ * Google): qui è un PNG finto di un pixel, e con `mappaGiu` il 503 che la CI vede senza chiave, con la mappa schematica al suo posto.
  * Il server finto imita /api/campetti del contratto: GET per raggio ordina per distanza, per testo filtra su nome e città (D9); POST
  * risponde 201 con il campetto (autore = chi ha il token, versione 0), PUT 200 con la versione aumentata di uno, DELETE 204. Lo
  * stesso percorso con il backend vero sta in tests/e2e-backend/campetti.spec.ts. */
@@ -48,9 +52,10 @@ function rispostaDelServer(url: URL, tutti: Campetto[]) {
 }
 
 /** Il server finto dei campetti: risponde come quello vero e registra le query string delle letture e i corpi delle scritture. Le
- *  scritture (di Anna, l'unica che accede nei test) cambiano l'elenco che le letture successive restituiscono. Con `giu` risponde 500.
+ *  scritture (di Anna, l'unica che accede nei test) cambiano l'elenco che le letture successive restituiscono. Con `giu` le letture
+ *  rispondono 500; con `mappaGiu` l'immagine della mappa risponde 503 (il server senza chiave).
  *  @returns le query string delle letture, i corpi di POST e PUT, gli id delle DELETE e le chiamate non previste (a fine test nessuna) */
-async function serverFinto(page: Page, stato = { giu: false }) {
+async function serverFinto(page: Page, stato: { giu?: boolean; mappaGiu?: boolean } = {}) {
   const nonPreviste = await bloccaApiNonPreviste(page);
   await rispondiAlRisveglio(page);
   const richieste: string[] = [];
@@ -77,6 +82,11 @@ async function serverFinto(page: Page, stato = { giu: false }) {
     tutti = tutti.filter((c) => c.id !== id);
     return route.fulfill({ status: 204, body: "" });
   };
+  // L'immagine della mappa: un PNG finto, o il 503 del server senza chiave (la mappa schematica al suo posto)
+  await page.route("**/api/mappa-campetti**", (route) => {
+    if (stato.mappaGiu) return route.fulfill(errore(503, "Mappa non disponibile"));
+    return route.fulfill({ status: 200, contentType: "image/png", body: PNG_FINTO });
+  });
   await page.route("**/api/campetti**", (route) => {
     if (route.request().method() !== "GET") return scrivi(route);
     const url = new URL(route.request().url());
@@ -98,17 +108,17 @@ async function apriCampetti(page: Page) {
 /** I nomi delle card, nell'ordine in cui compaiono */
 const nomiDelleCard = (page: Page) => page.getByRole("article").evaluateAll((card) => card.map((c) => c.getAttribute("aria-label")));
 
-test("all'apertura i campetti intorno a Roma dall'API, la mappa schematica con i pin; l'ospite legge soltanto; nessuna posizione chiesta", async ({ page }) => {
+test("all'apertura i campetti intorno a Roma dall'API, la mappa con l'immagine del server e i pin; l'ospite legge soltanto; nessuna posizione chiesta", async ({ page }) => {
   const { richieste, nonPreviste } = await serverFinto(page);
   await apriCampetti(page);
   await expect(page.getByRole("article", { name: "Campo Testaccio" })).toBeVisible();
   expect(richieste).toEqual(["?lat=41.9028&lng=12.4964&raggioKm=20"]);
   await expect(page.getByText("5 campetti · intorno a Roma")).toBeVisible();
   expect(await nomiDelleCard(page)).toEqual(ROMA_IN_ORDINE);
-  // Senza chiave: la griglia schematica, con i pin come pulsanti; nessuna immagine di Google
-  await expect(page.getByText("Mappa schematica")).toBeVisible();
+  // L'immagine viene dal server (la chiave sta lì): qui è il PNG finto, e i pin sono pulsanti sopra
+  await expect(page.locator("img[src*='/api/mappa-campetti']")).toBeVisible();
+  await expect(page.getByText("Mappa schematica")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Campo Testaccio", exact: true })).toBeVisible();
-  await expect(page.locator("img[src*='maps.googleapis.com']")).toHaveCount(0);
   await expect(page.getByText("Dati di esempio")).toHaveCount(0);
   // L'ospite: «Aggiungi» disattivato con il titolo che dice perché, e nessun «Modifica» o «Elimina» (D3)
   const aggiungi = page.getByRole("button", { name: /Aggiungi un campetto/ });
@@ -121,7 +131,18 @@ test("all'apertura i campetti intorno a Roma dall'API, la mappa schematica con i
   expect(nonPreviste).toEqual([]);
 });
 
-test("registrata: aggiunge un campetto con un clic sulla mappa schematica, lo modifica e lo elimina con la conferma; comandi solo sui suoi", async ({ page }) => {
+test("senza immagine dal server (503) la mappa è quella schematica, con i pin; la pagina resta usabile", async ({ page }) => {
+  const { nonPreviste } = await serverFinto(page, { mappaGiu: true });
+  await apriCampetti(page);
+  await expect(page.getByText("Mappa schematica")).toBeVisible();
+  await expect(page.locator("img[src*='/api/mappa-campetti']")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Campo Testaccio", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Villa Pamphili — Playground", exact: true }).click();
+  await expect(page.getByRole("article", { name: "Villa Pamphili — Playground" }).getByRole("button")).toHaveAttribute("aria-pressed", "true");
+  expect(nonPreviste).toEqual([]);
+});
+
+test("registrata: aggiunge un campetto con un clic sulla mappa, lo modifica e lo elimina con la conferma; comandi solo sui suoi", async ({ page }) => {
   // Accesso, creazione, modifica ed eliminazione in un test solo: i 15 secondi della configurazione bastano a un passo, non a una macchina carica
   test.setTimeout(30_000);
   const { scritture, nonPreviste } = await serverFinto(page);
@@ -134,7 +155,7 @@ test("registrata: aggiunge un campetto con un clic sulla mappa schematica, lo mo
   await expect(page.getByRole("button", { name: "Elimina Campo Testaccio" })).toBeVisible();
   await expect(page.getByRole("button", { name: /Villa Pamphili — Playground$/ }).filter({ hasText: /Modifica|Elimina/ })).toHaveCount(0);
 
-  // Aggiunta: la finestra con il form; la posizione con un clic sulla mappa schematica (il pin provvisorio compare), poi il nome
+  // Aggiunta: la finestra con il form; la posizione con un clic sulla mappa (il pin provvisorio compare), poi il nome
   await page.getByRole("button", { name: /Aggiungi un campetto/ }).click();
   const finestra = page.getByRole("dialog", { name: "Nuovo campetto" });
   await expect(finestra.getByLabel("Latitudine")).toHaveValue("");
