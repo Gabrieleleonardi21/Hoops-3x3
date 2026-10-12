@@ -154,3 +154,42 @@ describe("MappaCampetti: la posizione dell'utente e la vista", () => {
     expect(adatta).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("MappaCampetti: il centro che la pagina sceglie (un luogo cercato, senza campetti)", () => {
+  const FIRENZE = { lat: 43.7696, lng: 11.2558, zoom: 12 };
+
+  it("con `centro` la mappa va lì, a quello zoom, e non si riadatta ai campetti", () => {
+    const vista = vi.spyOn(L.Map.prototype, "setView");
+    const adatta = vi.spyOn(L.Map.prototype, "fitBounds");
+    const { rerender } = render(<MappaCampetti campetti={[]} selezionato={null} onSeleziona={() => {}} />);
+    vista.mockClear();
+    adatta.mockClear();
+    rerender(<MappaCampetti campetti={[]} selezionato={null} onSeleziona={() => {}} centro={FIRENZE} />);
+    expect(vista).toHaveBeenCalledWith([FIRENZE.lat, FIRENZE.lng], FIRENZE.zoom);
+    expect(adatta).not.toHaveBeenCalled();
+  });
+
+  it("il confronto è per valore: un centro uguale in un oggetto nuovo non rifà la vista", () => {
+    const vista = vi.spyOn(L.Map.prototype, "setView");
+    const { rerender } = render(<MappaCampetti campetti={[]} selezionato={null} onSeleziona={() => {}} centro={FIRENZE} />);
+    vista.mockClear();
+    rerender(<MappaCampetti campetti={[]} selezionato={null} onSeleziona={() => {}} centro={{ ...FIRENZE }} />);
+    expect(vista).not.toHaveBeenCalled();
+  });
+
+  it("quando l'elenco cambia la mappa si riadatta ai campetti, e il centro di prima non la riporta indietro", () => {
+    const adatta = vi.spyOn(L.Map.prototype, "fitBounds");
+    const { rerender } = render(<MappaCampetti campetti={[]} selezionato={null} onSeleziona={() => {}} centro={FIRENZE} />);
+    adatta.mockClear();
+    rerender(<MappaCampetti campetti={[ruffini]} selezionato={null} onSeleziona={() => {}} centro={FIRENZE} />);
+    expect(adatta).toHaveBeenCalledTimes(1);
+  });
+
+  it("senza `centro` la mappa non cambia vista da sola", () => {
+    const vista = vi.spyOn(L.Map.prototype, "setView");
+    const { rerender } = render(<MappaCampetti campetti={[]} selezionato={null} onSeleziona={() => {}} />);
+    vista.mockClear();
+    rerender(<MappaCampetti campetti={[]} selezionato={null} onSeleziona={() => {}} />);
+    expect(vista).not.toHaveBeenCalled();
+  });
+});

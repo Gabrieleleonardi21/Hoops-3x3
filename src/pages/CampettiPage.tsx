@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { STATI_CAMPETTO, type Campetto, type CampettoInput, type StatoCampetto } from "../types/campetto";
 import { ApiError } from "../services/api";
 import type { RicercaCampetti } from "../services/campettiApi";
+import { luoghiApi, type Luogo } from "../services/luoghiApi";
 import { useCampettiStore } from "../stores/useCampettiStore";
 import { usePosizione } from "../hooks/usePosizione";
 import { useInvio } from "../hooks/useInvio";
@@ -28,6 +29,8 @@ const ROMA: Coordinate = { lat: 41.9028, lng: 12.4964 };
 const RAGGIO_KM = 20;
 /** Attesa dopo l'ultimo tasto prima di interrogare il server: una richiesta per parola, non per lettera */
 const ATTESA_RICERCA_MS = 300;
+/** Zoom della mappa su un luogo cercato (una città intera) */
+const ZOOM_LUOGO = 12;
 
 type Filtro = "illuminato" | "coperto" | "gratuito" | "canestri" | "retine" | "fontanella";
 const FILTRI: [Filtro, string][] = [
@@ -68,7 +71,11 @@ export function CampettiPage() {
   // invece di perdersi, come nell'anagrafe
   const avvisi = useInvio();
   const posizioneUtente = usePosizione();
-  const { campetti, ricerca: ricercaMostrata, errore, carica, svuotata, save, update, remove } = useCampettiStore();
+  const { campetti, ricerca: ricercaMostrata, errore, inCorso, carica, svuotata, save, update, remove } = useCampettiStore();
+  /** Il luogo trovato per un testo che non ha dato campetti, con il testo: si mostra solo per quello */
+  const [luogoTrovato, setLuogoTrovato] = useState<{ q: string; luogo: Luogo } | null>(null);
+  /** Perché il luogo non si è avuto, con il testo: «non trovato» (404) o «rete» (502, rete assente, altro) */
+  const [luogoNonAvuto, setLuogoNonAvuto] = useState<{ q: string; motivo: "non trovato" | "rete" } | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setTesto(q.trim()), ATTESA_RICERCA_MS);
@@ -86,6 +93,34 @@ export function CampettiPage() {
   }, [testo, posizione]);
   // Con `svuotata` tra le dipendenze la pagina aperta riscarica dopo un accesso o un'uscita in un'altra scheda (la cache si svuota)
   useEffect(() => { void carica(ricerca); }, [ricerca, carica, svuotata]);
+
+  // Il testo mostrato, se la lista che si vede è vuota: solo allora si chiede dove si trova il luogo (GET /api/luoghi). Un testo di
+  // meno di 2 o più di 100 caratteri non si manda: il servizio lo rifiuta con 400
+  const qMostrata = ricercaMostrata && "q" in ricercaMostrata ? ricercaMostrata.q : null;
+  const elencoVuoto = campetti !== null && campetti.length === 0;
+  useEffect(() => {
+    if (qMostrata === null || !elencoVuoto || inCorso || qMostrata.length < 2 || qMostrata.length > 100) return;
+    // Se nel frattempo si scrive un'altra parola, questa risposta è superata: la pulizia dell'effetto la scarta
+    let superata = false;
+    luoghiApi.cerca(qMostrata).then(
+      (luogo) => { if (!superata) setLuogoTrovato({ q: qMostrata, luogo }); },
+      (e: unknown) => {
+        if (superata) return;
+        const motivo = e instanceof ApiError && e.status === 404 ? "non trovato" : "rete";
+        setLuogoNonAvuto({ q: qMostrata, motivo });
+      },
+    );
+    return () => { superata = true; };
+  }, [qMostrata, elencoVuoto, inCorso]);
+  // Il luogo e il messaggio valgono solo per il testo mostrato adesso, e solo con la lista vuota
+  const luogoMostrato = qMostrata !== null && elencoVuoto && luogoTrovato?.q === qMostrata ? luogoTrovato.luogo : null;
+  const centroMappa = luogoMostrato ? { lat: luogoMostrato.lat, lng: luogoMostrato.lng, zoom: ZOOM_LUOGO } : undefined;
+  let messaggioLuogo: string | null = null;
+  if (qMostrata !== null && elencoVuoto) {
+    if (luogoMostrato) messaggioLuogo = `Nessun campetto a ${luogoMostrato.nome}: la mappa è su quella zona`;
+    else if (luogoNonAvuto?.q === qMostrata && luogoNonAvuto.motivo === "non trovato") messaggioLuogo = `Nessun campetto e nessun luogo trovato per «${qMostrata}»`;
+    else if (luogoNonAvuto?.q === qMostrata) messaggioLuogo = "Non è stato possibile cercare il luogo, riprova";
+  }
 
   /** Il salvataggio del form: creazione o modifica. Se il server accetta la finestra si chiude; se risponde 409 (modificato da un altro
    *  dispositivo) lo store ha già ricaricato l'elenco con la versione del server, la finestra si chiude e l'avviso lo dice; ogni altro
@@ -194,6 +229,8 @@ export function CampettiPage() {
         </label>
       </div>
 
+      {messaggioLuogo && <p role="status" className="-mt-2 mb-4 text-[13px] text-chalk-muted">{messaggioLuogo}</p>}
+
       <div className="grid gap-4 lg:grid-cols-[5fr_6fr]">
         {/* Elenco */}
         <div className="flex flex-col gap-2">
@@ -206,7 +243,7 @@ export function CampettiPage() {
         {/* Mappa: solo con l'elenco arrivato. Montata prima, con la chiave chiederebbe a Google (a pagamento) un'immagine di Roma allo
             zoom 12 che nessuno guarda, sostituita subito dall'inquadratura dei campetti */}
         <div className="lg:sticky lg:top-[7.5rem]">
-          {campetti !== null && <MappaCampetti campetti={lista} selezionato={sel} onSeleziona={setSel} posizioneUtente={posizione ?? undefined} />}
+          {campetti !== null && <MappaCampetti campetti={lista} selezionato={sel} onSeleziona={setSel} posizioneUtente={posizione ?? undefined} centro={centroMappa} />}
         </div>
       </div>
 

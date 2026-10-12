@@ -71,7 +71,7 @@ async function attendiFermo(elemento: Locator) {
  *  scritture (di Anna, l'unica che accede nei test) cambiano l'elenco che le letture successive restituiscono. Con `giu` le letture
  *  rispondono 500; con `mappaGiu` l'immagine della mappa risponde 503 (il server senza chiave).
  *  @returns le query string delle letture, i corpi di POST e PUT, gli id delle DELETE e le chiamate non previste (a fine test nessuna) */
-async function serverFinto(page: Page, stato: { giu?: boolean; tessereGiu?: boolean } = {}) {
+async function serverFinto(page: Page, stato: { giu?: boolean; tessereGiu?: boolean; luoghiGiu?: boolean } = {}) {
   const nonPreviste = await bloccaApiNonPreviste(page);
   await rispondiAlRisveglio(page);
   // Le richieste a host non ammessi (e le violazioni della CSP lette dalla console) finiscono qui, e il test le controlla
@@ -104,7 +104,9 @@ async function serverFinto(page: Page, stato: { giu?: boolean; tessereGiu?: bool
     return route.fulfill({ status: 204, body: "" });
   };
   // Le tessere di OpenStreetMap: un PNG finto, o la rete che cade (la mappa resta con i pin)
+  const tessere: string[] = [];
   await page.route("**tile.openstreetmap.org/**", (route) => {
+    tessere.push(route.request().url());
     if (stato.tessereGiu) return route.abort();
     return route.fulfill({ status: 200, contentType: "image/png", body: PNG_FINTO });
   });
@@ -115,7 +117,16 @@ async function serverFinto(page: Page, stato: { giu?: boolean; tessereGiu?: bool
     if (stato.giu) return route.fulfill(errore(500, "Errore interno"));
     return route.fulfill(json(rispostaDelServer(url, tutti)));
   });
-  return { richieste, scritture, nonPreviste, esterne, violazioni };
+  // Il luogo cercato quando la ricerca non trova campetti: «firenze» esiste, il resto dà 404 (come il server vero)
+  const luoghiRichiesti: string[] = [];
+  await page.route("**/api/luoghi**", (route) => {
+    const q = new URL(route.request().url()).searchParams.get("q") ?? "";
+    luoghiRichiesti.push(q);
+    if (stato.luoghiGiu) return route.fulfill(errore(502, "Servizio dei luoghi non raggiungibile"));
+    if (q.toLowerCase() === "firenze") return route.fulfill(json({ nome: "Firenze", lat: 43.7696, lng: 11.2558 }));
+    return route.fulfill(errore(404, "Luogo non trovato"));
+  });
+  return { richieste, scritture, nonPreviste, esterne, violazioni, luoghiRichiesti, tessere };
 }
 
 /** Entra come Ospite e apre i Campetti dal menu */
@@ -141,6 +152,14 @@ test("all'apertura i campetti intorno a Roma dall'API, la mappa con l'immagine d
   await expect(page.locator(".leaflet-control-attribution")).toContainText("© OpenStreetMap contributors");
   await expect(page.getByRole("button", { name: "Campo Testaccio", exact: true })).toBeVisible();
   await expect(page.getByText("Dati di esempio")).toHaveCount(0);
+  // Il piè di pagina («Sito creato da Gabriele Leonardi») è visibile in fondo, sotto la lista e la mappa
+  const piede = page.getByRole("contentinfo");
+  await expect(piede).toBeVisible();
+  await expect(piede).toContainText("Sito creato da Gabriele Leonardi");
+  const sopra = await page.getByRole("article", { name: "Campo Testaccio" }).boundingBox();
+  const sotto = await piede.boundingBox();
+  if (!sopra || !sotto) throw new Error("il piè di pagina o una card non hanno una posizione sullo schermo");
+  expect(sotto.y).toBeGreaterThan(sopra.y);
   // L'ospite: «Aggiungi» disattivato con il titolo che dice perché, e nessun «Modifica» o «Elimina» (D3)
   const aggiungi = page.getByRole("button", { name: /Aggiungi un campetto/ });
   await expect(aggiungi).toBeDisabled();
@@ -159,6 +178,36 @@ test("all'apertura i campetti intorno a Roma dall'API, la mappa con l'immagine d
   // Nessuna richiesta fuori dai domini ammessi, nessuna violazione della CSP
   expect(esterne).toEqual([]);
   expect(violazioni).toEqual([]);
+  expect(nonPreviste).toEqual([]);
+});
+
+test("una ricerca senza campetti che trova un luogo sposta la mappa lì e lo dice", async ({ page }) => {
+  const { luoghiRichiesti, tessere, nonPreviste, esterne } = await serverFinto(page);
+  await apriCampetti(page);
+  await expect(page.getByRole("article", { name: "Campo Testaccio" })).toBeVisible();
+  await page.getByLabel("Cerca città o campo").fill("firenze");
+  await expect(page.getByText("Nessun campetto a Firenze: la mappa è su quella zona")).toBeVisible();
+  expect(luoghiRichiesti).toEqual(["firenze"]);
+  // La mappa è su Firenze a zoom 12: la tessera che contiene il suo centro (12/2176/1493) è quella chiesta a OpenStreetMap
+  await expect.poll(() => tessere.some((u) => u.includes("/12/2176/1493.png"))).toBe(true);
+  expect(esterne).toEqual([]);
+  expect(nonPreviste).toEqual([]);
+});
+
+test("una ricerca senza campetti né luoghi dice che per quel testo non c'è niente (404)", async ({ page }) => {
+  const { luoghiRichiesti, nonPreviste } = await serverFinto(page);
+  await apriCampetti(page);
+  await page.getByLabel("Cerca città o campo").fill("xyzzy");
+  await expect(page.getByText("Nessun campetto e nessun luogo trovato per «xyzzy»")).toBeVisible();
+  expect(luoghiRichiesti).toEqual(["xyzzy"]);
+  expect(nonPreviste).toEqual([]);
+});
+
+test("se il servizio dei luoghi non risponde (502) il messaggio chiede di riprovare", async ({ page }) => {
+  const { nonPreviste } = await serverFinto(page, { luoghiGiu: true });
+  await apriCampetti(page);
+  await page.getByLabel("Cerca città o campo").fill("firenze");
+  await expect(page.getByText("Non è stato possibile cercare il luogo, riprova")).toBeVisible();
   expect(nonPreviste).toEqual([]);
 });
 

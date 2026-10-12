@@ -444,3 +444,12 @@ describe("App: recupero della password", () => {
   });
 });
 
+describe("App: il piè di pagina è nel layout di ogni pagina", () => {
+  it("la riga «Sito creato da Gabriele Leonardi» sta subito dopo il contenuto, fuori dal main", async () => {
+    render(<App />);
+    const piede = await screen.findByRole("contentinfo");
+    expect(piede.textContent).toContain("Sito creato da Gabriele Leonardi");
+    expect(piede.closest("main")).toBeNull();
+    expect(document.querySelector("main")?.nextElementSibling).toBe(piede);
+  });
+});
