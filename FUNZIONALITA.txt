@@ -1,6 +1,6 @@
 HOOP 3X3 — Gestionale per circuiti di basket 3x3
 =================================================
-Documento aggiornato il 09/10/2026
+Documento aggiornato il 12/10/2026
 
 
 PANORAMICA
@@ -45,6 +45,27 @@ gli utenti del circuito. La modalità Ospite salva la lega nel localStorage.
   in attesa e, se qualche tappa non arriva al server, chiede conferma. Il
   logout chiude la sessione di questo browser: un JWT già emesso resta valido
   fino a 30 minuti e gli altri dispositivi non vengono toccati.
+
+Recupero della password (rotte pubbliche, senza account attivo)
+- Nella scheda «Accedi» del modulo c'è «Password dimenticata?», che apre la
+  pagina /password-dimenticata: si scrive la mail (controllata prima
+  dell'invio con la stessa regola dell'accesso) e «Invia il link» la manda al
+  server. Mentre aspetta il pulsante dice «Invio in corso…».
+- Dopo l'invio compare sempre il messaggio del server, identico per una mail
+  registrata e per una che non lo è: la pagina non rivela chi ha un account.
+  Se la rete manca l'errore si vede, con «Riprova» che rimanda la stessa mail.
+  «Torna all'accesso» riporta al modulo.
+- Il link ricevuto per mail apre /reimposta-password?token=…: il token si
+  legge dall'indirizzo, quindi la pagina funziona anche ricaricandola. Senza
+  token dice subito «Il link non è valido», con «Richiedi un nuovo link».
+- La pagina ha i campi «Nuova password» e «Ripeti la password». La password ha
+  le regole della registrazione (da 8 caratteri a 72 byte UTF-8) e le due
+  devono coincidere: altrimenti niente parte e il motivo compare sotto il
+  campo.
+- Password aggiornata: compare il messaggio del server e «Accedi» porta al
+  modulo di accesso, già sulla scheda «Accedi». Link non valido, scaduto o già
+  usato (400): compare il messaggio del server e resta «Richiedi un nuovo
+  link». Il link vale una volta sola.
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
