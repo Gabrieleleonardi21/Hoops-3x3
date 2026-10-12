@@ -421,10 +421,11 @@ con attribuzione in fondo alla pagina).
   posizione resta nel browser e va al nostro server solo come centro della
   ricerca, mai a Google. Con il permesso negato o la posizione non
   disponibile un messaggio lo dice e la pagina resta usabile.
-- Mappa: interattiva (Leaflet, con le tessere di OpenStreetMap): si trascina
-  e si ingrandisce, la vista si adatta ai campetti mostrati, e senza campetti
-  torna su Roma. Ogni campetto è un pulsante sulla mappa (Tab, Invio, Spazio);
-  pin e card si selezionano a vicenda. Un clic sulla mappa dà il punto.
+- Mappa: interattiva (Leaflet, con le tessere di OpenStreetMap): si
+  trascina e si ingrandisce, la vista si adatta ai campetti mostrati, e
+  senza campetti torna su Roma. Ogni campetto è un pulsante sulla mappa
+  (Tab, Invio, Spazio); pin e card si selezionano a vicenda. Un clic sulla
+  mappa dà il punto.
 - Ogni card: nome, indirizzo, città, distanza (solo con la posizione), le
   caratteristiche scritte (superficie, canestri, illuminato, coperto,
   gratuito o a pagamento, retine, linee, fontanella, stato del campo), le
@@ -435,7 +436,7 @@ con attribuzione in fondo alla pagina).
   a 8), illuminato, coperto, gratuito, retine, linee, fontanella, stato del
   campo (buono / discreto / da sistemare), note (2000) e la posizione,
   obbligatoria, in uno di tre modi: «Usa la mia posizione», un clic sulla
-  mappa dentro il form (il pin provvisorio mostra il punto, e si trascina per
+  mappa dentro il form (il pin provvisorio mostra il punto e si trascina per
   correggerlo) o latitudine e longitudine scritte a mano (anche con la
   virgola). Nome, posizione,
   coordinate fuori intervallo (−90..90, −180..180) e canestri si
