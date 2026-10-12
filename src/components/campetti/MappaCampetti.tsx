@@ -76,6 +76,7 @@ export function MappaCampetti({ campetti, selezionato, onSeleziona, posizioneUte
   const gruppoPin = useRef<L.LayerGroup | null>(null);
   const gruppoProvvisorio = useRef<L.LayerGroup | null>(null);
   const gruppoUtente = useRef<L.LayerGroup | null>(null);
+  const marcatoreProvvisorio = useRef<L.Marker | null>(null);
   // Le funzioni dei gestori come sono all'ultimo render: la mappa è creata una volta sola e non si ricrea a ogni render
   const onSelezionaRef = useRef(onSeleziona);
   const onClicMappaRef = useRef(onClicMappa);
@@ -132,20 +133,30 @@ export function MappaCampetti({ campetti, selezionato, onSeleziona, posizioneUte
     }
   }, [campetti, selezionato]);
 
-  // Il pin provvisorio: trascinabile; quando lo si rilascia, la nuova posizione va a chi compila il form (il punto si corregge lì)
+  // Il pin provvisorio: trascinabile; quando lo si rilascia, la nuova posizione va a chi compila il form (il punto si corregge lì).
+  // Un solo marker per tutta la vita del pin: quando cambia la posizione si sposta (setLatLng), non si ricrea. Ricrearlo a ogni
+  // cambio rimpiazzerebbe l'elemento sotto il puntatore durante un trascinamento
   const provvisorioLat = pinProvvisorio?.lat;
   const provvisorioLng = pinProvvisorio?.lng;
   useEffect(() => {
     const gruppo = gruppoProvvisorio.current;
     if (!gruppo) return;
-    gruppo.clearLayers();
-    if (provvisorioLat === undefined || provvisorioLng === undefined) return;
+    if (provvisorioLat === undefined || provvisorioLng === undefined) {
+      gruppo.clearLayers();
+      marcatoreProvvisorio.current = null;
+      return;
+    }
+    if (marcatoreProvvisorio.current) {
+      marcatoreProvvisorio.current.setLatLng([provvisorioLat, provvisorioLng]);
+      return;
+    }
     const marker = L.marker([provvisorioLat, provvisorioLng], { icon: iconaVuota(32), draggable: true, keyboard: false });
     marker.on("dragend", () => {
       const punto = marker.getLatLng();
       onClicMappaRef.current?.({ lat: punto.lat, lng: punto.lng });
     });
     marker.addTo(gruppo);
+    marcatoreProvvisorio.current = marker;
     const contenitoreIcona = marker.getElement();
     if (!contenitoreIcona) return;
     contenitoreIcona.classList.add("text-court");
