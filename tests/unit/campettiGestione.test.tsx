@@ -23,7 +23,6 @@ vi.mock("../../src/services/campettiApi", async (importOriginal) => {
 });
 const api = vi.mocked(campettiApi);
 
-/** Il lato del sistema di coordinate della mappa (`size=640x640` della Maps Static API) */
 /** Dove sta chi compila il form: il centro di Torino */
 const UTENTE = { lat: 45.0703, lng: 7.6869 };
 const [ruffini] = CAMPETTI_DEMO;

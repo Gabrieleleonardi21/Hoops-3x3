@@ -51,7 +51,6 @@ function differita<T>() {
   return { promessa, risolvi };
 }
 
-/** L'immagine della Maps Static API, se è nella pagina */
 /** Il contenitore della mappa Leaflet, se è montata */
 const mappaMontata = () => document.querySelector(".leaflet-container");
 
