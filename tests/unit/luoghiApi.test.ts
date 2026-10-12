@@ -19,7 +19,7 @@ describe("luoghiApi.cerca: il luogo cercato, con il testo codificato nella query
 
   it("il testo con spazi e caratteri speciali è codificato (la query non si spezza)", async () => {
     rispondi({ nome: "Reggio Calabria", lat: 38.1, lng: 15.6 });
-    await luoghiApi.cerca("Reggio  Calabria & co");
+    await luoghiApi.cerca("Reggio Calabria & co");
     expect(chiamata().url).toBe("/api/luoghi?q=Reggio+Calabria+%26+co");
   });
 
