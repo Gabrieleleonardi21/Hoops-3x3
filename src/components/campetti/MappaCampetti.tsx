@@ -1,18 +1,19 @@
-/** La mappa dei campetti (D1): un'immagine della Maps Static API inquadrata sui soli campetti mostrati, con sopra i pin disegnati
- *  dall'app (proiezione Web Mercator di utils/geo): nessuno script esterno, la Content-Security-Policy non cambia (`img-src https:`).
- *  Senza chiave, o se l'immagine non carica (rete, quota, restrizioni della chiave), al suo posto c'è la griglia schematica con gli
- *  stessi pin: la pagina resta usabile. La posizione dell'utente non lascia il browser: non entra nell'URL (centro e zoom dipendono dai
- *  campetti) e il suo segno lo disegna l'app (D7). */
+/** La mappa dei campetti: un'immagine PNG inquadrata sui soli campetti mostrati, con sopra i pin disegnati dall'app (proiezione Web
+ *  Mercator di utils/geo). L'immagine la fa il backend (`/api/mappa-campetti`, che ha la chiave della Maps Static API): il browser non
+ *  parla con Google e la Content-Security-Policy non cambia (l'immagine è sulla stessa origine). Se l'immagine non c'è (503, rete), al
+ *  suo posto c'è la griglia schematica con gli stessi pin: la pagina resta usabile. La posizione dell'utente non lascia il browser: non
+ *  entra nell'URL (centro e zoom dipendono dai campetti) e il suo segno lo disegna l'app (D7). */
 import { useState, type MouseEvent } from "react";
 import type { Campetto } from "../../types/campetto";
 import { coordinateDa, inquadra, proietta, type Coordinate } from "../../utils/geo";
 import { Icon } from "../ui/Icon";
 
-/** Lato dell'immagine chiesta a Google (`size=640x640`, il massimo della Static API) e del sistema di coordinate in cui lavorano
+/** Lato dell'immagine che il server restituisce (640×640 px, fissi lato server) e del sistema di coordinate in cui lavorano
  *  `proietta` e `coordinateDa`: i pin si posizionano in percentuale di questo lato, così valgono a qualunque misura la mappa sia
- *  disegnata nella pagina. `scale=2` raddoppia solo i pixel fisici (schermi retina) e non tocca le coordinate */
+ *  disegnata nella pagina */
 const LATO = 640;
-const STATIC_MAP = "https://maps.googleapis.com/maps/api/staticmap";
+/** Dove il server serve l'immagine: stessa origine del sito (la rewrite di /api del Blueprint la gira al backend) */
+const IMMAGINE = "/api/mappa-campetti";
 
 interface Props {
   campetti: Campetto[];
@@ -28,10 +29,11 @@ interface Props {
   pinProvvisorio?: Coordinate;
 }
 
-/** L'URL dell'immagine: niente `markers` (i pin li disegna l'app, e Google non deve sapere dove sono i campetti né l'utente) */
-function urlImmagine(centro: Coordinate, zoom: number, chiave: string): string {
-  const p = new URLSearchParams({ center: `${centro.lat},${centro.lng}`, zoom: String(zoom), size: `${LATO}x${LATO}`, scale: "2", key: chiave });
-  return `${STATIC_MAP}?${p.toString()}`;
+/** L'URL dell'immagine: il centro e lo zoom di `inquadra`, e basta. Niente dimensione (la fissa il server), niente marcatori (i pin li
+ *  disegna l'app), niente posizione dell'utente */
+function urlImmagine(centro: Coordinate, zoom: number): string {
+  const p = new URLSearchParams({ lat: String(centro.lat), lng: String(centro.lng), zoom: String(zoom) });
+  return `${IMMAGINE}?${p.toString()}`;
 }
 
 /** Le coordinate di un punto in pixel dell'immagine, in percentuale del lato: lo stile dei pin */
@@ -60,14 +62,11 @@ function seDentro(punto: Coordinate | undefined, centro: Coordinate, zoom: numbe
 }
 
 export function MappaCampetti({ campetti, selezionato, onSeleziona, posizioneUtente, onClicMappa, pinProvvisorio }: Props) {
-  // Letta a ogni render e non una volta per modulo: nei test cambia da un caso all'altro (vi.stubEnv)
-  const chiave = import.meta.env.MAPS_API_KEY ?? "";
   // L'URL la cui immagine non ha caricato: con un'inquadratura nuova (altri campetti) l'URL cambia e si riprova da sé
   const [urlRotto, setUrlRotto] = useState<string | null>(null);
   const { centro, zoom } = inquadra(campetti, LATO);
-  let url: string | null = null;
-  if (chiave) url = urlImmagine(centro, zoom, chiave);
-  const conImmagine = url !== null && url !== urlRotto;
+  const url = urlImmagine(centro, zoom);
+  const conImmagine = url !== urlRotto;
 
   // Il segno dell'utente e il pin provvisorio solo se cadono nell'immagine: l'inquadratura segue i campetti, e un utente lontano
   // (Roma, con i campetti di Torino) finirebbe fuori
@@ -88,10 +87,8 @@ export function MappaCampetti({ campetti, selezionato, onSeleziona, posizioneUte
   return (
     // presentation: il livello raccoglie i clic che arrivano dai figli e dallo sfondo; i pin restano pulsanti veri
     <div role="presentation" onClick={clic} className="relative aspect-square w-full overflow-hidden rounded border border-asphalt-700 bg-asphalt-900">
-      {/* Niente referrerPolicy="no-referrer": la restrizione per referrer della chiave, in Google Cloud, legge proprio il Referer, e senza
-          l'immagine risponderebbe 403. La Referrer-Policy del sito (strict-origin-when-cross-origin) manda la sola origine, che basta */}
       {conImmagine && (
-        <img src={url ?? undefined} alt="Mappa della zona dei campetti mostrati" onError={() => setUrlRotto(url)}
+        <img src={url} alt="Mappa della zona dei campetti mostrati" onError={() => setUrlRotto(url)}
           className="absolute inset-0 h-full w-full object-cover" />
       )}
       {!conImmagine && <Griglia />}
