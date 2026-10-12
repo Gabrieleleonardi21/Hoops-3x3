@@ -8,48 +8,53 @@ afterEach(cleanup); // senza le globali di Vitest, Testing Library non smonta da
 const alfa = { name: "Alfa" };
 const beta = { name: "Beta", sub: "Roma" };
 
-/** I token di colore dei punteggi, in un posto solo: se lo stile cambia si cambia qui e non nei test. Il colore è l'unico segno
- *  di chi ha vinto, quindi si guarda la classe esatta (text-chalk non è text-chalk-dim) */
-const TOKEN_TONO = { vincitore: "text-chalk", perdente: "text-chalk-dim", neutro: "text-chalk-muted" };
-
 /** La classe del testo dell'etichetta nell'intestazione: c'è solo se l'intestazione c'è */
 const CLASSE_ETICHETTA = ".kicker";
 
-/** Il tono del punteggio che si legge con questo testo: vincitore, perdente o neutro */
-const tono = (testo: string) => {
-  const classi = screen.getByText(testo).classList;
-  const trovato = Object.entries(TOKEN_TONO).find(([, token]) => classi.contains(token));
-  return trovato?.[0];
-};
+/** Il punteggio che si legge con questo testo è seguito da «vince» (testo per i lettori di schermo): chi ha vinto non si
+ *  riconosce solo dal colore */
+const vince = (testo: string) => screen.getByText(testo).nextElementSibling?.textContent === "vince";
 
 describe("ScoreCard: chi ha vinto", () => {
-  it("a partita conclusa il punteggio più alto è in evidenza e l'altro attenuato (vince A)", () => {
+  it("a partita conclusa «vince» segue il punteggio più alto e non l'altro (vince A)", () => {
     render(<ScoreCard a={alfa} b={beta} sa={21} sb={15} done />);
-    expect(tono("21")).toBe("vincitore");
-    expect(tono("15")).toBe("perdente");
+    expect(vince("21")).toBe(true);
+    expect(vince("15")).toBe(false);
+    expect(screen.getAllByText("vince")).toHaveLength(1);
   });
 
   it("vale anche quando vince B", () => {
     render(<ScoreCard a={alfa} b={beta} sa={12} sb={21} done />);
-    expect(tono("12")).toBe("perdente");
-    expect(tono("21")).toBe("vincitore");
+    expect(vince("12")).toBe(false);
+    expect(vince("21")).toBe(true);
   });
 
-  it("senza «done» (partita in corso) nessuno dei due è in evidenza, nemmeno se un punteggio è più alto", () => {
+  it("senza «done» (partita in corso) nessuno dei due vince, nemmeno se un punteggio è più alto", () => {
     render(<ScoreCard a={alfa} b={beta} sa={8} sb={5} />);
-    expect(tono("8")).toBe("neutro");
-    expect(tono("5")).toBe("neutro");
+    expect(screen.queryByText("vince")).toBeNull();
   });
 
   it("conclusa ma con un punteggio mancante non c'è un vincitore", () => {
     render(<ScoreCard a={alfa} b={beta} sa={21} sb={null} done />);
-    expect(tono("21")).toBe("neutro");
+    expect(screen.queryByText("vince")).toBeNull();
   });
 
   it("un punteggio a zero è un punteggio: 21 a 0 ha il suo vincitore e il suo perdente, e lo 0 si vede", () => {
     render(<ScoreCard a={alfa} b={beta} sa={21} sb={0} done />);
-    expect(tono("21")).toBe("vincitore");
-    expect(tono("0")).toBe("perdente");
+    expect(vince("21")).toBe(true);
+    expect(vince("0")).toBe(false);
+  });
+
+  /* L'unico test legato ai token di colore, come documentazione del design system: chi vince lo dice il testo «vince» (sopra),
+   * qui si fissa solo come lo si vede (text-chalk non è text-chalk-dim). Se i token cambiano si cambia questo test e nessun altro */
+  it("stile: a partita conclusa il punteggio di chi vince è in chalk e quello di chi perde attenuato; in corso tutti e due neutri", () => {
+    const { unmount } = render(<ScoreCard a={alfa} b={beta} sa={21} sb={15} done />);
+    expect(screen.getByText("21").classList.contains("text-chalk")).toBe(true);
+    expect(screen.getByText("15").classList.contains("text-chalk-dim")).toBe(true);
+    unmount();
+    render(<ScoreCard a={alfa} b={beta} sa={8} sb={5} />);
+    expect(screen.getByText("8").classList.contains("text-chalk-muted")).toBe(true);
+    expect(screen.getByText("5").classList.contains("text-chalk-muted")).toBe(true);
   });
 });
 

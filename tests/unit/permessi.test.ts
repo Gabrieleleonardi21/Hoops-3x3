@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { puoModificare } from "../../src/utils/permessi";
+import { puoModificare, puoModificareCampetto } from "../../src/utils/permessi";
 import type { User } from "../../src/types";
 
 // Una voce dell'anagrafe scritta da Anna (id "u1"); gli altri utenti sono quelli che potrebbero volerla modificare
@@ -64,5 +64,28 @@ describe("puoModificare (come sul server: autore o ADMIN)", () => {
       expect(puoModificare({ name: "Anna", guest: false }, null)).toBe(false);
       expect(puoModificare({ name: "Anna", guest: false, id: null as unknown as string }, null)).toBe(false);
     });
+  });
+});
+
+// I campetti (T5.5, D3): autore o ADMIN, come l'anagrafe, ma un campetto con autoreId null non è una forma pubblica con i dati nascosti:
+// è un campetto il cui autore non esiste più (o visto senza token), e lo modifica solo l'ADMIN
+describe("puoModificareCampetto (autore o ADMIN; con l'autore sparito solo l'ADMIN)", () => {
+  it("l'autore sì, un altro registrato no, l'ADMIN sempre, l'ospite mai", () => {
+    expect(puoModificareCampetto(autore, AUTORE_ID)).toBe(true);
+    expect(puoModificareCampetto(omonimo, AUTORE_ID)).toBe(false);
+    expect(puoModificareCampetto(admin, AUTORE_ID)).toBe(true);
+    expect(puoModificareCampetto(ospite, AUTORE_ID)).toBe(false);
+    expect(puoModificareCampetto({ ...ospite, ruolo: "ADMIN" }, AUTORE_ID)).toBe(false);
+  });
+
+  it("autoreId null (autore eliminato, o elenco letto senza token): solo l'ADMIN", () => {
+    expect(puoModificareCampetto(admin, null)).toBe(true);
+    expect(puoModificareCampetto(autore, null)).toBe(false);
+    expect(puoModificareCampetto({ name: "Anna", guest: false }, null)).toBe(false);
+    expect(puoModificareCampetto(ospite, null)).toBe(false);
+  });
+
+  it("un registrato senza id non è l'autore di nessun campetto", () => {
+    expect(puoModificareCampetto({ name: "Anna", guest: false }, AUTORE_ID)).toBe(false);
   });
 });

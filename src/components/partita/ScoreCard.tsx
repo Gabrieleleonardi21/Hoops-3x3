@@ -63,11 +63,14 @@ export function ScoreCard({ a, b, sa, sb, done, live, label, center, footer, siz
       )}
       <div className={`flex items-center gap-3 ${size === "lg" ? "p-4 sm:p-6" : "px-3 py-2.5"}`}>
         <TeamBlock t={a} side="a" size={size} />
-        {/* con uno slot centrale (input, clock) e nessun punteggio si mostra solo lo slot */}
+        {/* con uno slot centrale (input, clock) e nessun punteggio si mostra solo lo slot.
+            Chi vince non si distingue solo dal colore (WCAG 1.4.1): «vince» segue il suo punteggio, solo per i lettori di schermo */}
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
           {(sa != null || !center) && <span className={`font-display ${scoreCls} ${tone(aWins)} min-w-[1.2em] text-right`}>{sa ?? "–"}</span>}
+          {aWins && <span className="sr-only">vince</span>}
           {center ?? <span className="font-display text-chalk-dim">–</span>}
           {(sb != null || !center) && <span className={`font-display ${scoreCls} ${tone(bWins)} min-w-[1.2em] text-left`}>{sb ?? "–"}</span>}
+          {bWins && <span className="sr-only">vince</span>}
         </div>
         <TeamBlock t={b} side="b" size={size} />
       </div>

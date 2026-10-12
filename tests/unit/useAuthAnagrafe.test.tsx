@@ -4,7 +4,9 @@ import { act, cleanup, renderHook } from "@testing-library/react";
 import { useAuth } from "../../src/hooks/useAuth";
 import { useAppStore } from "../../src/stores/useAppStore";
 import { useAnagrafeStore } from "../../src/stores/useAnagrafeStore";
+import { useCampettiStore } from "../../src/stores/useCampettiStore";
 import { anagrafeApi } from "../../src/services/anagrafeApi";
+import { CAMPETTI_DEMO } from "../fixtures/campetti";
 import { legheApi } from "../../src/services/legheApi";
 import * as authService from "../../src/services/authService";
 import { ApiError } from "../../src/services/api";
@@ -189,6 +191,19 @@ describe("useAuth: la cache dell'anagrafe segue chi la guarda (T2.15)", () => {
     expect(store().caricata).toBe(true);
     expect(store().giocatori![0].nascita).toBe("1998-03-15");
     expect(useAppStore.getState().user).toEqual(registrato);
+  });
+
+  // T5.5: anche i campetti hanno una forma che dipende dal token (autoreId null senza account), e decide chi vede «Modifica»
+  it.each([
+    ["l'accesso", (h: ReturnType<typeof useAuth>) => h.login("anna@example.it", "password-lunga")],
+    ["la registrazione", (h: ReturnType<typeof useAuth>) => h.register("Anna", "anna@example.it", "password-lunga")],
+    ["l'uscita", (h: ReturnType<typeof useAuth>) => h.logout()],
+  ])("con %s si svuota anche la cache dei campetti", async (_caso, azione) => {
+    useAppStore.setState({ user: ospite });
+    useCampettiStore.setState({ campetti: CAMPETTI_DEMO, ricerca: { q: "Torino" }, svuotata: 0 });
+    const { result } = renderHook(() => useAuth());
+    await act(async () => { await azione(result.current); });
+    expect(useCampettiStore.getState()).toMatchObject({ campetti: null, ricerca: null, svuotata: 1 });
   });
 
   it("accesso rifiutato dal server (password sbagliata): chi guardava l'anagrafe da ospite la conserva", async () => {

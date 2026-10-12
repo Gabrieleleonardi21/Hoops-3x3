@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-ro
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useAppStore } from "./stores/useAppStore";
 import { useAnagrafeStore } from "./stores/useAnagrafeStore";
+import { useCampettiStore } from "./stores/useCampettiStore";
 import { useAuth, saveSession } from "./hooks/useAuth";
 import * as authService from "./services/authService";
 import { attendiServer, avviaRinnovoAutomatico, suSessioneCambiataAltrove, suSessioneFinita } from "./services/api";
@@ -39,8 +40,8 @@ function messaggioFineSessione(nonSalvate: number): string {
 /** Sessione dell'utente registrato, per tutta la vita della pagina:
  *  - fine della sessione (rinnovo respinto, token cancellato da un'altra scheda, sessione scaduta all'avvio): uscita
  *    senza conferma, perché salvare non è più possibile, e ritorno al form con il messaggio;
- *  - accesso o uscita in un'altra scheda (il token compare o sparisce): la cache dell'anagrafe si svuota, perché le richieste di
- *    questa scheda cambiano insieme al token e con esse la forma dei dati (personali solo con un account);
+ *  - accesso o uscita in un'altra scheda (il token compare o sparisce): le cache dell'anagrafe e dei campetti si svuotano, perché le
+ *    richieste di questa scheda cambiano insieme al token e con esse la forma dei dati (personali e autoreId solo con un account);
  *  - rinnovo automatico del JWT finché c'è un utente registrato (non durante l'attesa del server all'avvio), fermato all'uscita;
  *  - verifica della sessione all'avvio (verifica), dopo aver aspettato che il server risponda (`inAvvio`).
  *  @returns `nonVerificata` = la verifica all'avvio non ha avuto risposta dal server; `inAvvio` = si aspetta il server; `riprova`
@@ -112,7 +113,10 @@ function useSessione() {
   // Effect Event: il gestore registrato una volta sola usa sempre il logout e la navigate più recenti
   const alFineSessione = useEffectEvent(() => { void fineSessione(); });
   useEffect(() => suSessioneFinita(() => alFineSessione()), []);
-  useEffect(() => suSessioneCambiataAltrove(() => useAnagrafeStore.getState().svuota()), []);
+  useEffect(() => suSessioneCambiataAltrove(() => {
+    useAnagrafeStore.getState().svuota();
+    useCampettiStore.getState().svuota();
+  }), []);
 
   // Non mentre si aspetta il server all'avvio: un rinnovo verso un server che si sta avviando è proprio ciò che l'attesa evita
   useEffect(() => {

@@ -2,9 +2,11 @@
  *  L'utente della sessione è persistito in localStorage così il reload non obbliga a rifare il login;
  *  il token JWT lo gestisce services/api.ts.
  *  La cache dell'anagrafe si svuota a ogni accesso, registrazione e uscita (anche dell'ospite): il server manda i dati personali
- *  solo a chi ha un token, quindi chi entra deve riscaricarla completa e chi esce non deve tenere in memoria dati riservati. */
+ *  solo a chi ha un token, quindi chi entra deve riscaricarla completa e chi esce non deve tenere in memoria dati riservati.
+ *  Lo stesso per la cache dei campetti: senza token il server manda `autoreId` null, e `autoreId` decide chi vede «Modifica». */
 import { useAppStore, SESSION_KEY } from "../stores/useAppStore";
 import { useAnagrafeStore } from "../stores/useAnagrafeStore";
+import { useCampettiStore } from "../stores/useCampettiStore";
 import * as authService from "../services/authService";
 import type { User } from "../types";
 
@@ -26,6 +28,7 @@ export function useAuth() {
     setUser(u);
     saveSession(u);
     useAnagrafeStore.getState().svuota();
+    useCampettiStore.getState().svuota();
     await rehydrate();
   };
 
@@ -64,6 +67,7 @@ export function useAuth() {
     // Prima di aspettare la rete, senza await fino alla cancellazione del token (dentro authService.logout): nessun caricamento
     // può ripartire con il token di chi esce e riempire di nuovo la cache con i suoi dati riservati
     useAnagrafeStore.getState().svuota();
+    useCampettiStore.getState().svuota();
     // L'ospite non ha una sessione sul server: un token che c'è è di un'altra scheda, registrata, e cancellarlo (o revocarlo) la
     // farebbe uscire senza conferma, con le tappe non salvate perse. Esce solo lo stato dell'ospite
     if (!eraOspite) await authService.logout();

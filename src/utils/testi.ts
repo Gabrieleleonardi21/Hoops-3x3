@@ -49,6 +49,9 @@ export const COPIA_LINK_NON_RIUSCITA =
  *  possibile caricare l'archivio», con il «Riprova»: un elenco che non si può leggere non è un elenco vuoto. */
 export const ELENCO_ARCHIVIO_NON_VALIDO = "Risposta del server non valida. Riprova più tardi.";
 
+/** Un campetto, o l'elenco dei campetti, arriva con una forma che l'app non riconosce: stesso testo e stesso uso dell'archivio */
+export const RISPOSTA_CAMPETTI_NON_VALIDA = ELENCO_ARCHIVIO_NON_VALIDO;
+
 /** Il numero con il nome al singolare o al plurale: «1 risultato», «12 risultati» */
 export function conteggio(n: number, singolare: string, plurale: string): string {
   if (n === 1) return `1 ${singolare}`;
@@ -140,6 +143,18 @@ export function voceAnagrafeModificataAltrove(cosa: string, nome: string): strin
   if (cosa.startsWith("La")) modificata = "è stata modificata";
   return `${cosa} «${nome}» ${modificata} da un altro dispositivo: la scheda mostra ora la versione salvata sul server. `
     + "Le modifiche scritte qui non sono state salvate: se servono ancora, riscrivile con «Modifica».";
+}
+
+/** Un campetto salvato con una versione vecchia: un altro dispositivo l'ha modificato nel frattempo (409). Vale il campetto del server:
+ *  l'elenco si ricarica e lo mostra, e ciò che era scritto non è stato salvato (salvarlo sopra cancellerebbe il lavoro dell'altro) */
+export function campettoModificatoAltrove(nome: string): string {
+  return `Il campetto «${nome}» è stato modificato da un altro dispositivo: l'elenco mostra ora la versione salvata sul server. `
+    + "Le modifiche scritte qui non sono state salvate: se servono ancora, riscrivile con «Modifica».";
+}
+
+/** I campetti sono condivisi: eliminarne uno lo toglie dalla mappa per tutti */
+export function perditaCampetto(nome: string): string {
+  return `Verrà eliminato il campetto «${nome}»: sparirà dalla mappa per tutti.`;
 }
 
 /** L'eliminazione di una tappa non è riuscita perché un altro dispositivo l'ha salvata nello stesso istante: la tappa resta */

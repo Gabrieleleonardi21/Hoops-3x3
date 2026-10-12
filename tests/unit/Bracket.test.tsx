@@ -35,18 +35,10 @@ function mostra(rounds: BracketMatch[][] = tabellone(), extra: Partial<Component
 
 /** La riga di una squadra dentro il suo match: il nome e il punteggio stanno nella stessa riga */
 const riga = (nome: string) => screen.getByText(nome).parentElement as HTMLElement;
-/** La card di un match, dall'etichetta */
-const card = (etichetta: string) => screen.getByText(etichetta).closest("div.overflow-hidden") as HTMLElement;
-
-/* Come il tabellone segna le cose, in un posto solo: se le classi di stile cambiano si cambia qui e non nei test */
-/** La riga di chi ha vinto (o di chi passa il turno) ha lo sfondo in evidenza */
-const inEvidenza = (rigaSquadra: HTMLElement) => rigaSquadra.classList.contains("bg-asphalt-800");
-/** Accanto a chi ha vinto c'è il segno di spunta */
-const haSpunta = (rigaSquadra: HTMLElement) => rigaSquadra.querySelector("svg") !== null;
-/** Nome o punteggio attenuati: di chi ha perso o di un posto ancora vuoto */
-const attenuato = (elemento: HTMLElement) => elemento.classList.contains("text-chalk-dim");
-/** Il punteggio di chi ha vinto è nel colore dell'accento */
-const punteggioVincente = (elemento: HTMLElement) => elemento.classList.contains("text-court");
+/** La card di un match, dall'etichetta con cui comincia il suo nome accessibile («Semifinale 1: Alfa contro Delta») */
+const card = (etichetta: string) => screen.getByRole("group", { name: new RegExp(`^${etichetta}:`) });
+/** La riga di chi ha vinto (o di chi passa il turno) lo dice anche ai lettori di schermo, non solo con il colore */
+const vince = (rigaSquadra: HTMLElement) => within(rigaSquadra).queryByText("vince") !== null;
 
 describe("Bracket: colonne e nomi", () => {
   it("una colonna per round, con il titolo senza il numero del match", () => {
@@ -57,10 +49,17 @@ describe("Bracket: colonne e nomi", () => {
     expect(screen.getByText("Semifinale 2")).toBeTruthy();
   });
 
-  it("un posto ancora vuoto si chiama TBD e ha il nome attenuato", () => {
+  it("ogni card del match è un gruppo con il nome del turno e delle due squadre", () => {
     mostra();
-    expect(attenuato(screen.getByText("TBD"))).toBe(true);
-    expect(attenuato(screen.getByText("Beta"))).toBe(false);
+    expect(screen.getByRole("group", { name: "Semifinale 1: Alfa contro Delta" })).toBeTruthy();
+    expect(screen.getByRole("group", { name: "Semifinale 2: Beta contro Gamma" })).toBeTruthy();
+    expect(screen.getAllByRole("group")).toHaveLength(3);
+  });
+
+  it("un posto ancora vuoto si chiama TBD sullo schermo e «posto da assegnare» nel nome della card", () => {
+    mostra();
+    expect(screen.getByText("TBD")).toBeTruthy();
+    expect(screen.getByRole("group", { name: "Finale: Alfa contro posto da assegnare" })).toBeTruthy();
   });
 
   it("il logo della squadra, se ce l'ha, compare nella sua riga", () => {
@@ -77,33 +76,43 @@ describe("Bracket: colonne e nomi", () => {
 });
 
 describe("Bracket: match giocato e da giocare", () => {
-  it("chi ha vinto ha la riga in evidenza, il segno di spunta e il punteggio in colore; chi ha perso è attenuato", () => {
+  it("la riga di chi ha vinto dice «vince», quella di chi ha perso no", () => {
     mostra();
     const sf1 = within(card("Semifinale 1"));
-    const vincitore = sf1.getByText("Alfa").parentElement as HTMLElement;
-    const perdente = sf1.getByText("Delta").parentElement as HTMLElement;
-    expect(inEvidenza(vincitore)).toBe(true);
-    expect(haSpunta(vincitore)).toBe(true);
-    expect(punteggioVincente(sf1.getByText("21"))).toBe(true);
-    expect(inEvidenza(perdente)).toBe(false);
-    expect(haSpunta(perdente)).toBe(false);
-    expect(attenuato(sf1.getByText("Delta"))).toBe(true);
-    expect(attenuato(sf1.getByText("15"))).toBe(true);
+    expect(vince(sf1.getByText("Alfa").parentElement as HTMLElement)).toBe(true);
+    expect(vince(sf1.getByText("Delta").parentElement as HTMLElement)).toBe(false);
   });
 
   it("vale anche quando vince la squadra B", () => {
     mostra([[match("sf1", "Semifinale 1", "a", "d", { pA: 9, pB: 21, done: true })]]);
-    expect(inEvidenza(riga("Delta"))).toBe(true);
-    expect(inEvidenza(riga("Alfa"))).toBe(false);
+    expect(vince(riga("Delta"))).toBe(true);
+    expect(vince(riga("Alfa"))).toBe(false);
   });
 
   it("un match da giocare non ha vincitore né perdente e al posto dei punti c'è un trattino", () => {
     mostra();
     const sf2 = within(card("Semifinale 2"));
     expect(sf2.getAllByText("–")).toHaveLength(2);
-    expect(inEvidenza(riga("Beta"))).toBe(false);
-    expect(haSpunta(riga("Beta"))).toBe(false);
-    expect(haSpunta(riga("Gamma"))).toBe(false);
+    expect(vince(riga("Beta"))).toBe(false);
+    expect(vince(riga("Gamma"))).toBe(false);
+  });
+
+  /* L'unico test legato alle classi di stile, come documentazione del design system: chi vince si distingue anche dal testo «vince»
+   * (sopra), qui si fissa solo come lo si vede. Se i token cambiano si cambia questo test e nessun altro */
+  it("stile: la riga di chi vince ha lo sfondo in evidenza, la spunta e il punteggio nel colore dell'accento; chi ha perso e i posti vuoti sono attenuati", () => {
+    mostra();
+    const sf1 = within(card("Semifinale 1"));
+    const vincitore = sf1.getByText("Alfa").parentElement as HTMLElement;
+    const perdente = sf1.getByText("Delta").parentElement as HTMLElement;
+    expect(vincitore.classList.contains("bg-asphalt-800")).toBe(true);
+    expect(vincitore.querySelector("svg")).not.toBeNull();
+    expect(sf1.getByText("21").classList.contains("text-court")).toBe(true);
+    expect(perdente.classList.contains("bg-asphalt-800")).toBe(false);
+    expect(perdente.querySelector("svg")).toBeNull();
+    expect(sf1.getByText("Delta").classList.contains("text-chalk-dim")).toBe(true);
+    expect(sf1.getByText("15").classList.contains("text-chalk-dim")).toBe(true);
+    expect(screen.getByText("TBD").classList.contains("text-chalk-dim")).toBe(true);
+    expect(screen.getByText("Beta").classList.contains("text-chalk-dim")).toBe(false);
   });
 });
 
@@ -117,19 +126,20 @@ describe("Bracket: turno superato d'ufficio (bye)", () => {
     [match("fin", "Finale", "a", null)],
   ];
 
-  it("la squadra presente passa il turno: nome in evidenza, «Passa il turno» al posto dell'avversaria, nessun punteggio", () => {
+  it("la squadra presente passa il turno: la card lo dice nel nome, «Passa il turno» al posto dell'avversaria, nessun punteggio", () => {
     mostra(conBye());
-    const sf1 = within(card("Semifinale 1"));
+    const sf1 = within(screen.getByRole("group", { name: "Semifinale 1: Alfa passa il turno" }));
     expect(sf1.getByText("Passa il turno")).toBeTruthy();
-    expect(inEvidenza(sf1.getByText("Alfa").parentElement as HTMLElement)).toBe(true);
+    expect(vince(sf1.getByText("Alfa").parentElement as HTMLElement)).toBe(true);
     expect(sf1.queryByText("TBD")).toBeNull(); // il posto vuoto non è un «da determinare»: la squadra non ha avversaria
     expect(sf1.getAllByText("–")).toHaveLength(1); // solo il punteggio di Alfa, che non c'è
   });
 
   it("se l'unica squadra è la B passa lo stesso il turno", () => {
     mostra([[match("sf1", "Semifinale 1", null, "d", { done: true, bye: true })]]);
+    expect(screen.getByRole("group", { name: "Semifinale 1: Delta passa il turno" })).toBeTruthy();
     expect(screen.getByText("Passa il turno")).toBeTruthy();
-    expect(inEvidenza(riga("Delta"))).toBe(true);
+    expect(vince(riga("Delta"))).toBe(true);
   });
 
   it("un match senza «bye» non dice mai «Passa il turno»", () => {

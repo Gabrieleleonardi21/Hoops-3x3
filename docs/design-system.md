@@ -33,14 +33,15 @@ della mappa (80%) e il fondo dei modali (`asphalt-950` all'80%).
 | `chalk-dim`        | `#8C8780` | note e testo terziario (5.4:1 su 950, 4.6:1 su 800)         |
 | `court`            | `#FF6A1F` | accento: CTA, nav attiva, rank #1, focus ring (6.8:1)      |
 | `court-hover`      | `#FF7F3F` | hover del primario                                         |
-| `gold`             | `#F5C542` | 1° posto e miglior valore (leader, trofeo, barra più alta della sparkline), finale e campione del tabellone, stelle dei Campetti |
+| `gold`             | `#F5C542` | 1° posto e miglior valore (leader, trofeo, barra più alta della sparkline), finale e campione del tabellone |
 | `win`              | `#3DD68C` | vittoria, DIFF positivo (10.4:1)                           |
 | `loss`             | `#FF4D4D` | sconfitta, DIFF negativo, errori (5.9:1)                   |
 | `live`             | `#FF3B3B` | badge LIVE con puntino pulsante                            |
 | `navy`             | `#17203A` | solo l'overlay della hero (colore del logo, brand esistente) |
 
 Testo su `court`: usare `asphalt-950` (6.8:1), mai bianco (2.9:1).
-Il colore non è mai l'unico indicatore: W/L come lettera, DIFF con segno +/−.
+Il colore non è mai l'unico indicatore: W/L come lettera, DIFF con segno +/−, chi vince nel tabellone con la spunta; nella
+`ScoreCard` il vincitore ha solo il testo «vince» per i lettori di schermo.
 
 ## Tipografia
 
@@ -72,8 +73,14 @@ etichette 11 px. Line-height 1.5 nel corpo (default di Tailwind), 1.0 per il dis
 
 1. **Home / classifica live**: hero (tappa in corso + LIVE) → tabella classifica (2/3) + prossime partite e score card compatta (1/3) → leader della tappa (5 stat tile).
 2. **Player profile**: header con numero maglia gigante → 6 stat tile → andamento punti (sparkline) | storico tappe → ultime partite. L'analisi 3x3 (punti di forza, aree di miglioramento) sta nella finestra del giocatore dell'Archivio (`GiocatoreAnalisi`).
-3. **Campetti**: filtri → lista card (5fr, circa il 45%) + mappa schematica (6fr, circa il 55%). *Dati di esempio* (`src/data/campetti.ts`),
-   dichiarati da un avviso in cima alla pagina: non c'è un modello dati né una persistenza.
+3. **Campetti**: «Usa la mia posizione» con il suo esito → ricerca e filtri → lista card (5fr, circa il 45%) + mappa (6fr, circa il 55%,
+   quadrata: l'immagine della Maps Static API, o la griglia schematica senza chiave) con i pin disegnati dall'app (il selezionato in
+   `court`, più grande; il segno dell'utente in `chalk`) → «Aggiungi un campetto» (primary, a tutta larghezza sotto la lista) →
+   attribuzione dei dati in fondo. Nella card le caratteristiche sono badge di testo (mai solo un'icona o un colore), la distanza,
+   solo con la posizione, in `court`, e per chi può «Modifica» ed «Elimina» come link (`Button variant="link"`, «Elimina» in `loss`)
+   a destra dei link a Google Maps. Il form del campetto sta in una finestra più larga delle schede (560px) perché contiene la
+   stessa mappa, su cui si sceglie la posizione: il pin provvisorio è un pin di 32px riempito in `court` e non cliccabile; i tre
+   modi di dare la posizione stanno in un `fieldset` con la legenda «Posizione *».
 4. **Punteggio partita** (`MatchCard`): `ScoreCard` compatta con i punteggi al centro (campi finché la gara è aperta) → tabellino
    dei giocatori editabile → eventi di gara apribili → barra delle azioni nel piede della card («Salva risultato» o «Correggi»,
    statistiche, eventi). Il **timer di gara** (`MatchTimer`) è una finestra a parte, pensata per il tavolo: punteggio gigante,
@@ -88,8 +95,8 @@ etichette 11 px. Line-height 1.5 nel corpo (default di Tailwind), 1.0 per il dis
 | `Card`, `Section`, `Kicker`, `Badge`, `StatTile`, `Modal`, `Icon` | `ui/` | primitive di layout, etichette, modali, icone SVG |
 | `ConfirmDialog` | `ui/ConfirmDialog.tsx` | finestra di conferma per ciò che fa perdere dati (ruolo `alertdialog`), sopra `Modal` |
 | `StandingsTable` | `leaderboard/StandingsTable.tsx` | `<table>` semantica, ordinamento per colonna con `aria-sort`, rail arancio sulla riga evidenziata, loghi |
-| `ScoreCard` | `partita/ScoreCard.tsx` | scoreboard con slot `center` (input) e `footer` (azioni, eventi); `size="lg"` c'è ma oggi nessuna pagina lo usa |
-| `Bracket` | `gironi/Bracket.tsx` | tabellone per round, presentazionale; i controlli arrivano da `renderControls` |
+| `ScoreCard` | `partita/ScoreCard.tsx` | scoreboard con slot `center` (input) e `footer` (azioni, eventi); a partita conclusa «vince» (`sr-only`) segue il punteggio più alto; `size="lg"` c'è ma oggi nessuna pagina lo usa |
+| `Bracket` | `gironi/Bracket.tsx` | tabellone per round, presentazionale; ogni card è un `role="group"` con il nome «Semifinale 1: Alfa contro Beta» («posto da assegnare», «Alfa passa il turno»); i controlli arrivano da `renderControls` |
 | `Sparkline` | `profile/Sparkline.tsx` | barre SVG inline, nessuna libreria chart |
 | `Hero` | `layout/Hero.tsx` | banda hero con foto e overlay |
 
@@ -119,7 +126,9 @@ Lo stato reale, con dove è garantito:
   navigazione, le schede dell'anagrafe (Giocatori, Squadre, Statistiche stagione) e i nomi delle card. Provato in
   `tests/e2e/area-di-tocco.spec.ts` a 390px di larghezza.
 - **Movimento.** `prefers-reduced-motion` azzera transizioni e animazioni (`index.css`).
-- **Icone e colore.** Icone SVG, mai emoji (`ui/Icon.tsx`); il colore non è l'unico indicatore (W/L come lettera, DIFF con segno).
+- **Icone e colore.** Icone SVG, mai emoji (`ui/Icon.tsx`); il colore non è l'unico indicatore (W/L come lettera, DIFF con segno;
+  chi vince nel tabellone ha la spunta, e nella `ScoreCard` il testo «vince» solo per i lettori di schermo). I test di `Bracket` e
+  `ScoreCard` leggono ruoli e testi, non le classi di stile: un solo test per componente fissa i token di colore, come documentazione.
 - **Tabelle.** `<th scope="col">` e `<caption className="sr-only">` (visibile solo ai lettori di schermo, che con quello annunciano la
   tabella) in tutte e sette: classifiche (`StandingsTable`, classifica del circuito), statistiche di stagione, tabellini
   (`StatsView`, `StatsEditor`), analisi del giocatore (`GiocatoreAnalisi`) e storico tappe del profilo. Provato in
