@@ -46,7 +46,7 @@ const salva = () => fireEvent.click(screen.getByRole("button", { name: "Salva il
 /** Il messaggio d'errore del form (null se non c'è) */
 const errore = () => screen.queryByRole("alert")?.textContent ?? null;
 
-/** Il form di un campetto nuovo, con la mappa dei sei campetti di Torino, e la funzione di salvataggio finta */
+/** Il form di un campetto nuovo, con la mappa dei campetti di esempio, e la funzione di salvataggio finta */
 function formNuovo(onSave = vi.fn(async (_input: CampettoInput) => {})) {
   render(<CampettoForm campetti={CAMPETTI_DEMO} onSave={onSave} onAnnulla={() => {}} />);
   return onSave;

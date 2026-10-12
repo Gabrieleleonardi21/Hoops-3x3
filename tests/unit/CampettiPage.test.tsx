@@ -21,6 +21,8 @@ const api = vi.mocked(campettiApi);
 const ROMA = { lat: 41.9028, lng: 12.4964, raggioKm: 20 };
 const UTENTE = { lat: 45.0703, lng: 7.6869 };
 const [ruffini, giardini, dora, piazzaArmi, vanchiglia, colletta] = CAMPETTI_DEMO;
+/** I tre campetti di Roma (in coda alla fixture): con la ricerca per città e nome vengono prima di quelli di Torino */
+const [quadrato, cinodromo, playground] = CAMPETTI_DEMO.slice(6);
 
 /** Il browser finto: concede la posizione dell'utente, oppure la nega (PERMISSION_DENIED = 1) */
 function geolocalizzazione(esito: "concessa" | "negata") {
@@ -56,6 +58,8 @@ beforeEach(() => {
   vi.resetAllMocks();
   // Senza chiave: la chiave vera, se è nella shell di chi lancia i test, non deve finire nell'URL dell'immagine (né nei log)
   vi.stubEnv("MAPS_API_KEY", "");
+  // Il finto restituisce tutti i campetti di esempio qualunque sia la ricerca: il filtro per raggio e per testo è del server (lo provano
+  // l'e2e e il backend), qui si prova cosa fa la pagina con l'elenco
   api.list.mockResolvedValue(CAMPETTI_DEMO);
   useCampettiStore.setState({ campetti: null, ricerca: null, errore: null, inCorso: false, epoca: 0, svuotata: 0 });
   // La pagina sta dentro RequireAuth: c'è sempre un utente. Anna, registrata (i permessi sono in campettiGestione.test)
@@ -75,8 +79,8 @@ describe("CampettiPage: all'apertura i campetti intorno a Roma, dall'API", () =>
     expect(screen.getByText(/Sto cercando i campetti/).getAttribute("role")).toBe("status");
     await screen.findByRole("article", { name: ruffini.nome });
     expect(api.list).toHaveBeenCalledWith(ROMA);
-    expect(screen.getAllByRole("article")).toHaveLength(6);
-    expect(screen.getByText(/6 campetti · intorno a Roma/)).toBeTruthy();
+    expect(screen.getAllByRole("article")).toHaveLength(9);
+    expect(screen.getByText(/9 campetti · intorno a Roma/)).toBeTruthy();
   });
 
   it("non chiede la posizione al browser all'apertura (D7) e non c'è più l'avviso «Dati di esempio»", async () => {
@@ -184,7 +188,7 @@ describe("CampettoCard: i dati di un campetto, solo come testo", () => {
   it("senza la posizione la card non ha la distanza e l'ordine è per città e nome", async () => {
     await apri();
     expect(screen.queryByText(/\d (km|m)$/)).toBeNull();
-    expect(ordineCard()).toEqual([vanchiglia.nome, giardini.nome, colletta.nome, dora.nome, ruffini.nome, piazzaArmi.nome]);
+    expect(ordineCard()).toEqual([cinodromo.nome, playground.nome, quadrato.nome, vanchiglia.nome, giardini.nome, colletta.nome, dora.nome, ruffini.nome, piazzaArmi.nome]);
   });
 
   it("un clic sulla card la seleziona (aria-pressed) e il pin sulla mappa la segue", async () => {
@@ -202,7 +206,7 @@ describe("CampettiPage: la posizione dell'utente (D7, D9)", () => {
     await apri();
     fireEvent.click(screen.getByRole("button", { name: "Usa la mia posizione" }));
     await waitFor(() => expect(api.list).toHaveBeenLastCalledWith({ ...UTENTE, raggioKm: 20 }));
-    await screen.findByText(/6 campetti · intorno a te/);
+    await screen.findByText(/9 campetti · intorno a te/);
     expect(screen.getByRole("status").textContent).toContain("Posizione trovata");
     const perDistanza = [...CAMPETTI_DEMO].sort((a, b) => distanzaKm(UTENTE, a) - distanzaKm(UTENTE, b));
     expect(ordineCard()).toEqual(perDistanza.map((c) => c.nome));
@@ -219,11 +223,11 @@ describe("CampettiPage: la posizione dell'utente (D7, D9)", () => {
     await waitFor(() => expect(api.list).toHaveBeenLastCalledWith({ ...UTENTE, raggioKm: 20 }));
     expect(screen.getByRole("status").textContent).toContain("Posizione trovata");
     // L'elenco è ancora quello di Roma: l'etichetta non dice «intorno a te», niente distanze, ordine per città e nome
-    expect(screen.getByText(/6 campetti · intorno a Roma/)).toBeTruthy();
+    expect(screen.getByText(/9 campetti · intorno a Roma/)).toBeTruthy();
     expect(screen.queryByText(/\d (km|m)$/)).toBeNull();
-    expect(ordineCard()[0]).toBe(vanchiglia.nome);
+    expect(ordineCard()[0]).toBe(cinodromo.nome);
     lenta.risolvi(CAMPETTI_DEMO);
-    await screen.findByText(/6 campetti · intorno a te/);
+    await screen.findByText(/9 campetti · intorno a te/);
     expect(ordineCard()[0]).toBe(giardini.nome);
     expect(within(card(giardini)).getByText(fmtDistanza(distanzaKm(UTENTE, giardini)))).toBeTruthy();
   });
@@ -232,7 +236,7 @@ describe("CampettiPage: la posizione dell'utente (D7, D9)", () => {
     geolocalizzazione("concessa");
     await apri();
     fireEvent.click(screen.getByRole("button", { name: "Usa la mia posizione" }));
-    await screen.findByText(/6 campetti · intorno a te/);
+    await screen.findByText(/9 campetti · intorno a te/);
     const messaggio = screen.getByRole("status").textContent ?? "";
     expect(messaggio).toContain("La posizione non va a Google e non si salva: al server arriva solo come centro della ricerca.");
     expect(messaggio).not.toMatch(/resta nel browser/);
@@ -250,11 +254,11 @@ describe("CampettiPage: la posizione dell'utente (D7, D9)", () => {
     esito = (_ok, ko) => ko({ code: 1 } as GeolocationPositionError);
     fireEvent.click(screen.getByRole("button", { name: "Usa la mia posizione" }));
     expect(screen.getByRole("status").textContent).toContain("Posizione negata");
-    expect(screen.getByText(/6 campetti · intorno a Roma/)).toBeTruthy();
+    expect(screen.getByText(/9 campetti · intorno a Roma/)).toBeTruthy();
     lenta.risolvi([dora]); // la risposta della ricerca intorno a un punto che non c'è più
-    await waitFor(() => expect(screen.getByText(/6 campetti · intorno a Roma/)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/9 campetti · intorno a Roma/)).toBeTruthy());
     expect(screen.queryByRole("article", { name: dora.nome })).not.toBeNull();
-    expect(screen.getAllByRole("article")).toHaveLength(6);
+    expect(screen.getAllByRole("article")).toHaveLength(9);
   });
 
   it("posizione negata: il messaggio lo dice, niente distanze, ordine per città e nome, e il server non riceve nessuna posizione", async () => {
@@ -263,7 +267,7 @@ describe("CampettiPage: la posizione dell'utente (D7, D9)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Usa la mia posizione" }));
     expect(screen.getByRole("status").textContent).toContain("Posizione negata");
     expect(screen.queryByText(/\d (km|m)$/)).toBeNull();
-    expect(ordineCard()[0]).toBe(vanchiglia.nome);
+    expect(ordineCard()[0]).toBe(cinodromo.nome);
     expect(api.list).toHaveBeenCalledTimes(1);
     expect(api.list).toHaveBeenCalledWith(ROMA);
   });
@@ -283,7 +287,7 @@ describe("CampettiPage: la casella di ricerca interroga il server su tutta l'Ita
     api.list.mockResolvedValue(CAMPETTI_DEMO);
     fireEvent.change(casella(), { target: { value: "  " } });
     await waitFor(() => expect(api.list).toHaveBeenLastCalledWith(ROMA));
-    await screen.findByText(/6 campetti · intorno a Roma/);
+    await screen.findByText(/9 campetti · intorno a Roma/);
   });
 
   it("con la posizione concessa il testo porta anche lat e lng: il server ordina per distanza", async () => {
@@ -323,7 +327,7 @@ describe("CampettiPage: i filtri si applicano ai risultati, nel browser", () => 
   it("i filtri di prima restano: Illuminato, Coperto, 4 canestri, Gratuito", async () => {
     await apri();
     fireEvent.click(filtro("Coperto"));
-    expect(ordineCard()).toEqual([dora.nome]);
+    expect(ordineCard()).toEqual([quadrato.nome, dora.nome]);
     fireEvent.click(filtro("Coperto"));
     fireEvent.click(filtro("Illuminato"));
     expect(ordineCard()).not.toContain(piazzaArmi.nome);
@@ -337,9 +341,9 @@ describe("CampettiPage: i filtri si applicano ai risultati, nel browser", () => 
   it("lo stato del campo si sceglie da una tendina", async () => {
     await apri();
     fireEvent.change(screen.getByLabelText("Stato del campo"), { target: { value: "discreto" } });
-    expect(ordineCard()).toEqual([vanchiglia.nome, piazzaArmi.nome]);
+    expect(ordineCard()).toEqual([cinodromo.nome, playground.nome, quadrato.nome, vanchiglia.nome, piazzaArmi.nome]);
     fireEvent.change(screen.getByLabelText("Stato del campo"), { target: { value: "" } });
-    expect(ordineCard()).toHaveLength(6);
+    expect(ordineCard()).toHaveLength(9);
   });
 
   it("filtri che non lasciano niente: «Nessun campetto con questi filtri.», e il conteggio segue i filtri", async () => {
