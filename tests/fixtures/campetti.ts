@@ -24,8 +24,10 @@ function campetto(n: number, dati: Omit<Campetto, "id" | "tipo" | "note" | "auto
   };
 }
 
-/** La nota dei tre campi di Roma (uguale nel seed): vengono da OpenStreetMap, e caratteristiche e illuminazione non sono verificate */
-const NOTA_ROMA = "Campo coperto all'aperto, dalla mappa OpenStreetMap. Illuminazione, gratuità e caratteristiche da verificare sul posto.";
+/** Le note dei tre campi di Roma, come nel seed del backend: vengono da OpenStreetMap, e illuminazione e caratteristiche non sono
+ *  verificate. Solo il Quadrato dice che è coperto */
+const NOTA_QUADRATO = "Campo coperto all'aperto, dalla mappa OpenStreetMap. Illuminazione, gratuità e caratteristiche da verificare sul posto.";
+const NOTA_ALTRI_ROMA = "Dalla mappa OpenStreetMap. Illuminazione, gratuità e caratteristiche da verificare sul posto.";
 
 export const CAMPETTI_DEMO: Campetto[] = [
   campetto(1, { nome: "Parco Ruffini — Campo 2", indirizzo: "Corso Trapani 32", citta: "Torino", lat: 45.05923, lng: 7.63174, superficie: "Asfalto", canestri: 2, illuminato: true, coperto: false, gratuito: true, retine: true, linee: true, fontanella: true, stato: "buono" }),
@@ -34,7 +36,7 @@ export const CAMPETTI_DEMO: Campetto[] = [
   campetto(4, { nome: "Piazza d'Armi — Spazio 3x3", indirizzo: "Corso Galileo Ferraris", citta: "Torino", lat: 45.04383, lng: 7.65277, superficie: "Asfalto", canestri: 2, illuminato: false, coperto: false, gratuito: true, retine: false, linee: true, fontanella: true, stato: "discreto" }),
   campetto(5, { nome: "Campo Vanchiglia", indirizzo: "Lungo Po Antonelli", citta: "Torino", lat: 45.07047, lng: 7.7169, superficie: "Cemento", canestri: 2, illuminato: true, coperto: false, gratuito: false, retine: true, linee: true, fontanella: false, stato: "discreto" }),
   campetto(6, { nome: "Parco Colletta — Campo A", indirizzo: "Via Carcano", citta: "Torino", lat: 45.08251, lng: 7.71858, superficie: "Asfalto", canestri: 2, illuminato: true, coperto: false, gratuito: true, retine: false, linee: false, fontanella: true, stato: "da sistemare" }),
-  campetto(7, { nome: "Quadrato", indirizzo: "", citta: "Roma", lat: 41.8935, lng: 12.535975, superficie: "Cemento", canestri: 2, illuminato: false, coperto: true, gratuito: false, retine: false, linee: false, fontanella: false, stato: "discreto", note: NOTA_ROMA }),
-  campetto(8, { nome: "Cinodromo — campo da basket", indirizzo: "", citta: "Roma", lat: 41.858249, lng: 12.469197, superficie: "Cemento", canestri: 2, illuminato: false, coperto: false, gratuito: false, retine: false, linee: false, fontanella: false, stato: "discreto", note: NOTA_ROMA }),
-  campetto(9, { nome: "Playground Parco delle Energie", indirizzo: "", citta: "Roma", lat: 41.893488, lng: 12.535952, superficie: "Altro", canestri: 2, illuminato: false, coperto: false, gratuito: false, retine: false, linee: false, fontanella: false, stato: "discreto", note: NOTA_ROMA }),
+  campetto(7, { nome: "Quadrato", indirizzo: "", citta: "Roma", lat: 41.8935, lng: 12.535975, superficie: "Cemento", canestri: 2, illuminato: false, coperto: true, gratuito: false, retine: false, linee: false, fontanella: false, stato: "discreto", note: NOTA_QUADRATO }),
+  campetto(8, { nome: "Cinodromo — campo da basket", indirizzo: "", citta: "Roma", lat: 41.858249, lng: 12.469197, superficie: "Cemento", canestri: 2, illuminato: false, coperto: false, gratuito: false, retine: false, linee: false, fontanella: false, stato: "discreto", note: NOTA_ALTRI_ROMA }),
+  campetto(9, { nome: "Playground Parco delle Energie", indirizzo: "", citta: "Roma", lat: 41.893488, lng: 12.535952, superficie: "Altro", canestri: 2, illuminato: false, coperto: false, gratuito: false, retine: false, linee: false, fontanella: false, stato: "discreto", note: NOTA_ALTRI_ROMA }),
 ];
