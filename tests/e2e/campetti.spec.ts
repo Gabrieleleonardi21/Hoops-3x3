@@ -168,6 +168,8 @@ test("aggiunta: un clic sulla mappa mette il pin provvisorio, trascinarlo correg
   await expect(page.getByRole("article", { name: "Campo Testaccio" })).toBeVisible();
   await page.getByRole("button", { name: /Aggiungi un campetto/ }).click();
   const finestra = page.getByRole("dialog", { name: "Nuovo campetto" });
+  // La mappa del form si inquadra sui campetti con un'animazione di zoom: si aspetta che finisca, altrimenti il pin si sposta sotto il mouse
+  await expect(finestra.locator(".leaflet-zoom-anim")).toHaveCount(0);
   // Il clic mette il pin provvisorio e riempie i campi
   await finestra.locator(".leaflet-container").click({ position: { x: 120, y: 90 } });
   const pin = finestra.locator(".leaflet-marker-draggable");
