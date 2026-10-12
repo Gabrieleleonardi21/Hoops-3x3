@@ -45,10 +45,7 @@ export default defineConfig({
       },
     },
     {
-      // `MAPS_API_KEY=` davanti: la chiave della mappa, se è nella shell di chi lancia i test, arriverebbe al browser per via di envPrefix
-      // (vite.config.ts) e l'URL con la chiave finirebbe nei log di un test fallito. Vite dà la precedenza a process.env sui file .env
-      // anche con il valore vuoto: i test girano con la mappa schematica (come playwright.config.ts)
-      command: `MAPS_API_KEY= npx vite --port ${PORTA_VITE} --strictPort`,
+      command: `npx vite --port ${PORTA_VITE} --strictPort`,
       url: `http://localhost:${PORTA_VITE}`,
       timeout: 60_000,
       reuseExistingServer: false,
