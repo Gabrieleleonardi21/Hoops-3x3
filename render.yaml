@@ -131,6 +131,10 @@ services:
       # true = al primo avvio carica i dati di prova del circuito Estathé 2025 (serve l'admin)
       - key: SEED_DEMO
         value: "false"
+      # true = al primo avvio carica i nove campetti di esempio (Torino e Roma), intestati all'admin,
+      # senza il circuito Estathé (quello è SEED_DEMO). Gli avvii successivi non li duplicano
+      - key: SEED_CAMPETTI
+        value: "true"
 
 databases:
   # Il piano free di PostgreSQL scade dopo 30 giorni: per un uso continuativo serve un piano a pagamento
