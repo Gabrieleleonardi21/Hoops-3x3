@@ -52,9 +52,13 @@ function differita<T>() {
 }
 
 /** L'immagine della Maps Static API, se è nella pagina */
-const immagineDellaMappa = () => document.querySelector("img[src*='/api/mappa-campetti']");
+/** Il contenitore della mappa Leaflet, se è montata */
+const mappaMontata = () => document.querySelector(".leaflet-container");
 
 beforeEach(() => {
+  // Leaflet legge la misura del contenitore: la mappa della pagina ha dimensione finta in jsdom
+  Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, value: 640 });
+  Object.defineProperty(HTMLElement.prototype, "clientHeight", { configurable: true, value: 640 });
   vi.resetAllMocks();
   // Il finto restituisce tutti i campetti di esempio qualunque sia la ricerca: il filtro per raggio e per testo è del server (lo provano
   // l'e2e e il backend), qui si prova cosa fa la pagina con l'elenco
@@ -115,21 +119,21 @@ describe("CampettiPage: all'apertura i campetti intorno a Roma, dall'API", () =>
     expect(aggiungi.getAttribute("title")).toBeNull();
   });
 
-  it("l'immagine della mappa (che il server fa con la chiave, a pagamento) non si chiede finché l'elenco non è arrivato, né se la ricerca fallisce", async () => {
+  it("la mappa non si monta finché l'elenco non è arrivato, né se la ricerca fallisce (la vista partirebbe da Roma per niente)", async () => {
     const lenta = differita<Campetto[]>();
     api.list.mockReturnValueOnce(lenta.promessa);
     render(<CampettiPage />);
     expect(screen.getByText(/Sto cercando i campetti/)).toBeTruthy();
-    expect(immagineDellaMappa()).toBeNull();
+    expect(mappaMontata()).toBeNull();
     lenta.risolvi(CAMPETTI_DEMO);
     await screen.findByRole("article", { name: ruffini.nome });
-    expect(immagineDellaMappa()).not.toBeNull();
+    expect(mappaMontata()).not.toBeNull();
     cleanup();
     api.list.mockRejectedValueOnce(new ApiError(503, "Servizio non disponibile"));
     useCampettiStore.setState({ campetti: null, ricerca: null, errore: null, inCorso: false, epoca: 0, svuotata: 0 });
     render(<CampettiPage />);
     await screen.findByRole("alert");
-    expect(immagineDellaMappa()).toBeNull();
+    expect(mappaMontata()).toBeNull();
   });
 
   it("in fondo l'attribuzione: i campetti sono di OpenStreetMap (© OpenStreetMap contributors, con il link alla licenza), e nessun dato viene da Pick-Roll", async () => {
