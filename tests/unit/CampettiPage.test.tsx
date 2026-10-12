@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import L from "leaflet";
 import { CampettiPage } from "../../src/pages/CampettiPage";
 import { useAppStore } from "../../src/stores/useAppStore";
 import { useCampettiStore } from "../../src/stores/useCampettiStore";
 import { campettiApi } from "../../src/services/campettiApi";
+import { luoghiApi } from "../../src/services/luoghiApi";
 import { ApiError } from "../../src/services/api";
 import { distanzaKm, fmtDistanza } from "../../src/utils/geo";
 import type { Campetto } from "../../src/types/campetto";
@@ -16,6 +18,10 @@ vi.mock("../../src/services/campettiApi", async (importOriginal) => {
   return { ...reale, campettiApi: { list: vi.fn(), create: vi.fn(), update: vi.fn(), remove: vi.fn() } };
 });
 const api = vi.mocked(campettiApi);
+
+// Il luogo cercato quando la ricerca non trova campetti: si sostituisce solo la rete (luoghiApi)
+vi.mock("../../src/services/luoghiApi", () => ({ luoghiApi: { cerca: vi.fn() } }));
+const luoghi = vi.mocked(luoghiApi);
 
 /** Il centro di Roma con cui la pagina si apre (contratto) e il centro di Torino, dove sta l'utente dei test */
 const ROMA = { lat: 41.9028, lng: 12.4964, raggioKm: 20 };
@@ -353,5 +359,81 @@ describe("CampettiPage: i filtri si applicano ai risultati, nel browser", () => 
     fireEvent.change(screen.getByLabelText("Stato del campo"), { target: { value: "da sistemare" } });
     expect(screen.getByText("Nessun campetto con questi filtri.")).toBeTruthy();
     expect(screen.getByText(/0 campetti · intorno a Roma/)).toBeTruthy();
+  });
+});
+
+/* La ricerca per testo che non trova campetti chiede dove si trova il luogo, e sposta la mappa lì (GET /api/luoghi?q=) */
+describe("CampettiPage: la ricerca che non trova campetti cerca il luogo", () => {
+  const FIRENZE = { nome: "Firenze", lat: 43.7696, lng: 11.2558 };
+  const casella = () => screen.getByLabelText("Cerca città o campo");
+
+  beforeEach(() => {
+    luoghi.cerca.mockReset();
+  });
+
+  it("lista vuota e luogo trovato: la mappa va al luogo (zoom 12) e il messaggio dice che la zona è quella", async () => {
+    await apri();
+    const vista = vi.spyOn(L.Map.prototype, "setView");
+    api.list.mockResolvedValue([]);
+    luoghi.cerca.mockResolvedValue(FIRENZE);
+    fireEvent.change(casella(), { target: { value: "firenze" } });
+    expect(await screen.findByText("Nessun campetto a Firenze: la mappa è su quella zona")).toBeTruthy();
+    expect(luoghi.cerca).toHaveBeenCalledWith("firenze");
+    expect(vista).toHaveBeenCalledWith([FIRENZE.lat, FIRENZE.lng], 12);
+    vi.restoreAllMocks();
+  });
+
+  it("lista vuota e luogo non trovato (404): il messaggio dice che né campetti né luoghi ci sono per quel testo", async () => {
+    await apri();
+    api.list.mockResolvedValue([]);
+    luoghi.cerca.mockRejectedValue(new ApiError(404, "Luogo non trovato"));
+    fireEvent.change(casella(), { target: { value: "xyzzy" } });
+    expect(await screen.findByText("Nessun campetto e nessun luogo trovato per «xyzzy»")).toBeTruthy();
+  });
+
+  it.each([
+    ["il servizio dei luoghi non risponde (502)", new ApiError(502, "Servizio dei luoghi non raggiungibile")],
+    ["la rete non c'è (status 0)", new ApiError(0, "Server non raggiungibile")],
+  ])("%s: il messaggio chiede di riprovare", async (_caso, errore) => {
+    await apri();
+    api.list.mockResolvedValue([]);
+    luoghi.cerca.mockRejectedValue(errore);
+    fireEvent.change(casella(), { target: { value: "firenze" } });
+    expect(await screen.findByText("Non è stato possibile cercare il luogo, riprova")).toBeTruthy();
+  });
+
+  it("con campetti trovati non si chiede nessun luogo: la mappa si adatta ai campetti come prima", async () => {
+    await apri();
+    api.list.mockResolvedValue([dora]);
+    fireEvent.change(casella(), { target: { value: "Dora" } });
+    await screen.findByText(/1 campetto · in tutta Italia/);
+    expect(luoghi.cerca).not.toHaveBeenCalled();
+  });
+
+  it("una lettera sola non interroga i luoghi: il servizio vuole da 2 a 100 caratteri", async () => {
+    await apri();
+    api.list.mockResolvedValue([]);
+    fireEvent.change(casella(), { target: { value: "f" } });
+    await screen.findByText("Nessun campetto trovato.");
+    expect(luoghi.cerca).not.toHaveBeenCalled();
+  });
+
+  it("una risposta del luogo arrivata dopo un'altra ricerca non sposta la mappa né scrive il messaggio", async () => {
+    await apri();
+    const vista = vi.spyOn(L.Map.prototype, "setView");
+    api.list.mockResolvedValue([]);
+    let risponde: (luogo: typeof FIRENZE) => void = () => {};
+    luoghi.cerca.mockReturnValueOnce(new Promise((ok) => { risponde = ok; }));
+    fireEvent.change(casella(), { target: { value: "firenze" } });
+    await waitFor(() => expect(luoghi.cerca).toHaveBeenCalledWith("firenze"));
+    // L'utente scrive un'altra parola: la ricerca nuova trova un campetto, e il luogo di prima arriva dopo
+    api.list.mockResolvedValue([dora]);
+    fireEvent.change(casella(), { target: { value: "Dora" } });
+    await screen.findByText(/1 campetto · in tutta Italia/);
+    risponde(FIRENZE);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(screen.queryByText("Nessun campetto a Firenze: la mappa è su quella zona")).toBeNull();
+    expect(vista).not.toHaveBeenCalledWith([FIRENZE.lat, FIRENZE.lng], 12);
+    vi.restoreAllMocks();
   });
 });
