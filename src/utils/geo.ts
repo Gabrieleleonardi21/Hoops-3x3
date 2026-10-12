@@ -1,34 +1,13 @@
-/** Geometria dei campetti: distanze in linea d'aria e la proiezione Web Mercator con cui l'app disegna i pin sopra l'immagine della
- *  Maps Static API (tile di 256 px: a zoom z il mondo è largo 256·2^z px). Funzioni pure, senza stato: il frontend lavora nel sistema
- *  `size` dell'immagine (640×640), il parametro `scale` dell'API raddoppia solo i pixel fisici e qui non c'entra. */
+/** Geometria dei campetti che l'app usa ancora: le distanze in linea d'aria, per l'ordine e le distanze delle card. La mappa
+ *  (Leaflet) fa da sola la proiezione e l'inquadratura, quindi qui non c'è più nient'altro. Funzioni pure, senza stato. */
 import { fmtMedia } from "./formato";
 
 export interface Coordinate { lat: number; lng: number }
-/** Posizione in pixel dentro l'immagine, dall'angolo in alto a sinistra */
-export interface Punto { x: number; y: number }
-export interface Inquadratura { centro: Coordinate; zoom: number }
 
 /** Raggio medio della Terra (km), quello della formula di Haversine */
 const RAGGIO_TERRA_KM = 6371;
-/** Lato di un tile della mappa (px): la base della proiezione a zoom 0 */
-const TILE = 256;
-/** Zoom minimo della Maps Static API per l'inquadratura: sotto 1 il mondo è più piccolo dell'immagine */
-const ZOOM_MIN = 1;
-/** Zoom massimo dell'inquadratura, quello di un solo campetto: il quartiere intorno, non il campo da solo. Vale anche per più
- *  campetti vicini o nello stesso punto: più stretto non si distinguerebbe niente, e i pin si sovrappongono lo stesso */
-const ZOOM_SINGOLO = 15;
-/** Latitudine oltre cui Web Mercator diverge (tan φ → ∞): la proiezione si ferma qui, come le mappe di Google. Nessun campetto sta
- *  ai poli, ma una coordinata estrema (lat ±90, ammessa dal contratto) non deve dare Infinity o NaN nei pixel */
-const LAT_MAX = 85.0511;
-/** Frazione del lato lasciata libera da ogni bordo quando si inquadrano più punti: i pin ai margini resterebbero tagliati (il pin è
- *  disegnato sopra il punto) */
-const MARGINE = 0.1;
-/** Inquadratura senza campetti: il centro di Roma, dove la pagina si apre (contratto della fase 5), con la città intera in vista */
-const ROMA: Coordinate = { lat: 41.9028, lng: 12.4964 };
-const ZOOM_ROMA = 12;
 
 const inRadianti = (gradi: number) => (gradi * Math.PI) / 180;
-const inGradi = (radianti: number) => (radianti * 180) / Math.PI;
 
 /** Distanza in linea d'aria (km) con la formula di Haversine: a = sin²(Δφ/2) + cos φ₁·cos φ₂·sin²(Δλ/2), d = 2R·asin(√a).
  *  Sulla sfera, non sull'ellissoide: lo scarto (sotto lo 0,5%) non conta per dire quanto dista un campetto. */
@@ -46,59 +25,4 @@ export function fmtDistanza(km: number): string {
   const metri = Math.round(km * 1000);
   if (metri < 1000) return `${metri} m`;
   return `${fmtMedia(km)} km`;
-}
-
-/** Larghezza del mondo in pixel allo zoom dato */
-const mondo = (zoom: number) => TILE * 2 ** zoom;
-
-/** Coordinate del mondo (px, origine in alto a sinistra: lng −180, lat +85) di un punto a uno zoom. Web Mercator:
- *  x = (λ + 180) / 360 · mondo, y = (1 − ln(tan φ + sec φ) / π) / 2 · mondo. */
-function nelMondo(lat: number, lng: number, zoom: number): Punto {
-  const fi = inRadianti(Math.max(-LAT_MAX, Math.min(LAT_MAX, lat)));
-  return {
-    x: ((lng + 180) / 360) * mondo(zoom),
-    y: ((1 - Math.log(Math.tan(fi) + 1 / Math.cos(fi)) / Math.PI) / 2) * mondo(zoom),
-  };
-}
-
-/** Pixel di un punto dentro un'immagine quadrata di lato `dimensione` centrata su `centro` allo zoom dato: la differenza tra le
- *  coordinate del mondo del punto e quelle del centro, spostata al centro dell'immagine */
-export function proietta(lat: number, lng: number, centro: Coordinate, zoom: number, dimensione: number): Punto {
-  const p = nelMondo(lat, lng, zoom);
-  const c = nelMondo(centro.lat, centro.lng, zoom);
-  return { x: p.x - c.x + dimensione / 2, y: p.y - c.y + dimensione / 2 };
-}
-
-/** L'inversa di `proietta`: le coordinate del punto sotto un pixel dell'immagine (un clic sulla mappa).
- *  λ = x / mondo · 360 − 180, φ = atan(sinh(π · (1 − 2y / mondo))). */
-export function coordinateDa(x: number, y: number, centro: Coordinate, zoom: number, dimensione: number): Coordinate {
-  const c = nelMondo(centro.lat, centro.lng, zoom);
-  const px = c.x + x - dimensione / 2;
-  const py = c.y + y - dimensione / 2;
-  return {
-    lat: inGradi(Math.atan(Math.sinh(Math.PI * (1 - (2 * py) / mondo(zoom))))),
-    lng: (px / mondo(zoom)) * 360 - 180,
-  };
-}
-
-/** Centro e zoom che contengono tutti i punti in un'immagine quadrata di lato `dimensione`: il centro è quello del riquadro dei
- *  punti; lo zoom è il più grande intero, tra ZOOM_MIN e ZOOM_SINGOLO, con cui tutti i punti stanno dentro il margine. Senza punti
- *  Roma allo zoom 12; con un solo punto, o con più punti così vicini da stare tutti nel margine anche a ZOOM_SINGOLO, lo zoom del
- *  quartiere. */
-export function inquadra(punti: Coordinate[], dimensione: number): Inquadratura {
-  if (punti.length === 0) return { centro: ROMA, zoom: ZOOM_ROMA };
-  if (punti.length === 1) return { centro: punti[0], zoom: ZOOM_SINGOLO };
-  const lat = punti.map((p) => p.lat);
-  const lng = punti.map((p) => p.lng);
-  const centro = { lat: (Math.min(...lat) + Math.max(...lat)) / 2, lng: (Math.min(...lng) + Math.max(...lng)) / 2 };
-  const bordo = dimensione * MARGINE;
-  const dentro = (p: Coordinate, zoom: number) => {
-    const { x, y } = proietta(p.lat, p.lng, centro, zoom, dimensione);
-    return x >= bordo && x <= dimensione - bordo && y >= bordo && y <= dimensione - bordo;
-  };
-  // Dal più vicino al più lontano: il primo zoom che li contiene tutti è il massimo possibile
-  for (let zoom = ZOOM_SINGOLO; zoom > ZOOM_MIN; zoom--) {
-    if (punti.every((p) => dentro(p, zoom))) return { centro, zoom };
-  }
-  return { centro, zoom: ZOOM_MIN };
 }
