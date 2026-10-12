@@ -136,11 +136,13 @@ describe("CampettiPage: all'apertura i campetti intorno a Roma, dall'API", () =>
     expect(immagineDiGoogle()).toBeNull();
   });
 
-  it("in fondo l'attribuzione dei dati: Pick-Roll con il link all'app e OpenStreetMap per le coordinate di esempio (D5)", async () => {
+  it("in fondo l'attribuzione: i campetti sono di OpenStreetMap (© OpenStreetMap contributors, con il link alla licenza), e nessun dato viene da Pick-Roll", async () => {
     await apri();
-    const fonte = screen.getByText(/Campetti: dati di/);
-    expect(within(fonte).getByRole("link", { name: "Pick-Roll" }).getAttribute("href")).toBe("https://pick-roll.com");
+    const fonte = screen.getByText(/Coordinate dei campetti di esempio/);
+    expect(within(fonte).getByRole("link", { name: "OpenStreetMap" }).getAttribute("href")).toBe("https://www.openstreetmap.org/copyright");
     expect(fonte.textContent).toContain("© OpenStreetMap contributors");
+    expect(document.body.textContent).not.toMatch(/Pick-Roll/);
+    expect(document.querySelector("a[href*='pick-roll']")).toBeNull();
   });
 });
 
