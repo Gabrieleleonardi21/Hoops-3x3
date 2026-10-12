@@ -1,12 +1,16 @@
-import { test, expect, type Page, type Route } from "@playwright/test";
+import { test, expect, type Locator, type Page, type Route } from "@playwright/test";
 import { bloccaApiNonPreviste, creato, errore, json, rispondiAlRisveglio, utenteAnna, utenteRegistrato } from "./helpers";
 import { CAMPETTI_DEMO } from "../fixtures/campetti";
 
-/** Un PNG di un pixel: l'immagine della mappa che il server finto restituisce a /api/mappa-campetti */
+/** Un PNG di un pixel: la risposta finta delle tessere di OpenStreetMap (la mappa è Leaflet, che le chiede al dominio di OSM) */
 const PNG_FINTO = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "base64");
+/** Gli host che la pagina dei campetti può chiamare: il sito, le tessere di OSM, i font di Google (index.html). Altro è un errore */
+const ammessoSenzaErrore = (host: string) =>
+  host === "localhost" || host.endsWith("tile.openstreetmap.org") || host === "fonts.googleapis.com" || host === "fonts.gstatic.com";
 
-/* La pagina dei Campetti sulla build di produzione. L'immagine della mappa viene dal backend (/api/mappa-campetti, che ha la chiave di
- * Google): qui è un PNG finto di un pixel, e con `mappaGiu` il 503 che la CI vede senza chiave, con la mappa schematica al suo posto.
+/* La pagina dei Campetti sulla build di produzione. La mappa è Leaflet con le tessere di OpenStreetMap: le tessere qui sono un PNG
+ * finto di un pixel (con `tessereGiu` la rete cade e la mappa resta con i pin). Nessuna chiamata a Google Maps, nessuna richiesta a
+ * host che la pagina non deve chiamare, nessuna violazione della Content-Security-Policy.
  * Il server finto imita /api/campetti del contratto: GET per raggio ordina per distanza, per testo filtra su nome e città (D9); POST
  * risponde 201 con il campetto (autore = chi ha il token, versione 0), PUT 200 con la versione aumentata di uno, DELETE 204. Lo
  * stesso percorso con il backend vero sta in tests/e2e-backend/campetti.spec.ts. */
@@ -51,13 +55,30 @@ function rispostaDelServer(url: URL, tutti: Campetto[]) {
   return tutti.filter((c) => km(centro, c) <= raggio).sort(perDistanza);
 }
 
+/** Aspetta che un elemento sia fermo: due letture consecutive della sua posizione uguali (una mappa che scorre o una finestra che si
+ *  muove cambiano la posizione finché l'animazione non finisce) */
+async function attendiFermo(elemento: Locator) {
+  let precedente = "";
+  await expect.poll(async () => {
+    const cassetta = JSON.stringify(await elemento.boundingBox());
+    const fermo = cassetta === precedente;
+    precedente = cassetta;
+    return fermo;
+  }, { timeout: 5000, intervals: [100] }).toBe(true);
+}
+
 /** Il server finto dei campetti: risponde come quello vero e registra le query string delle letture e i corpi delle scritture. Le
  *  scritture (di Anna, l'unica che accede nei test) cambiano l'elenco che le letture successive restituiscono. Con `giu` le letture
  *  rispondono 500; con `mappaGiu` l'immagine della mappa risponde 503 (il server senza chiave).
  *  @returns le query string delle letture, i corpi di POST e PUT, gli id delle DELETE e le chiamate non previste (a fine test nessuna) */
-async function serverFinto(page: Page, stato: { giu?: boolean; mappaGiu?: boolean } = {}) {
+async function serverFinto(page: Page, stato: { giu?: boolean; tessereGiu?: boolean } = {}) {
   const nonPreviste = await bloccaApiNonPreviste(page);
   await rispondiAlRisveglio(page);
+  // Le richieste a host non ammessi (e le violazioni della CSP lette dalla console) finiscono qui, e il test le controlla
+  const esterne: string[] = [];
+  page.on("request", (r) => { if (!ammessoSenzaErrore(new URL(r.url()).hostname)) esterne.push(r.url()); });
+  const violazioni: string[] = [];
+  page.on("console", (m) => { if (/Content Security Policy/i.test(m.text())) violazioni.push(m.text()); });
   const richieste: string[] = [];
   const scritture: { metodo: string; id: string | null; corpo: unknown }[] = [];
   let tutti = [...TUTTI];
@@ -82,9 +103,9 @@ async function serverFinto(page: Page, stato: { giu?: boolean; mappaGiu?: boolea
     tutti = tutti.filter((c) => c.id !== id);
     return route.fulfill({ status: 204, body: "" });
   };
-  // L'immagine della mappa: un PNG finto, o il 503 del server senza chiave (la mappa schematica al suo posto)
-  await page.route("**/api/mappa-campetti**", (route) => {
-    if (stato.mappaGiu) return route.fulfill(errore(503, "Mappa non disponibile"));
+  // Le tessere di OpenStreetMap: un PNG finto, o la rete che cade (la mappa resta con i pin)
+  await page.route("**tile.openstreetmap.org/**", (route) => {
+    if (stato.tessereGiu) return route.abort();
     return route.fulfill({ status: 200, contentType: "image/png", body: PNG_FINTO });
   });
   await page.route("**/api/campetti**", (route) => {
@@ -94,7 +115,7 @@ async function serverFinto(page: Page, stato: { giu?: boolean; mappaGiu?: boolea
     if (stato.giu) return route.fulfill(errore(500, "Errore interno"));
     return route.fulfill(json(rispostaDelServer(url, tutti)));
   });
-  return { richieste, scritture, nonPreviste };
+  return { richieste, scritture, nonPreviste, esterne, violazioni };
 }
 
 /** Entra come Ospite e apre i Campetti dal menu */
@@ -109,15 +130,15 @@ async function apriCampetti(page: Page) {
 const nomiDelleCard = (page: Page) => page.getByRole("article").evaluateAll((card) => card.map((c) => c.getAttribute("aria-label")));
 
 test("all'apertura i campetti intorno a Roma dall'API, la mappa con l'immagine del server e i pin; l'ospite legge soltanto; nessuna posizione chiesta", async ({ page }) => {
-  const { richieste, nonPreviste } = await serverFinto(page);
+  const { richieste, nonPreviste, esterne, violazioni } = await serverFinto(page);
   await apriCampetti(page);
   await expect(page.getByRole("article", { name: "Campo Testaccio" })).toBeVisible();
   expect(richieste).toEqual(["?lat=41.9028&lng=12.4964&raggioKm=20"]);
   await expect(page.getByText("5 campetti · intorno a Roma")).toBeVisible();
   expect(await nomiDelleCard(page)).toEqual(ROMA_IN_ORDINE);
-  // L'immagine viene dal server (la chiave sta lì): qui è il PNG finto, e i pin sono pulsanti sopra
-  await expect(page.locator("img[src*='/api/mappa-campetti']")).toBeVisible();
-  await expect(page.getByText("Mappa schematica")).toHaveCount(0);
+  // La mappa è Leaflet con l'attribuzione di OpenStreetMap; i pin sono pulsanti sopra
+  await expect(page.locator(".leaflet-container")).toBeVisible();
+  await expect(page.locator(".leaflet-control-attribution")).toContainText("© OpenStreetMap contributors");
   await expect(page.getByRole("button", { name: "Campo Testaccio", exact: true })).toBeVisible();
   await expect(page.getByText("Dati di esempio")).toHaveCount(0);
   // L'ospite: «Aggiungi» disattivato con il titolo che dice perché, e nessun «Modifica» o «Elimina» (D3)
@@ -128,17 +149,70 @@ test("all'apertura i campetti intorno a Roma dall'API, la mappa con l'immagine d
   // Un clic sul pin seleziona la card
   await page.getByRole("button", { name: "Villa Pamphili — Playground", exact: true }).click();
   await expect(page.getByRole("article", { name: "Villa Pamphili — Playground" }).getByRole("button")).toHaveAttribute("aria-pressed", "true");
+  // Da tastiera: un pin si mette a fuoco e Invio lo seleziona; un altro con Spazio
+  await page.getByRole("button", { name: "Campo Testaccio", exact: true }).focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("button", { name: "Campo Testaccio", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "Quadrato", exact: true }).focus();
+  await page.keyboard.press(" ");
+  await expect(page.getByRole("button", { name: "Quadrato", exact: true })).toHaveAttribute("aria-pressed", "true");
+  // Nessuna richiesta fuori dai domini ammessi, nessuna violazione della CSP
+  expect(esterne).toEqual([]);
+  expect(violazioni).toEqual([]);
   expect(nonPreviste).toEqual([]);
 });
 
-test("senza immagine dal server (503) la mappa è quella schematica, con i pin; la pagina resta usabile", async ({ page }) => {
-  const { nonPreviste } = await serverFinto(page, { mappaGiu: true });
+test("senza le tessere (la rete cade) la mappa resta con i pin, e i pin funzionano", async ({ page }) => {
+  const { nonPreviste } = await serverFinto(page, { tessereGiu: true });
   await apriCampetti(page);
-  await expect(page.getByText("Mappa schematica")).toBeVisible();
-  await expect(page.locator("img[src*='/api/mappa-campetti']")).toHaveCount(0);
+  await expect(page.locator(".leaflet-container")).toBeVisible();
   await expect(page.getByRole("button", { name: "Campo Testaccio", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Villa Pamphili — Playground", exact: true }).click();
   await expect(page.getByRole("article", { name: "Villa Pamphili — Playground" }).getByRole("button")).toHaveAttribute("aria-pressed", "true");
+  expect(nonPreviste).toEqual([]);
+});
+
+test("aggiunta: un clic sulla mappa mette il pin provvisorio, trascinarlo corregge la posizione che va al server", async ({ page }) => {
+  test.setTimeout(30_000);
+  const { scritture, nonPreviste, esterne, violazioni } = await serverFinto(page);
+  await utenteRegistrato(page); // Anna, con il token nel browser
+  await page.goto("/campetti");
+  await expect(page.getByRole("article", { name: "Campo Testaccio" })).toBeVisible();
+  await page.getByRole("button", { name: /Aggiungi un campetto/ }).click();
+  const finestra = page.getByRole("dialog", { name: "Nuovo campetto" });
+  // La mappa del form si inquadra sui campetti con un'animazione di zoom: si aspetta che finisca, altrimenti il pin si sposta sotto il mouse
+  await expect(finestra.locator(".leaflet-zoom-anim")).toHaveCount(0);
+  // Il clic mette il pin provvisorio e riempie i campi
+  await finestra.locator(".leaflet-container").click({ position: { x: 120, y: 90 } });
+  const pin = finestra.locator(".leaflet-marker-draggable");
+  await expect(pin).toHaveCount(1);
+  const latPrima = await finestra.getByLabel("Latitudine").inputValue();
+  // Il pin si trascina con il mouse: la nuova posizione arriva al form. Prima il pin deve essere fermo (la mappa del form può ancora
+  // scorrere dopo il clic) e sotto il puntatore, altrimenti il mouse trascinerebbe la mappa invece del pin
+  await pin.scrollIntoViewIfNeeded();
+  await attendiFermo(pin);
+  const riquadro = await pin.boundingBox();
+  if (!riquadro) throw new Error("il pin provvisorio non ha una posizione sullo schermo");
+  const x = riquadro.x + riquadro.width / 2;
+  const y = riquadro.y + riquadro.height / 2;
+  const sottoIlPuntatore = await page.evaluate(([px, py]) => !!(document.elementFromPoint(px, py) as HTMLElement | null)?.closest(".leaflet-marker-draggable"), [x, y]);
+  expect(sottoIlPuntatore).toBe(true);
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + 60, y + 40, { steps: 15 });
+  await page.mouse.up();
+  // Si aspetta il valore nuovo, non un tempo fisso
+  await expect.poll(() => finestra.getByLabel("Latitudine").inputValue(), { timeout: 5000 }).not.toBe(latPrima);
+  const latDopo = await finestra.getByLabel("Latitudine").inputValue();
+  // Il salvataggio manda il punto trascinato, non quello del clic
+  await finestra.getByLabel("Nome *").fill("Campo trascinato");
+  await finestra.getByRole("button", { name: "Salva il campetto" }).click();
+  await expect(page.getByRole("article", { name: "Campo trascinato" })).toBeVisible();
+  const corpo = scritture[0].corpo as { nome: string; lat: number };
+  expect(corpo.nome).toBe("Campo trascinato");
+  expect(corpo.lat).toBeCloseTo(Number(latDopo), 5);
+  expect(esterne).toEqual([]);
+  expect(violazioni).toEqual([]);
   expect(nonPreviste).toEqual([]);
 });
 
@@ -159,7 +233,7 @@ test("registrata: aggiunge un campetto con un clic sulla mappa, lo modifica e lo
   await page.getByRole("button", { name: /Aggiungi un campetto/ }).click();
   const finestra = page.getByRole("dialog", { name: "Nuovo campetto" });
   await expect(finestra.getByLabel("Latitudine")).toHaveValue("");
-  await finestra.locator("[role='presentation']").click({ position: { x: 120, y: 90 } });
+  await finestra.locator(".leaflet-container").click({ position: { x: 120, y: 90 } });
   await expect(finestra.getByLabel("Latitudine")).not.toHaveValue("");
   await expect(finestra.getByLabel("Longitudine")).not.toHaveValue("");
   await expect(finestra.getByText("Posizione scelta")).toHaveCount(1);

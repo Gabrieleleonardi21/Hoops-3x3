@@ -1,19 +1,59 @@
-/** La mappa dei campetti: un'immagine PNG inquadrata sui soli campetti mostrati, con sopra i pin disegnati dall'app (proiezione Web
- *  Mercator di utils/geo). L'immagine la fa il backend (`/api/mappa-campetti`, che ha la chiave della Maps Static API): il browser non
- *  parla con Google e la Content-Security-Policy non cambia (l'immagine è sulla stessa origine). Se l'immagine non c'è (503, rete), al
- *  suo posto c'è la griglia schematica con gli stessi pin: la pagina resta usabile. La posizione dell'utente non lascia il browser: non
- *  entra nell'URL (centro e zoom dipendono dai campetti) e il suo segno lo disegna l'app (D7). */
-import { useState, type MouseEvent } from "react";
+/** La mappa dei campetti: Leaflet con le tessere di OpenStreetMap (© OpenStreetMap contributors). Si trascina e si ingrandisce; ogni
+ *  campetto è un pulsante sulla mappa (con Tab, Invio e Spazio); un clic sullo sfondo dà le coordinate del punto, e il pin provvisorio
+ *  (il punto del campetto che si sta compilando) si trascina per correggerlo.
+ *  Perché OpenStreetMap con Leaflet e non Google Maps: README, «Campetti». Niente chiave nel browser, niente script esterni: il bundle
+ *  porta Leaflet e il CSS, e le tessere arrivano da `img-src https:` della Content-Security-Policy, che non cambia. I pin sono costruiti
+ *  con le API del DOM (niente innerHTML con i nomi dei campetti, che scrive chi li inserisce). */
+import { useEffect, useRef } from "react";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 import type { Campetto } from "../../types/campetto";
-import { coordinateDa, inquadra, proietta, type Coordinate } from "../../utils/geo";
-import { Icon } from "../ui/Icon";
+import type { Coordinate } from "../../utils/geo";
 
-/** Lato dell'immagine che il server restituisce (640×640 px, fissi lato server) e del sistema di coordinate in cui lavorano
- *  `proietta` e `coordinateDa`: i pin si posizionano in percentuale di questo lato, così valgono a qualunque misura la mappa sia
- *  disegnata nella pagina */
-const LATO = 640;
-/** Dove il server serve l'immagine: stessa origine del sito (la rewrite di /api del Blueprint la gira al backend) */
-const IMMAGINE = "/api/mappa-campetti";
+/** Centro e zoom della mappa senza campetti: Roma, dove la pagina si apre (contratto della fase 5) */
+const ROMA: Coordinate = { lat: 41.9028, lng: 12.4964 };
+const ZOOM_ROMA = 12;
+/** Lo zoom massimo quando si adatta la vista ai campetti: un solo campetto non porta il quartiere sul campo */
+const ZOOM_MASSIMO_ADATTA = 15;
+/** Le tessere di OpenStreetMap, sui tre sottodomini; l'uso è gratuito con attribuzione (vedi la politica di OSM nel README) */
+const TESSERE = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+/** L'attribuzione è obbligatoria: il testo è costante, non dati di utenti */
+const ATTRIBUZIONE = '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors';
+
+/** Il percorso del pin: lo stesso disegno dell'icona `pin` di ui/Icon.tsx (lì è in una tabella non esportata) */
+const PERCORSO_PIN = "M12 21s-6-5.5-6-11a6 6 0 1 1 12 0c0 5.5-6 11-6 11Zm0-9a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z";
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+/** Il pin disegnato con le API del DOM: un SVG 24×24 con il percorso di `PERCORSO_PIN`, della dimensione data */
+function pinSvg(dimensione: number, riempimento: string): SVGSVGElement {
+  const svg = document.createElementNS(SVG_NS, "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("width", String(dimensione));
+  svg.setAttribute("height", String(dimensione));
+  svg.setAttribute("fill", riempimento);
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-width", "2");
+  svg.setAttribute("stroke-linecap", "round");
+  svg.setAttribute("stroke-linejoin", "round");
+  svg.setAttribute("aria-hidden", "true");
+  const percorso = document.createElementNS(SVG_NS, "path");
+  percorso.setAttribute("d", PERCORSO_PIN);
+  svg.append(percorso);
+  return svg;
+}
+
+/** Un testo per chi legge lo schermo, nascosto alla vista (come la classe `sr-only` di Tailwind) */
+function testoSoloSchermo(testo: string): HTMLSpanElement {
+  const span = document.createElement("span");
+  span.className = "sr-only";
+  span.textContent = testo;
+  return span;
+}
+
+/** Icona vuota di Leaflet: il contenuto lo aggiunge il codice con le API del DOM (un `divIcon` senza `html` non usa innerHTML) */
+function iconaVuota(dimensione: number): L.DivIcon {
+  return L.divIcon({ className: "", iconSize: [dimensione, dimensione], iconAnchor: [dimensione / 2, dimensione] });
+}
 
 interface Props {
   campetti: Campetto[];
@@ -22,113 +62,140 @@ interface Props {
   onSeleziona: (id: string) => void;
   /** Dove sta chi guarda, se ha concesso la posizione: solo per il suo segno sulla mappa */
   posizioneUtente?: Coordinate;
-  /** Un clic sulla mappa fuori dai pin, con le coordinate del punto (per dare la posizione a un campetto nuovo, D4) */
+  /** Un clic sulla mappa, o il rilascio del pin provvisorio trascinato, con le coordinate del punto (per dare la posizione a un campetto
+   *  nuovo, D4) */
   onClicMappa?: (punto: Coordinate) => void;
-  /** La posizione scelta per il campetto che si sta compilando (form): un pin non cliccabile, del colore d'accento. Non entra
-   *  nell'inquadratura, che segue solo i campetti: altrimenti ogni clic sposterebbe la mappa sotto il puntatore */
+  /** La posizione scelta per il campetto che si sta compilando (form): un pin trascinabile, del colore d'accento */
   pinProvvisorio?: Coordinate;
 }
 
-/** L'URL dell'immagine: il centro e lo zoom di `inquadra`, e basta. Niente dimensione (la fissa il server), niente marcatori (i pin li
- *  disegna l'app), niente posizione dell'utente */
-function urlImmagine(centro: Coordinate, zoom: number): string {
-  const p = new URLSearchParams({ lat: String(centro.lat), lng: String(centro.lng), zoom: String(zoom) });
-  return `${IMMAGINE}?${p.toString()}`;
-}
-
-/** Le coordinate di un punto in pixel dell'immagine, in percentuale del lato: lo stile dei pin */
-function posizione(x: number, y: number) {
-  return { left: `${(x / LATO) * 100}%`, top: `${(y / LATO) * 100}%` };
-}
-
-/** La griglia schematica: strade e isoipse decorative, senza significato (è `aria-hidden`); i pin stanno sopra */
-function Griglia() {
-  return (
-    <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 h-full w-full" aria-hidden="true">
-      {[15, 35, 55, 75, 95].map((y) => <line key={y} x1="0" y1={y} x2="100" y2={y} stroke="var(--color-asphalt-700)" strokeWidth="0.3" />)}
-      {[12, 30, 48, 66, 84].map((x) => <line key={x} x1={x} y1="0" x2={x} y2="100" stroke="var(--color-asphalt-700)" strokeWidth="0.3" />)}
-      <path d="M60 0 C 62 30, 70 60, 78 100" fill="none" stroke="var(--color-asphalt-600)" strokeWidth="1.2" />
-      <path d="M0 58 C 30 52, 60 66, 100 60" fill="none" stroke="var(--color-asphalt-600)" strokeWidth="0.8" />
-    </svg>
-  );
-}
-
-/** Il punto in pixel se cade nell'immagine, altrimenti null: un segno fuori sarebbe nascosto dall'overflow ma letto dal lettore di schermo */
-function seDentro(punto: Coordinate | undefined, centro: Coordinate, zoom: number): { x: number; y: number } | null {
-  if (!punto) return null;
-  const p = proietta(punto.lat, punto.lng, centro, zoom, LATO);
-  if (p.x < 0 || p.x > LATO || p.y < 0 || p.y > LATO) return null;
-  return p;
-}
-
 export function MappaCampetti({ campetti, selezionato, onSeleziona, posizioneUtente, onClicMappa, pinProvvisorio }: Props) {
-  // L'URL la cui immagine non ha caricato: con un'inquadratura nuova (altri campetti) l'URL cambia e si riprova da sé
-  const [urlRotto, setUrlRotto] = useState<string | null>(null);
-  const { centro, zoom } = inquadra(campetti, LATO);
-  const url = urlImmagine(centro, zoom);
-  const conImmagine = url !== urlRotto;
+  const contenitore = useRef<HTMLDivElement>(null);
+  const mappaRef = useRef<L.Map | null>(null);
+  // I gruppi di segni: si svuotano e si ridisegnano senza toccare la mappa
+  const gruppoPin = useRef<L.LayerGroup | null>(null);
+  const gruppoProvvisorio = useRef<L.LayerGroup | null>(null);
+  const gruppoUtente = useRef<L.LayerGroup | null>(null);
+  const marcatoreProvvisorio = useRef<L.Marker | null>(null);
+  // Le funzioni dei gestori come sono all'ultimo render: la mappa è creata una volta sola e non si ricrea a ogni render
+  const onSelezionaRef = useRef(onSeleziona);
+  const onClicMappaRef = useRef(onClicMappa);
+  const campettiRef = useRef(campetti);
+  useEffect(() => {
+    onSelezionaRef.current = onSeleziona;
+    onClicMappaRef.current = onClicMappa;
+    campettiRef.current = campetti;
+  });
 
-  // Il segno dell'utente e il pin provvisorio solo se cadono nell'immagine: l'inquadratura segue i campetti, e un utente lontano
-  // (Roma, con i campetti di Torino) finirebbe fuori
-  const segnoUtente = seDentro(posizioneUtente, centro, zoom);
-  const provvisorio = seDentro(pinProvvisorio, centro, zoom);
+  // La mappa: una volta sola, con le tessere di OpenStreetMap e l'attribuzione; un clic sullo sfondo dà le coordinate del punto
+  useEffect(() => {
+    if (!contenitore.current) return;
+    const mappa = L.map(contenitore.current, { zoomControl: true, attributionControl: true });
+    mappaRef.current = mappa;
+    L.tileLayer(TESSERE, { attribution: ATTRIBUZIONE, maxZoom: 19, subdomains: "abc" }).addTo(mappa);
+    mappa.setView([ROMA.lat, ROMA.lng], ZOOM_ROMA);
+    gruppoPin.current = L.layerGroup().addTo(mappa);
+    gruppoProvvisorio.current = L.layerGroup().addTo(mappa);
+    gruppoUtente.current = L.layerGroup().addTo(mappa);
+    mappa.on("click", (e: L.LeafletMouseEvent) => onClicMappaRef.current?.({ lat: e.latlng.lat, lng: e.latlng.lng }));
+    return () => {
+      mappa.remove();
+      mappaRef.current = null;
+    };
+  }, []);
 
-  /** Un clic sul livello della mappa: i clic sui pin (pulsanti) hanno il loro gestore e qui non contano. Il punto cliccato si riporta
-   *  dai pixel dello schermo al sistema 640 con il rettangolo disegnato (la mappa nella pagina non è larga 640) */
-  const clic = (e: MouseEvent<HTMLDivElement>) => {
-    if (!onClicMappa) return;
-    if ((e.target as Element).closest("button")) return;
-    const r = e.currentTarget.getBoundingClientRect();
-    const x = ((e.clientX - r.left) / r.width) * LATO;
-    const y = ((e.clientY - r.top) / r.height) * LATO;
-    onClicMappa(coordinateDa(x, y, centro, zoom, LATO));
-  };
+  // I pin dei campetti: un pulsante per campetto, con il nome per chi legge lo schermo e aria-pressed sul selezionato
+  useEffect(() => {
+    const gruppo = gruppoPin.current;
+    if (!gruppo) return;
+    gruppo.clearLayers();
+    for (const c of campetti) {
+      const sel = c.id === selezionato;
+      const marker = L.marker([c.lat, c.lng], { icon: iconaVuota(28), keyboard: false });
+      marker.addTo(gruppo);
+      const contenitoreIcona = marker.getElement();
+      if (!contenitoreIcona) continue;
+      const bottone = document.createElement("button");
+      bottone.type = "button";
+      bottone.setAttribute("aria-label", c.nome);
+      bottone.setAttribute("aria-pressed", String(sel));
+      // Il selezionato è più grande e del colore d'accento; gli altri si ingrandiscono al passaggio del puntatore
+      bottone.className = sel
+        ? "block h-7 w-7 scale-125 p-0 text-court transition-transform"
+        : "block h-7 w-7 p-0 text-chalk transition-transform hover:scale-110";
+      bottone.append(pinSvg(28, sel ? "var(--color-court)" : "var(--color-asphalt-800)"));
+      // Il clic sul pin non deve arrivare alla mappa (Leaflet lo leggerebbe come clic sullo sfondo, con le coordinate del pin)
+      bottone.addEventListener("click", (e) => {
+        e.stopPropagation();
+        onSelezionaRef.current(c.id);
+      });
+      contenitoreIcona.append(bottone);
+    }
+  }, [campetti, selezionato]);
+
+  // Il pin provvisorio: trascinabile; quando lo si rilascia, la nuova posizione va a chi compila il form (il punto si corregge lì).
+  // Un solo marker per tutta la vita del pin: quando cambia la posizione si sposta (setLatLng), non si ricrea. Ricrearlo a ogni
+  // cambio rimpiazzerebbe l'elemento sotto il puntatore durante un trascinamento
+  const provvisorioLat = pinProvvisorio?.lat;
+  const provvisorioLng = pinProvvisorio?.lng;
+  useEffect(() => {
+    const gruppo = gruppoProvvisorio.current;
+    if (!gruppo) return;
+    if (provvisorioLat === undefined || provvisorioLng === undefined) {
+      gruppo.clearLayers();
+      marcatoreProvvisorio.current = null;
+      return;
+    }
+    if (marcatoreProvvisorio.current) {
+      marcatoreProvvisorio.current.setLatLng([provvisorioLat, provvisorioLng]);
+      return;
+    }
+    const marker = L.marker([provvisorioLat, provvisorioLng], { icon: iconaVuota(32), draggable: true, keyboard: false });
+    marker.on("dragend", () => {
+      const punto = marker.getLatLng();
+      onClicMappaRef.current?.({ lat: punto.lat, lng: punto.lng });
+    });
+    marker.addTo(gruppo);
+    marcatoreProvvisorio.current = marker;
+    const contenitoreIcona = marker.getElement();
+    if (!contenitoreIcona) return;
+    contenitoreIcona.classList.add("text-court");
+    contenitoreIcona.append(pinSvg(32, "var(--color-court)"), testoSoloSchermo("Posizione scelta"));
+  }, [provvisorioLat, provvisorioLng]);
+
+  // La posizione dell'utente: un segno non interattivo con il testo per chi legge lo schermo
+  const utenteLat = posizioneUtente?.lat;
+  const utenteLng = posizioneUtente?.lng;
+  useEffect(() => {
+    const gruppo = gruppoUtente.current;
+    if (!gruppo) return;
+    gruppo.clearLayers();
+    if (utenteLat === undefined || utenteLng === undefined) return;
+    const marker = L.marker([utenteLat, utenteLng], { icon: iconaVuota(16), interactive: false, keyboard: false });
+    marker.addTo(gruppo);
+    const contenitoreIcona = marker.getElement();
+    if (!contenitoreIcona) return;
+    const punto = document.createElement("span");
+    punto.className = "block h-2 w-2 rounded-full bg-chalk ring-2 ring-asphalt-950 mx-auto mt-[7px]";
+    contenitoreIcona.append(punto, testoSoloSchermo("La tua posizione"));
+  }, [utenteLat, utenteLng]);
+
+  // La vista si adatta ai campetti quando cambia l'elenco (il contenuto, non l'array: il form ne crea uno nuovo a ogni render), così la
+  // mappa non torna indietro mentre l'utente la sposta. Senza campetti torna su Roma
+  const chiaveElenco = campetti.map((c) => `${c.id}:${c.lat},${c.lng}`).join("|");
+  useEffect(() => {
+    const mappa = mappaRef.current;
+    if (!mappa) return;
+    const punti = campettiRef.current.map((c): [number, number] => [c.lat, c.lng]);
+    if (punti.length === 0) {
+      mappa.setView([ROMA.lat, ROMA.lng], ZOOM_ROMA);
+      return;
+    }
+    mappa.fitBounds(L.latLngBounds(punti), { padding: [24, 24], maxZoom: ZOOM_MASSIMO_ADATTA });
+  }, [chiaveElenco]);
 
   return (
-    // presentation: il livello raccoglie i clic che arrivano dai figli e dallo sfondo; i pin restano pulsanti veri
-    <div role="presentation" onClick={clic} className="relative aspect-square w-full overflow-hidden rounded border border-asphalt-700 bg-asphalt-900">
-      {conImmagine && (
-        <img src={url} alt="Mappa della zona dei campetti mostrati" onError={() => setUrlRotto(url)}
-          className="absolute inset-0 h-full w-full object-cover" />
-      )}
-      {!conImmagine && <Griglia />}
-      {campetti.map((c) => {
-        const sel = c.id === selezionato;
-        const { x, y } = proietta(c.lat, c.lng, centro, zoom, LATO);
-        // Il selezionato è più grande, sopra gli altri e del colore d'accento; gli altri si ingrandiscono al passaggio del puntatore
-        let classe = "hover:scale-110";
-        let colore = "text-chalk";
-        let riempimento = "var(--color-asphalt-800)";
-        if (sel) {
-          classe = "z-10 scale-125";
-          colore = "text-court";
-          riempimento = "var(--color-court)";
-        }
-        return (
-          <button key={c.id} type="button" onClick={() => onSeleziona(c.id)} aria-label={c.nome} aria-pressed={sel}
-            className={`absolute -translate-x-1/2 -translate-y-full transition-transform ${classe}`} style={posizione(x, y)}>
-            <Icon name="pin" size={28} className={colore} fill={riempimento} />
-          </button>
-        );
-      })}
-      {provvisorio && (
-        <span className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full text-court" style={posizione(provvisorio.x, provvisorio.y)}>
-          <Icon name="pin" size={32} fill="var(--color-court)" className="text-asphalt-950" />
-          <span className="sr-only">Posizione scelta</span>
-        </span>
-      )}
-      {segnoUtente && (
-        <span className="pointer-events-none absolute flex h-4 w-4 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-chalk/40"
-          style={posizione(segnoUtente.x, segnoUtente.y)}>
-          <span className="block h-2 w-2 rounded-full bg-chalk ring-2 ring-asphalt-950" />
-          <span className="sr-only">La tua posizione</span>
-        </span>
-      )}
-      {!conImmagine && (
-        <div className="absolute bottom-2 left-2 rounded-sm bg-asphalt-950/80 px-2 py-1 text-[10.5px] uppercase tracking-[0.08em] text-chalk-dim">
-          Mappa schematica
-        </div>
-      )}
-    </div>
+    <div ref={contenitore} role="region" aria-label="Mappa dei campetti"
+      className="relative aspect-square w-full overflow-hidden rounded border border-asphalt-700 bg-asphalt-900" />
   );
 }

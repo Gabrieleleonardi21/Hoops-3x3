@@ -1,162 +1,156 @@
 // @vitest-environment jsdom
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import L from "leaflet";
 import { MappaCampetti } from "../../src/components/campetti/MappaCampetti";
-import { coordinateDa, inquadra, proietta } from "../../src/utils/geo";
 import { CAMPETTI_DEMO } from "../fixtures/campetti";
 
-/** Il lato del sistema di coordinate dell'immagine (640 px, quello che il server fissa): i pin si posizionano in percentuale di questo */
-const LATO = 640;
-/** Dove sta chi guarda: nel centro di Torino, non su un campetto. Non deve finire nell'URL dell'immagine (D7) */
+/* La mappa è Leaflet con le tessere di OpenStreetMap (niente più immagine di Google né chiave nel browser). In jsdom una mappa non ha
+ * dimensioni: si imposta una misura finta del contenitore, e si provano i comportamenti (pin, clic, trascinamento, vista) senza disegno. */
+
+/** Dove sta chi guarda: nel centro di Torino, non su un campetto */
 const UTENTE = { lat: 45.0703, lng: 7.6869 };
 const [ruffini, giardini] = CAMPETTI_DEMO;
-/** Palermo: fuori dall'inquadratura di tutti i campetti di esempio, Torino e Roma */
-const PALERMO = { lat: 38.1157, lng: 13.3615 };
+/** Il centro di Roma, dove la mappa si apre senza campetti */
+const ROMA = { lat: 41.9028, lng: 12.4964 };
 
-/** La mappa con l'immagine: il browser la chiede sempre a /api/mappa-campetti, e il server decide se c'è (la chiave sta lì) */
-function conImmagine(props: Partial<Parameters<typeof MappaCampetti>[0]> = {}) {
-  return render(<MappaCampetti campetti={CAMPETTI_DEMO} selezionato={ruffini.id} onSeleziona={() => {}} {...props} />);
-}
-
-/** La mappa schematica: l'immagine non c'è (il server risponde 503, o la rete cade), e quando non carica torna la griglia */
-function schematica(props: Partial<Parameters<typeof MappaCampetti>[0]> = {}) {
-  const risultato = conImmagine(props);
-  fireEvent.error(immagine()!);
-  return risultato;
-}
-
-const immagine = () => screen.queryByRole("img", { name: /mappa/i }) as HTMLImageElement | null;
-/** La griglia schematica è l'unico svg in 100×100 unità (le icone dei pin sono in 24×24) */
-const griglia = () => document.querySelector("svg[viewBox='0 0 100 100']");
-/** Il livello che riceve i clic sulla mappa (contiene immagine o griglia e i pin): è `presentation` perché raccoglie gli eventi dei figli */
-const livelloClic = () => document.querySelector("[role='presentation']") as HTMLElement;
+beforeEach(() => {
+  // Leaflet legge la misura del contenitore: senza, la mappa ha dimensione zero e non si inquadra niente
+  Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, value: 640 });
+  Object.defineProperty(HTMLElement.prototype, "clientHeight", { configurable: true, value: 640 });
+});
 
 afterEach(() => {
   cleanup();
+  vi.restoreAllMocks();
 });
 
-describe("MappaCampetti: l'immagine viene dal server (/api/mappa-campetti), inquadrata sui soli campetti", () => {
-  it("l'img punta a /api/mappa-campetti con lat, lng e zoom di `inquadra`; nessuna chiave, nessuna dimensione, nessun markers", () => {
-    conImmagine();
-    const img = immagine();
-    expect(img).not.toBeNull();
-    const url = new URL(img!.src);
-    expect(url.pathname).toBe("/api/mappa-campetti");
-    const { centro, zoom } = inquadra(CAMPETTI_DEMO, LATO);
-    expect(url.searchParams.get("lat")).toBe(String(centro.lat));
-    expect(url.searchParams.get("lng")).toBe(String(centro.lng));
-    expect(url.searchParams.get("zoom")).toBe(String(zoom));
-    for (const assente of ["key", "size", "scale", "markers", "center"]) expect(url.searchParams.has(assente), assente).toBe(false);
-    expect(griglia()).toBeNull();
+/** Il contenitore della mappa (Leaflet lo marca con `leaflet-container`) */
+const contenitore = () => document.querySelector(".leaflet-container") as HTMLElement;
+/** Il pin di un campetto, come pulsante con il suo nome */
+const pin = (nome: string) => screen.getByRole("button", { name: nome });
+
+describe("MappaCampetti: la mappa Leaflet con le tessere di OpenStreetMap", () => {
+  it("mostra le tessere di OpenStreetMap e l'attribuzione © OpenStreetMap contributors, con il link alla licenza", () => {
+    render(<MappaCampetti campetti={CAMPETTI_DEMO} selezionato={null} onSeleziona={() => {}} />);
+    const attribuzione = document.querySelector(".leaflet-control-attribution");
+    expect(attribuzione?.textContent).toContain("© OpenStreetMap contributors");
+    expect(attribuzione?.querySelector("a[href='https://www.openstreetmap.org/copyright']")).not.toBeNull();
+    const tessere = [...document.querySelectorAll<HTMLImageElement>("img.leaflet-tile")];
+    expect(tessere.length).toBeGreaterThan(0);
+    for (const t of tessere) expect(t.src).toMatch(/^https:\/\/[abc]\.tile\.openstreetmap\.org\/\d+\/\d+\/\d+\.png$/);
   });
 
-  it("la posizione dell'utente non entra nell'URL: centro e zoom dipendono solo dai campetti (D7)", () => {
-    conImmagine({ posizioneUtente: UTENTE });
-    const src = immagine()!.src;
-    expect(src).not.toContain(String(UTENTE.lat));
-    expect(src).not.toContain(String(UTENTE.lng));
-    const { centro } = inquadra(CAMPETTI_DEMO, LATO);
-    expect(new URL(src).searchParams.get("lat")).toBe(String(centro.lat));
+  it("nella pagina non c'è nulla di Google né una chiave: la mappa non chiede niente a Google", () => {
+    render(<MappaCampetti campetti={CAMPETTI_DEMO} selezionato={null} onSeleziona={() => {}} />);
+    expect(document.body.innerHTML).not.toMatch(/googleapis|AIza|MAPS_API_KEY/);
   });
 
-  it("se l'immagine non carica (503 del server, rete) al suo posto torna la griglia, con gli stessi pin", () => {
-    conImmagine();
-    fireEvent.error(immagine()!);
-    expect(immagine()).toBeNull();
-    expect(griglia()).not.toBeNull();
-    expect(screen.getByRole("button", { name: ruffini.nome })).toBeTruthy();
+  it("senza campetti la mappa si apre su Roma, a zoom 12, e non ha pin", () => {
+    const vista = vi.spyOn(L.Map.prototype, "setView");
+    render(<MappaCampetti campetti={[]} selezionato={null} onSeleziona={() => {}} />);
+    expect(vista).toHaveBeenCalledWith([ROMA.lat, ROMA.lng], 12);
+    // I pulsanti di zoom di Leaflet sono anch'essi pulsanti: i pin si riconoscono da aria-pressed
+    expect(document.querySelectorAll("button[aria-pressed]")).toHaveLength(0);
   });
 });
 
-describe("MappaCampetti: i pin sono pulsanti posizionati da `proietta`, in percentuale del lato 640", () => {
-  it.each([["con l'immagine", conImmagine], ["schematica", schematica]])("%s", (_nome, monta) => {
-    monta();
-    const { centro, zoom } = inquadra(CAMPETTI_DEMO, LATO);
-    for (const c of CAMPETTI_DEMO) {
-      const pin = screen.getByRole("button", { name: c.nome });
-      const { x, y } = proietta(c.lat, c.lng, centro, zoom, LATO);
-      expect(pin.style.left).toBe(`${(x / LATO) * 100}%`);
-      expect(pin.style.top).toBe(`${(y / LATO) * 100}%`);
-    }
+describe("MappaCampetti: i pin dei campetti sono pulsanti, selezionabili da tastiera", () => {
+  it("ogni campetto è un pulsante con il suo nome, e il selezionato ha aria-pressed", () => {
+    render(<MappaCampetti campetti={[ruffini, giardini]} selezionato={ruffini.id} onSeleziona={() => {}} />);
+    expect(pin(ruffini.nome).tagName).toBe("BUTTON");
+    expect(pin(ruffini.nome).getAttribute("aria-pressed")).toBe("true");
+    expect(pin(giardini.nome).getAttribute("aria-pressed")).toBe("false");
   });
 
-  it("il pin del campetto selezionato ha aria-pressed; un clic su un pin chiama onSeleziona con l'id, non onClicMappa", () => {
+  it("un pin è nell'ordine di Tab (non fuori con tabIndex negativo): Invio e Spazio attivano il pulsante vero", () => {
+    render(<MappaCampetti campetti={[ruffini]} selezionato={null} onSeleziona={() => {}} />);
+    expect(pin(ruffini.nome).tabIndex).toBeGreaterThanOrEqual(0);
+  });
+
+  it("un clic su un pin chiama onSeleziona con l'id, e non onClicMappa", () => {
     const onSeleziona = vi.fn();
     const onClicMappa = vi.fn();
-    schematica({ onSeleziona, onClicMappa });
-    expect(screen.getByRole("button", { name: ruffini.nome }).getAttribute("aria-pressed")).toBe("true");
-    expect(screen.getByRole("button", { name: giardini.nome }).getAttribute("aria-pressed")).toBe("false");
-    fireEvent.click(screen.getByRole("button", { name: giardini.nome }));
+    render(<MappaCampetti campetti={[ruffini, giardini]} selezionato={ruffini.id} onSeleziona={onSeleziona} onClicMappa={onClicMappa} />);
+    fireEvent.click(pin(giardini.nome));
     expect(onSeleziona).toHaveBeenCalledWith(giardini.id);
     expect(onClicMappa).not.toHaveBeenCalled();
   });
-
-  it("senza campetti non ci sono pin e la mappa resta (Roma, dove la pagina si apre)", () => {
-    schematica({ campetti: [], selezionato: null });
-    expect(screen.queryAllByRole("button")).toHaveLength(0);
-    expect(griglia()).not.toBeNull();
-  });
 });
 
-describe("MappaCampetti: il pin dell'utente lo disegna l'app", () => {
-  it("con la posizione c'è un segno non interattivo con il testo «La tua posizione», dove dice `proietta`", () => {
-    conImmagine({ posizioneUtente: UTENTE });
-    const testo = screen.getByText("La tua posizione");
-    const segno = testo.closest("[style]") as HTMLElement;
-    expect(testo.closest("button")).toBeNull();
-    const { centro, zoom } = inquadra(CAMPETTI_DEMO, LATO);
-    const { x, y } = proietta(UTENTE.lat, UTENTE.lng, centro, zoom, LATO);
-    expect(segno.style.left).toBe(`${(x / LATO) * 100}%`);
-    expect(segno.style.top).toBe(`${(y / LATO) * 100}%`);
-  });
-
-  it("senza posizione, o con l'utente fuori dall'inquadratura (che segue solo i campetti), il segno non c'è", () => {
-    schematica();
-    expect(screen.queryByText("La tua posizione")).toBeNull();
-    cleanup();
-    schematica({ posizioneUtente: PALERMO }); // lontano da tutti i campetti di esempio (Torino e Roma): l'inquadratura non lo segue
-    expect(screen.queryByText("La tua posizione")).toBeNull();
-  });
-});
-
-describe("MappaCampetti: il pin provvisorio del form (T5.5)", () => {
-  it("con `pinProvvisorio` c'è un segno non cliccabile «Posizione scelta» dove dice `proietta`; fuori dall'inquadratura non c'è", () => {
-    schematica({ pinProvvisorio: UTENTE });
-    const testo = screen.getByText("Posizione scelta");
-    expect(testo.closest("button")).toBeNull();
-    const { centro, zoom } = inquadra(CAMPETTI_DEMO, LATO);
-    const { x, y } = proietta(UTENTE.lat, UTENTE.lng, centro, zoom, LATO);
-    const segno = testo.closest("[style]") as HTMLElement;
-    expect(segno.style.left).toBe(`${(x / LATO) * 100}%`);
-    expect(segno.style.top).toBe(`${(y / LATO) * 100}%`);
-    cleanup();
-    schematica({ pinProvvisorio: PALERMO }); // lontano da tutti i campetti di esempio: l'inquadratura non lo segue
-    expect(screen.queryByText("Posizione scelta")).toBeNull();
-  });
-});
-
-describe("MappaCampetti: un clic sulla mappa (non su un pin) dà le coordinate del punto, con `coordinateDa`", () => {
-  /** La mappa è disegnata a 320×320 px nella pagina (metà del sistema 640): il clic si riporta nel sistema 640 con il rettangolo */
-  function simulaClic(clientX: number, clientY: number) {
-    const livello = livelloClic();
-    livello.getBoundingClientRect = () => ({ left: 10, top: 20, width: 320, height: 320, right: 330, bottom: 340, x: 10, y: 20, toJSON: () => ({}) });
-    fireEvent.click(livello, { clientX, clientY });
-  }
-
-  it.each([["con l'immagine", conImmagine], ["schematica", schematica]])("%s", (_nome, monta) => {
+describe("MappaCampetti: un clic sulla mappa dà le coordinate del punto", () => {
+  it("un clic sullo sfondo chiama onClicMappa con lat e lng finiti dentro l'area dei campetti", () => {
     const onClicMappa = vi.fn();
-    monta({ onClicMappa });
-    simulaClic(10 + 160, 20 + 80); // al centro in orizzontale, a un quarto in verticale
-    const { centro, zoom } = inquadra(CAMPETTI_DEMO, LATO);
+    render(<MappaCampetti campetti={[ruffini, giardini]} selezionato={null} onSeleziona={() => {}} onClicMappa={onClicMappa} />);
+    fireEvent.click(contenitore(), { clientX: 320, clientY: 320 });
     expect(onClicMappa).toHaveBeenCalledTimes(1);
-    const atteso = coordinateDa(320, 160, centro, zoom, LATO);
-    const [dato] = onClicMappa.mock.calls[0];
-    expect(dato.lat).toBeCloseTo(atteso.lat, 9);
-    expect(dato.lng).toBeCloseTo(atteso.lng, 9);
+    const { lat, lng } = onClicMappa.mock.calls[0][0];
+    expect(Number.isFinite(lat) && Number.isFinite(lng)).toBe(true);
+    expect(lat).toBeGreaterThan(45.0);
+    expect(lat).toBeLessThan(45.1);
+    expect(lng).toBeGreaterThan(7.6);
+    expect(lng).toBeLessThan(7.7);
   });
 
   it("senza onClicMappa il clic non fa niente", () => {
-    schematica();
-    expect(() => simulaClic(100, 100)).not.toThrow();
+    render(<MappaCampetti campetti={[ruffini]} selezionato={null} onSeleziona={() => {}} />);
+    expect(() => fireEvent.click(contenitore(), { clientX: 100, clientY: 100 })).not.toThrow();
+  });
+});
+
+describe("MappaCampetti: il pin provvisorio si trascina e dà la nuova posizione", () => {
+  /** Un trascinamento con il mouse (Leaflet ascolta mousedown sul pin, mousemove e mouseup sul documento) */
+  function trascina(elemento: Element, da: { x: number; y: number }, a: { x: number; y: number }) {
+    // Leaflet ignora i pulsanti diversi dal sinistro: which 1 è il sinistro, come in un browser
+    fireEvent.mouseDown(elemento, { clientX: da.x, clientY: da.y, button: 0, which: 1 });
+    // Il movimento parte dall'elemento sotto il puntatore e risale al documento (come in un browser: Leaflet legge l'elemento bersaglio)
+    fireEvent.mouseMove(elemento, { clientX: a.x, clientY: a.y });
+    fireEvent.mouseUp(elemento, { clientX: a.x, clientY: a.y });
+  }
+
+  it("trascinare il pin provvisorio chiama onClicMappa con la nuova posizione", () => {
+    const onClicMappa = vi.fn();
+    render(<MappaCampetti campetti={[ruffini, giardini]} selezionato={null} onSeleziona={() => {}}
+      onClicMappa={onClicMappa} pinProvvisorio={UTENTE} />);
+    const provvisorio = document.querySelector(".leaflet-marker-draggable") as HTMLElement;
+    expect(provvisorio).not.toBeNull();
+    trascina(provvisorio, { x: 300, y: 300 }, { x: 360, y: 340 });
+    expect(onClicMappa).toHaveBeenCalled();
+    const ultimo = onClicMappa.mock.calls.at(-1)![0];
+    expect(ultimo.lat).not.toBeCloseTo(UTENTE.lat, 6);
+    expect(ultimo.lng).not.toBeCloseTo(UTENTE.lng, 6);
+  });
+
+  it("il pin provvisorio è lo stesso elemento quando la posizione cambia: si sposta, non si ricrea (un trascinamento non si perde)", () => {
+    const { rerender } = render(<MappaCampetti campetti={[ruffini]} selezionato={null} onSeleziona={() => {}} pinProvvisorio={UTENTE} />);
+    const prima = document.querySelector(".leaflet-marker-draggable");
+    rerender(<MappaCampetti campetti={[ruffini]} selezionato={null} onSeleziona={() => {}} pinProvvisorio={giardini} />);
+    expect(document.querySelector(".leaflet-marker-draggable")).toBe(prima);
+    expect(document.querySelectorAll(".leaflet-marker-draggable")).toHaveLength(1);
+  });
+
+  it("il pin provvisorio non è un pulsante, e ha il testo «Posizione scelta» per chi legge lo schermo", () => {
+    render(<MappaCampetti campetti={[ruffini]} selezionato={null} onSeleziona={() => {}} pinProvvisorio={UTENTE} />);
+    const testo = screen.getByText("Posizione scelta");
+    expect(testo.closest("button")).toBeNull();
+  });
+});
+
+describe("MappaCampetti: la posizione dell'utente e la vista", () => {
+  it("con la posizione c'è un segno non cliccabile con il testo «La tua posizione»", () => {
+    render(<MappaCampetti campetti={[ruffini, giardini]} selezionato={null} onSeleziona={() => {}} posizioneUtente={UTENTE} />);
+    expect(screen.getByText("La tua posizione").closest("button")).toBeNull();
+  });
+
+  it("la vista si adatta ai campetti quando cambia l'elenco, non a ogni render: la mappa non torna indietro mentre la si sposta", () => {
+    const adatta = vi.spyOn(L.Map.prototype, "fitBounds");
+    const { rerender } = render(<MappaCampetti campetti={[ruffini, giardini]} selezionato={null} onSeleziona={() => {}} />);
+    expect(adatta).toHaveBeenCalledTimes(1);
+    // Stesso elenco, altro array (il form ricrea la lista a ogni render): nessun adattamento
+    rerender(<MappaCampetti campetti={[ruffini, giardini]} selezionato={null} onSeleziona={() => {}} />);
+    expect(adatta).toHaveBeenCalledTimes(1);
+    // Un elenco diverso (per esempio un filtro): la vista si rifà sui nuovi campetti
+    rerender(<MappaCampetti campetti={[ruffini]} selezionato={null} onSeleziona={() => {}} />);
+    expect(adatta).toHaveBeenCalledTimes(2);
   });
 });

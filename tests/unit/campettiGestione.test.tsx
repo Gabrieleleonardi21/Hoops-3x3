@@ -7,7 +7,6 @@ import { useAppStore } from "../../src/stores/useAppStore";
 import { useCampettiStore } from "../../src/stores/useCampettiStore";
 import { campettiApi } from "../../src/services/campettiApi";
 import { ApiError } from "../../src/services/api";
-import { coordinateDa, inquadra, proietta } from "../../src/utils/geo";
 import { MAX_CITTA_CAMPETTO, MAX_INDIRIZZO_CAMPETTO, MAX_NOME_CAMPETTO, MAX_NOTE_CAMPETTO } from "../../src/constants/rules";
 import type { Campetto, CampettoInput } from "../../src/types/campetto";
 import type { User } from "../../src/types";
@@ -25,7 +24,6 @@ vi.mock("../../src/services/campettiApi", async (importOriginal) => {
 const api = vi.mocked(campettiApi);
 
 /** Il lato del sistema di coordinate della mappa (`size=640x640` della Maps Static API) */
-const LATO = 640;
 /** Dove sta chi compila il form: il centro di Torino */
 const UTENTE = { lat: 45.0703, lng: 7.6869 };
 const [ruffini] = CAMPETTI_DEMO;
@@ -52,13 +50,9 @@ function formNuovo(onSave = vi.fn(async (_input: CampettoInput) => {})) {
   return onSave;
 }
 
-/** Un clic sulla mappa, disegnata a 320×320 px nella pagina (metà del sistema 640), con le coordinate attese */
-function clicSullaMappa(x: number, y: number) {
-  const livello = document.querySelector("[role='presentation']") as HTMLElement;
-  livello.getBoundingClientRect = () => ({ left: 0, top: 0, width: 320, height: 320, right: 320, bottom: 320, x: 0, y: 0, toJSON: () => ({}) });
-  fireEvent.click(livello, { clientX: x, clientY: y });
-  const { centro, zoom } = inquadra(CAMPETTI_DEMO, LATO);
-  return coordinateDa(x * 2, y * 2, centro, zoom, LATO);
+/** Un clic sulla mappa Leaflet, nel centro del suo contenitore (la misura finta di jsdom è 640 px) */
+function clicSullaMappa() {
+  fireEvent.click(document.querySelector(".leaflet-container") as HTMLElement, { clientX: 320, clientY: 320 });
 }
 
 afterEach(() => {
@@ -159,18 +153,19 @@ describe("CampettoForm: i tre modi di dare la posizione (D4)", () => {
     expect(campo("Latitudine").value).toBe("");
   });
 
-  it("un clic sulla mappa scrive le coordinate del punto (coordinateDa, sei decimali) e mette il pin provvisorio lì", () => {
+  it("un clic sulla mappa scrive le coordinate del punto (sei decimali al massimo) e mette il pin provvisorio lì", () => {
     formNuovo();
     expect(screen.queryByText("Posizione scelta")).toBeNull();
-    const atteso = clicSullaMappa(160, 80);
-    expect(Number(campo("Latitudine").value)).toBeCloseTo(atteso.lat, 5);
-    expect(Number(campo("Longitudine").value)).toBeCloseTo(atteso.lng, 5);
-    const pin = screen.getByText("Posizione scelta").closest("[style]") as HTMLElement;
-    const { centro, zoom } = inquadra(CAMPETTI_DEMO, LATO);
-    const p = proietta(Number(campo("Latitudine").value), Number(campo("Longitudine").value), centro, zoom, LATO);
-    expect(pin.style.left).toBe(`${(p.x / LATO) * 100}%`);
-    expect(pin.style.top).toBe(`${(p.y / LATO) * 100}%`);
-    expect(pin.closest("button")).toBeNull(); // non è un pin cliccabile
+    clicSullaMappa();
+    // Il centro della vista cade nell'area dei campetti di esempio (Torino e Roma)
+    const lat = Number(campo("Latitudine").value);
+    const lng = Number(campo("Longitudine").value);
+    expect(lat).toBeGreaterThan(41.8);
+    expect(lat).toBeLessThan(45.2);
+    expect(lng).toBeGreaterThan(7.5);
+    expect(lng).toBeLessThan(12.6);
+    expect(campo("Latitudine").value.split(".")[1]?.length ?? 0).toBeLessThanOrEqual(6);
+    expect(screen.getByText("Posizione scelta").closest("button")).toBeNull(); // il pin provvisorio non è un pulsante
   });
 
   it("un clic su un pin di un campetto esistente non cambia la posizione", () => {
