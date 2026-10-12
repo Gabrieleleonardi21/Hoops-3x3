@@ -12,7 +12,7 @@ describe("PiePagina: la riga che dice chi ha creato il sito", () => {
     render(<PiePagina />);
     const piede = screen.getByRole("contentinfo");
     expect(piede.tagName).toBe("FOOTER");
-    expect(piede).toHaveTextContent("Sito creato da Gabriele Leonardi");
+    expect(piede.textContent).toContain("Sito creato da Gabriele Leonardi");
     expect(piede.querySelector("a")).toBeNull();
     expect(piede.textContent).not.toMatch(/@/);
   });

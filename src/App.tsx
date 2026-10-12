@@ -9,6 +9,7 @@ import { useAuth, saveSession } from "./hooks/useAuth";
 import * as authService from "./services/authService";
 import { attendiServer, avviaRinnovoAutomatico, suSessioneCambiataAltrove, suSessioneFinita } from "./services/api";
 import { Header } from "./components/layout/Header";
+import { PiePagina } from "./components/layout/PiePagina";
 import { SyncBanner } from "./components/layout/SyncBanner";
 import { Loading } from "./components/ui/Loading";
 import { ErrorBoundary } from "./components/ui/ErrorBoundary";
@@ -182,6 +183,7 @@ export default function App() {
       <main className="mx-auto max-w-5xl px-4 pt-6 pb-28">
         <Pagine />
       </main>
+      <PiePagina />
       {coachOpen && <CoachPanel onClose={() => setCoachOpen(false)} />}
       <CoachFAB onClick={() => setCoachOpen((o) => !o)} />
     </BrowserRouter>
