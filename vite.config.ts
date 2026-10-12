@@ -30,7 +30,7 @@ export const CSP = [
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  // Solo le VITE_* entrano nella build: la chiave della mappa sta sul backend (/api/mappa-campetti), non nel sito
+  // Solo le VITE_* entrano nella build. La mappa dei campetti usa le tessere di OpenStreetMap (nessuna chiave da portare nel browser)
   envPrefix: "VITE_",
   // In sviluppo /api va al backend Spring (porta 3001, o BACKEND_URL: i test con il backend vero ne avviano uno su un'altra porta):
   // per il browser è la stessa origine. Il proxy però riscrive l'Host, quindi il backend controlla lo stesso l'Origin: la porta di
