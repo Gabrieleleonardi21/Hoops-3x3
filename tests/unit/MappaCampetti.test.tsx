@@ -5,7 +5,7 @@ import { MappaCampetti } from "../../src/components/campetti/MappaCampetti";
 import { coordinateDa, inquadra, proietta } from "../../src/utils/geo";
 import { CAMPETTI_DEMO } from "../fixtures/campetti";
 
-/** Il lato del sistema di coordinate dell'immagine (`size=640x640` della Maps Static API): i pin si posizionano in percentuale di questo */
+/** Il lato del sistema di coordinate dell'immagine (640 px, quello che il server fissa): i pin si posizionano in percentuale di questo */
 const LATO = 640;
 /** Dove sta chi guarda: nel centro di Torino, non su un campetto. Non deve finire nell'URL dell'immagine (D7) */
 const UTENTE = { lat: 45.0703, lng: 7.6869 };
@@ -13,16 +13,16 @@ const [ruffini, giardini] = CAMPETTI_DEMO;
 /** Palermo: fuori dall'inquadratura di tutti i campetti di esempio, Torino e Roma */
 const PALERMO = { lat: 38.1157, lng: 13.3615 };
 
-/** La mappa con la chiave finta: l'immagine di Google al posto della griglia */
-function conChiave(props: Partial<Parameters<typeof MappaCampetti>[0]> = {}) {
-  vi.stubEnv("MAPS_API_KEY", "chiave-finta");
+/** La mappa con l'immagine: il browser la chiede sempre a /api/mappa-campetti, e il server decide se c'è (la chiave sta lì) */
+function conImmagine(props: Partial<Parameters<typeof MappaCampetti>[0]> = {}) {
   return render(<MappaCampetti campetti={CAMPETTI_DEMO} selezionato={ruffini.id} onSeleziona={() => {}} {...props} />);
 }
 
-/** La mappa senza chiave: la griglia schematica */
-function senzaChiave(props: Partial<Parameters<typeof MappaCampetti>[0]> = {}) {
-  vi.stubEnv("MAPS_API_KEY", "");
-  return render(<MappaCampetti campetti={CAMPETTI_DEMO} selezionato={ruffini.id} onSeleziona={() => {}} {...props} />);
+/** La mappa schematica: l'immagine non c'è (il server risponde 503, o la rete cade), e quando non carica torna la griglia */
+function schematica(props: Partial<Parameters<typeof MappaCampetti>[0]> = {}) {
+  const risultato = conImmagine(props);
+  fireEvent.error(immagine()!);
+  return risultato;
 }
 
 const immagine = () => screen.queryByRole("img", { name: /mappa/i }) as HTMLImageElement | null;
@@ -33,42 +33,34 @@ const livelloClic = () => document.querySelector("[role='presentation']") as HTM
 
 afterEach(() => {
   cleanup();
-  vi.unstubAllEnvs();
 });
 
-describe("MappaCampetti con la chiave: l'immagine della Maps Static API, inquadrata sui soli campetti", () => {
-  it("l'img punta a maps.googleapis.com con center e zoom di `inquadra`, size 640x640, scale 2 e la chiave; nessun markers", () => {
-    conChiave();
+describe("MappaCampetti: l'immagine viene dal server (/api/mappa-campetti), inquadrata sui soli campetti", () => {
+  it("l'img punta a /api/mappa-campetti con lat, lng e zoom di `inquadra`; nessuna chiave, nessuna dimensione, nessun markers", () => {
+    conImmagine();
     const img = immagine();
     expect(img).not.toBeNull();
     const url = new URL(img!.src);
-    expect(url.origin + url.pathname).toBe("https://maps.googleapis.com/maps/api/staticmap");
+    expect(url.pathname).toBe("/api/mappa-campetti");
     const { centro, zoom } = inquadra(CAMPETTI_DEMO, LATO);
-    expect(url.searchParams.get("center")).toBe(`${centro.lat},${centro.lng}`);
+    expect(url.searchParams.get("lat")).toBe(String(centro.lat));
+    expect(url.searchParams.get("lng")).toBe(String(centro.lng));
     expect(url.searchParams.get("zoom")).toBe(String(zoom));
-    expect(url.searchParams.get("size")).toBe("640x640");
-    expect(url.searchParams.get("scale")).toBe("2");
-    expect(url.searchParams.get("key")).toBe("chiave-finta");
-    expect(url.searchParams.has("markers")).toBe(false);
+    for (const assente of ["key", "size", "scale", "markers", "center"]) expect(url.searchParams.has(assente), assente).toBe(false);
     expect(griglia()).toBeNull();
   });
 
   it("la posizione dell'utente non entra nell'URL: centro e zoom dipendono solo dai campetti (D7)", () => {
-    conChiave({ posizioneUtente: UTENTE });
+    conImmagine({ posizioneUtente: UTENTE });
     const src = immagine()!.src;
     expect(src).not.toContain(String(UTENTE.lat));
     expect(src).not.toContain(String(UTENTE.lng));
     const { centro } = inquadra(CAMPETTI_DEMO, LATO);
-    expect(new URL(src).searchParams.get("center")).toBe(`${centro.lat},${centro.lng}`);
+    expect(new URL(src).searchParams.get("lat")).toBe(String(centro.lat));
   });
 
-  it("l'immagine manda il Referer: la restrizione per referrer di Google lo richiede, quindi niente no-referrer", () => {
-    conChiave();
-    expect(immagine()!.referrerPolicy).not.toBe("no-referrer");
-  });
-
-  it("se l'immagine non carica (rete, quota, restrizioni) al suo posto torna la griglia, con gli stessi pin", () => {
-    conChiave();
+  it("se l'immagine non carica (503 del server, rete) al suo posto torna la griglia, con gli stessi pin", () => {
+    conImmagine();
     fireEvent.error(immagine()!);
     expect(immagine()).toBeNull();
     expect(griglia()).not.toBeNull();
@@ -77,7 +69,7 @@ describe("MappaCampetti con la chiave: l'immagine della Maps Static API, inquadr
 });
 
 describe("MappaCampetti: i pin sono pulsanti posizionati da `proietta`, in percentuale del lato 640", () => {
-  it.each([["con la chiave", conChiave], ["senza chiave", senzaChiave]])("%s", (_nome, monta) => {
+  it.each([["con l'immagine", conImmagine], ["schematica", schematica]])("%s", (_nome, monta) => {
     monta();
     const { centro, zoom } = inquadra(CAMPETTI_DEMO, LATO);
     for (const c of CAMPETTI_DEMO) {
@@ -91,7 +83,7 @@ describe("MappaCampetti: i pin sono pulsanti posizionati da `proietta`, in perce
   it("il pin del campetto selezionato ha aria-pressed; un clic su un pin chiama onSeleziona con l'id, non onClicMappa", () => {
     const onSeleziona = vi.fn();
     const onClicMappa = vi.fn();
-    senzaChiave({ onSeleziona, onClicMappa });
+    schematica({ onSeleziona, onClicMappa });
     expect(screen.getByRole("button", { name: ruffini.nome }).getAttribute("aria-pressed")).toBe("true");
     expect(screen.getByRole("button", { name: giardini.nome }).getAttribute("aria-pressed")).toBe("false");
     fireEvent.click(screen.getByRole("button", { name: giardini.nome }));
@@ -100,7 +92,7 @@ describe("MappaCampetti: i pin sono pulsanti posizionati da `proietta`, in perce
   });
 
   it("senza campetti non ci sono pin e la mappa resta (Roma, dove la pagina si apre)", () => {
-    senzaChiave({ campetti: [], selezionato: null });
+    schematica({ campetti: [], selezionato: null });
     expect(screen.queryAllByRole("button")).toHaveLength(0);
     expect(griglia()).not.toBeNull();
   });
@@ -108,7 +100,7 @@ describe("MappaCampetti: i pin sono pulsanti posizionati da `proietta`, in perce
 
 describe("MappaCampetti: il pin dell'utente lo disegna l'app", () => {
   it("con la posizione c'è un segno non interattivo con il testo «La tua posizione», dove dice `proietta`", () => {
-    conChiave({ posizioneUtente: UTENTE });
+    conImmagine({ posizioneUtente: UTENTE });
     const testo = screen.getByText("La tua posizione");
     const segno = testo.closest("[style]") as HTMLElement;
     expect(testo.closest("button")).toBeNull();
@@ -119,17 +111,17 @@ describe("MappaCampetti: il pin dell'utente lo disegna l'app", () => {
   });
 
   it("senza posizione, o con l'utente fuori dall'inquadratura (che segue solo i campetti), il segno non c'è", () => {
-    senzaChiave();
+    schematica();
     expect(screen.queryByText("La tua posizione")).toBeNull();
     cleanup();
-    senzaChiave({ posizioneUtente: PALERMO }); // lontano da tutti i campetti di esempio (Torino e Roma): l'inquadratura non lo segue
+    schematica({ posizioneUtente: PALERMO }); // lontano da tutti i campetti di esempio (Torino e Roma): l'inquadratura non lo segue
     expect(screen.queryByText("La tua posizione")).toBeNull();
   });
 });
 
 describe("MappaCampetti: il pin provvisorio del form (T5.5)", () => {
   it("con `pinProvvisorio` c'è un segno non cliccabile «Posizione scelta» dove dice `proietta`; fuori dall'inquadratura non c'è", () => {
-    senzaChiave({ pinProvvisorio: UTENTE });
+    schematica({ pinProvvisorio: UTENTE });
     const testo = screen.getByText("Posizione scelta");
     expect(testo.closest("button")).toBeNull();
     const { centro, zoom } = inquadra(CAMPETTI_DEMO, LATO);
@@ -138,7 +130,7 @@ describe("MappaCampetti: il pin provvisorio del form (T5.5)", () => {
     expect(segno.style.left).toBe(`${(x / LATO) * 100}%`);
     expect(segno.style.top).toBe(`${(y / LATO) * 100}%`);
     cleanup();
-    senzaChiave({ pinProvvisorio: PALERMO }); // lontano da tutti i campetti di esempio: l'inquadratura non lo segue
+    schematica({ pinProvvisorio: PALERMO }); // lontano da tutti i campetti di esempio: l'inquadratura non lo segue
     expect(screen.queryByText("Posizione scelta")).toBeNull();
   });
 });
@@ -151,7 +143,7 @@ describe("MappaCampetti: un clic sulla mappa (non su un pin) dà le coordinate d
     fireEvent.click(livello, { clientX, clientY });
   }
 
-  it.each([["con la chiave", conChiave], ["senza chiave", senzaChiave]])("%s", (_nome, monta) => {
+  it.each([["con l'immagine", conImmagine], ["schematica", schematica]])("%s", (_nome, monta) => {
     const onClicMappa = vi.fn();
     monta({ onClicMappa });
     simulaClic(10 + 160, 20 + 80); // al centro in orizzontale, a un quarto in verticale
@@ -164,7 +156,7 @@ describe("MappaCampetti: un clic sulla mappa (non su un pin) dà le coordinate d
   });
 
   it("senza onClicMappa il clic non fa niente", () => {
-    senzaChiave();
+    schematica();
     expect(() => simulaClic(100, 100)).not.toThrow();
   });
 });

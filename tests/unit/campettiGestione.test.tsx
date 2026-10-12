@@ -15,7 +15,7 @@ import { CAMPETTI_DEMO } from "../fixtures/campetti";
 
 /* T5.5: il form con cui si aggiunge o si corregge un campetto (D6), con i tre modi di dare la posizione (D4), e la pagina che lo apre:
  * chi aggiunge (ogni registrato), chi modifica ed elimina (autore o ADMIN, D3), l'ospite in sola lettura. La mappa è quella
- * schematica (senza chiave): la chiave vera, se è nella shell, non deve entrare nei test. */
+ * Nei test la mappa del form non scarica nessuna immagine (jsdom non le carica): i pin e i clic si provano sul contenitore. */
 
 // Si sostituisce solo la rete: store e pagina sono quelli veri
 vi.mock("../../src/services/campettiApi", async (importOriginal) => {
@@ -52,7 +52,7 @@ function formNuovo(onSave = vi.fn(async (_input: CampettoInput) => {})) {
   return onSave;
 }
 
-/** Un clic sulla mappa schematica, disegnata a 320×320 px nella pagina (metà del sistema 640), con le coordinate attese */
+/** Un clic sulla mappa, disegnata a 320×320 px nella pagina (metà del sistema 640), con le coordinate attese */
 function clicSullaMappa(x: number, y: number) {
   const livello = document.querySelector("[role='presentation']") as HTMLElement;
   livello.getBoundingClientRect = () => ({ left: 0, top: 0, width: 320, height: 320, right: 320, bottom: 320, x: 0, y: 0, toJSON: () => ({}) });
@@ -61,13 +61,8 @@ function clicSullaMappa(x: number, y: number) {
   return coordinateDa(x * 2, y * 2, centro, zoom, LATO);
 }
 
-beforeEach(() => {
-  vi.stubEnv("MAPS_API_KEY", "");
-});
-
 afterEach(() => {
   cleanup(); // senza le globali di Vitest, Testing Library non smonta da sola
-  vi.unstubAllEnvs();
   Object.defineProperty(navigator, "geolocation", { value: undefined, configurable: true });
 });
 

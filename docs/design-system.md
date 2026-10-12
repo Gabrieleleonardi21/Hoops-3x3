@@ -74,7 +74,7 @@ etichette 11 px. Line-height 1.5 nel corpo (default di Tailwind), 1.0 per il dis
 1. **Home / classifica live**: hero (tappa in corso + LIVE) → tabella classifica (2/3) + prossime partite e score card compatta (1/3) → leader della tappa (5 stat tile).
 2. **Player profile**: header con numero maglia gigante → 6 stat tile → andamento punti (sparkline) | storico tappe → ultime partite. L'analisi 3x3 (punti di forza, aree di miglioramento) sta nella finestra del giocatore dell'Archivio (`GiocatoreAnalisi`).
 3. **Campetti**: «Usa la mia posizione» con il suo esito → ricerca e filtri → lista card (5fr, circa il 45%) + mappa (6fr, circa il 55%,
-   quadrata: l'immagine della Maps Static API, o la griglia schematica senza chiave) con i pin disegnati dall'app (il selezionato in
+   quadrata: l'immagine che il backend ricava dalla Maps Static API, o la griglia schematica se non c'è) con i pin disegnati dall'app (il selezionato in
    `court`, più grande; il segno dell'utente in `chalk`) → «Aggiungi un campetto» (primary, a tutta larghezza sotto la lista) →
    attribuzione dei dati in fondo. Nella card le caratteristiche sono badge di testo (mai solo un'icona o un colore), la distanza,
    solo con la posizione, in `court`, e per chi può «Modifica» ed «Elimina» come link (`Button variant="link"`, «Elimina» in `loss`)

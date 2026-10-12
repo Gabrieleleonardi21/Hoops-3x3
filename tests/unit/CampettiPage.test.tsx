@@ -52,12 +52,10 @@ function differita<T>() {
 }
 
 /** L'immagine della Maps Static API, se è nella pagina */
-const immagineDiGoogle = () => document.querySelector("img[src*='maps.googleapis.com']");
+const immagineDellaMappa = () => document.querySelector("img[src*='/api/mappa-campetti']");
 
 beforeEach(() => {
   vi.resetAllMocks();
-  // Senza chiave: la chiave vera, se è nella shell di chi lancia i test, non deve finire nell'URL dell'immagine (né nei log)
-  vi.stubEnv("MAPS_API_KEY", "");
   // Il finto restituisce tutti i campetti di esempio qualunque sia la ricerca: il filtro per raggio e per testo è del server (lo provano
   // l'e2e e il backend), qui si prova cosa fa la pagina con l'elenco
   api.list.mockResolvedValue(CAMPETTI_DEMO);
@@ -68,7 +66,6 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup(); // senza le globali di Vitest, Testing Library non smonta da sola
-  vi.unstubAllEnvs();
   useAppStore.getState().reset();
   Object.defineProperty(navigator, "geolocation", { value: undefined, configurable: true });
 });
@@ -118,22 +115,21 @@ describe("CampettiPage: all'apertura i campetti intorno a Roma, dall'API", () =>
     expect(aggiungi.getAttribute("title")).toBeNull();
   });
 
-  it("con la chiave, l'immagine di Google (a pagamento) non si monta finché l'elenco non è arrivato, né se la ricerca fallisce", async () => {
-    vi.stubEnv("MAPS_API_KEY", "chiave-finta");
+  it("l'immagine della mappa (che il server fa con la chiave, a pagamento) non si chiede finché l'elenco non è arrivato, né se la ricerca fallisce", async () => {
     const lenta = differita<Campetto[]>();
     api.list.mockReturnValueOnce(lenta.promessa);
     render(<CampettiPage />);
     expect(screen.getByText(/Sto cercando i campetti/)).toBeTruthy();
-    expect(immagineDiGoogle()).toBeNull();
+    expect(immagineDellaMappa()).toBeNull();
     lenta.risolvi(CAMPETTI_DEMO);
     await screen.findByRole("article", { name: ruffini.nome });
-    expect(immagineDiGoogle()).not.toBeNull();
+    expect(immagineDellaMappa()).not.toBeNull();
     cleanup();
     api.list.mockRejectedValueOnce(new ApiError(503, "Servizio non disponibile"));
     useCampettiStore.setState({ campetti: null, ricerca: null, errore: null, inCorso: false, epoca: 0, svuotata: 0 });
     render(<CampettiPage />);
     await screen.findByRole("alert");
-    expect(immagineDiGoogle()).toBeNull();
+    expect(immagineDellaMappa()).toBeNull();
   });
 
   it("in fondo l'attribuzione: i campetti sono di OpenStreetMap (© OpenStreetMap contributors, con il link alla licenza), e nessun dato viene da Pick-Roll", async () => {
