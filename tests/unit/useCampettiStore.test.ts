@@ -21,7 +21,7 @@ function differita<T>() {
   return { promessa, risolvi, rifiuta };
 }
 
-/** Store nuovo a ogni test. Il server finto risponde con i sei campetti di Torino a qualunque ricerca */
+/** Store nuovo a ogni test. Il server finto risponde con i campetti di esempio (Torino e Roma) a qualunque ricerca */
 async function nuovoStore() {
   vi.resetModules();
   const { campettiApi } = await import("../../src/services/campettiApi");
@@ -216,7 +216,7 @@ describe("useCampettiStore: le scritture (T5.5) aggiornano server ed elenco", ()
     await store.getState().update(ruffini.id, { ...inputRuffini, nome: "Parco Ruffini — Campo 3" });
     expect(api.update).toHaveBeenCalledWith(ruffini.id, { ...inputRuffini, nome: "Parco Ruffini — Campo 3", versione: 0 });
     expect(store.getState().campetti?.[0]).toEqual(dalServer);
-    expect(store.getState().campetti).toHaveLength(6);
+    expect(store.getState().campetti).toHaveLength(CAMPETTI_DEMO.length);
   });
 
   it("update con 409 (modificato da un altro dispositivo): ricarica la ricerca corrente dal server e rifiuta con il testo per l'utente", async () => {
@@ -258,7 +258,7 @@ describe("useCampettiStore: le scritture (T5.5) aggiornano server ed elenco", ()
     await store.getState().remove(ruffini.id);
     expect(api.remove).toHaveBeenCalledWith(ruffini.id);
     expect(store.getState().campetti?.map((c) => c.id)).not.toContain(ruffini.id);
-    expect(store.getState().campetti).toHaveLength(5);
+    expect(store.getState().campetti).toHaveLength(CAMPETTI_DEMO.length - 1);
     store.getState().svuota();
     await store.getState().remove(giardini.id);
     expect(store.getState().campetti).toBeNull();
@@ -269,7 +269,7 @@ describe("useCampettiStore: le scritture (T5.5) aggiornano server ed elenco", ()
     await store.getState().carica(ROMA);
     api.remove.mockRejectedValueOnce(new ApiError(404, "Campetto non trovato"));
     await expect(store.getState().remove(ruffini.id)).rejects.toMatchObject({ status: 404 });
-    expect(store.getState().campetti).toHaveLength(6);
+    expect(store.getState().campetti).toHaveLength(CAMPETTI_DEMO.length);
   });
 });
 

@@ -10,6 +10,8 @@ const LATO = 640;
 /** Dove sta chi guarda: nel centro di Torino, non su un campetto. Non deve finire nell'URL dell'immagine (D7) */
 const UTENTE = { lat: 45.0703, lng: 7.6869 };
 const [ruffini, giardini] = CAMPETTI_DEMO;
+/** Palermo: fuori dall'inquadratura di tutti i campetti di esempio, Torino e Roma */
+const PALERMO = { lat: 38.1157, lng: 13.3615 };
 
 /** La mappa con la chiave finta: l'immagine di Google al posto della griglia */
 function conChiave(props: Partial<Parameters<typeof MappaCampetti>[0]> = {}) {
@@ -120,7 +122,7 @@ describe("MappaCampetti: il pin dell'utente lo disegna l'app", () => {
     senzaChiave();
     expect(screen.queryByText("La tua posizione")).toBeNull();
     cleanup();
-    senzaChiave({ posizioneUtente: { lat: 41.9028, lng: 12.4964 } }); // Roma, con i campetti di Torino
+    senzaChiave({ posizioneUtente: PALERMO }); // lontano da tutti i campetti di esempio (Torino e Roma): l'inquadratura non lo segue
     expect(screen.queryByText("La tua posizione")).toBeNull();
   });
 });
@@ -136,7 +138,7 @@ describe("MappaCampetti: il pin provvisorio del form (T5.5)", () => {
     expect(segno.style.left).toBe(`${(x / LATO) * 100}%`);
     expect(segno.style.top).toBe(`${(y / LATO) * 100}%`);
     cleanup();
-    senzaChiave({ pinProvvisorio: { lat: 41.9028, lng: 12.4964 } }); // Roma, con i campetti di Torino: l'inquadratura non lo segue
+    senzaChiave({ pinProvvisorio: PALERMO }); // lontano da tutti i campetti di esempio: l'inquadratura non lo segue
     expect(screen.queryByText("Posizione scelta")).toBeNull();
   });
 });

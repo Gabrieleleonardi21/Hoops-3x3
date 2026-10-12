@@ -407,9 +407,9 @@ Statistiche stagione (tab dedicato)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 I campi da streetball del circuito, condivisi tra tutti gli utenti e letti
-dal server (GET /api/campetti, anche da Ospite). I dati vengono da
-Pick-Roll, con il permesso del proprietario (attribuzione in fondo alla
-pagina).
+dal server (GET /api/campetti, anche da Ospite). I dati sono di
+OpenStreetMap (sei campetti di Torino e tre di Roma nel seed del backend,
+con attribuzione in fondo alla pagina).
 
 - Ricerca: all'apertura i campetti entro 20 km dal centro di Roma; la
   casella cerca per nome o città su tutta l'Italia (una richiesta 300 ms

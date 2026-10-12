@@ -9,7 +9,7 @@ import { CAMPETTI_DEMO } from "../fixtures/campetti";
 
 type Campetto = (typeof CAMPETTI_DEMO)[number];
 
-/** Due campetti di Roma, dove la pagina si apre, oltre ai sei di Torino della fixture: Testaccio l'ha scritto Anna (l'utente registrata
+/** Due campetti di Roma, dove la pagina si apre, oltre a quelli della fixture (sei di Torino, tre di Roma): Testaccio l'ha scritto Anna (l'utente registrata
  *  dei test, id "u1"), Villa Pamphili un altro utente */
 function campettoDiRoma(n: number, nome: string, lat: number, lng: number, autoreId: string): Campetto {
   return { ...CAMPETTI_DEMO[0], id: `r0000000-0000-4000-8000-00000000000${n}`, nome, indirizzo: "", citta: "Roma", lat, lng, autoreId };
@@ -17,6 +17,8 @@ function campettoDiRoma(n: number, nome: string, lat: number, lng: number, autor
 const TESTACCIO = campettoDiRoma(1, "Campo Testaccio", 41.8768, 12.4761, utenteAnna.id);
 const PAMPHILI = campettoDiRoma(2, "Villa Pamphili — Playground", 41.8838, 12.4440, "u2");
 const TUTTI = [...CAMPETTI_DEMO, PAMPHILI, TESTACCIO];
+/** I cinque campetti di Roma nell'ordine della pagina senza posizione (città, poi nome): i tre della fixture, più i due qui sopra */
+const ROMA_IN_ORDINE = ["Campo Testaccio", "Cinodromo — campo da basket", "Playground Parco delle Energie", "Quadrato", "Villa Pamphili — Playground"];
 
 /** Il centro di Torino: dove sta l'utente dei test (Playwright lo dà al browser come posizione) */
 const TORINO = { latitude: 45.0703, longitude: 7.6869 };
@@ -101,8 +103,8 @@ test("all'apertura i campetti intorno a Roma dall'API, la mappa schematica con i
   await apriCampetti(page);
   await expect(page.getByRole("article", { name: "Campo Testaccio" })).toBeVisible();
   expect(richieste).toEqual(["?lat=41.9028&lng=12.4964&raggioKm=20"]);
-  await expect(page.getByText("2 campetti · intorno a Roma")).toBeVisible();
-  expect(await nomiDelleCard(page)).toEqual(["Campo Testaccio", "Villa Pamphili — Playground"]);
+  await expect(page.getByText("5 campetti · intorno a Roma")).toBeVisible();
+  expect(await nomiDelleCard(page)).toEqual(ROMA_IN_ORDINE);
   // Senza chiave: la griglia schematica, con i pin come pulsanti; nessuna immagine di Google
   await expect(page.getByText("Mappa schematica")).toBeVisible();
   await expect(page.getByRole("button", { name: "Campo Testaccio", exact: true })).toBeVisible();
@@ -151,7 +153,7 @@ test("registrata: aggiunge un campetto con un clic sulla mappa schematica, lo mo
   expect(typeof corpoPost.lat).toBe("number"); // la posizione del clic, come numeri
   expect(Math.abs(corpoPost.lat - 41.88)).toBeLessThan(0.1); // dentro l'inquadratura di Roma
   expect(corpoPost).not.toHaveProperty("versione"); // la prima versione la decide il server
-  await expect(page.getByText("3 campetti · intorno a Roma")).toBeVisible();
+  await expect(page.getByText("6 campetti · intorno a Roma")).toBeVisible();
 
   // Modifica: lo stesso form precompilato; la PUT porta la versione letta (0) e la card prende il nome nuovo
   await page.getByRole("button", { name: "Modifica Campo nuovo" }).click();
@@ -174,7 +176,7 @@ test("registrata: aggiunge un campetto con un clic sulla mappa schematica, lo mo
   await page.getByRole("alertdialog").getByRole("button", { name: "Conferma" }).click();
   await expect(page.getByRole("article", { name: "Campo nuovo di Anna" })).toHaveCount(0);
   expect(scritture[2]).toMatchObject({ metodo: "DELETE", id: "n0000000-0000-4000-8000-000000000001" });
-  await expect(page.getByText("2 campetti · intorno a Roma")).toBeVisible();
+  await expect(page.getByText("5 campetti · intorno a Roma")).toBeVisible();
   await expect(page.getByRole("alert")).toHaveCount(0);
   expect(nonPreviste).toEqual([]);
 });
@@ -192,7 +194,8 @@ test("posizione concessa (a Torino): i campetti intorno all'utente, con le dista
   expect(richieste[1]).toBe(`?lat=${TORINO.latitude}&lng=${TORINO.longitude}&raggioKm=20`);
   // L'ordine del server (per distanza) è anche quello della pagina: Giardini Reali è il più vicino al centro
   const utente = { lat: TORINO.latitude, lng: TORINO.longitude };
-  const attesi = [...CAMPETTI_DEMO].sort((a, b) => km(utente, a) - km(utente, b)).map((c) => c.nome);
+  // Solo i sei di Torino: quelli di Roma sono fuori dal raggio di 20 km e il server non li manda
+  const attesi = CAMPETTI_DEMO.filter((c) => c.citta === "Torino").sort((a, b) => km(utente, a) - km(utente, b)).map((c) => c.nome);
   expect(await nomiDelleCard(page)).toEqual(attesi);
   expect(attesi[0]).toBe("Giardini Reali — Playground");
   // Ogni card ha la distanza, scritta all'italiana
@@ -209,7 +212,7 @@ test("posizione negata: il messaggio lo dice, i campetti restano quelli di Roma 
   await expect(page.getByRole("article", { name: "Campo Testaccio" })).toBeVisible();
   await page.getByRole("button", { name: "Usa la mia posizione" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Posizione negata" })).toBeVisible();
-  expect(await nomiDelleCard(page)).toEqual(["Campo Testaccio", "Villa Pamphili — Playground"]);
+  expect(await nomiDelleCard(page)).toEqual(ROMA_IN_ORDINE);
   await expect(page.getByText(/^\d+ m$|^\d+,\d km$/)).toHaveCount(0);
   expect(richieste).toHaveLength(1); // nessuna posizione è andata al server
   expect(nonPreviste).toEqual([]);
@@ -236,7 +239,7 @@ test("la ricerca per testo interroga il server con q su tutta l'Italia; la casel
   await expect(page.getByText("1 campetto · in tutta Italia")).toBeVisible();
   expect(richieste).toEqual(["?lat=41.9028&lng=12.4964&raggioKm=20", "?q=Dora"]);
   await page.getByLabel("Cerca città o campo").fill("");
-  await expect(page.getByText("2 campetti · intorno a Roma")).toBeVisible();
+  await expect(page.getByText("5 campetti · intorno a Roma")).toBeVisible();
   expect(richieste[2]).toBe("?lat=41.9028&lng=12.4964&raggioKm=20");
   expect(nonPreviste).toEqual([]);
 });

@@ -210,10 +210,8 @@ export function CampettiPage() {
         </div>
       </div>
 
-      {/* Attribuzione (D5): i campetti vengono da Pick-Roll, con il permesso del proprietario; le coordinate dei campetti di esempio
-          (il seed del backend) dai centroidi di OpenStreetMap, licenza ODbL */}
+      {/* Attribuzione: i campetti vengono da OpenStreetMap (il seed del backend, Torino e Roma), licenza ODbL: il link porta alla licenza */}
       <p className="mt-6 text-xs text-chalk-dim">
-        Campetti: dati di <a href="https://pick-roll.com" target="_blank" rel="noopener noreferrer" className="underline underline-offset-4 hover:text-chalk">Pick-Roll</a>.
         Coordinate dei campetti di esempio © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" className="underline underline-offset-4 hover:text-chalk">OpenStreetMap</a> contributors.
       </p>
 
