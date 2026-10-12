@@ -67,9 +67,12 @@ interface Props {
   onClicMappa?: (punto: Coordinate) => void;
   /** La posizione scelta per il campetto che si sta compilando (form): un pin trascinabile, del colore d'accento */
   pinProvvisorio?: Coordinate;
+  /** Un luogo cercato, quando la ricerca non trova campetti: la mappa va lì a quello zoom. Confronto per valore; finché l'elenco dei
+   *  campetti non cambia, la vista resta su questo punto (non si riadatta) */
+  centro?: { lat: number; lng: number; zoom: number };
 }
 
-export function MappaCampetti({ campetti, selezionato, onSeleziona, posizioneUtente, onClicMappa, pinProvvisorio }: Props) {
+export function MappaCampetti({ campetti, selezionato, onSeleziona, posizioneUtente, onClicMappa, pinProvvisorio, centro }: Props) {
   const contenitore = useRef<HTMLDivElement>(null);
   const mappaRef = useRef<L.Map | null>(null);
   // I gruppi di segni: si svuotano e si ridisegnano senza toccare la mappa
@@ -193,6 +196,17 @@ export function MappaCampetti({ campetti, selezionato, onSeleziona, posizioneUte
     }
     mappa.fitBounds(L.latLngBounds(punti), { padding: [24, 24], maxZoom: ZOOM_MASSIMO_ADATTA });
   }, [chiaveElenco]);
+
+  // Il luogo cercato: si va lì quando cambia (per valore). Questo effetto sta dopo quello dell'adattamento: quando arrivano insieme,
+  // vince il luogo
+  const centroLat = centro?.lat;
+  const centroLng = centro?.lng;
+  const centroZoom = centro?.zoom;
+  useEffect(() => {
+    const mappa = mappaRef.current;
+    if (!mappa || centroLat === undefined || centroLng === undefined || centroZoom === undefined) return;
+    mappa.setView([centroLat, centroLng], centroZoom);
+  }, [centroLat, centroLng, centroZoom]);
 
   return (
     <div ref={contenitore} role="region" aria-label="Mappa dei campetti"
