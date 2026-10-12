@@ -1,12 +1,13 @@
 /** Form di autenticazione: usa react-hook-form + Zod per la validazione dei campi.
  *  Registrazione e login passano dal backend (JWT); la modalità Ospite resta locale al browser. */
 import { useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuth } from "../../hooks/useAuth";
 import { useInvio } from "../../hooks/useInvio";
+import { emailSchema, passwordSchema } from "../../utils/credenziali";
 import { Input } from "../ui/Input";
 import { Button } from "../ui/Button";
 
@@ -23,15 +24,22 @@ function messaggioRicevuto(stato: unknown): string | null {
   if (typeof messaggio === "string") return messaggio;
   return null;
 }
+/** Scheda da cui parte il modulo: «Accedi» per chi ha già usato un account su questo browser, o per chi arriva dal link «Accedi»
+ *  della nuova password (stato `modo: "login"`: chi l'ha cambiata un account ce l'ha) */
+function partenza(stato: unknown): "register" | "login" {
+  const modo = (stato as { modo?: unknown } | null)?.modo;
+  if (hasAccountHint() || modo === "login") return "login";
+  return "register";
+}
 
 const registerSchema = z.object({
   // Da 2 a 80 caratteri come RegisterRequestDTO (gli 80 sono il maxLength del campo); il campo vuoto ha il suo messaggio
   name: z.string().min(1, "Inserisci il nome utente").min(2, "Nome utente di almeno 2 caratteri"),
-  email: z.string().email("Mail non valida"),
-  pass: z.string().min(8, "Password di almeno 8 caratteri"),
+  email: emailSchema,
+  pass: passwordSchema,
 });
 const loginSchema = z.object({
-  email: z.string().email("Mail non valida"),
+  email: emailSchema,
   pass: z.string().min(1, "Inserisci la password"),
 });
 type RegisterData = z.infer<typeof registerSchema>;
@@ -40,7 +48,8 @@ type LoginData = z.infer<typeof loginSchema>;
 export function AuthForm() {
   const { register: doRegister, login: doLogin, enterGuest } = useAuth();
   const navigate = useNavigate();
-  const ricevuto = messaggioRicevuto(useLocation().state);
+  const stato = useLocation().state;
+  const ricevuto = messaggioRicevuto(stato);
   // Il messaggio si copia qui e si toglie dalla voce della cronologia: resta visibile finché si sta sul form, ma
   // ricaricando la pagina non ricompare (lo stato della navigazione sopravvive al ricaricamento)
   const [copia, setCopia] = useState<string | null>(null);
@@ -51,7 +60,7 @@ export function AuthForm() {
   }, [ricevuto, navigate]);
   const avviso = ricevuto ?? copia;
   // Chi ha già usato un account su questo browser parte dal tab "Accedi"
-  const [mode, setMode] = useState<"register" | "login">(hasAccountHint() ? "login" : "register");
+  const [mode, setMode] = useState<"register" | "login">(partenza(stato));
   // Un solo invio alla volta tra registrazione, accesso e Ospite: finché uno aspetta il server i tre pulsanti sono disattivati (un
   // doppio clic non registra due volte) e un rifiuto compare sotto il modulo con il messaggio del server (useInvio senza prefisso)
   const { invio, errore: authError, setErrore: setAuthError, esegui } = useInvio();
@@ -110,6 +119,7 @@ export function AuthForm() {
           <Input label="Mail" type="email" autoComplete="email" {...logForm.register("email")} error={!!logErr.email} hint={logErr.email?.message} />
           <Input label="Password" type="password" autoComplete="current-password" {...logForm.register("pass")} error={!!logErr.pass} hint={logErr.pass?.message} />
           <Button type="submit" className="w-full" disabled={invio}>{testoAccedi}</Button>
+          <Link to="/password-dimenticata" className="linkbtn self-start">Password dimenticata?</Link>
         </form>
       )}
 
