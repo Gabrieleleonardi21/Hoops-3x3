@@ -418,6 +418,32 @@ describe("App: anagrafe e sessione cambiata in un'altra scheda (T2.15)", () => {
   });
 });
 
+describe("App: recupero della password", () => {
+  it("«Password dimenticata?» dal modulo di accesso apre la richiesta del link, senza un utente", async () => {
+    token.clear();
+    localStorage.setItem("hoop3x3_has_account", "1"); // parte dalla scheda «Accedi»
+    render(<App />);
+    fireEvent.click(await screen.findByRole("link", { name: "Password dimenticata?" }));
+    expect(await screen.findByRole("button", { name: "Invia il link" })).toBeTruthy();
+    expect(window.location.pathname).toBe("/password-dimenticata");
+  });
+
+  it("aprire o ricaricare /reimposta-password?token=… mostra i campi della nuova password, anche senza utente", async () => {
+    token.clear();
+    window.history.replaceState(null, "", "/reimposta-password?token=abc");
+    render(<App />);
+    expect(await screen.findByLabelText("Nuova password")).toBeTruthy();
+    expect(screen.getByLabelText("Ripeti la password")).toBeTruthy();
+  });
+
+  it("senza token nell'indirizzo la pagina dice che il link non è valido", async () => {
+    token.clear();
+    window.history.replaceState(null, "", "/reimposta-password");
+    render(<App />);
+    expect(await screen.findByText("Il link non è valido")).toBeTruthy();
+  });
+});
+
 describe("App: il piè di pagina è nel layout di ogni pagina", () => {
   it("la riga «Sito creato da Gabriele Leonardi» sta subito dopo il contenuto, fuori dal main", async () => {
     render(<App />);

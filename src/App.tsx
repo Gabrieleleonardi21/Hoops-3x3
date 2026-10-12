@@ -26,6 +26,8 @@ import { ArchivioPage } from "./pages/ArchivioPage";
 import { GiocatorePage } from "./pages/GiocatorePage";
 import { CampettiPage } from "./pages/CampettiPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
+import { PasswordDimenticataPage } from "./pages/PasswordDimenticataPage";
+import { ReimpostaPasswordPage } from "./pages/ReimpostaPasswordPage";
 import type { User } from "./types";
 import { RequireAuth } from "./components/auth/RequireAuth";
 
@@ -158,6 +160,9 @@ function Pagine() {
         <Route path="/" element={<HomePage />} />
         <Route path="/tappa/:id" element={<TappaViewPage />} /> {/* pubblica */}
         <Route path="/archivio" element={<ArchivioPage />} />
+        {/* Recupero della password: pubblico, per chi non riesce ad entrare. Il token del link sta nell'indirizzo */}
+        <Route path="/password-dimenticata" element={<PasswordDimenticataPage />} />
+        <Route path="/reimposta-password" element={<ReimpostaPasswordPage />} />
         {/* Riservate a chi è entrato, anche come ospite: senza utente si torna alla home */}
         <Route element={<RequireAuth />}>
           <Route path="/leghe" element={<LegheListPage />} />

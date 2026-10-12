@@ -52,6 +52,9 @@ export const ELENCO_ARCHIVIO_NON_VALIDO = "Risposta del server non valida. Ripro
 /** Un campetto, o l'elenco dei campetti, arriva con una forma che l'app non riconosce: stesso testo e stesso uso dell'archivio */
 export const RISPOSTA_CAMPETTI_NON_VALIDA = ELENCO_ARCHIVIO_NON_VALIDO;
 
+/** Anche la risposta del recupero della password, se non ha il `message` atteso: stesso testo */
+export const RISPOSTA_RECUPERO_NON_VALIDA = ELENCO_ARCHIVIO_NON_VALIDO;
+
 /** Il numero con il nome al singolare o al plurale: «1 risultato», «12 risultati» */
 export function conteggio(n: number, singolare: string, plurale: string): string {
   if (n === 1) return `1 ${singolare}`;

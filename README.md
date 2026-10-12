@@ -28,6 +28,7 @@ App web per la gestione di un circuito italiano di basket 3x3: tornei, gironi, s
 - **Campetti** — i campi da streetball del circuito, dal server (lettura pubblica): all'apertura quelli intorno a Roma, con «Usa la mia posizione» quelli intorno a chi guarda, con le distanze e in ordine di distanza; la casella di ricerca cerca per nome o città su tutta l'Italia; filtri (illuminato, coperto, 4 canestri, gratuito, retine, fontanella, stato del campo) sui risultati; mappa interattiva (Leaflet, con le tessere di OpenStreetMap) con i pin dei campetti, trascinabile e con lo zoom, «Indicazioni» e «Apri in Google Maps» per ogni campo; ogni registrato aggiunge un campetto (posizione da «Usa la mia posizione», da un clic sulla mappa o scritta a mano), l'autore o un ADMIN lo modifica ed elimina, l'Ospite legge soltanto (vedi «Campetti»)
 - **Ospite** — accesso senza account per provare l'app: la lega sta nel `localStorage` del browser, anagrafe e archivio sono in sola lettura, la pubblicazione e il Coach AI non sono disponibili
 - **Sessione persistente** — login e dati salvati nel browser; la sessione si rinnova da sola e «Esci» la chiude anche sul server; gli ospiti hanno dati locali separati
+- **Recupero della password** — da «Password dimenticata?», nella scheda «Accedi», si apre `/password-dimenticata`: si scrive la mail e «Invia il link» manda la richiesta a `POST /api/auth/password/dimenticata`. Il messaggio che compare è sempre quello del server, uguale per una mail registrata e per una che non lo è, così la pagina non rivela chi ha un account; la rete assente dà un errore con «Riprova». Il link della mail apre `/reimposta-password?token=…`: due campi, «Nuova password» e «Ripeti la password», con le regole della registrazione (da 8 caratteri a 72 byte UTF-8, `passwordSchema` in `src/utils/credenziali.ts`) e il confronto dei due prima dell'invio (`POST /api/auth/password/reimposta`). Il token si legge dall'indirizzo, quindi la pagina regge il ricaricamento; senza token dice subito «Il link non è valido». Riuscita, mostra il messaggio del server e «Accedi» riporta al modulo sulla scheda «Accedi»; con un link scaduto, già usato o respinto il messaggio del server resta accanto a «Richiedi un nuovo link»
 
 ### Regole FIBA 3x3 (default)
 | Parametro | Valore |
@@ -195,6 +196,7 @@ Il contratto del backend (endpoint per endpoint, chi può chiamarlo, codici di s
 | `anagrafeApi.ts` | `/api/anagrafe/giocatori` e `/api/anagrafe/squadre` (lettura, creazione, modifica, eliminazione) |
 | `archivioApi.ts` | `/api/archivio` (elenco) e `/api/archivio/{tappaId}` (dettaglio, pubblicazione, ritiro) |
 | `campettiApi.ts` | `/api/campetti` (lettura pubblica per raggio o per testo, creazione) e `/api/campetti/{id}` (modifica, eliminazione) |
+| `recuperoApi.ts` | `/api/auth/password/dimenticata` (richiesta del link) e `/api/auth/password/reimposta` (nuova password con il token del link): rotte pubbliche, senza JWT |
 | `aiService.ts` | `POST /api/coach/chat` (il Coach AI) |
 
 Non usa `GET /api/utenti` (solo ADMIN) né `GET /api/coach/status`: la chiave Groq mancante la scopre dal 503 della chat. Negli store e nelle pagine il client mostra all'utente il campo `message` delle risposte d'errore del backend (`testoErrore`), o «Errore <status>» se il corpo manca; la chat del Coach ha testi suoi (`errorMsg` in `useCoachAI.ts`) e riporta il `message` del backend solo per il 400.
@@ -232,7 +234,7 @@ src/
 ├── domain/           # Operazioni di tappa come funzioni pure (sorteggio, risultati, fasi dirette, conclusione)
 ├── hooks/            # Custom hooks
 ├── pages/            # Pagine dell'app
-├── services/         # Client HTTP (api.ts), servizi REST (leghe, anagrafe, archivio, campetti, auth) e AI
+├── services/         # Client HTTP (api.ts), servizi REST (leghe, anagrafe, archivio, campetti, auth, recupero della password) e AI
 ├── stores/           # Store Zustand: stato globale (useAppStore, con memoriaBrowser e versioniTappe), cache dell'anagrafe (useAnagrafeStore) e dei campetti (useCampettiStore)
 ├── types/            # Definizioni TypeScript
 └── utils/            # Funzioni di utilità (gironi, classifica, geometria dei campetti in geo.ts, ecc.)
