@@ -152,6 +152,14 @@ test("all'apertura i campetti intorno a Roma dall'API, la mappa con l'immagine d
   await expect(page.locator(".leaflet-control-attribution")).toContainText("© OpenStreetMap contributors");
   await expect(page.getByRole("button", { name: "Campo Testaccio", exact: true })).toBeVisible();
   await expect(page.getByText("Dati di esempio")).toHaveCount(0);
+  // Il piè di pagina («Sito creato da Gabriele Leonardi») è visibile in fondo, sotto la lista e la mappa
+  const piede = page.getByRole("contentinfo");
+  await expect(piede).toBeVisible();
+  await expect(piede).toContainText("Sito creato da Gabriele Leonardi");
+  const sopra = await page.getByRole("article", { name: "Campo Testaccio" }).boundingBox();
+  const sotto = await piede.boundingBox();
+  if (!sopra || !sotto) throw new Error("il piè di pagina o una card non hanno una posizione sullo schermo");
+  expect(sotto.y).toBeGreaterThan(sopra.y);
   // L'ospite: «Aggiungi» disattivato con il titolo che dice perché, e nessun «Modifica» o «Elimina» (D3)
   const aggiungi = page.getByRole("button", { name: /Aggiungi un campetto/ });
   await expect(aggiungi).toBeDisabled();
