@@ -1,4 +1,4 @@
-import { test, expect, type Page, type Route } from "@playwright/test";
+import { test, expect, type Locator, type Page, type Route } from "@playwright/test";
 import { bloccaApiNonPreviste, creato, errore, json, rispondiAlRisveglio, utenteAnna, utenteRegistrato } from "./helpers";
 import { CAMPETTI_DEMO } from "../fixtures/campetti";
 
@@ -53,6 +53,18 @@ function rispostaDelServer(url: URL, tutti: Campetto[]) {
   }
   const raggio = Number(p.get("raggioKm"));
   return tutti.filter((c) => km(centro, c) <= raggio).sort(perDistanza);
+}
+
+/** Aspetta che un elemento sia fermo: due letture consecutive della sua posizione uguali (una mappa che scorre o una finestra che si
+ *  muove cambiano la posizione finché l'animazione non finisce) */
+async function attendiFermo(elemento: Locator) {
+  let precedente = "";
+  await expect.poll(async () => {
+    const cassetta = JSON.stringify(await elemento.boundingBox());
+    const fermo = cassetta === precedente;
+    precedente = cassetta;
+    return fermo;
+  }, { timeout: 5000, intervals: [100] }).toBe(true);
 }
 
 /** Il server finto dei campetti: risponde come quello vero e registra le query string delle letture e i corpi delle scritture. Le
@@ -175,16 +187,22 @@ test("aggiunta: un clic sulla mappa mette il pin provvisorio, trascinarlo correg
   const pin = finestra.locator(".leaflet-marker-draggable");
   await expect(pin).toHaveCount(1);
   const latPrima = await finestra.getByLabel("Latitudine").inputValue();
-  // Il pin si trascina con il mouse: la nuova posizione arriva al form
+  // Il pin si trascina con il mouse: la nuova posizione arriva al form. Prima il pin deve essere fermo (la mappa del form può ancora
+  // scorrere dopo il clic) e sotto il puntatore, altrimenti il mouse trascinerebbe la mappa invece del pin
+  await pin.scrollIntoViewIfNeeded();
+  await attendiFermo(pin);
   const riquadro = await pin.boundingBox();
   if (!riquadro) throw new Error("il pin provvisorio non ha una posizione sullo schermo");
   const x = riquadro.x + riquadro.width / 2;
   const y = riquadro.y + riquadro.height / 2;
+  const sottoIlPuntatore = await page.evaluate(([px, py]) => !!(document.elementFromPoint(px, py) as HTMLElement | null)?.closest(".leaflet-marker-draggable"), [x, y]);
+  expect(sottoIlPuntatore).toBe(true);
   await page.mouse.move(x, y);
   await page.mouse.down();
-  await page.mouse.move(x + 60, y + 40, { steps: 10 });
+  await page.mouse.move(x + 60, y + 40, { steps: 15 });
   await page.mouse.up();
-  await expect(finestra.getByLabel("Latitudine")).not.toHaveValue(latPrima);
+  // Si aspetta il valore nuovo, non un tempo fisso
+  await expect.poll(() => finestra.getByLabel("Latitudine").inputValue(), { timeout: 5000 }).not.toBe(latPrima);
   const latDopo = await finestra.getByLabel("Latitudine").inputValue();
   // Il salvataggio manda il punto trascinato, non quello del clic
   await finestra.getByLabel("Nome *").fill("Campo trascinato");
