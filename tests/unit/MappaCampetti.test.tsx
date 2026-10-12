@@ -50,7 +50,8 @@ describe("MappaCampetti: la mappa Leaflet con le tessere di OpenStreetMap", () =
     const vista = vi.spyOn(L.Map.prototype, "setView");
     render(<MappaCampetti campetti={[]} selezionato={null} onSeleziona={() => {}} />);
     expect(vista).toHaveBeenCalledWith([ROMA.lat, ROMA.lng], 12);
-    expect(screen.queryAllByRole("button")).toHaveLength(0);
+    // I pulsanti di zoom di Leaflet sono anch'essi pulsanti: i pin si riconoscono da aria-pressed
+    expect(document.querySelectorAll("button[aria-pressed]")).toHaveLength(0);
   });
 });
 
@@ -100,9 +101,11 @@ describe("MappaCampetti: un clic sulla mappa dà le coordinate del punto", () =>
 describe("MappaCampetti: il pin provvisorio si trascina e dà la nuova posizione", () => {
   /** Un trascinamento con il mouse (Leaflet ascolta mousedown sul pin, mousemove e mouseup sul documento) */
   function trascina(elemento: Element, da: { x: number; y: number }, a: { x: number; y: number }) {
-    fireEvent.mouseDown(elemento, { clientX: da.x, clientY: da.y, button: 0 });
-    fireEvent.mouseMove(document, { clientX: a.x, clientY: a.y });
-    fireEvent.mouseUp(document, { clientX: a.x, clientY: a.y });
+    // Leaflet ignora i pulsanti diversi dal sinistro: which 1 è il sinistro, come in un browser
+    fireEvent.mouseDown(elemento, { clientX: da.x, clientY: da.y, button: 0, which: 1 });
+    // Il movimento parte dall'elemento sotto il puntatore e risale al documento (come in un browser: Leaflet legge l'elemento bersaglio)
+    fireEvent.mouseMove(elemento, { clientX: a.x, clientY: a.y });
+    fireEvent.mouseUp(elemento, { clientX: a.x, clientY: a.y });
   }
 
   it("trascinare il pin provvisorio chiama onClicMappa con la nuova posizione", () => {
@@ -116,6 +119,14 @@ describe("MappaCampetti: il pin provvisorio si trascina e dà la nuova posizione
     const ultimo = onClicMappa.mock.calls.at(-1)![0];
     expect(ultimo.lat).not.toBeCloseTo(UTENTE.lat, 6);
     expect(ultimo.lng).not.toBeCloseTo(UTENTE.lng, 6);
+  });
+
+  it("il pin provvisorio è lo stesso elemento quando la posizione cambia: si sposta, non si ricrea (un trascinamento non si perde)", () => {
+    const { rerender } = render(<MappaCampetti campetti={[ruffini]} selezionato={null} onSeleziona={() => {}} pinProvvisorio={UTENTE} />);
+    const prima = document.querySelector(".leaflet-marker-draggable");
+    rerender(<MappaCampetti campetti={[ruffini]} selezionato={null} onSeleziona={() => {}} pinProvvisorio={giardini} />);
+    expect(document.querySelector(".leaflet-marker-draggable")).toBe(prima);
+    expect(document.querySelectorAll(".leaflet-marker-draggable")).toHaveLength(1);
   });
 
   it("il pin provvisorio non è un pulsante, e ha il testo «Posizione scelta» per chi legge lo schermo", () => {
