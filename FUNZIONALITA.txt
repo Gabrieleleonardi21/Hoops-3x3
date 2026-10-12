@@ -421,10 +421,10 @@ con attribuzione in fondo alla pagina).
   posizione resta nel browser e va al nostro server solo come centro della
   ricerca, mai a Google. Con il permesso negato o la posizione non
   disponibile un messaggio lo dice e la pagina resta usabile.
-- Mappa: un'immagine della Maps Static API inquadrata sui campetti
-  mostrati, con i pin disegnati dall'app (nessuno script esterno); senza
-  chiave, o se l'immagine non carica, una mappa schematica con gli stessi
-  pin. Pin e card si selezionano a vicenda.
+- Mappa: un'immagine che il backend ricava dalla Maps Static API (la chiave
+  sta sul server), inquadrata sui campetti mostrati, con i pin disegnati
+  dall'app. Se il server non ha la chiave o l'immagine non carica, una mappa
+  schematica con gli stessi pin. Pin e card si selezionano a vicenda.
 - Ogni card: nome, indirizzo, città, distanza (solo con la posizione), le
   caratteristiche scritte (superficie, canestri, illuminato, coperto,
   gratuito o a pagamento, retine, linee, fontanella, stato del campo), le
