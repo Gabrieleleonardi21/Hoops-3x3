@@ -123,10 +123,6 @@ services:
         sync: false
       - key: GROQ_API_KEY
         sync: false
-      # Chiave della Maps Static API: la usa il backend per /api/mappa-campetti (l'immagine della mappa dei campetti). Sta qui e
-      # non nel sito; senza, la pagina mostra la mappa schematica. In Google Cloud Console va limitata alla sola Maps Static API
-      - key: MAPS_API_KEY
-        sync: false
       # true = al primo avvio carica i dati di prova del circuito Estathé 2025 (serve l'admin)
       - key: SEED_DEMO
         value: "false"
