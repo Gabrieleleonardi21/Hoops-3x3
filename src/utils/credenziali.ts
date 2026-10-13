@@ -16,6 +16,7 @@ export const passwordSchema = z.string()
 /** Da 2 a 80 caratteri come il server (RegisterRequestDTO e CambioNomeDTO; gli 80 sono anche il maxLength dei campi). Il campo
  *  vuoto ha il suo messaggio. Lo usano la registrazione e il cambio del nome nel profilo. */
 export const nomeUtenteSchema = z.string()
+  .trim() // si contano i caratteri senza gli spazi ai bordi (« a» non vale 2), e il nome che parte è già ripulito
   .min(1, "Inserisci il nome utente")
   .min(2, "Nome utente di almeno 2 caratteri")
   .max(80, "Nome utente di al massimo 80 caratteri");
