@@ -41,15 +41,22 @@ describe("ProfiloPage", () => {
   it("il registrato vede il titolo, la sua email come testo e le schede Nome utente e Password", () => {
     monta(registrato);
     expect(screen.getByRole("heading", { name: "Il tuo account" })).toBeTruthy();
-    expect(screen.getByText("anna@example.it")).toBeTruthy();
+    // Sotto il titolo e nella scheda dell'email
+    expect(screen.getAllByText("anna@example.it")).toHaveLength(2);
     expect(screen.getByRole("region", { name: "Nome utente" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "Password" })).toBeTruthy();
+  });
+
+  it("la scheda Email viene dopo Nome utente e Password", () => {
+    monta(registrato);
+    const nomi = screen.getAllByRole("region").map((r) => r.getAttribute("aria-label"));
+    expect(nomi.slice(0, 3)).toEqual(["Nome utente", "Password", "Email"]);
   });
 
   it("nome ed email scritti dall'utente si mostrano solo come testo, mai come HTML", () => {
     monta({ ...registrato, name: "<img src=x onerror=alert(1)>", email: "<b>x</b>@example.it" });
     expect(document.querySelector("img")).toBeNull();
     expect(document.querySelector("b")).toBeNull();
-    expect(screen.getByText("<b>x</b>@example.it")).toBeTruthy();
+    expect(screen.getAllByText("<b>x</b>@example.it")).toHaveLength(2);
   });
 });

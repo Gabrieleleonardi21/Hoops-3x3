@@ -61,6 +61,9 @@ export const RISPOSTA_PROFILO_NON_VALIDA = ELENCO_ARCHIVIO_NON_VALIDO;
 /** Messaggio della home dopo l'eliminazione dell'account (arriva con lo stato della navigazione) */
 export const ACCOUNT_ELIMINATO = "Account eliminato.";
 
+/** Al posto del form di email ed eliminazione per l'ADMIN: nasce da ADMIN_EMAIL, e il server lo ricreerebbe (risponde 403 comunque) */
+export const ADMIN_DALLA_CONFIGURAZIONE = "L'account ADMIN si gestisce dalla configurazione del server.";
+
 /** Il numero con il nome al singolare o al plurale: «1 risultato», «12 risultati» */
 export function conteggio(n: number, singolare: string, plurale: string): string {
   if (n === 1) return `1 ${singolare}`;

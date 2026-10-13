@@ -1,6 +1,7 @@
-/** Il profilo di chi ha un account: nome utente e password (le schede dell'email e dell'eliminazione si aggiungono sotto).
+/** Il profilo di chi ha un account: nome utente, password ed email (sotto, l'eliminazione dell'account).
  *  L'ospite non ha un account: legge il perché, senza form. La pagina sta dentro RequireAuth (App.tsx). */
 import { CambioNome } from "../components/profilo/CambioNome";
+import { CambioEmail } from "../components/profilo/CambioEmail";
 import { CambioPassword } from "../components/profilo/CambioPassword";
 import { ProfiloOspite } from "../components/profilo/ProfiloOspite";
 import { useUtente } from "../hooks/useUtente";
@@ -18,6 +19,7 @@ export function ProfiloPage() {
       </div>
       <CambioNome />
       <CambioPassword />
+      <CambioEmail />
     </div>
   );
 }

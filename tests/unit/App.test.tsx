@@ -453,6 +453,14 @@ describe("App: il profilo", () => {
     expect(window.location.pathname).toBe("/");
   });
 
+  it("/conferma-email è raggiungibile senza utente (il link arriva anche a chi non è entrato) e non manda niente da sé", async () => {
+    token.clear();
+    window.history.replaceState(null, "", "/conferma-email?token=abc");
+    render(<App />);
+    expect(await screen.findByRole("button", { name: "Conferma l'indirizzo" })).toBeTruthy();
+    expect(window.location.pathname).toBe("/conferma-email");
+  });
+
   it("il registrato apre /profilo dal menu e vede le schede del nome e della password", async () => {
     await dentro();
     fireEvent.click(screen.getByRole("link", { name: "Profilo" }));

@@ -29,6 +29,7 @@ import { ProfiloPage } from "./pages/ProfiloPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { PasswordDimenticataPage } from "./pages/PasswordDimenticataPage";
 import { ReimpostaPasswordPage } from "./pages/ReimpostaPasswordPage";
+import { ConfermaEmailPage } from "./pages/ConfermaEmailPage";
 import type { User } from "./types";
 import { RequireAuth } from "./components/auth/RequireAuth";
 
@@ -164,6 +165,8 @@ function Pagine() {
         {/* Recupero della password: pubblico, per chi non riesce ad entrare. Il token del link sta nell'indirizzo */}
         <Route path="/password-dimenticata" element={<PasswordDimenticataPage />} />
         <Route path="/reimposta-password" element={<ReimpostaPasswordPage />} />
+        {/* Conferma del nuovo indirizzo email: pubblica, il link arriva al nuovo indirizzo e si apre anche senza essere entrati */}
+        <Route path="/conferma-email" element={<ConfermaEmailPage />} />
         {/* Riservate a chi è entrato, anche come ospite: senza utente si torna alla home */}
         <Route element={<RequireAuth />}>
           <Route path="/leghe" element={<LegheListPage />} />
