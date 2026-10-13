@@ -66,6 +66,18 @@ describe("api: Bearer e richieste di autenticazione", () => {
     for (const n of [0, 1, 2, 3, 4]) expect(chiamata(n).init.credentials).toBeUndefined();
   });
 
+  it("le rotte del profilo (/api/auth/me/…) portano il Bearer; la conferma dell'email, pubblica, no", async () => {
+    token.set(jwt(3600));
+    fetchFinto.mockImplementation(async () => ok({}));
+    await api("/api/auth/me", { method: "PATCH", body: { name: "Anna" } });
+    await api("/api/auth/me/password", { method: "POST", body: {} });
+    await api("/api/auth/me/email", { method: "POST", body: {} });
+    await api("/api/auth/me/elimina", { method: "POST", body: {} });
+    await api("/api/auth/email/conferma", { method: "POST", body: { token: "t" } });
+    for (const n of [0, 1, 2, 3]) expect(header(n, "Authorization")).toBe(`Bearer ${token.get()}`);
+    expect(header(4, "Authorization")).toBeUndefined();
+  });
+
   it("le chiamate di autenticazione non fanno partire rinnovi nemmeno con un JWT scaduto in memoria", async () => {
     token.set(jwt(-10));
     fetchFinto.mockImplementation(async () => ok({}));

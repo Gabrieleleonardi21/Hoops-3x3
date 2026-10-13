@@ -55,6 +55,15 @@ export const RISPOSTA_CAMPETTI_NON_VALIDA = ELENCO_ARCHIVIO_NON_VALIDO;
 /** Anche la risposta del recupero della password, se non ha il `message` atteso: stesso testo */
 export const RISPOSTA_RECUPERO_NON_VALIDA = ELENCO_ARCHIVIO_NON_VALIDO;
 
+/** Anche la risposta del profilo (utente, token, messaggio) fuori forma: stesso testo */
+export const RISPOSTA_PROFILO_NON_VALIDA = ELENCO_ARCHIVIO_NON_VALIDO;
+
+/** Messaggio della home dopo l'eliminazione dell'account (arriva con lo stato della navigazione) */
+export const ACCOUNT_ELIMINATO = "Account eliminato.";
+
+/** Al posto del form di email ed eliminazione per l'ADMIN: nasce da ADMIN_EMAIL, e il server lo ricreerebbe (risponde 403 comunque) */
+export const ADMIN_DALLA_CONFIGURAZIONE = "L'account ADMIN si gestisce dalla configurazione del server.";
+
 /** Il numero con il nome al singolare o al plurale: «1 risultato», «12 risultati» */
 export function conteggio(n: number, singolare: string, plurale: string): string {
   if (n === 1) return `1 ${singolare}`;
@@ -191,4 +200,24 @@ export function perditaSquadraAnagrafe(s: RegSquadra): string {
   const testo = `Verrà eliminata la squadra «${s.nome}» dall'anagrafe condivisa.`;
   if (!s.roster?.length) return testo;
   return `${testo} I giocatori del roster restano registrati.`;
+}
+
+/** Che cosa sparisce e che cosa resta eliminando l'account: il testo della scheda e della finestra di conferma. Spariscono le leghe
+ *  (con tappe, pubblicazioni in archivio e modifiche ancora in coda); i campetti restano senza autore, e le schede dell'anagrafe
+ *  restano oppure no a seconda di `anagrafeResta` (dipende dal server: con la cascata di prima della fase 6 spariscono).
+ *  `leghe` null = le leghe non si sono potute leggere: il testo non afferma che non ce ne sono. */
+export function perditaAccount(leghe: number | null, anagrafeResta: boolean): string {
+  let leghePerse = "Non hai leghe da eliminare.";
+  if (leghe === null) {
+    leghePerse = "Le tue leghe, con le loro tappe e le pubblicazioni in archivio, saranno eliminate per sempre, comprese le modifiche non ancora salvate.";
+  }
+  if (leghe === 1) {
+    leghePerse = "La tua lega, con le sue tappe e le pubblicazioni in archivio, sarà eliminata per sempre, comprese le modifiche non ancora salvate.";
+  }
+  if (leghe !== null && leghe > 1) {
+    leghePerse = `Le tue ${conteggio(leghe, "lega", "leghe")}, con le loro tappe e le pubblicazioni in archivio, saranno eliminate per sempre, comprese le modifiche non ancora salvate.`;
+  }
+  let cheCosaResta = "I campetti che hai inserito restano, senza autore; le schede dell'anagrafe che hai creato spariscono con l'account.";
+  if (anagrafeResta) cheCosaResta = "I campetti e le schede dell'anagrafe che hai inserito restano, senza autore.";
+  return `${leghePerse} ${cheCosaResta} Non si può annullare.`;
 }

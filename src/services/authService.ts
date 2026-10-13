@@ -14,7 +14,8 @@ interface AuthResponse {
   user: { id: string; name: string; email: string; ruolo: "USER" | "ADMIN" };
 }
 
-function toUser(u: AuthResponse["user"]): User {
+/** L'utente della risposta del server come utente di sessione (registrato). Lo usa anche il client del profilo */
+export function toUser(u: AuthResponse["user"]): User {
   return { id: u.id, name: u.name, email: u.email, ruolo: u.ruolo, guest: false };
 }
 

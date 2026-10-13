@@ -6,17 +6,17 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuth } from "../../hooks/useAuth";
+import { ACCOUNT_HINT_KEY } from "../../stores/memoriaBrowser";
 import { useInvio } from "../../hooks/useInvio";
-import { emailSchema, passwordSchema } from "../../utils/credenziali";
+import { emailSchema, nomeUtenteSchema, passwordSchema } from "../../utils/credenziali";
 import { Input } from "../ui/Input";
 import { Button } from "../ui/Button";
 
-const ACCOUNT_HINT = "hoop3x3_has_account";
 function hasAccountHint(): boolean {
-  try { return localStorage.getItem(ACCOUNT_HINT) === "1"; } catch { return false; }
+  try { return localStorage.getItem(ACCOUNT_HINT_KEY) === "1"; } catch { return false; }
 }
 function rememberAccount() {
-  try { localStorage.setItem(ACCOUNT_HINT, "1"); } catch { /* ignora */ }
+  try { localStorage.setItem(ACCOUNT_HINT_KEY, "1"); } catch { /* ignora */ }
 }
 /** Messaggio arrivato con lo stato della navigazione, per esempio quello della fine della sessione (App.tsx) */
 function messaggioRicevuto(stato: unknown): string | null {
@@ -33,8 +33,7 @@ function partenza(stato: unknown): "register" | "login" {
 }
 
 const registerSchema = z.object({
-  // Da 2 a 80 caratteri come RegisterRequestDTO (gli 80 sono il maxLength del campo); il campo vuoto ha il suo messaggio
-  name: z.string().min(1, "Inserisci il nome utente").min(2, "Nome utente di almeno 2 caratteri"),
+  name: nomeUtenteSchema,
   email: emailSchema,
   pass: passwordSchema,
 });

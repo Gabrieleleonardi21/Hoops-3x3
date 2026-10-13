@@ -67,6 +67,51 @@ Recupero della password (rotte pubbliche, senza account attivo)
   usato (400): compare il messaggio del server e resta «Richiedi un nuovo
   link». Il link vale una volta sola.
 
+Profilo dell'utente (/profilo)
+- La voce «Profilo», in fondo al menu, apre la pagina: dice «Il tuo account»,
+  con l'email attuale, e ha quattro schede una sotto l'altra: Nome utente,
+  Password, Email, Elimina account. Serve un account: senza entrare, l'indirizzo
+  riporta alla home.
+- L'Ospite vede un messaggio al posto delle schede: «Sei entrato come Ospite: i
+  tuoi dati restano in questo browser e non c'è un account da gestire. Per
+  averne uno, esci e scegli «Registrati».» Nessun campo e nessuna richiesta al
+  server.
+- Nome utente: da 2 a 80 caratteri (un nome di 80 si salva, di 81 no, come sul
+  server). «Salva il nome» lo cambia subito: «Nome aggiornato.» e il nome nuovo
+  compare nell'intestazione. È il nome che gli altri vedono come autore in
+  anagrafe, archivio e campetti.
+- Password: si scrive quella attuale, la nuova (stesse regole della
+  registrazione: da 8 caratteri a 72 byte) e di nuovo la nuova; se le due non
+  coincidono niente parte. A cambio riuscito: «Password aggiornata. Gli altri
+  dispositivi sono stati scollegati.» e i campi si svuotano. Questa scheda
+  resta dentro con un accesso nuovo.
+- Email: sono richiesti il nuovo indirizzo e la password attuale. Il server
+  manda un link al NUOVO indirizzo (vale 30 minuti, una volta sola) e l'email
+  dell'account resta quella di prima finché non lo si apre; compare il
+  messaggio del server. Il link apre /conferma-email?token=… (anche in un
+  browser dove non si è entrati): la pagina dice «Stai per confermare il nuovo
+  indirizzo email del tuo account HOOP 3X3.» e non manda niente finché non si
+  preme «Conferma l'indirizzo». Riuscita, mostra il messaggio del server e
+  «Vai al profilo» (o «Accedi», per chi non è entrato); link scaduto o già
+  usato, o indirizzo registrato da un altro nel frattempo: il messaggio del
+  server resta accanto allo stesso collegamento.
+- Un rifiuto del server (password attuale sbagliata, email già registrata,
+  troppe richieste) compare sotto il form com'è, e quello che si era scritto
+  resta. Un account il cui accesso è scaduto torna al modulo d'accesso.
+- Elimina account: è immediata e definitiva. Sopra il campo «Password attuale»
+  il testo dice che cosa sparisce e che cosa resta, e la finestra «Eliminare
+  l'account?» lo ripete prima di «Conferma». Spariscono l'account (email, nome,
+  password), le sessioni, le tue leghe con le loro tappe e le pubblicazioni in
+  archivio, comprese le modifiche non ancora salvate. Restano, senza autore e
+  modificabili solo da un ADMIN, i campetti e le schede dell'anagrafe che hai
+  inserito. Dopo l'eliminazione non resta niente nel browser (accesso, sessione,
+  anagrafe e campetti in memoria, lega aperta) e si torna alla home con
+  «Account eliminato.»; se il server rifiuta (per esempio password sbagliata) si
+  resta nel profilo con il messaggio.
+- L'account ADMIN non cambia email né si elimina dall'app (nasce da ADMIN_EMAIL
+  nella configurazione del server): le due schede dicono «L'account ADMIN si
+  gestisce dalla configurazione del server.» al posto del form.
+
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 2. GESTIONE LEGHE

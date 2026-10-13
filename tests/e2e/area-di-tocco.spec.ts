@@ -71,7 +71,7 @@ test.describe("a 390 px di larghezza", () => {
     await utenteRegistrato(page, ANAGRAFE);
     await page.goto("/anagrafe");
     await almeno44(page.getByRole("button", { name: "Elimina Mario Rossi" }), "X della card (icona 14 px)");
-    await almeno44(page.getByRole("link", { name: "Profilo" }), "«Profilo ›» (collegamento, testo da 12 px)");
+    await almeno44(page.locator("main").getByRole("link", { name: "Profilo" }), "«Profilo ›» (collegamento, testo da 12 px)");
     await almeno44(page.getByRole("button", { name: "Esci", exact: true }), "«Esci» della navigazione (testo da 12 px)");
     await page.getByRole("tab", { name: /Squadre/ }).click();
     await almeno44(page.getByRole("button", { name: "Scheda", exact: true }), "«Scheda ›» (testo da 12 px)");
@@ -101,7 +101,7 @@ test.describe("su desktop (1280 px)", () => {
     expect(await page.evaluate(() => matchMedia("(pointer: fine)").matches)).toBe(true);
     for (const pulsante of [
       page.getByRole("button", { name: "Elimina Mario Rossi" }),
-      page.getByRole("link", { name: "Profilo" }),
+      page.locator("main").getByRole("link", { name: "Profilo" }),
       page.getByRole("button", { name: "Esci", exact: true }),
     ]) {
       const { altezza } = await misure(pulsante);
@@ -119,7 +119,7 @@ test.describe("telefono in orizzontale (844×390, con il dito)", () => {
     await page.goto("/anagrafe");
     expect(await page.evaluate(() => matchMedia("(pointer: coarse)").matches)).toBe(true);
     await almeno44(page.getByRole("button", { name: "Elimina Mario Rossi" }), "X della card (icona 14 px)");
-    await almeno44(page.getByRole("link", { name: "Profilo" }), "«Profilo ›»");
+    await almeno44(page.locator("main").getByRole("link", { name: "Profilo" }), "«Profilo ›»");
     // Sopra i 640 px «Esci» sta nell'intestazione; quello della navigazione resta nascosto (uno solo visibile)
     await expect(page.getByRole("button", { name: "Esci", exact: true })).toHaveCount(1);
     await almeno44(page.getByRole("button", { name: "Esci", exact: true }), "«Esci» dell'intestazione");

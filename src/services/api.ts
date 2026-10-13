@@ -130,8 +130,9 @@ interface Options {
   tempoMassimo?: number | null;
 }
 
-/** Login, registrazione, refresh e logout non usano il JWT: partono senza Bearer e senza rinnovi */
-const isAuth = (path: string) => path.startsWith("/api/auth/") && path !== "/api/auth/me";
+/** Login, registrazione, refresh, logout, recupero e conferma dell'email non usano il JWT: partono senza Bearer e senza rinnovi.
+ *  /api/auth/me e le rotte del profilo sotto /api/auth/me/ (password, email, elimina) sono dell'utente entrato: Bearer e rinnovi. */
+const isAuth = (path: string) => path.startsWith("/api/auth/") && path !== "/api/auth/me" && !path.startsWith("/api/auth/me/");
 
 /** Una chiamata JSON senza rinnovi; conBearer = allega il JWT salvato.
  *  Il cookie di refresh lo gestisce il browser: lo invia e lo salva da solo sulle chiamate alla stessa origine. */

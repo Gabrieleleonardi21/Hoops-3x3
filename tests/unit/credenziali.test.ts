@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { emailSchema, passwordSchema } from "../../src/utils/credenziali";
+import { emailSchema, nomeUtenteSchema, passwordSchema } from "../../src/utils/credenziali";
 
 /** Il messaggio del primo errore, o null se il valore è valido */
-const errore = (schema: typeof emailSchema | typeof passwordSchema, valore: string): string | null => {
+const errore = (schema: typeof emailSchema | typeof passwordSchema | typeof nomeUtenteSchema, valore: string): string | null => {
   const esito = schema.safeParse(valore);
   if (esito.success) return null;
   return esito.error.issues[0].message;
@@ -31,5 +31,29 @@ describe("passwordSchema: da 8 caratteri a 72 byte UTF-8", () => {
   it("conta i byte, non i caratteri: 37 «è» sono 74 byte", () => {
     expect(errore(passwordSchema, "è".repeat(36))).toBeNull(); // 72 byte
     expect(errore(passwordSchema, "è".repeat(37))).toBe("Password di al massimo 72 byte");
+  });
+});
+
+describe("nomeUtenteSchema: da 2 a 80 caratteri (come il server)", () => {
+  it("il campo vuoto ha il suo messaggio", () => {
+    expect(errore(nomeUtenteSchema, "")).toBe("Inserisci il nome utente");
+  });
+  it("rifiuta 1 carattere", () => {
+    expect(errore(nomeUtenteSchema, "a")).toBe("Nome utente di almeno 2 caratteri");
+  });
+  it("accetta 2 e 80 caratteri", () => {
+    expect(errore(nomeUtenteSchema, "ab")).toBeNull();
+    expect(errore(nomeUtenteSchema, "a".repeat(80))).toBeNull();
+  });
+  it("rifiuta 81 caratteri", () => {
+    expect(errore(nomeUtenteSchema, "a".repeat(81))).toBe("Nome utente di al massimo 80 caratteri");
+  });
+  it("conta i caratteri dopo aver tolto gli spazi ai bordi: « a» è di 1 carattere, «   » è vuoto", () => {
+    expect(errore(nomeUtenteSchema, " a")).toBe("Nome utente di almeno 2 caratteri");
+    expect(errore(nomeUtenteSchema, "   ")).toBe("Inserisci il nome utente");
+    expect(errore(nomeUtenteSchema, ` ${"a".repeat(80)} `)).toBeNull();
+  });
+  it("restituisce il nome senza gli spazi ai bordi, quello che va al server", () => {
+    expect(nomeUtenteSchema.parse("  Anna Rossi ")).toBe("Anna Rossi");
   });
 });

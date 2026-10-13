@@ -37,6 +37,9 @@ test("percorso completo: richiesta del link, nuova password dal link della mail,
   await page.getByRole("button", { name: "Accedi", exact: true }).first().click();
   await page.getByRole("link", { name: "Password dimenticata?" }).click();
   await expect(page).toHaveURL(/\/password-dimenticata$/);
+  // L'indirizzo cambia prima che la pagina sia disegnata: finché si vede ancora il modulo d'accesso, «Mail» è il suo campo, che il
+  // cambio di pagina butta via insieme a ciò che ci si scrive. Si aspetta la pagina nuova prima di scrivere
+  await expect(page.getByRole("heading", { name: "Password dimenticata" })).toBeVisible();
   await page.getByLabel("Mail").fill("anna@example.it");
   await page.getByRole("button", { name: "Invia il link" }).click();
   await expect(page.getByText(MESSAGGIO_RICHIESTA)).toBeVisible();
