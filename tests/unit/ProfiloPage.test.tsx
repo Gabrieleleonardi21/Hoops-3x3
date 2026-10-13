@@ -47,10 +47,10 @@ describe("ProfiloPage", () => {
     expect(screen.getByRole("region", { name: "Password" })).toBeTruthy();
   });
 
-  it("la scheda Email viene dopo Nome utente e Password", () => {
+  it("le schede stanno nell'ordine Nome utente, Password, Email, Elimina account", () => {
     monta(registrato);
     const nomi = screen.getAllByRole("region").map((r) => r.getAttribute("aria-label"));
-    expect(nomi.slice(0, 3)).toEqual(["Nome utente", "Password", "Email"]);
+    expect(nomi).toEqual(["Nome utente", "Password", "Email", "Elimina account"]);
   });
 
   it("nome ed email scritti dall'utente si mostrano solo come testo, mai come HTML", () => {

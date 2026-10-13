@@ -155,6 +155,13 @@ describe("perditaAccount: che cosa sparisce e che cosa resta con l'account", () 
     expect(perditaAccount(0, true)).toBe(`Non hai leghe da eliminare. ${resta}`);
   });
 
+  it("se il numero delle leghe non si conosce, non dice che non ce ne sono", () => {
+    expect(perditaAccount(null, true)).toBe(
+      "Le tue leghe, con le loro tappe e le pubblicazioni in archivio, saranno eliminate per sempre, comprese le modifiche non ancora salvate. "
+      + resta,
+    );
+  });
+
   it("se l'anagrafe non resta, dice che le schede spariscono con l'account", () => {
     expect(perditaAccount(2, false)).toContain("le schede dell'anagrafe che hai creato spariscono con l'account");
     expect(perditaAccount(2, false)).not.toContain("restano, senza autore. Non");

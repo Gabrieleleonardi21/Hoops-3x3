@@ -204,13 +204,17 @@ export function perditaSquadraAnagrafe(s: RegSquadra): string {
 
 /** Che cosa sparisce e che cosa resta eliminando l'account: il testo della scheda e della finestra di conferma. Spariscono le leghe
  *  (con tappe, pubblicazioni in archivio e modifiche ancora in coda); i campetti restano senza autore, e le schede dell'anagrafe
- *  restano oppure no a seconda di `anagrafeResta` (dipende dal server: con la cascata di prima della fase 6 spariscono). */
-export function perditaAccount(leghe: number, anagrafeResta: boolean): string {
+ *  restano oppure no a seconda di `anagrafeResta` (dipende dal server: con la cascata di prima della fase 6 spariscono).
+ *  `leghe` null = le leghe non si sono potute leggere: il testo non afferma che non ce ne sono. */
+export function perditaAccount(leghe: number | null, anagrafeResta: boolean): string {
   let leghePerse = "Non hai leghe da eliminare.";
+  if (leghe === null) {
+    leghePerse = "Le tue leghe, con le loro tappe e le pubblicazioni in archivio, saranno eliminate per sempre, comprese le modifiche non ancora salvate.";
+  }
   if (leghe === 1) {
     leghePerse = "La tua lega, con le sue tappe e le pubblicazioni in archivio, sarà eliminata per sempre, comprese le modifiche non ancora salvate.";
   }
-  if (leghe > 1) {
+  if (leghe !== null && leghe > 1) {
     leghePerse = `Le tue ${conteggio(leghe, "lega", "leghe")}, con le loro tappe e le pubblicazioni in archivio, saranno eliminate per sempre, comprese le modifiche non ancora salvate.`;
   }
   let cheCosaResta = "I campetti che hai inserito restano, senza autore; le schede dell'anagrafe che hai creato spariscono con l'account.";
