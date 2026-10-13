@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { Header } from "../../src/components/layout/Header";
 import { useAppStore } from "../../src/stores/useAppStore";
@@ -153,5 +153,12 @@ describe("Header: «Esci» con la rete appesa", () => {
       timeout.mockRestore();
       vi.useRealTimers();
     }
+  });
+});
+
+describe("Header: la navigazione", () => {
+  it("finisce con «Profilo», dopo «Campetti»", () => {
+    const nomi = within(screen.getByRole("navigation", { name: "Principale" })).getAllByRole("link").map((a) => a.textContent);
+    expect(nomi.slice(-2)).toEqual(["Campetti", "Profilo"]);
   });
 });

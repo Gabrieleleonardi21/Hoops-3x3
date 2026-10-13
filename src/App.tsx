@@ -25,6 +25,7 @@ import { AnagrafePage } from "./pages/AnagrafePage";
 import { ArchivioPage } from "./pages/ArchivioPage";
 import { GiocatorePage } from "./pages/GiocatorePage";
 import { CampettiPage } from "./pages/CampettiPage";
+import { ProfiloPage } from "./pages/ProfiloPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { PasswordDimenticataPage } from "./pages/PasswordDimenticataPage";
 import { ReimpostaPasswordPage } from "./pages/ReimpostaPasswordPage";
@@ -171,6 +172,7 @@ function Pagine() {
           <Route path="/anagrafe" element={<AnagrafePage />} />
           <Route path="/giocatore/:id" element={<GiocatorePage />} />
           <Route path="/campetti" element={<CampettiPage />} />
+          <Route path="/profilo" element={<ProfiloPage />} />
         </Route>
         <Route path="*" element={<NotFoundPage />} />
       </Routes>

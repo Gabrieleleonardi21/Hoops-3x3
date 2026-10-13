@@ -444,6 +444,24 @@ describe("App: recupero della password", () => {
   });
 });
 
+describe("App: il profilo", () => {
+  it("/profilo senza utente riporta alla home (sta dentro RequireAuth)", async () => {
+    token.clear();
+    window.history.replaceState(null, "", "/profilo");
+    render(<App />);
+    expect(await screen.findByRole("button", { name: /Continua come Ospite/ })).toBeTruthy();
+    expect(window.location.pathname).toBe("/");
+  });
+
+  it("il registrato apre /profilo dal menu e vede le schede del nome e della password", async () => {
+    await dentro();
+    fireEvent.click(screen.getByRole("link", { name: "Profilo" }));
+    expect(await screen.findByRole("heading", { name: "Il tuo account" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Nome utente" })).toBeTruthy();
+    expect(window.location.pathname).toBe("/profilo");
+  });
+});
+
 describe("App: il piè di pagina è nel layout di ogni pagina", () => {
   it("la riga «Sito creato da Gabriele Leonardi» sta subito dopo il contenuto, fuori dal main", async () => {
     render(<App />);

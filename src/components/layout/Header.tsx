@@ -14,6 +14,7 @@ const links = [
   ["/anagrafe", "Anagrafe"],
   ["/archivio", "Archivio circuito"],
   ["/campetti", "Campetti"],
+  ["/profilo", "Profilo"],
 ] as const;
 
 /** Conferma di uscita in corso: quante tappe si perderebbero e la risposta che logout sta aspettando */
