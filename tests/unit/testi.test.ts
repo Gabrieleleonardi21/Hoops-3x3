@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   COPIA_LINK_NON_RIUSCITA, PERDITA_RIAPERTURA, SPAZIO_ESAURITO, SPAZIO_ESAURITO_ACCESSO, SPAZIO_ESAURITO_LEGA,
-  conteggio, copiaPubblicaNonAggiornata, perditaGiocatore, perditaLega, perditaSquadraAnagrafe, pubblicazioneSenzaSalvataggio, salvataggioRifiutato,
+  conteggio, copiaPubblicaNonAggiornata, perditaAccount, perditaGiocatore, perditaLega, perditaSquadraAnagrafe, pubblicazioneSenzaSalvataggio, salvataggioRifiutato,
   tappaNonPubblicata,
 } from "../../src/utils/testi";
 import type { LegaMeta, RegGiocatore, RegSquadra } from "../../src/types";
@@ -131,5 +131,32 @@ describe("testi della pubblicazione nell'Archivio circuito", () => {
       .toBe("Prima di pubblicare, l'ultima versione della tappa deve essere salvata sul server, ma il salvataggio non è riuscito: Server non raggiungibile");
     expect(pubblicazioneSenzaSalvataggio(null))
       .toBe("Prima di pubblicare, l'ultima versione della tappa deve essere salvata sul server, ma il salvataggio non è riuscito.");
+  });
+});
+
+describe("perditaAccount: che cosa sparisce e che cosa resta con l'account", () => {
+  const resta = "I campetti e le schede dell'anagrafe che hai inserito restano, senza autore. Non si può annullare.";
+
+  it("con più leghe dice quante spariscono, con tappe, pubblicazioni e modifiche non salvate", () => {
+    expect(perditaAccount(3, true)).toBe(
+      "Le tue 3 leghe, con le loro tappe e le pubblicazioni in archivio, saranno eliminate per sempre, comprese le modifiche non ancora salvate. "
+      + resta,
+    );
+  });
+
+  it("con una sola lega usa il singolare", () => {
+    expect(perditaAccount(1, true)).toBe(
+      "La tua lega, con le sue tappe e le pubblicazioni in archivio, sarà eliminata per sempre, comprese le modifiche non ancora salvate. "
+      + resta,
+    );
+  });
+
+  it("senza leghe lo dice al posto della prima frase", () => {
+    expect(perditaAccount(0, true)).toBe(`Non hai leghe da eliminare. ${resta}`);
+  });
+
+  it("se l'anagrafe non resta, dice che le schede spariscono con l'account", () => {
+    expect(perditaAccount(2, false)).toContain("le schede dell'anagrafe che hai creato spariscono con l'account");
+    expect(perditaAccount(2, false)).not.toContain("restano, senza autore. Non");
   });
 });
