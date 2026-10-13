@@ -150,3 +150,52 @@ test("link scaduto o indirizzo già preso: il messaggio del server compare com'�
   await page.getByRole("button", { name: "Conferma l'indirizzo" }).click();
   await expect(page.getByRole("alert")).toHaveText("Email nuova@example.it già registrata");
 });
+
+test("eliminazione: dopo la conferma e il 204 si è sulla home con «Account eliminato.» e il browser non ha più token né sessione", async ({ page }) => {
+  const nonPreviste = await bloccaApiNonPreviste(page);
+  await utenteRegistrato(page);
+  let bearer: string | undefined;
+  const richieste: unknown[] = [];
+  await page.route("**/api/auth/me/elimina", (route) => {
+    richieste.push(route.request().postDataJSON());
+    bearer = route.request().headers().authorization;
+    return route.fulfill({ status: 204 });
+  });
+
+  await page.goto("/profilo");
+  const scheda = page.getByRole("region", { name: "Elimina account" });
+  // Nessuna lega: il testo lo dice, e dice che campetti e anagrafe restano
+  await expect(scheda.getByText(/Non hai leghe da eliminare\. I campetti e le schede dell'anagrafe che hai inserito restano, senza autore/)).toBeVisible();
+  await expect(scheda.getByRole("button", { name: "Elimina il mio account" })).toBeDisabled(); // password vuota
+  await scheda.getByLabel("Password attuale").fill("la-mia-pass");
+  await scheda.getByRole("button", { name: "Elimina il mio account" }).click();
+  const finestra = page.getByRole("alertdialog", { name: "Eliminare l'account?" });
+  // «Annulla» non manda niente
+  await finestra.getByRole("button", { name: "Annulla" }).click();
+  expect(richieste).toEqual([]);
+  await scheda.getByRole("button", { name: "Elimina il mio account" }).click();
+  await finestra.getByRole("button", { name: "Conferma" }).click();
+
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole("alert")).toHaveText("Account eliminato.");
+  expect(richieste).toEqual([{ password: "la-mia-pass" }]);
+  expect(bearer).toBe(`Bearer ${tokenFinto}`);
+  expect(await page.evaluate(() => [localStorage.getItem("hoop3x3_token"), localStorage.getItem("hoop3x3_session")])).toEqual([null, null]);
+  expect(nonPreviste).toEqual([]);
+});
+
+test("eliminazione rifiutata dal server (400): si resta sul profilo con il messaggio e la sessione intatta", async ({ page }) => {
+  const nonPreviste = await bloccaApiNonPreviste(page);
+  await utenteRegistrato(page);
+  await page.route("**/api/auth/me/elimina", (route) => route.fulfill(errore(400, "La password attuale non è corretta")));
+
+  await page.goto("/profilo");
+  const scheda = page.getByRole("region", { name: "Elimina account" });
+  await scheda.getByLabel("Password attuale").fill("sbagliata");
+  await scheda.getByRole("button", { name: "Elimina il mio account" }).click();
+  await page.getByRole("alertdialog", { name: "Eliminare l'account?" }).getByRole("button", { name: "Conferma" }).click();
+  await expect(scheda.getByRole("alert")).toHaveText("La password attuale non è corretta");
+  await expect(page).toHaveURL(/\/profilo$/);
+  expect(await page.evaluate(() => localStorage.getItem("hoop3x3_token"))).toBe(tokenFinto);
+  expect(nonPreviste).toEqual([]);
+});
