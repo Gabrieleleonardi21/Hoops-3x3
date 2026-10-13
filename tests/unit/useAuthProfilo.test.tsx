@@ -47,6 +47,28 @@ describe("useAuth.aggiorna", () => {
   });
 });
 
+describe("useAuth.aggiorna: la risposta arriva dopo che l'utente è uscito", () => {
+  it("dopo «Esci» con la richiesta in volo non riscrive né lo store né la sessione del browser", () => {
+    const { result } = renderHook(() => useAuth());
+    // L'utente preme «Esci» mentre il PATCH è in volo: sessione e store sono già vuoti quando la risposta arriva
+    act(() => {
+      localStorage.removeItem(SESSION_KEY);
+      useAppStore.getState().reset();
+    });
+    act(() => result.current.aggiorna({ ...anna, name: "Anna Rossi" }));
+    expect(useAppStore.getState().user).toBeNull();
+    expect(localStorage.getItem(SESSION_KEY)).toBeNull();
+  });
+
+  it("se nel frattempo è entrato un altro utente, la risposta di prima non lo sovrascrive", () => {
+    const { result } = renderHook(() => useAuth());
+    const luigi: User = { id: "u2", name: "Luigi", email: "luigi@example.it", ruolo: "USER", guest: false };
+    act(() => { useAppStore.setState({ user: luigi }); });
+    act(() => result.current.aggiorna({ ...anna, name: "Anna Rossi" }));
+    expect(useAppStore.getState().user).toEqual(luigi);
+  });
+});
+
 describe("useAuth.eliminaAccount", () => {
   it("con il 204 del server non resta niente nel browser: token, sessione, lega aperta, cache e utente", async () => {
     rispondiSenzaCorpo();

@@ -48,4 +48,12 @@ describe("nomeUtenteSchema: da 2 a 80 caratteri (come il server)", () => {
   it("rifiuta 81 caratteri", () => {
     expect(errore(nomeUtenteSchema, "a".repeat(81))).toBe("Nome utente di al massimo 80 caratteri");
   });
+  it("conta i caratteri dopo aver tolto gli spazi ai bordi: « a» è di 1 carattere, «   » è vuoto", () => {
+    expect(errore(nomeUtenteSchema, " a")).toBe("Nome utente di almeno 2 caratteri");
+    expect(errore(nomeUtenteSchema, "   ")).toBe("Inserisci il nome utente");
+    expect(errore(nomeUtenteSchema, ` ${"a".repeat(80)} `)).toBeNull();
+  });
+  it("restituisce il nome senza gli spazi ai bordi, quello che va al server", () => {
+    expect(nomeUtenteSchema.parse("  Anna Rossi ")).toBe("Anna Rossi");
+  });
 });

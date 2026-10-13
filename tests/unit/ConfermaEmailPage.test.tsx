@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { ConfermaEmailPage } from "../../src/pages/ConfermaEmailPage";
 import { useAppStore, SESSION_KEY } from "../../src/stores/useAppStore";
@@ -98,6 +98,19 @@ describe("ConfermaEmailPage: con il token", () => {
     await waitFor(() => expect(useAppStore.getState().user?.email).toBe("nuova@example.it"));
     expect(JSON.parse(localStorage.getItem(SESSION_KEY) ?? "null").email).toBe("nuova@example.it");
     expect(screen.getByRole("link", { name: "Vai al profilo" })).toBeTruthy();
+  });
+
+  it("se l'utente esce mentre la sessione si rilegge, la risposta non lo rimette dentro", async () => {
+    conferma.mockResolvedValue(SUCCESSO);
+    let finisci: (e: Awaited<ReturnType<typeof authService.me>>) => void = () => {};
+    me.mockReturnValue(new Promise((ok) => { finisci = ok; }));
+    monta("?token=abc", anna);
+    premiConferma();
+    await waitFor(() => expect(me).toHaveBeenCalled());
+    act(() => { localStorage.removeItem(SESSION_KEY); useAppStore.getState().reset(); }); // «Esci» nel frattempo
+    await act(async () => { finisci({ esito: "valida", user: { ...anna, email: "nuova@example.it" } }); });
+    expect(useAppStore.getState().user).toBeNull();
+    expect(localStorage.getItem(SESSION_KEY)).toBeNull();
   });
 
   it("se la sessione non si può rileggere (scaduta, rete) la conferma resta riuscita e l'utente com'era", async () => {

@@ -35,6 +35,12 @@ export const profiloApi = {
     });
     const esito = authSchema.safeParse(risposta);
     if (!esito.success) throw new ApiError(200, RISPOSTA_PROFILO_NON_VALIDA);
+    // «Esci» premuto mentre la richiesta era in volo: il server ha già riaperto una sessione per questo browser, ma il JWT nuovo non si
+    // salva (rimetterebbe dentro chi è uscito) e la sessione si chiude subito, come fa il rinnovo in api.ts
+    if (!token.get()) {
+      await api<void>("/api/auth/logout", { method: "POST", keepalive: true }).catch(() => {});
+      return toUser(esito.data.user);
+    }
     token.set(esito.data.token);
     return toUser(esito.data.user);
   },

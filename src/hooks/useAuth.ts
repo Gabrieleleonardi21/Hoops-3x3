@@ -17,6 +17,12 @@ export function saveSession(u: User) {
   try { localStorage.setItem(SESSION_KEY, JSON.stringify(u)); } catch { /* quota exceeded */ }
 }
 
+/** true se l'utente della sessione è ancora quello della richiesta che ha prodotto `utente`. Una risposta che arriva dopo «Esci» (o
+ *  dopo l'accesso di un altro) non deve riscrivere utente e sessione: rimetterebbe dentro chi è uscito */
+export function sessioneAncoraDi(utente: User): boolean {
+  return useAppStore.getState().user?.id === utente.id;
+}
+
 function clearSession() {
   localStorage.removeItem(SESSION_KEY);
 }
@@ -83,8 +89,9 @@ export function useAuth() {
   };
 
   /** Il profilo ha cambiato l'utente (nome, password): la copia in sessione e nel browser è quella del server. Le cache dell'anagrafe e
-   *  dei campetti si svuotano perché contengono il vecchio nome come `autore` */
+   *  dei campetti si svuotano perché contengono il vecchio nome come `autore`. Se nel frattempo l'utente è uscito non fa niente */
   const aggiorna = (u: User) => {
+    if (!sessioneAncoraDi(u)) return;
     setUser(u);
     saveSession(u);
     useAnagrafeStore.getState().svuota();

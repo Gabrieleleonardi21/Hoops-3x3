@@ -51,6 +51,20 @@ describe("profiloApi.cambiaPassword", () => {
     expect(localStorage.getItem("hoop3x3_token")).toBe(nuovo);
   });
 
+  it("se l'utente è uscito mentre la richiesta era in volo non salva il JWT nuovo e chiude la sessione appena aperta", async () => {
+    const nuovo = jwtFinto() + "x";
+    // «Esci» durante l'attesa: il token sparisce prima che la risposta arrivi
+    fetchFinto.mockImplementationOnce(async () => {
+      token.clear();
+      return new Response(JSON.stringify({ token: nuovo, user: utenteServer }), { status: 200 });
+    });
+    rispondi({});
+    expect(await profiloApi.cambiaPassword("vecchia-pass", "nuova-pass-1")).toEqual(utenteClient);
+    expect(localStorage.getItem("hoop3x3_token")).toBeNull();
+    // La sessione che il server ha riaperto per questo browser si chiude subito, anche a pagina che si chiude (keepalive)
+    expect(chiamata(1)).toMatchObject({ url: "/api/auth/logout", metodo: "POST", keepalive: true });
+  });
+
   it("una risposta fuori forma (token vuoto) non tocca il token salvato", async () => {
     rispondi({ token: "", user: utenteServer });
     await expect(profiloApi.cambiaPassword("a", "nuova-pass-1")).rejects.toMatchObject({ message: RISPOSTA_PROFILO_NON_VALIDA });
