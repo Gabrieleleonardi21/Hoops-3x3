@@ -8,6 +8,8 @@ import { useAppStore, SESSION_KEY } from "../stores/useAppStore";
 import { useAnagrafeStore } from "../stores/useAnagrafeStore";
 import { useCampettiStore } from "../stores/useCampettiStore";
 import * as authService from "../services/authService";
+import { token } from "../services/api";
+import { profiloApi } from "../services/profiloApi";
 import type { User } from "../types";
 
 /** Salva l'utente della sessione nel browser (anche App.tsx, quando all'avvio il server restituisce quello aggiornato) */
@@ -21,6 +23,15 @@ function clearSession() {
 
 export function useAuth() {
   const { user, setUser, reset, rehydrate, salvaTutto } = useAppStore();
+
+  /** Butta via ciò che il browser sa dell'utente: sessione, stato dell'app (lega aperta compresa) e le cache dell'anagrafe e dei
+   *  campetti, che hanno i suoi dati riservati. È la coda di «Esci» senza la revoca sul server (logout e eliminazione dell'account) */
+  const esciLocalmente = () => {
+    clearSession();
+    reset();
+    useAnagrafeStore.getState().svuota();
+    useCampettiStore.getState().svuota();
+  };
 
   /** Chi ha appena fatto l'accesso o la registrazione entra: il token c'è già (lo ha salvato authService), quindi l'anagrafe già in
    *  cache, vista senza token, ha la forma pubblica e si svuota; poi si caricano le leghe */
@@ -62,17 +73,32 @@ export function useAuth() {
       const esci = await conferma(nonSalvate);
       if (!esci) return { uscito: false, nonSalvate };
     }
-    clearSession();
-    reset();
     // Prima di aspettare la rete, senza await fino alla cancellazione del token (dentro authService.logout): nessun caricamento
     // può ripartire con il token di chi esce e riempire di nuovo la cache con i suoi dati riservati
-    useAnagrafeStore.getState().svuota();
-    useCampettiStore.getState().svuota();
+    esciLocalmente();
     // L'ospite non ha una sessione sul server: un token che c'è è di un'altra scheda, registrata, e cancellarlo (o revocarlo) la
     // farebbe uscire senza conferma, con le tappe non salvate perse. Esce solo lo stato dell'ospite
     if (!eraOspite) await authService.logout();
     return { uscito: true, nonSalvate };
   };
 
-  return { user, register, login, enterGuest, logout };
+  /** Il profilo ha cambiato l'utente (nome, password): la copia in sessione e nel browser è quella del server. Le cache dell'anagrafe e
+   *  dei campetti si svuotano perché contengono il vecchio nome come `autore` */
+  const aggiorna = (u: User) => {
+    setUser(u);
+    saveSession(u);
+    useAnagrafeStore.getState().svuota();
+    useCampettiStore.getState().svuota();
+  };
+
+  /** Elimina l'account sul server e poi dal browser. Il token si cancella solo dopo la risposta (la richiesta ne ha bisogno per il
+   *  Bearer); se il server rifiuta, lancia l'errore e l'utente resta dentro con tutto com'era. Dopo il 204 la sessione sul server non
+   *  esiste più: niente revoca, solo lo stato locale */
+  const eliminaAccount = async (password: string) => {
+    await profiloApi.eliminaAccount(password);
+    token.clear();
+    esciLocalmente();
+  };
+
+  return { user, register, login, enterGuest, logout, aggiorna, eliminaAccount };
 }
