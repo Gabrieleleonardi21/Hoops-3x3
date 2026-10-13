@@ -6,17 +6,17 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuth } from "../../hooks/useAuth";
+import { ACCOUNT_HINT_KEY } from "../../stores/memoriaBrowser";
 import { useInvio } from "../../hooks/useInvio";
 import { emailSchema, nomeUtenteSchema, passwordSchema } from "../../utils/credenziali";
 import { Input } from "../ui/Input";
 import { Button } from "../ui/Button";
 
-const ACCOUNT_HINT = "hoop3x3_has_account";
 function hasAccountHint(): boolean {
-  try { return localStorage.getItem(ACCOUNT_HINT) === "1"; } catch { return false; }
+  try { return localStorage.getItem(ACCOUNT_HINT_KEY) === "1"; } catch { return false; }
 }
 function rememberAccount() {
-  try { localStorage.setItem(ACCOUNT_HINT, "1"); } catch { /* ignora */ }
+  try { localStorage.setItem(ACCOUNT_HINT_KEY, "1"); } catch { /* ignora */ }
 }
 /** Messaggio arrivato con lo stato della navigazione, per esempio quello della fine della sessione (App.tsx) */
 function messaggioRicevuto(stato: unknown): string | null {

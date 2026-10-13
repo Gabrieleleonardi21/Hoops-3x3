@@ -78,6 +78,10 @@ export function statoOspite(): StatoOspite {
  *  l'utente che l'ha scritta: su un browser condiviso le rimanda solo lui */
 export const DA_RIMANDARE_KEY = NS + "da_rimandare";
 
+/** Indizio «su questo browser si è già usato un account»: il modulo d'accesso parte dalla scheda «Accedi» (AuthForm). Lo toglie
+ *  l'eliminazione dell'account, dopo la quale su questo browser non c'è più niente da accedere */
+export const ACCOUNT_HINT_KEY = NS + "has_account";
+
 export interface DaRimandare {
   userId: string;
   legaId: string;

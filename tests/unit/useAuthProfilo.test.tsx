@@ -25,6 +25,13 @@ beforeEach(() => {
   azzeraRete();
   token.set(jwtFinto());
   localStorage.setItem(SESSION_KEY, JSON.stringify(anna));
+  // Chiavi che l'utente lascia nel browser: la lega aperta, l'indizio «ha un account» e le tappe da rimandare (la sua e quella di un altro)
+  localStorage.setItem("hoop3x3_active_lega_id_registrato", "l1");
+  localStorage.setItem("hoop3x3_has_account", "1");
+  localStorage.setItem("hoop3x3_da_rimandare", JSON.stringify([
+    { userId: "u1", legaId: "l1", nuova: false, tappa: { id: "t1" } },
+    { userId: "u2", legaId: "l9", nuova: false, tappa: { id: "t9" } },
+  ]));
   useAnagrafeStore.getState().svuota();
   riempi();
 });
@@ -79,6 +86,12 @@ describe("useAuth.eliminaAccount", () => {
     expect(useAppStore.getState().legaId).toBeNull();
     expect(localStorage.getItem("hoop3x3_token")).toBeNull();
     expect(localStorage.getItem(SESSION_KEY)).toBeNull();
+    expect(localStorage.getItem("hoop3x3_active_lega_id_registrato")).toBeNull();
+    // Né l'indizio «ha un account» né le tappe da rimandare dell'account eliminato; quelle di un altro utente restano
+    expect(localStorage.getItem("hoop3x3_has_account")).toBeNull();
+    expect(JSON.parse(localStorage.getItem("hoop3x3_da_rimandare") ?? "[]")).toEqual([
+      { userId: "u2", legaId: "l9", nuova: false, tappa: { id: "t9" } },
+    ]);
     expect(useAnagrafeStore.getState()).toMatchObject({ giocatori: null, caricata: false });
     expect(useCampettiStore.getState()).toMatchObject({ campetti: null, svuotata: 1 });
   });
@@ -93,6 +106,9 @@ describe("useAuth.eliminaAccount", () => {
     expect(useAppStore.getState().legaId).toBe("l1");
     expect(localStorage.getItem("hoop3x3_token")).not.toBeNull();
     expect(localStorage.getItem(SESSION_KEY)).not.toBeNull();
+    expect(localStorage.getItem("hoop3x3_active_lega_id_registrato")).toBe("l1");
+    expect(localStorage.getItem("hoop3x3_has_account")).toBe("1");
+    expect(JSON.parse(localStorage.getItem("hoop3x3_da_rimandare") ?? "[]")).toHaveLength(2);
     expect(useAnagrafeStore.getState().caricata).toBe(true);
     expect(useCampettiStore.getState().campetti).toEqual(CAMPETTI_DEMO);
   });

@@ -7,6 +7,7 @@
 import { useAppStore, SESSION_KEY } from "../stores/useAppStore";
 import { useAnagrafeStore } from "../stores/useAnagrafeStore";
 import { useCampettiStore } from "../stores/useCampettiStore";
+import { ACCOUNT_HINT_KEY, leggiDaRimandare, scriviDaRimandare } from "../stores/memoriaBrowser";
 import * as authService from "../services/authService";
 import { token } from "../services/api";
 import { profiloApi } from "../services/profiloApi";
@@ -100,11 +101,16 @@ export function useAuth() {
 
   /** Elimina l'account sul server e poi dal browser. Il token si cancella solo dopo la risposta (la richiesta ne ha bisogno per il
    *  Bearer); se il server rifiuta, lancia l'errore e l'utente resta dentro con tutto com'era. Dopo il 204 la sessione sul server non
-   *  esiste più: niente revoca, solo lo stato locale */
+   *  esiste più: niente revoca, solo lo stato locale (e le chiavi che l'utente lascia nel browser) */
   const eliminaAccount = async (password: string) => {
+    const idEliminato = useAppStore.getState().user?.id;
     await profiloApi.eliminaAccount(password);
     token.clear();
     esciLocalmente();
+    // Restano nel browser anche l'indizio «ha un account» e le tappe che questo utente doveva ancora rimandare (nessuno le rimanderebbe
+    // più: il server non lo conosce). Le tappe di altri utenti dello stesso browser si lasciano
+    localStorage.removeItem(ACCOUNT_HINT_KEY);
+    scriviDaRimandare(leggiDaRimandare().filter((v) => v.userId !== idEliminato));
   };
 
   return { user, register, login, enterGuest, logout, aggiorna, eliminaAccount };
