@@ -7,7 +7,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAuth } from "../../hooks/useAuth";
 import { useInvio } from "../../hooks/useInvio";
-import { emailSchema, passwordSchema } from "../../utils/credenziali";
+import { emailSchema, nomeUtenteSchema, passwordSchema } from "../../utils/credenziali";
 import { Input } from "../ui/Input";
 import { Button } from "../ui/Button";
 
@@ -33,8 +33,7 @@ function partenza(stato: unknown): "register" | "login" {
 }
 
 const registerSchema = z.object({
-  // Da 2 a 80 caratteri come RegisterRequestDTO (gli 80 sono il maxLength del campo); il campo vuoto ha il suo messaggio
-  name: z.string().min(1, "Inserisci il nome utente").min(2, "Nome utente di almeno 2 caratteri"),
+  name: nomeUtenteSchema,
   email: emailSchema,
   pass: passwordSchema,
 });
