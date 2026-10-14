@@ -548,6 +548,13 @@ schermo annuncia da sola; a chat piena (30 messaggi) quelli già mostrati non
 vengono riscritti quando ne arriva uno nuovo.
 Risponde in italiano, conosce le regole FIBA 3x3 e ha visibilità in tempo
 reale sui dati della lega (tappe, squadre, risultati, classifica circuito).
+Risponde solo a ciò che riguarda il basket (3x3 e in generale) e l'app; i
+saluti sono ammessi. La regola la decide il server: a una domanda del tutto
+estranea (una ricetta, il meteo) la risposta è sempre la stessa frase fissa,
+«Sono il Coach di HOOP 3X3: posso aiutarti con il basket, le tue leghe e tappe, squadre, giocatori e regole del torneo. Chiedimi qualcosa su questo.»,
+che in chat si legge come ogni altra risposta, senza badge di azioni. Il
+rifiuto conta nel limite di richieste del Coach, perché il modello viene
+chiamato comunque.
 
 Azioni che il Coach AI può eseguire nell'app tramite tool calling (10
 strumenti). Il modello li usa solo se l'utente chiede un'azione

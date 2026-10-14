@@ -157,7 +157,7 @@ Il Coach AI usa [Groq](https://console.groq.com/) (tier gratuito) attraverso il 
 GROQ_API_KEY=gsk_...
 ```
 
-Senza chiave il Coach risponde "non configurato" e il resto dell'app funziona normalmente. Il Coach è riservato agli utenti registrati: un ospite riceve in chat l'invito a creare un account e non parte nessuna chiamata. Strumenti, conferme, chiamate al backend e limiti del ciclo sono in [`docs/coach-ai-tool-calling.md`](docs/coach-ai-tool-calling.md).
+Senza chiave il Coach risponde «Coach AI non è disponibile su questo server. Il resto dell'app funziona normalmente.» (il 503 del backend). Il Coach è riservato agli utenti registrati: un ospite riceve in chat l'invito a creare un account e non parte nessuna chiamata. Il Coach risponde solo a ciò che riguarda il basket (3x3 e in generale) e l'app: la regola del contesto sta nel server (`AmbitoCoach` del backend), non nel prompt del client, così vale per ogni client. Se il modello giudica la domanda del tutto estranea, il server sostituisce la risposta con la frase fissa «Sono il Coach di HOOP 3X3: posso aiutarti con il basket, le tue leghe e tappe, squadre, giocatori e regole del torneo. Chiedimi qualcosa su questo.» e toglie gli eventuali strumenti: in chat compare come una risposta normale dell'assistente, senza badge di azioni, e il frontend non fa niente di speciale (`tests/unit/coachTools.test.ts` fissa il contratto). Il rifiuto conta nella quota del Coach (20 richieste al minuto e 300 al giorno per utente) perché il modello viene chiamato comunque. È una regola di prodotto, non un confine di sicurezza: un prompt costruito apposta può aggirarla. Strumenti, conferme, chiamate al backend e limiti del ciclo sono in [`docs/coach-ai-tool-calling.md`](docs/coach-ai-tool-calling.md).
 
 ## Campetti
 
@@ -201,7 +201,7 @@ Il contratto del backend (endpoint per endpoint, chi può chiamarlo, codici di s
 | `profiloApi.ts` | `PATCH /api/auth/me` (nome), `POST /api/auth/me/password`, `POST /api/auth/me/email` (richiesta del cambio), `POST /api/auth/email/conferma` (conferma con il token del link, pubblica) e `POST /api/auth/me/elimina` (eliminazione dell'account, con la password nel corpo) |
 | `aiService.ts` | `POST /api/coach/chat` (il Coach AI) |
 
-Non usa `GET /api/utenti` (solo ADMIN) né `GET /api/coach/status`: la chiave Groq mancante la scopre dal 503 della chat. Negli store e nelle pagine il client mostra all'utente il campo `message` delle risposte d'errore del backend (`testoErrore`), o «Errore <status>» se il corpo manca; la chat del Coach ha testi suoi (`errorMsg` in `useCoachAI.ts`) e riporta il `message` del backend solo per il 400.
+Non usa `GET /api/utenti` (solo ADMIN) né `GET /api/coach/status`: la chiave Groq mancante la scopre dal 503 della chat. Negli store e nelle pagine il client mostra all'utente il campo `message` delle risposte d'errore del backend (`testoErrore`), o «Errore <status>» se il corpo manca; la chat del Coach ha testi suoi (`messaggioErroreCoach` in `useCoachAI.ts`) e riporta il `message` del backend per il 400 e per il 429 (che dice quale limite è finito).
 
 Un utente `ADMIN` iniziale viene creato al primo avvio dalle proprietà `ADMIN_EMAIL` / `ADMIN_PASSWORD` di `env.properties`.
 
