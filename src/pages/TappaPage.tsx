@@ -228,7 +228,7 @@ export function TappaPage() {
 
       <LeaderboardSection tappa={t} />
 
-      <Section title="Video della tappa" kicker="YouTube incorporato · altri link in nuova scheda">
+      <Section title="Video della tappa" className="no-print" kicker="YouTube incorporato · altri link in nuova scheda">
         <VideoForm onAdd={h.addVideo} />
         <VideoGrid videos={t.video || []} onRemove={h.removeVideo} />
       </Section>

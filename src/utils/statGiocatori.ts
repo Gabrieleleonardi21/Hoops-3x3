@@ -98,3 +98,12 @@ export function statGiocatori(tappe: Tappa[]): StatGiocatore[] {
   }
   return [...righe.values()];
 }
+
+/** Le tappe su cui calcolare le statistiche: quelle pubblicate nell'Archivio circuito più quelle della lega aperta. Una tappa
+ *  pubblicata che è anche nella lega aperta (stesso id) conta una volta sola, nella versione locale: può avere risultati più
+ *  recenti della copia pubblica, e sta dopo le altre perché `statGiocatori` mostra la grafia dell'ultima tappa dell'elenco.
+ *  Non modifica gli array ricevuti. */
+export function unisciTappe(pubblicate: Tappa[], locali: Tappa[]): Tappa[] {
+  const idLocali = new Set(locali.map((t) => t.id));
+  return [...pubblicate.filter((t) => !idLocali.has(t.id)), ...locali];
+}

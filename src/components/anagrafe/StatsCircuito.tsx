@@ -1,5 +1,6 @@
-/** Statistiche di stagione per ogni giocatore aggregate su tutte le tappe della lega corrente. L'aggregazione è quella di
- *  utils/statGiocatori, la stessa della pagina del giocatore: qui si ordina soltanto. */
+/** Statistiche di stagione per ogni giocatore aggregate sulle tappe che riceve (le pubblicate più quelle della lega aperta, le mette
+ *  insieme StatisticheCircuito). L'aggregazione è quella di utils/statGiocatori, la stessa della pagina del giocatore: qui si ordina
+ *  soltanto. */
 import { useMemo } from "react";
 import { statGiocatori } from "../../utils/statGiocatori";
 import type { Tappa } from "../../types";
@@ -12,7 +13,7 @@ export function StatsCircuito({ tappe }: { tappe: Tappa[] }) {
   if (rows.length === 0) {
     return (
       <p className="mt-3 text-[15px] text-chalk-muted">
-        Nessuna statistica disponibile: registra i punteggi nelle tappe per vedere le classifiche individuali.
+        Nessuna statistica disponibile: le classifiche individuali si calcolano dalle tappe pubblicate nell'archivio e da quelle della tua lega.
       </p>
     );
   }

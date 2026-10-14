@@ -68,10 +68,26 @@ abilita i flussi multi-step in un solo messaggio (es. *"crea la tappa e sorteggi
   lo controllano di nuovo dopo la lettura.
   Le scritture già spedite al server finiscono comunque. Una conferma in attesa si chiude come «Annulla».
 - **Tempo massimo.** 65 secondi per ogni chiamata alla chat (il server aspetta Groq fino a 60). Gli errori del backend arrivano
-  all'utente così: 401 «Sessione scaduta», 429 «Limite richieste raggiunto», 503 «Coach AI non è configurato sul server»
-  (manca `GROQ_API_KEY`), rete assente «Server non raggiungibile», 400 con il messaggio del server (es. «Conversazione troppo
-  lunga»), il resto «Si è verificato un errore» (`errorMsg` in `useCoachAI.ts`). Un errore a metà del ciclo, dopo strumenti già
+  all'utente così: 401 «Sessione scaduta: esci e accedi di nuovo per usare Coach AI.», 429 il messaggio del server (dice quale
+  limite è finito, al minuto o al giorno), 503 «Coach AI non è disponibile su questo server. Il resto dell'app funziona
+  normalmente.» (manca `GROQ_API_KEY`), rete assente «Server non raggiungibile: controlla la connessione e riprova.», 400 con il
+  messaggio del server (es. «Conversazione troppo lunga»), il resto «Si è verificato un errore, riprova tra poco.»
+  (`messaggioErroreCoach` in `useCoachAI.ts`). Un errore a metà del ciclo, dopo strumenti già
   eseguiti, non le nasconde: l'`AiError` porta gli strumenti eseguiti (`calledTools`) e il messaggio d'errore ha i loro badge.
+
+### Domande fuori contesto
+
+Il Coach risponde solo a ciò che riguarda il basket (3x3 e in generale), l'app HOOP 3X3 e i dati dell'utente; saluti e ringraziamenti
+sono ammessi. La regola **sta nel server**, non nel prompt del client (`useCoachAI.ts`, `buildCoachContext`): il backend la
+antepone al primo messaggio `system` e, se il modello risponde che la domanda è del tutto estranea, riscrive la risposta con una
+frase fissa e toglie gli eventuali `tool_calls`:
+
+> Sono il Coach di HOOP 3X3: posso aiutarti con il basket, le tue leghe e tappe, squadre, giocatori e regole del torneo. Chiedimi qualcosa su questo.
+
+Per il client è una risposta come le altre: `chiamaCoach` legge `content` e nessuno strumento, il ciclo finisce subito (una sola
+richiesta), il testo compare in chat come messaggio dell'assistente e **senza badge** di azioni. Per questo `aiService.ts` e
+`useCoachAI.ts` non cambiano; il test «una domanda fuori contesto» in `tests/unit/coachTools.test.ts` fissa il contratto. Il
+rifiuto conta nella quota del Coach (il modello viene chiamato comunque). È una regola di prodotto, non un confine di sicurezza.
 
 ### Come si sceglie la tappa
 

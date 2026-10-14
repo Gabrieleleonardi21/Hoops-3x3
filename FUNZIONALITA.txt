@@ -376,6 +376,9 @@ Profilo dell'utente (/profilo)
   caratteri, come vuole il server): altrimenti resta nel campo con il motivo.
 - I link YouTube vengono incorporati direttamente come player nella pagina
   (embed youtube-nocookie.com, senza cookie di profilazione).
+- Un video per riga, largo quanto la colonna della pagina (tutto lo schermo,
+  meno i bordi, sul telefono), sempre 16:9 e mai più alto dello schermo sotto
+  la testata. La sezione dei video non si stampa.
 - Gli altri URL si aprono in una nuova scheda.
 - Rimozione di singoli video, anche a tappa conclusa: ogni video aggiunto o
   tolto ripubblica la copia nell'Archivio circuito.
@@ -453,7 +456,13 @@ Scheda SQUADRA
     cancellazione chiede conferma.
 
 Statistiche stagione (tab dedicato)
-  - Tabella aggregata di tutti i giocatori su tutte le tappe della lega.
+  - Tabella aggregata di tutti i giocatori sulle tappe pubblicate
+    nell'Archivio circuito più quelle della lega aperta: uguale per ospite,
+    utente registrato e amministratore (le tappe pubblicate sono pubbliche).
+    Una tappa pubblicata che è anche nella lega aperta conta una volta sola,
+    nella versione locale. I dati si chiedono al server solo quando la
+    scheda è aperta; se l'archivio non risponde compare l'errore con
+    «Riprova», mai una tabella vuota.
   - Lo stesso giocatore in più tappe è una sola riga con i totali: si
     riconosce dal nome e dalla squadra (maiuscole, spazi in più, accenti e
     tipo di apostrofo non contano: «De Rossi» e «DeRossi» sono diversi).
@@ -465,7 +474,8 @@ Statistiche stagione (tab dedicato)
     rubate, stoppate.
   - Ordinata per media punti decrescente.
   - La scheda del giocatore (dall'anagrafe) somma le sue statistiche per
-    nome, anche di squadre diverse, ed elenca le squadre da cui vengono.
+    nome, anche di squadre diverse, ed elenca le squadre da cui vengono; i
+    numeri sono quelli della tabella (stesse tappe).
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -538,6 +548,13 @@ schermo annuncia da sola; a chat piena (30 messaggi) quelli già mostrati non
 vengono riscritti quando ne arriva uno nuovo.
 Risponde in italiano, conosce le regole FIBA 3x3 e ha visibilità in tempo
 reale sui dati della lega (tappe, squadre, risultati, classifica circuito).
+Risponde solo a ciò che riguarda il basket (3x3 e in generale) e l'app; i
+saluti sono ammessi. La regola la decide il server: a una domanda del tutto
+estranea (una ricetta, il meteo) la risposta è sempre la stessa frase fissa,
+«Sono il Coach di HOOP 3X3: posso aiutarti con il basket, le tue leghe e tappe, squadre, giocatori e regole del torneo. Chiedimi qualcosa su questo.»,
+che in chat si legge come ogni altra risposta, senza badge di azioni. Il
+rifiuto conta nel limite di richieste del Coach, perché il modello viene
+chiamato comunque.
 
 Azioni che il Coach AI può eseguire nell'app tramite tool calling (10
 strumenti). Il modello li usa solo se l'utente chiede un'azione

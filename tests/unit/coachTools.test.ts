@@ -1265,6 +1265,21 @@ describe("CoachPanel", () => {
     expect(screen.getByText("Quanto dura una gara?")).toBeTruthy();
   });
 
+  it("una domanda fuori contesto: la frase fissa del server arriva come una risposta normale, senza badge di azioni", async () => {
+    // La regola del contesto sta nel server (che riscrive la risposta fuori tema con questa frase): il client non fa niente di
+    // speciale, la mostra come ogni altro messaggio dell'assistente. Il test fissa questo contratto
+    const frase = "Sono il Coach di HOOP 3X3: posso aiutarti con il basket, le tue leghe e tappe, squadre, giocatori e regole del torneo. Chiedimi qualcosa su questo.";
+    const richieste = modello(testo(frase));
+    apriPannello();
+    scriviEInvia("Che tempo fa domani?");
+    const chat = within(screen.getByRole("log", { name: "Conversazione con il Coach" }));
+    expect(await chat.findByText(frase)).toBeTruthy();
+    expect(richieste).toHaveLength(1); // una sola richiesta: nessun ciclo di strumenti
+    expect(chat.queryByTitle("Azione eseguita dal Coach AI")).toBeNull();
+    // La domanda dell'utente e la frase sono i soli messaggi della conversazione
+    expect(chat.getAllByText(/Che tempo fa domani\?|Sono il Coach di HOOP 3X3/)).toHaveLength(2);
+  });
+
   it("D4: la richiesta di conferma compare dentro il pannello con «Conferma» e «Annulla», non in una finestra a parte", async () => {
     modello(strumenti(["sorteggia_gironi", { tappa_nome: "Roma Open" }]), testo("Sorteggio rifatto."));
     apriPannello();

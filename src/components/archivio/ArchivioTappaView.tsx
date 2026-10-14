@@ -112,7 +112,7 @@ export function ArchivioTappaView({ t, lega, autore, onRemoveVideo }: {
       <LeaderboardSection tappa={t} />
 
       {(t.video || []).length > 0 && (
-        <Section title="Video della tappa">
+        <Section title="Video della tappa" className="no-print">
           <VideoGrid videos={t.video || []} onRemove={onRemoveVideo} />
         </Section>
       )}

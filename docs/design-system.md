@@ -98,11 +98,13 @@ etichette 11 px. Line-height 1.5 nel corpo (default di Tailwind), 1.0 per il dis
 | `ScoreCard` | `partita/ScoreCard.tsx` | scoreboard con slot `center` (input) e `footer` (azioni, eventi); a partita conclusa «vince» (`sr-only`) segue il punteggio più alto; `size="lg"` c'è ma oggi nessuna pagina lo usa |
 | `Bracket` | `gironi/Bracket.tsx` | tabellone per round, presentazionale; ogni card è un `role="group"` con il nome «Semifinale 1: Alfa contro Beta» («posto da assegnare», «Alfa passa il turno»); i controlli arrivano da `renderControls` |
 | `Sparkline` | `profile/Sparkline.tsx` | barre SVG inline, nessuna libreria chart |
+| `VideoCard` | `video/VideoCard.tsx` | un video: l'embed `youtube-nocookie.com` sta in `.video-pieno` (16:9, tutta la larghezza della colonna, mai più alto dello schermo sotto la testata); un link non YouTube è la scheda «Apri il video ↗» |
+| `VideoGrid` | `video/VideoGrid.tsx` | una `VideoCard` per riga (`grid gap-6`); la `Section` che la contiene è `.no-print` |
 | `Hero` | `layout/Hero.tsx` | banda hero con foto e overlay |
 
 Classi condivise in `index.css` (`@layer components`): campi `.statin`, `.scorein`, `.cellin` con le etichette `.input-label` e
 `.form-label`; tabelle `.standtable` e `.statstable`; `.kicker`, `.linkbtn`, `.tapparow`, `.hovercard`, `.pulse`; Coach AI `.chatfab`,
-`.chatpanel`, `.bubble-u`, `.bubble-a`; finestre `.modal-overlay` e `.modal-card`. Utility proprie: `grid-auto` e `area-tocco`
+`.chatpanel`, `.bubble-u`, `.bubble-a`; `.video-pieno` per il riquadro dei video; finestre `.modal-overlay` e `.modal-card`. Utility proprie: `grid-auto` e `area-tocco`
 (sotto). Tutto il resto usa le utility Tailwind.
 
 Da 21st.dev preso solo il *pattern* "Market Watchlist" (toggle di ordinamento, rail accent, sparkline SVG):

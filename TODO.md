@@ -4,10 +4,10 @@
 
 - [x] **Estrarre le operazioni di tappa in funzioni pure** (`src/domain/tappaOps.ts`):
   `sorteggia(tappa, modo)`, `registraRisultato(tappa, partitaId, …)`, `generaFasiDirette(tappa)`,
-  `concludi(tappa)` che restituiscono la nuova `Tappa`. Oggi `useCoachAI.ts` (~690 righe)
-  duplica la logica di `useTappa` chiamando direttamente `useAppStore`: ogni modifica al
-  salvataggio di un risultato va fatta in due posti. Con le funzioni pure, `useTappa` e i tool
-  del Coach le chiamano entrambe e passano il risultato a `replaceTappa`; i tool diventano
+  `concludi(tappa)` che restituiscono la nuova `Tappa`. Prima `useCoachAI.ts` (circa 690 righe, oggi 212)
+  duplicava la logica di `useTappa` chiamando direttamente `useAppStore`: ogni modifica al
+  salvataggio di un risultato andava fatta in due posti. Ora `useTappa` e i tool del Coach
+  chiamano entrambi le funzioni pure e passano il risultato a `replaceTappa`; i tool sono
   testabili con Vitest senza React. (Emerso dall'analisi graphify: `useAppStore` ponte fra 12
   comunità, ma l'unico accoppiamento reale è `useCoachAI`.)
 
