@@ -477,4 +477,36 @@ describe("LegaPage: «Importa file»", () => {
     expect(screen.queryByRole("alertdialog")).toBeNull();
     expect(store().legaId).toBe("l1");
   });
+
+  it("dopo «Non ora» (o Esc) il focus torna su «Importa file», anche se durante l'import il pulsante era disattivato", async () => {
+    const pulsante = () => screen.getByRole("button", { name: /Importa file/ });
+    /** Sceglie una foto con il focus sul pulsante; mentre si legge il pulsante è disattivato e il browser gli toglie il focus (in
+     *  jsdom lo si toglie a mano), così la finestra che si apre dopo non ha un pulsante a cui ridarlo */
+    async function importaConFocusPerso(nome: string) {
+      let risolvi: (b: BozzaFoglio[]) => void = () => {};
+      fotoFinte.leggiFoto.mockImplementation(() => new Promise((r) => { risolvi = r; }));
+      pulsante().focus();
+      scegli(fotoDi(nome));
+      await waitFor(() => expect(pulsante().hasAttribute("disabled")).toBe(true));
+      // jsdom non toglie il focus a un pulsante disattivato, e blur() su un pulsante disattivato non fa niente: il focus passa a un
+      // campo di passaggio che poi sparisce, e resta su body come nel browser
+      const passaggio = document.body.appendChild(document.createElement("input"));
+      passaggio.focus();
+      passaggio.remove();
+      expect(document.activeElement).toBe(document.body);
+      risolvi([bozzaFoglio(nome)]);
+      await screen.findByRole("alertdialog");
+    }
+    serverCreaLega();
+    apriLega(registrato);
+    await importaConFocusPerso("Sabato");
+    fireEvent.click(screen.getByRole("button", { name: "Non ora" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(document.activeElement).toBe(pulsante());
+    // La seconda volta con Esc
+    await importaConFocusPerso("Domenica");
+    fireEvent.keyDown(window, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(document.activeElement).toBe(pulsante());
+  });
 });

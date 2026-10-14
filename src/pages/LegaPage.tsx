@@ -71,6 +71,17 @@ export function LegaPage() {
    *  riporterebbe l'utente su /lega e la finestra dei dubbi andrebbe persa con la pagina */
   const lettura = useRef<AbortController | null>(null);
   useEffect(() => () => lettura.current?.abort(), []);
+  /** «Importa file» e la richiesta di rimettergli il focus quando la finestra dei dubbi si chiude con «Non ora» (o Esc). La finestra
+   *  ridarebbe il focus a chi lo aveva alla sua apertura, ma il pulsante, disattivato durante l'import, l'aveva perso: senza, il
+   *  focus finirebbe su body e chi usa la tastiera ripartirebbe dall'inizio della pagina */
+  const importaRef = useRef<HTMLButtonElement>(null);
+  const focusSuImporta = useRef(false);
+  // Dopo la chiusura della finestra: gli effetti di chi si smonta (il ritorno del focus della finestra) vengono prima di questo
+  useEffect(() => {
+    if (dubbi !== null || !focusSuImporta.current) return;
+    focusSuImporta.current = false;
+    importaRef.current?.focus();
+  }, [dubbi]);
 
   /** Crea la tappa e la apre; se i dati sono fuori dai limiti restituisce il motivo, che il form mostra */
   const creaEApri = (input: NuovaTappaInput) => {
@@ -245,7 +256,7 @@ export function LegaPage() {
             il primo */}
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={esportaLega}><Icon name="download" size={14} /> Esporta JSON</Button>
-          <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()} disabled={importInCorso}>
+          <Button ref={importaRef} variant="outline" size="sm" onClick={() => fileRef.current?.click()} disabled={importInCorso}>
             <Icon name="upload" size={14} /> Importa file
           </Button>
           {/* Un solo input file nascosto: `accept` è solo un suggerimento al selettore dei file; il tipo vero si legge dai byte
@@ -300,7 +311,8 @@ export function LegaPage() {
       {/* Dopo l'import dalle foto: i dubbi del lettore e la scelta di passare le correzioni al Coach, che si apre con il messaggio
           dei dubbi sulla lega appena importata (è quella aperta: i suoi strumenti, senza il nome della tappa, usano l'ultima) */}
       {dubbi && (
-        <DialogoDubbi tappe={dubbi} onChiudi={() => setDubbi(null)}
+        <DialogoDubbi tappe={dubbi}
+          onChiudi={() => { focusSuImporta.current = true; setDubbi(null); }}
           onCoach={() => { apriCoach(messaggioDubbi(legaName, dubbi)); setDubbi(null); }} />
       )}
     </>
