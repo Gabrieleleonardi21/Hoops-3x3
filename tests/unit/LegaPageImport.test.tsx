@@ -411,9 +411,12 @@ describe("LegaPage: «Importa file»", () => {
     });
     serverCreaLega();
     apriLega(registrato);
+    // La regione si annuncia solo se esiste già quando il testo cambia: c'è, vuota, prima della lettura
+    const regione = document.querySelector("[aria-live=\"polite\"]");
+    expect(regione?.textContent).toBe("");
     scegli(fotoDi("sabato.jpg"));
     const stato = await screen.findByText(LETTURA_IN_CORSO(1, 1));
-    expect(stato.getAttribute("aria-live")).toBe("polite");
+    expect(stato).toBe(regione);
     expect(screen.getByRole("button", { name: /Importa file/ }).hasAttribute("disabled")).toBe(true);
     fotoFinte.imposta(null);
     risolvi([bozzaFoglio("Sabato")]);

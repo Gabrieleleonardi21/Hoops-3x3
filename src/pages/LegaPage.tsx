@@ -217,11 +217,13 @@ export function LegaPage() {
           <input ref={fileRef} type="file" accept={FILE_ACCETTATI} multiple className="hidden"
             onChange={(e) => { void importaFile(e); }} />
         </div>
-        {/* Sulla riga sotto (w-full): a che foglio è la lettura, annunciato senza interrompere */}
-        {statoLettura && <p className="w-full text-[13px] text-chalk-muted" aria-live="polite">{statoLettura}</p>}
         {/* Sulla riga sotto (w-full): il motivo per cui l'ultimo import non è riuscito */}
         {erroreImport && <p className="w-full text-[13px] font-semibold text-loss" role="alert">{erroreImport}</p>}
       </div>
+      {/* A che foglio è la lettura, annunciato senza interrompere. La regione c'è sempre, anche vuota: un lettore di schermo annuncia i
+          cambi di una regione che esiste già, non sempre una che nasce con il suo testo. Fuori dalla riga dei pulsanti, dove vuota
+          aggiungerebbe lo spazio tra le righe; vuota non ha margini e non occupa posto */}
+      <p className="-mt-3 mb-6 text-[13px] text-chalk-muted empty:my-0" aria-live="polite">{statoLettura}</p>
 
       <TappaForm onCreate={creaEApri} />
 
