@@ -3,7 +3,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, cleanup, fireEvent, render, renderHook, screen, waitFor, within } from "@testing-library/react";
 import { createElement, useState, type ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
-import { useCoachAI } from "../../src/hooks/useCoachAI";
+import { alternaCoach, apriCoach, chiudiCoach, useCoachAI, useCoachAperto } from "../../src/hooks/useCoachAI";
+import { CoachFAB } from "../../src/components/coach/CoachFAB";
 import { eseguiStrumento, type ContestoStrumenti } from "../../src/coach/toolHandlers";
 import { useAuth } from "../../src/hooks/useAuth";
 import { CoachPanel } from "../../src/components/coach/CoachPanel";
@@ -1575,5 +1576,51 @@ describe("Coach AI: correggi_squadra, nome e giocatori di una squadra della tapp
     await chiedi(coach(), "Rinomina Alfa in Alfa Roma");
     expect(store().tappe[0].squadre[0].nome).toBe("Alfa");
     expect(esiti(richieste)[0]).toContain('Tappa "Roma Open": La tappa è conclusa: riaprila per modificarla.');
+  });
+});
+
+describe("Coach AI: il pannello si apre anche da fuori (apriCoach), con un messaggio dell'assistente", () => {
+  /** Come in App: il pulsante flottante alterna il pannello, che si apre se lo stato del Coach dice aperto */
+  function Radice() {
+    const aperto = useCoachAperto();
+    return createElement(MemoryRouter, null,
+      aperto && createElement(CoachPanel, { onClose: chiudiCoach }),
+      createElement(CoachFAB, { onClick: alternaCoach }));
+  }
+  const MESSAGGIO = "Ho importato dal foglio la tappa «Roma Open». Il lettore non era sicuro di: Alpha o Alfa?";
+
+  afterEach(() => { act(() => { chiudiCoach(); }); });
+
+  it("apriCoach(messaggio) apre il pannello con il messaggio come turno dell'assistente, senza badge e senza chiamare il server", () => {
+    const richieste = modello();
+    render(createElement(Radice));
+    expect(screen.queryByRole("dialog", { name: "Coach AI" })).toBeNull();
+    act(() => { apriCoach(MESSAGGIO); });
+    const chat = within(screen.getByRole("log", { name: "Conversazione con il Coach" }));
+    expect(chat.getByText(MESSAGGIO)).toBeTruthy();
+    expect(chat.queryByTitle("Azione eseguita dal Coach AI")).toBeNull();
+    expect(richieste).toHaveLength(0);
+    act(() => { chiudiCoach(); });
+    expect(screen.queryByRole("dialog", { name: "Coach AI" })).toBeNull();
+  });
+
+  it("apriCoach() senza messaggio apre soltanto; il pulsante flottante alterna aperto e chiuso", () => {
+    render(createElement(Radice));
+    act(() => { apriCoach(); });
+    expect(screen.getByRole("dialog", { name: "Coach AI" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Apri Coach AI" }));
+    expect(screen.queryByRole("dialog", { name: "Coach AI" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Apri Coach AI" }));
+    expect(screen.getByRole("dialog", { name: "Coach AI" })).toBeTruthy();
+    expect(screen.queryByRole("log", { name: "Conversazione con il Coach" })?.textContent).not.toContain("Ho importato");
+  });
+
+  it("il messaggio locale entra nella cronologia che il modello riceve al turno dopo, così conosce i dubbi", async () => {
+    const richieste = modello(testo("Dimmi pure."));
+    act(() => { apriCoach(MESSAGGIO); });
+    const c = coach();
+    await chiedi(c, "Correggi i nomi");
+    expect(richieste[0]).toContainEqual({ role: "assistant", content: MESSAGGIO });
+    expect(c.current.msgs.map((m) => m.content)).toEqual([MESSAGGIO, "Correggi i nomi", "Dimmi pure."]);
   });
 });

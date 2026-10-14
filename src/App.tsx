@@ -2,6 +2,7 @@
  *  fuori dal flusso di pagine così resta visibile su tutte le rotte. */
 import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
+import { alternaCoach, chiudiCoach, useCoachAperto } from "./hooks/useCoachAI";
 import { useAppStore } from "./stores/useAppStore";
 import { useAnagrafeStore } from "./stores/useAnagrafeStore";
 import { useCampettiStore } from "./stores/useCampettiStore";
@@ -184,7 +185,9 @@ function Pagine() {
 }
 
 export default function App() {
-  const [coachOpen, setCoachOpen] = useState(false); // stato del pannello Coach AI
+  // Il pannello del Coach si apre dal pulsante flottante e dalla pagina della lega dopo l'import dalle foto: lo stato è nello store
+  // della chat (useCoachAI)
+  const coachOpen = useCoachAperto();
 
   return (
     <BrowserRouter>
@@ -194,8 +197,8 @@ export default function App() {
         <Pagine />
       </main>
       <PiePagina />
-      {coachOpen && <CoachPanel onClose={() => setCoachOpen(false)} />}
-      <CoachFAB onClick={() => setCoachOpen((o) => !o)} />
+      {coachOpen && <CoachPanel onClose={chiudiCoach} />}
+      <CoachFAB onClick={alternaCoach} />
     </BrowserRouter>
   );
 }
