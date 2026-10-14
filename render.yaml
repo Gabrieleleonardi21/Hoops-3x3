@@ -131,10 +131,10 @@ services:
       # pannello di Render (con groq basta GROQ_API_KEY qui sopra)
       - key: ANTHROPIC_API_KEY
         sync: false
-      # Modello con immagini di Groq per le foto dei fogli (con AI_LETTORE_FOGLIO=groq). È il predefinito del backend: è
-      # cambiato più volte nel 2026, e se Groq lo ritira si cambia qui o dal pannello senza toccare il codice
+      # Modello con immagini di Groq per le foto dei fogli (con AI_LETTORE_FOGLIO=groq). Se non è impostata vale il predefinito del backend;
+      # è cambiato più volte nel 2026: se Groq lo ritira, Gabriele lo cambia dal pannello senza toccare il codice
       - key: GROQ_MODELLO_VISIONE
-        value: "qwen/qwen3.8-27b"
+        sync: false
       # true = al primo avvio carica i dati di prova del circuito Estathé 2025 (serve l'admin)
       - key: SEED_DEMO
         value: "false"
