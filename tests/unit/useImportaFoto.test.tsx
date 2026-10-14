@@ -118,4 +118,18 @@ describe("useImportaFoto: riduzione e lettura in sequenza", () => {
     });
     expect(result.current.stato).toBeNull();
   });
+
+  it("con la lettura annullata (la pagina se ne va) le foto che restano non partono", async () => {
+    const controllo = new AbortController();
+    leggi.mockImplementation(async () => {
+      controllo.abort();
+      return bozza("Prima");
+    });
+    const { result } = renderHook(() => useImportaFoto());
+    await act(async () => {
+      await expect(result.current.leggiFoto([foto("a.jpg"), foto("b.jpg")], controllo.signal)).rejects.toThrow();
+    });
+    expect(leggi).toHaveBeenCalledTimes(1);
+    expect(result.current.stato).toBeNull();
+  });
 });

@@ -1,5 +1,5 @@
 /** Pagina principale della lega attiva: gestisce nome, creazione, lista tappe e classifica circuito. */
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate, Link } from "react-router-dom";
 import { useLega } from "../hooks/useLega";
 import type { NuovaTappaInput } from "../hooks/useLega";
@@ -67,6 +67,10 @@ export function LegaPage() {
    *  file scelto prima che la pagina si ridisegni. Un secondo import partito sopra il primo creerebbe due leghe */
   const [importInCorso, setImportInCorso] = useState(false);
   const inCorso = useRef(false);
+  /** La lettura delle foto in corso: se la pagina si smonta (l'utente va altrove) si annulla. Senza, a lettura finita l'import
+   *  riporterebbe l'utente su /lega e la finestra dei dubbi andrebbe persa con la pagina */
+  const lettura = useRef<AbortController | null>(null);
+  useEffect(() => () => lettura.current?.abort(), []);
 
   /** Crea la tappa e la apre; se i dati sono fuori dai limiti restituisce il motivo, che il form mostra */
   const creaEApri = (input: NuovaTappaInput) => {
@@ -133,14 +137,20 @@ export function LegaPage() {
   /** Importa le foto dei fogli: le bozze lette diventano il file di una lega nuova (fileDaFogli) e si importano dalla stessa strada
    *  del JSON. Una foto non letta ferma tutto: nessuna lega a metà. A import fatto si apre la finestra dei dubbi */
   const importaFoto = async (foto: File[]) => {
+    const controllo = new AbortController();
+    lettura.current = controllo;
     let bozze: BozzaFoglio[];
     try {
-      bozze = await leggiFoto(foto);
+      bozze = await leggiFoto(foto, controllo.signal);
     } catch (e) {
+      // Pagina smontata durante la lettura: niente da dire a nessuno
+      if (controllo.signal.aborted) return;
       if (e instanceof Error) rifiutaImport(e.message);
       else rifiutaImport("errore imprevisto");
       return;
     }
+    // Lettura finita dopo che la pagina si è smontata: l'import non parte (nessuna lega che l'utente non vede nascere)
+    if (controllo.signal.aborted) return;
     const file = fileDaFogli(bozze, foto.map((f) => f.name));
     if (!file.ok) {
       rifiutaImport(file.errore);

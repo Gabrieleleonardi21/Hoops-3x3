@@ -49,14 +49,16 @@ function motivo(e: unknown): string {
 
 /** `leggiFoto` riduce e manda le foto una per una e restituisce le bozze nell'ordine. Alla prima che fallisce lancia un Error con
  *  il nome della foto e il motivo, e non manda le successive: un import a metà non c'è, e rimandarle chiede un nuovo clic.
+ *  `segnale` annulla la lettura (la pagina se ne va): le foto che restano non partono e la promessa è rifiutata.
  *  `stato` è il testo «Lettura del foglio i di n…» mentre si legge, null altrimenti. */
 export function useImportaFoto() {
   const [stato, setStato] = useState<string | null>(null);
 
-  const leggiFoto = useCallback(async (files: File[]): Promise<BozzaFoglio[]> => {
+  const leggiFoto = useCallback(async (files: File[], segnale?: AbortSignal): Promise<BozzaFoglio[]> => {
     const bozze: BozzaFoglio[] = [];
     try {
       for (const [i, file] of files.entries()) {
+        segnale?.throwIfAborted();
         setStato(LETTURA_IN_CORSO(i + 1, files.length));
         const immagine = await ridimensiona(file);
         try {

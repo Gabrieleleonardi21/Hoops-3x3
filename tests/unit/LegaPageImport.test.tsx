@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { MockInstance } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { LegaPage } from "../../src/pages/LegaPage";
 import { CoachPanel } from "../../src/components/coach/CoachPanel";
@@ -343,7 +343,7 @@ describe("LegaPage: «Importa file»", () => {
     const foto = [fotoDi("sabato.jpg"), fotoDi("domenica.jpg")];
     scegliTutti(foto);
     const finestra = await screen.findByRole("alertdialog", { name: "Tappe importate dai fogli" });
-    expect(fotoFinte.leggiFoto).toHaveBeenCalledWith(foto);
+    expect(fotoFinte.leggiFoto).toHaveBeenCalledWith(foto, expect.any(AbortSignal));
     expect(api.create).toHaveBeenCalledTimes(1);
     expect(store().legaId).toBe("lega-foto");
     expect(store().legaName).toBe("Sabato");
@@ -457,5 +457,24 @@ describe("LegaPage: «Importa file»", () => {
     await waitFor(() => expect(store().legaId).toBe("lega-json"));
     await waitFor(() => expect(pulsante.hasAttribute("disabled")).toBe(false));
     expect(api.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("cambio pagina durante la lettura: la lettura si annulla, nessuna lega nasce e non si torna su /lega", async () => {
+    let risolvi: (b: BozzaFoglio[]) => void = () => {};
+    fotoFinte.leggiFoto.mockImplementation(() => new Promise((r) => { risolvi = r; }));
+    serverCreaLega();
+    apriLega(registrato);
+    scegli(fotoDi("sabato.jpg"));
+    await waitFor(() => expect(fotoFinte.leggiFoto).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("link", { name: /Le mie leghe/ }));
+    expect(screen.getByText("Elenco delle leghe")).toBeTruthy();
+    // La pagina ha annullato la lettura: l'hook non manda le foto che restano
+    const segnale = fotoFinte.leggiFoto.mock.calls[0][1] as AbortSignal;
+    expect(segnale.aborted).toBe(true);
+    await act(async () => { risolvi([bozzaFoglio("Sabato")]); });
+    expect(screen.getByText("Elenco delle leghe")).toBeTruthy();
+    expect(api.create).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(store().legaId).toBe("l1");
   });
 });
