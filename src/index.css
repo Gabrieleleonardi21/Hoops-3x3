@@ -122,6 +122,10 @@
   .statstable td { @apply px-1 py-0.5 h-8; }
   .standtable td.tname, .statstable td.tname { @apply text-left font-semibold whitespace-nowrap overflow-hidden text-ellipsis max-w-0; }
 
+  /* Il video prende tutta la larghezza della pagina ma non supera l'altezza dello schermo sotto la testata sticky
+     (~6rem) e la riga del titolo: la larghezza massima deriva dall'altezza, così il 16:9 resta esatto senza bande */
+  .video-pieno { aspect-ratio: 16 / 9; width: 100%; max-width: calc((100dvh - 10rem) * 16 / 9); margin-inline: auto; }
+
   /* Coach AI */
   .chatfab {
     @apply fixed right-4 bottom-4 w-14 h-14 rounded-full border-0 bg-court p-2 z-50 transition-colors hover:bg-court-hover;
