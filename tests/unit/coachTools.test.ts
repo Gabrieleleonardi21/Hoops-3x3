@@ -1623,4 +1623,32 @@ describe("Coach AI: il pannello si apre anche da fuori (apriCoach), con un messa
     expect(richieste[0]).toContainEqual({ role: "assistant", content: MESSAGGIO });
     expect(c.current.msgs.map((m) => m.content)).toEqual([MESSAGGIO, "Correggi i nomi", "Dimmi pure."]);
   });
+
+  it("apriCoach mentre una domanda è in corso: nella chat restano sia il messaggio dei dubbi sia la risposta", async () => {
+    const risposta = differita<Risposta>();
+    modello(risposta.p);
+    const c = coach();
+    const invio = inviaSenzaAspettare(c, "Quanto dura una gara?");
+    act(() => { apriCoach(MESSAGGIO); });
+    await act(async () => {
+      risposta.ok(testo("10 minuti."));
+      await invio;
+    });
+    expect(c.current.msgs.map((m) => m.content)).toEqual(["Quanto dura una gara?", MESSAGGIO, "10 minuti."]);
+  });
+
+  it("anche un errore del server si accoda alla chat di adesso, senza cancellare il messaggio dei dubbi", async () => {
+    const risposta = differita<Response>();
+    modello(risposta.p as unknown as Promise<Risposta>);
+    const c = coach();
+    const invio = inviaSenzaAspettare(c, "Quanto dura una gara?");
+    act(() => { apriCoach(MESSAGGIO); });
+    await act(async () => {
+      risposta.ok(new Response(JSON.stringify({ message: "Errore" }), { status: 500 }));
+      await invio;
+    });
+    expect(c.current.msgs.map((m) => m.content)).toEqual([
+      "Quanto dura una gara?", MESSAGGIO, "Si è verificato un errore, riprova tra poco.",
+    ]);
+  });
 });

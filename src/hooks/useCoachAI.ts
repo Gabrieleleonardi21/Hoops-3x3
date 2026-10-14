@@ -220,13 +220,15 @@ export function useCoachAI() {
       // Allega i tool eseguiti: la UI li mostra come badge sotto la risposta
       const assistantMsg: ChatMsg = { role: "assistant", content: reply };
       if (calledTools.length) assistantMsg.tools = calledTools;
-      salvaChat([...history, assistantMsg]);
+      // In coda alla chat di adesso, non alla cronologia presa all'inizio: un messaggio aggiunto nel frattempo (apriCoach dopo
+      // l'import dalle foto) resta
+      salvaChat([...useChat.getState().msgs, assistantMsg]);
     } catch (err) {
       if (!attiva()) return;
       // Un errore a metà del ciclo non cancella le azioni già fatte: l'errore le mostra come badge, come una risposta
       const erroreMsg: ChatMsg = { role: "assistant", content: messaggioErroreCoach(err) };
       if (err instanceof AiError && err.calledTools.length) erroreMsg.tools = err.calledTools;
-      salvaChat([...history, erroreMsg]);
+      salvaChat([...useChat.getState().msgs, erroreMsg]);
     } finally {
       if (attiva()) useChat.setState({ loading: false });
       if (richiestaInCorso === richiesta) richiestaInCorso = null;
