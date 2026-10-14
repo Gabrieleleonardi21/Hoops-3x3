@@ -187,6 +187,7 @@ export function useCoachAI() {
         "Per crea_tappa: chiamalo UNA SOLA VOLTA mettendo tutte le squadre nell'array 'squadre'. Non chiamarlo più volte.",
         "Flusso di una tappa: crea_tappa → sorteggia_gironi → registra_risultato (per ogni gara dei gironi) → genera_fasi_dirette → registra_risultato (per ogni gara della fase finale) → concludi_tappa.",
         "registra_risultato gestisce sia i gironi sia la fase finale; usa il parametro 'fase' SOLO se la stessa coppia gioca in entrambe e serve distinguere.",
+        "correggi_squadra sistema nome e giocatori di una squadra della tappa (per esempio dopo l'import da una foto).",
         context ? `\nDati lega dell'utente:\n${context}` : "",
       ].filter(Boolean).join(" ");
 

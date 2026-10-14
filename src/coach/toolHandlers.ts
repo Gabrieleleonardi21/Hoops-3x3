@@ -15,8 +15,8 @@ import { uid } from "../utils/uid";
 import { MAX_ROSTER } from "../constants/rules";
 import { pulisci, senzaTag } from "../utils/buildCoachContext";
 import {
-  annullaRisultato, concludi, creaTappa, erroreLimitiTappa, generaFasiDirette, perditaRisultati, registraRisultato,
-  registraRisultatoBracket, sorteggia, type Esito, type ModoSorteggio,
+  annullaRisultato, concludi, correggiSquadra, creaTappa, erroreLimitiTappa, generaFasiDirette, perditaRisultati, registraRisultato,
+  registraRisultatoBracket, sorteggia, type CorrezioneSquadra, type Esito, type ModoSorteggio,
 } from "../domain/tappaOps";
 import type { Tappa, RegSquadra, RegGiocatore, SquadraTappa, GiocatoreRoster } from "../types";
 import { squadraDi } from "../utils/tappaInfo";
@@ -228,17 +228,20 @@ function applica(tappa: Tappa, operazione: (t: Tappa) => Esito): Tappa {
   return nuova;
 }
 
+/** La squadra della tappa indicata dal modello, per nome con la regola di trovaPerNome (esatto, poi una parte del nome solo se
+ *  corrisponde a una squadra sola) */
+function squadraRichiesta(tappa: Tappa, nome: string): SquadraTappa {
+  const squadra = trovaPerNome(tappa.squadre, nome, (s) => s.nome, "squadre della tappa");
+  if (!squadra) throw new Error(`Nessuna squadra della tappa "${pulisci(tappa.nome)}" si chiama "${nome}".`);
+  return squadra;
+}
+
 /** Le due squadre della tappa indicate dal modello, trovate per nome con la regola di trovaPerNome (esatto, poi una parte del
  *  nome solo se corrisponde a una squadra sola). Prima bastava che un nome contenesse l'altro: con «Roma», «Roma Nord» e «Milano»
  *  il risultato finiva sulla partita sbagliata o con i punteggi invertiti. Ogni partita poi si cerca e si orienta per id */
 function squadreRichieste(tappa: Tappa, nomeA: string, nomeB: string): [SquadraTappa, SquadraTappa] {
-  const trova = (nome: string) => {
-    const squadra = trovaPerNome(tappa.squadre, nome, (s) => s.nome, "squadre della tappa");
-    if (!squadra) throw new Error(`Nessuna squadra della tappa "${pulisci(tappa.nome)}" si chiama "${nome}".`);
-    return squadra;
-  };
-  const a = trova(nomeA);
-  const b = trova(nomeB);
+  const a = squadraRichiesta(tappa, nomeA);
+  const b = squadraRichiesta(tappa, nomeB);
   if (a.id === b.id) throw new Error(`"${nomeA}" e "${nomeB}" indicano la stessa squadra, "${pulisci(a.nome)}": servono due squadre diverse.`);
   return [a, b];
 }
@@ -594,6 +597,28 @@ async function eseguiAggiornaSquadra(args: Argomenti, ctx: ContestoStrumenti): P
   return `Squadra "${pulisci(reg.nome)}" aggiornata in anagrafe (${campiModificati}).`;
 }
 
+/** correggi_squadra: nome e/o giocatori di una squadra della tappa, con le regole di correggiSquadra (tappaOps). Non distrugge
+ *  risultati, quindi senza conferma (D4). I giocatori arrivano come elenco di nomi: un testo da solo è un errore, non un nome */
+function eseguiCorreggiSquadra(args: Argomenti): string {
+  const nome = obbligatorio(args, "squadra", "il nome attuale della squadra");
+  const modifiche: CorrezioneSquadra = {};
+  if (presente(args, "nuovo_nome")) modifiche.nome = str(args, "nuovo_nome");
+  if (presente(args, "giocatori")) {
+    if (!Array.isArray(args.giocatori)) throw new Error("I giocatori (giocatori) vanno dati come elenco di nomi.");
+    modifiche.giocatori = args.giocatori.map((g) => {
+      if (typeof g === "string") return g;
+      return "";
+    });
+  }
+  const tappa = tappaRichiesta(args);
+  const squadra = squadraRichiesta(tappa, nome);
+  const nuova = applica(tappa, (t) => correggiSquadra(t, squadra.id, modifiche));
+  const corretta = squadraDellaPartita(nuova, squadra.id);
+  let giocatori = "nessun giocatore";
+  if (corretta.giocatori.length) giocatori = `giocatori ${corretta.giocatori.map((g) => pulisci(g.nome)).join(", ")}`;
+  return `Squadra «${pulisci(squadra.nome)}» corretta: nome ${pulisci(corretta.nome)}, ${giocatori}.`;
+}
+
 function eseguiGeneraFasiDirette(args: Argomenti, ctx: ContestoStrumenti): string {
   const nPass = qualificateRichieste(args);
   const tappa = tappaRichiesta(args);
@@ -652,6 +677,7 @@ const ESECUTORI = new Map<string, Esecutore>([
   ["registra_risultato", eseguiRegistraRisultato],
   ["annulla_risultato", eseguiAnnullaRisultato],
   ["aggiorna_squadra", eseguiAggiornaSquadra],
+  ["correggi_squadra", eseguiCorreggiSquadra],
   ["genera_fasi_dirette", eseguiGeneraFasiDirette],
   ["concludi_tappa", eseguiConcludiTappa],
 ]);

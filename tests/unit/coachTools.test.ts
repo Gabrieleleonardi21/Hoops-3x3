@@ -1530,3 +1530,50 @@ describe("Coach AI: registra_squadra e registra_giocatore non fanno doppioni nel
     expect(anagrafeApi.createGiocatore).toHaveBeenCalledWith(expect.objectContaining({ cognome: "Bianchi" }));
   });
 });
+
+describe("Coach AI: correggi_squadra, nome e giocatori di una squadra della tappa", () => {
+  it("rinomina una squadra dell'ultima tappa senza che si nomini la tappa, e compare il badge «Squadra corretta»", async () => {
+    const richieste = modello(strumenti(["correggi_squadra", { squadra: "Alfa", nuovo_nome: "Alfa Roma" }]), testo("Fatto."));
+    const c = coach();
+    await chiedi(c, "Rinomina la squadra Alfa in Alfa Roma");
+    expect(store().tappe[0].squadre.map((s) => s.nome)).toEqual(["Alfa Roma", "Beta", "Gamma"]);
+    expect(esiti(richieste)[0]).toBe("Squadra «Alfa» corretta: nome Alfa Roma, nessun giocatore.");
+    expect(c.current.msgs.at(-1)).toEqual({ role: "assistant", content: "Fatto.", tools: ["correggi_squadra"] });
+    render(createElement(MemoryRouter, null, createElement(CoachPanel, { onClose: vi.fn() })));
+    expect(screen.getByTitle("Azione eseguita dal Coach AI").textContent).toContain("Squadra corretta");
+  });
+
+  it("con `giocatori` il roster si sostituisce (una parte del nome basta a trovare la squadra)", async () => {
+    const richieste = modello(
+      strumenti(["correggi_squadra", { squadra: "bet", giocatori: ["Mario Rossi", "Luca Bianchi", "Anna Verdi"] }]),
+      testo("Roster aggiornato."),
+    );
+    await chiedi(coach(), "I giocatori di Beta sono Mario Rossi, Luca Bianchi e Anna Verdi");
+    expect(store().tappe[0].squadre[1].giocatori.map((g) => g.nome)).toEqual(["Mario Rossi", "Luca Bianchi", "Anna Verdi"]);
+    expect(esiti(richieste)[0]).toBe("Squadra «Beta» corretta: nome Beta, giocatori Mario Rossi, Luca Bianchi, Anna Verdi.");
+  });
+
+  it.each([
+    ["squadra sconosciuta", { squadra: "Omega", nuovo_nome: "Alfa Roma" }, 'Nessuna squadra della tappa "Roma Open" si chiama "Omega".'],
+    ["squadra mancante", { nuovo_nome: "Alfa Roma" }, "Manca il nome attuale della squadra (squadra)."],
+    ["niente da correggere", { squadra: "Alfa" }, "Niente da correggere: indica il nuovo nome o i giocatori."],
+    ["giocatori non in un elenco", { squadra: "Alfa", giocatori: "Mario Rossi" }, "I giocatori (giocatori) vanno dati come elenco di nomi."],
+    ["nome di un'altra squadra", { squadra: "Alfa", nuovo_nome: "Beta" }, "Nella tappa c'è già la squadra «Beta»."],
+  ])("%s: nessuna modifica, il modello riceve il motivo e non c'è il badge", async (_caso, args, motivo) => {
+    const prima = store().tappe[0];
+    const richieste = modello(strumenti(["correggi_squadra", args]), testo("Non ho potuto correggere la squadra."));
+    const c = coach();
+    await chiedi(c, "Correggi la squadra");
+    expect(store().tappe[0]).toBe(prima);
+    expect(esiti(richieste)[0]).toContain(motivo);
+    expect(c.current.msgs.at(-1)).toEqual({ role: "assistant", content: "Non ho potuto correggere la squadra." });
+  });
+
+  it("su una tappa conclusa è rifiutata con il motivo di tappaOps", async () => {
+    useAppStore.setState({ tappe: [{ ...romaOpenGiocata(), conclusa: true }] });
+    const richieste = modello(strumenti(["correggi_squadra", { squadra: "Alfa", nuovo_nome: "Alfa Roma" }]), testo("È conclusa."));
+    await chiedi(coach(), "Rinomina Alfa in Alfa Roma");
+    expect(store().tappe[0].squadre[0].nome).toBe("Alfa");
+    expect(esiti(richieste)[0]).toContain('Tappa "Roma Open": La tappa è conclusa: riaprila per modificarla.');
+  });
+});
