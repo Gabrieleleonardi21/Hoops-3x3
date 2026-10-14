@@ -2,7 +2,7 @@
 
 Direzione visiva dell'app (la design pass, unita in `main`). I token Tailwind sono in `src/index.css`
 (`@theme`), che è la fonte di verità: dove questo documento e il CSS divergono vale il CSS.
-Mockup di partenza in `docs/design/stitch-screens/` (home, profilo giocatore, campetti, punteggio partita).
+Mockup di partenza in `docs/design/` (home, profilo giocatore, campetti, punteggio partita).
 
 ## Concetto
 
@@ -109,6 +109,19 @@ Classi condivise in `index.css` (`@layer components`): campi `.statin`, `.scorei
 
 Da 21st.dev preso solo il *pattern* "Market Watchlist" (toggle di ordinamento, rail accent, sparkline SVG):
 il componente originale è un grid di `<button>` su token shadcn, non riutilizzabile così com'è.
+
+## Stampa
+
+«Stampa / PDF» (pagina pubblica di una tappa) e la stampa del browser usano `@media print` in `src/index.css`.
+
+- **Che cosa sparisce.** Solo l'intestazione, la navigazione, il Coach AI (`.chatfab`, `.chatpanel`) e ciò che è marcato
+  `.no-print`: i comandi della pagina, il modulo dei video e la sezione dei video. Non spariscono tutti i `<button>`, perché
+  nella vista di una tappa sono pulsanti anche le schede delle squadre e le intestazioni della classifica, che sulla carta servono.
+- **Il tema si inverte.** Su carta bianca i token scuri darebbero testo chiaro su bianco: in stampa i fondi `asphalt` diventano
+  chiari e i testi `chalk` scuri, con `court`, `gold`, `win` e `loss` scuriti. Le utility di Tailwind leggono queste variabili,
+  quindi cambiano tutte insieme.
+- **Le pagine.** Corpo a 12px; sezioni e tabelle (`.standtable`, `.statstable`) non si spezzano tra due pagine.
+- Provato in `tests/e2e/stampa.spec.ts`. Un comando nuovo che sulla carta non serve va marcato `.no-print`.
 
 ## Accessibilità
 
