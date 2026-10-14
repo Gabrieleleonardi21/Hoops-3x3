@@ -42,3 +42,10 @@ test("sul telefono il video prende tutta la larghezza meno i bordi", async ({ pa
   expect(box.width).toBeGreaterThanOrEqual(341);
   expect(box.width).toBeLessThanOrEqual(345);
 });
+
+test("in stampa il video non compare (a tutta larghezza stamperebbe una pagina bianca)", async ({ page }) => {
+  await misuraVideo(page, 1280, 800);
+  await expect(page.locator(EMBED)).toBeVisible();
+  await page.emulateMedia({ media: "print" });
+  await expect(page.locator(EMBED)).toBeHidden();
+});
