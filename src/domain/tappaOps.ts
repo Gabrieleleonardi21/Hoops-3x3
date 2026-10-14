@@ -3,7 +3,7 @@
  *  l'operazione non si può fare. Le usano sia l'interfaccia (useTappa, useLega, BracketSection) sia i tool
  *  del Coach AI, che salvano il risultato con replaceTappa: la logica sta in un posto solo ed è
  *  testabile con Vitest senza React. Una tappa conclusa non si modifica: ogni operazione la rifiuta. */
-import type { Partita, Regole, SquadraTappa, StatSheet, Tappa } from "../types";
+import type { GiocatoreRoster, Partita, Regole, SquadraTappa, StatSheet, Tappa } from "../types";
 import { buildGironi } from "../utils/buildGironi";
 import { buildGironiSeeded } from "../utils/buildGironiSeeded";
 import { buildMatches } from "../utils/buildMatches";
@@ -11,7 +11,8 @@ import { buildBracket, nextBracketSlot, splitRounds } from "../utils/buildBracke
 import { replaceById } from "../utils/replaceById";
 import { uid } from "../utils/uid";
 import { conteggio } from "../utils/testi";
-import { DEFAULT_RULES, MAX_SQUADRE, MIN_SQUADRE, nomeSegnaposto } from "../constants/rules";
+import { normalizza } from "../utils/statGiocatori";
+import { DEFAULT_RULES, MAX_ROSTER, MAX_SQUADRE, MIN_SQUADRE, nomeSegnaposto } from "../constants/rules";
 
 export type ModoSorteggio = "casuale" | "ranking";
 
@@ -275,6 +276,69 @@ export function impostaNumeroGironi(tappa: Tappa, nGironi: number): Esito {
   const errore = erroreGironi(tappa.squadre.length, nGironi);
   if (errore) return ko(errore);
   return ok(senzaSorteggio({ ...tappa, nGironi }));
+}
+
+/** Caratteri al massimo del nome di una squadra corretto dal Coach: gli stessi che il server tiene per i nomi letti da una foto */
+const MAX_NOME_SQUADRA = 120;
+
+/** Che cosa correggere di una squadra: il nome, i giocatori (l'elenco intero, che sostituisce il roster), o entrambi */
+export interface CorrezioneSquadra {
+  nome?: string;
+  giocatori?: string[];
+}
+
+/** Il nuovo roster: da 1 a MAX_ROSTER nomi non vuoti e non ripetuti. Chi ha lo stesso nome (normalizzato) di un giocatore attuale
+ *  tiene il suo id, e con l'id le sue statistiche; gli altri sono giocatori nuovi. Un giocatore tolto che ha un tabellino in una
+ *  partita giocata è un errore: le sue statistiche sparirebbero da classifiche e leader senza che nessuno lo abbia chiesto. */
+function rosterCorretto(tappa: Tappa, squadra: SquadraTappa, nomi: string[]): { ok: true; giocatori: GiocatoreRoster[] } | { ok: false; errore: string } {
+  const puliti = nomi.map((n) => n.trim());
+  if (puliti.length < 1 || puliti.length > MAX_ROSTER || puliti.some((n) => !n)) {
+    return { ok: false, errore: `Una squadra della tappa ha da 1 a ${MAX_ROSTER} giocatori, ognuno con il suo nome.` };
+  }
+  const visti = new Set<string>();
+  const giocatori: GiocatoreRoster[] = [];
+  for (const nome of puliti) {
+    const chiave = normalizza(nome);
+    if (visti.has(chiave)) return { ok: false, errore: `Il giocatore «${nome}» è ripetuto.` };
+    visti.add(chiave);
+    const attuale = squadra.giocatori.find((g) => normalizza(g.nome) === chiave);
+    giocatori.push({ id: attuale?.id ?? uid(), nome });
+  }
+  const tolti = squadra.giocatori.filter((g) => !giocatori.some((n) => n.id === g.id));
+  const conStatistiche = tolti.find((g) => tappa.partite.some((m) => m.done && (g.id in (m.pa ?? {}) || g.id in (m.pb ?? {}))));
+  if (conStatistiche) {
+    return { ok: false, errore: `Il giocatore ${conStatistiche.nome} ha statistiche in partite già giocate: annulla prima quei risultati.` };
+  }
+  return { ok: true, giocatori };
+}
+
+/** Corregge nome e giocatori di una squadra della tappa (lo strumento correggi_squadra del Coach, dopo l'import da una foto). Il
+ *  nome non è vuoto, non supera MAX_NOME_SQUADRA e non è quello di un'altra squadra della tappa; i giocatori seguono rosterCorretto.
+ *  Una squadra collegata all'anagrafe che cambia nome si scollega, come con «Scollega»: altrimenti, alla prossima apertura della
+ *  tappa, l'allineamento con l'anagrafe (syncFromAnagrafe) le rimetterebbe il nome di lì. Sorteggio e risultati restano: le
+ *  partite si riferiscono alla squadra per id. */
+export function correggiSquadra(tappa: Tappa, squadraId: string, modifiche: CorrezioneSquadra): Esito {
+  if (tappa.conclusa) return ko(CONCLUSA);
+  const squadra = tappa.squadre.find((s) => s.id === squadraId);
+  if (!squadra) return ko("Squadra non trovata.");
+  if (modifiche.nome === undefined && modifiche.giocatori === undefined) {
+    return ko("Niente da correggere: indica il nuovo nome o i giocatori.");
+  }
+  let corretta: SquadraTappa = { ...squadra };
+  if (modifiche.nome !== undefined) {
+    const nome = modifiche.nome.trim();
+    if (!nome) return ko("Il nome della squadra non può essere vuoto.");
+    if (nome.length > MAX_NOME_SQUADRA) return ko(`Il nome della squadra può avere al massimo ${MAX_NOME_SQUADRA} caratteri.`);
+    const omonima = tappa.squadre.find((s) => s.id !== squadraId && normalizza(s.nome) === normalizza(nome));
+    if (omonima) return ko(`Nella tappa c'è già la squadra «${omonima.nome}».`);
+    if (nome !== squadra.nome) corretta = { ...corretta, nome, regId: undefined };
+  }
+  if (modifiche.giocatori !== undefined) {
+    const roster = rosterCorretto(tappa, squadra, modifiche.giocatori);
+    if (!roster.ok) return ko(roster.errore);
+    corretta = { ...corretta, giocatori: roster.giocatori };
+  }
+  return ok({ ...tappa, squadre: replaceById(tappa.squadre, corretta) });
 }
 
 /** Con la fase finale generata i risultati dei gironi non cambiano più: il tabellone è nato da quelle classifiche. Il messaggio

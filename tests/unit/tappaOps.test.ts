@@ -3,7 +3,7 @@ import {
   sorteggia, registraRisultato, registraRisultatoBracket, generaFasiDirette, concludi,
   aggiungiSquadra, rimuoviSquadra, impostaNumeroGironi, perditaRisultati, annullaRisultato, rinominaTappa,
   erroreLimitiTappa, erroreTestiTappa, creaTappa,
-  perditaTappa, perditaTabellone, perditaSquadra, eSegnaposto, annullaRisultatoBracket, perditaGiocatore,
+  perditaTappa, perditaTabellone, perditaSquadra, eSegnaposto, annullaRisultatoBracket, perditaGiocatore, correggiSquadra,
 } from "../../src/domain/tappaOps";
 import type { Esito } from "../../src/domain/tappaOps";
 import type { Tappa } from "../../src/types";
@@ -776,5 +776,82 @@ describe("limiti dei testi di una tappa: gli stessi per la creazione e per l'imp
     // Con squadre e testi sbagliati insieme il primo messaggio resta quello delle squadre, come prima
     expect(erroreLimitiTappa(1, 1, { ...testi, nome: "N".repeat(121) })).toMatch(/da 2 a 64 squadre/);
     expect(erroreLimitiTappa(8, 5, { ...testi, nome: "N".repeat(121) })).toMatch(/Numero di gironi non valido/);
+  });
+});
+
+describe("correggiSquadra: nome e giocatori di una squadra della tappa (Coach, dopo l'import da una foto)", () => {
+  /** Alfa con tre giocatori, collegata all'anagrafe; Alfa-Delta giocata con il tabellino di Mario */
+  function tappaConRoster(): Tappa {
+    const t = tappaSorteggiata();
+    return {
+      ...t,
+      squadre: t.squadre.map((s) => {
+        if (s.id !== "a") return s;
+        return {
+          ...s, regId: "reg-alfa",
+          giocatori: [{ id: "p1", nome: "Mario Rossi" }, { id: "p2", nome: "Luca Bianchi" }, { id: "p3", nome: "Nicolò Verdi" }],
+        };
+      }),
+      partite: [{ ...t.partite[0], sa: 21, sb: 15, done: true, pa: { p1: { pt: 10 } } }, t.partite[1]],
+    };
+  }
+  const alfa = (e: Esito) => {
+    if (!e.ok) throw new Error(e.errore);
+    return e.tappa.squadre.find((s) => s.id === "a");
+  };
+
+  it("cambia il nome (senza spazi ai lati) e restituisce una tappa nuova: l'originale resta com'era", () => {
+    const t = tappaConRoster();
+    const esito = correggiSquadra(t, "a", { nome: "  Alfa Roma  " });
+    expect(alfa(esito)?.nome).toBe("Alfa Roma");
+    expect(t.squadre[0].nome).toBe("Alfa");
+    expect(esito.ok && esito.tappa).not.toBe(t);
+  });
+
+  it("un nome cambiato scollega la squadra dall'anagrafe (come «Scollega»): altrimenti la pagina rimetterebbe il nome di lì", () => {
+    expect(alfa(correggiSquadra(tappaConRoster(), "a", { nome: "Alfa Roma" }))?.regId).toBeUndefined();
+    // Solo i giocatori: il collegamento resta
+    const soloRoster = correggiSquadra(tappaConRoster(), "a", { giocatori: ["Mario Rossi", "Anna Neri"] });
+    expect(alfa(soloRoster)?.regId).toBe("reg-alfa");
+  });
+
+  it("nome vuoto, troppo lungo o uguale a quello di un'altra squadra della tappa: rifiutato", () => {
+    expect(correggiSquadra(tappaConRoster(), "a", { nome: "   " }))
+      .toEqual({ ok: false, errore: "Il nome della squadra non può essere vuoto." });
+    expect(correggiSquadra(tappaConRoster(), "a", { nome: "N".repeat(121) }))
+      .toEqual({ ok: false, errore: "Il nome della squadra può avere al massimo 120 caratteri." });
+    expect(correggiSquadra(tappaConRoster(), "a", { nome: "beta" }))
+      .toEqual({ ok: false, errore: "Nella tappa c'è già la squadra «Beta»." });
+  });
+
+  it("il roster si sostituisce: chi ha lo stesso nome (maiuscole e accenti a parte) tiene il suo id, gli altri sono nuovi", () => {
+    const squadra = alfa(correggiSquadra(tappaConRoster(), "a", { giocatori: [" mario rossi ", "Nicolo Verdi", "Anna Neri"] }));
+    expect(squadra?.giocatori.map((g) => g.nome)).toEqual(["mario rossi", "Nicolo Verdi", "Anna Neri"]);
+    expect(squadra?.giocatori[0].id).toBe("p1");
+    expect(squadra?.giocatori[1].id).toBe("p3");
+    expect(["p1", "p2", "p3"]).not.toContain(squadra?.giocatori[2].id);
+  });
+
+  it("da 1 a 4 giocatori, nomi non vuoti e non ripetuti", () => {
+    const errore = "Una squadra della tappa ha da 1 a 4 giocatori, ognuno con il suo nome.";
+    expect(correggiSquadra(tappaConRoster(), "a", { giocatori: ["Mario Rossi", "B", "C", "D", "E"] })).toEqual({ ok: false, errore });
+    expect(correggiSquadra(tappaConRoster(), "a", { giocatori: [] })).toEqual({ ok: false, errore });
+    expect(correggiSquadra(tappaConRoster(), "a", { giocatori: ["Mario Rossi", "  "] })).toEqual({ ok: false, errore });
+    expect(correggiSquadra(tappaConRoster(), "a", { giocatori: ["Anna Neri", "anna neri"] }))
+      .toEqual({ ok: false, errore: "Il giocatore «anna neri» è ripetuto." });
+  });
+
+  it("togliere un giocatore con statistiche in una partita giocata è rifiutato: prima si annullano quei risultati", () => {
+    expect(correggiSquadra(tappaConRoster(), "a", { giocatori: ["Luca Bianchi", "Nicolò Verdi"] })).toEqual({
+      ok: false, errore: "Il giocatore Mario Rossi ha statistiche in partite già giocate: annulla prima quei risultati.",
+    });
+  });
+
+  it("tappa conclusa, squadra sconosciuta, nessuna correzione: rifiutato", () => {
+    expect(correggiSquadra({ ...tappaConRoster(), conclusa: true }, "a", { nome: "Alfa Roma" }))
+      .toEqual({ ok: false, errore: "La tappa è conclusa: riaprila per modificarla." });
+    expect(correggiSquadra(tappaConRoster(), "zz", { nome: "Alfa Roma" })).toEqual({ ok: false, errore: "Squadra non trovata." });
+    expect(correggiSquadra(tappaConRoster(), "a", {}))
+      .toEqual({ ok: false, errore: "Niente da correggere: indica il nuovo nome o i giocatori." });
   });
 });
