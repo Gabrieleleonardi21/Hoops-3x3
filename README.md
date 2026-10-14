@@ -11,6 +11,10 @@ Questo è il documento principale del progetto. La prima parte spiega com'è fat
 - [Architettura](#architettura)
 - [Tecnologie, una per una, con il perché](#tecnologie-una-per-una-con-il-perché)
 - [Le scelte di progetto, con il perché](#le-scelte-di-progetto-con-il-perché)
+- [Come funziona, passo per passo](#come-funziona-passo-per-passo)
+- [Glossario](#glossario)
+- [Limiti noti e prossimi passi](#limiti-noti-e-prossimi-passi)
+- [Com'è cresciuto il progetto](#comè-cresciuto-il-progetto)
 - [Funzionalità](#funzionalità)
 - [Stack](#stack)
 - [Requisiti](#requisiti)
@@ -301,6 +305,172 @@ Una tecnologia è uno strumento; una scelta è il modo in cui lo si usa. Ogni ri
 | Area di tocco di almeno 44×44 px sotto i 640 px di larghezza o con un puntatore grossolano | I pulsanti piccoli si toccano senza sbagliare; con il mouse l'aspetto non cambia | Le voci della navigazione e le schede dell'anagrafe restano come sono | `area-tocco` in `src/index.css`, `tests/e2e/area-di-tocco.spec.ts` |
 | Le finestre trattengono il focus, lo restituiscono alla chiusura e si chiudono con Esc una alla volta | Chi usa la tastiera non si perde dietro una finestra aperta | Il pannello del Coach non è modale: la pagina sotto resta raggiungibile | `src/components/ui/Modal.tsx`, `src/hooks/usePilaFinestre.ts` |
 | In stampa spariscono solo i comandi marcati `.no-print`, e il tema si inverte | Nella pagina di una tappa sono pulsanti anche le schede delle squadre e le intestazioni della classifica, che sulla carta servono. Su carta bianca i colori scuri darebbero testo chiaro su bianco | Ogni comando nuovo va marcato `.no-print` | `@media print` in `src/index.css`, `tests/e2e/stampa.spec.ts` |
+
+## Come funziona, passo per passo
+
+Cinque percorsi raccontati dall'inizio alla fine, con i file in cui succede ogni passo. Non serve conoscere React o Spring: basta seguire le frecce.
+
+### Una sessione
+
+1. **Registrazione o accesso.** Il modulo (`src/components/auth/AuthForm.tsx`) manda email e password a `POST /api/auth/register` o `POST /api/auth/login`. Il server controlla la password con BCrypt.
+2. **Due credenziali.** La risposta contiene `{token, user}`: il token è il JWT di 30 minuti, che `src/services/api.ts` salva nel `localStorage`. Nella stessa risposta il server imposta il cookie `hoop3x3_refresh`, di 30 giorni: httpOnly, quindi invisibile a JavaScript, e mandato solo agli indirizzi `/api/auth`.
+3. **Ogni richiesta.** `src/services/api.ts` aggiunge l'intestazione `Authorization: Bearer <JWT>`. Sul server il `JwtFilter` verifica la firma e la scadenza e riconosce l'utente dall'id scritto nel token. Più avanti, nei servizi, `AccessGuard` controlla che la risorsa sia sua, o che lui sia ADMIN.
+4. **Il rinnovo.** Quando al JWT mancano meno di 2 minuti, il client chiama `POST /api/auth/refresh` con il cookie. Controlla ogni 60 secondi e quando si torna sulla scheda. Il server **ruota** il refresh token: quello vecchio smette di valere, ne arriva uno nuovo insieme a un JWT nuovo. Nel database c'è solo l'hash SHA-256 del token, mai il token.
+5. **Una scheda alla volta.** Con più schede aperte, il lucchetto Web Locks `hoop3x3_refresh` fa rinnovare una scheda sola: le altre aspettano il lucchetto e trovano il JWT nuovo già nel `localStorage`.
+6. **L'uscita.** «Esci» cancella il JWT dal browser e chiama `POST /api/auth/logout`, che cancella il cookie e la riga del refresh token. Le altre schede se ne accorgono dall'evento `storage`.
+
+**Perché 30 minuti e 30 giorni.** Un JWT già emesso non si può revocare: vale finché scade. Per questo dura poco, e un JWT rubato serve al massimo per 30 minuti. Il refresh token invece si revoca, perché il server lo cerca nella sua tabella: può durare a lungo, e chi torna dopo una settimana non rifà l'accesso.
+
+**E se…**
+
+- **…passano 30 giorni senza aprire l'app?** Il refresh token è scaduto: il rinnovo riceve 401 e l'app torna al modulo con «Sessione scaduta: accedi di nuovo».
+- **…qualcuno ruba il cookie?** Chi lo usa per primo ottiene una sessione che si rinnova. Il proprietario, al suo rinnovo successivo, riceve 401 ed esce, perché il suo token è già stato ruotato. Il server non riconosce il riuso di un token ruotato: è tra i [limiti noti](#limiti-noti-e-prossimi-passi).
+- **…cambio la password?** Il server chiude tutte le sessioni dell'account e ne riapre una sola, per il browser che ha fatto il cambio. Gli altri dispositivi escono al loro prossimo rinnovo, al più tardi dopo 30 minuti.
+
+### Il viaggio di un risultato
+
+1. **Il clic.** Nella card della partita (`src/components/partita/MatchCard.tsx`) l'organizzatore scrive il punteggio e preme «Salva risultato».
+2. **La regola.** `src/hooks/useTappa.ts` chiama `registraRisultato` di `src/domain/tappaOps.ts`. È una funzione pura: riceve la tappa e restituisce una tappa nuova, oppure un errore (per esempio un pareggio, che il 3x3 non ammette).
+3. **Lo schermo.** `replaceTappa` mette la tappa nuova nello store (`src/stores/useAppStore.ts`). La classifica del girone si ricalcola subito, prima di qualunque risposta del server.
+4. **Il salvataggio.** Per l'Ospite lo store scrive la lega nel `localStorage`, e il viaggio finisce qui. Per il registrato la coda dei salvataggi (`src/stores/saveQueue.ts`) aspetta 400 millisecondi dall'ultima modifica, poi manda la tappa intera con `PUT /api/tappe/{id}` e la `versione` che conosce.
+5. **Il server.** `TappaController` passa la richiesta a `LegaService`. Il servizio controlla, in ordine: che la versione ci sia, che la tappa esista e sia dell'utente, che la versione sia quella del database. Poi salva e risponde 200 con la versione nuova, che il client userà al salvataggio successivo.
+6. **Il conflitto.** Se un altro dispositivo ha salvato la stessa tappa nel frattempo, il server risponde **409**. Il client rilegge la lega con `GET /api/leghe/{id}`, mostra la tappa com'è sul server e lo dice nella barra degli avvisi (`src/components/layout/SyncBanner.tsx`). Se invece la tappa del server è un suo salvataggio rimasto senza risposta, il conflitto è suo: prende la versione nuova e rimanda, senza avvisi.
+7. **La rete che manca.** La coda riprova da sola dopo 2, 5 e 15 secondi. Intanto la barra dice quante tappe aspettano, con «Riprova ora». Alla chiusura della pagina ciò che resta parte con `keepalive`.
+
+### La pubblicazione nell'archivio
+
+1. **La conclusione.** L'organizzatore conclude la tappa: `concludi` di `src/domain/tappaOps.ts` la segna conclusa.
+2. **Prima il salvataggio.** `pubblica` dello store aspetta che la coda dei salvataggi si svuoti: la copia pubblica deve partire dalla tappa che il server ha davvero.
+3. **Solo l'id.** Il client chiama `PUT /api/archivio/{tappaId}` senza corpo. Il server (`ArchivioService`) costruisce la copia pubblica, lo **snapshot**, dalla tappa salvata; se la tappa non è conclusa risponde 409.
+4. **L'elenco.** Alla pubblicazione il server scrive anche nome, luogo, data e numero di squadre in colonne normali (migrazione V6). `GET /api/archivio` legge solo quelle, senza aprire i blocchi JSONB.
+5. **La pagina pubblica.** Chiunque apre `/tappa/<id>` (`src/pages/TappaViewPage.tsx`): la pagina legge `GET /api/archivio/{tappaId}`, senza account, e offre «Stampa / PDF».
+
+Se il proprietario elimina la tappa o la lega, il database toglie anche la pubblicazione, con la cascata della migrazione V2.
+
+### Il Coach
+
+1. **La domanda.** Il registrato scrive nel pannello (`src/components/coach/CoachPanel.tsx`). Un Ospite riceve l'invito a creare un account, e non parte nessuna chiamata.
+2. **Il prompt.** `src/hooks/useCoachAI.ts` scrive il prompt di sistema: chi è il Coach, le regole FIBA 3x3, come usare gli strumenti. Aggiunge i dati della lega aperta, preparati da `src/utils/buildCoachContext.ts` dentro il blocco `<dati_lega>`. Insieme vanno gli ultimi 30 messaggi della chat.
+3. **Il proxy.** `src/services/aiService.ts` manda tutto a `POST /api/coach/chat`, con le definizioni dei dieci strumenti (`src/coach/toolDefs.ts`). Il backend controlla i limiti (20 richieste al minuto e 300 al giorno per utente, 60 messaggi, 100.000 caratteri, solo strumenti del Coach), aggiunge la sua regola del contesto e chiama Groq con la chiave che tiene lui.
+4. **Gli strumenti.** Se il modello chiede uno strumento, per esempio `registra_risultato`, la risposta torna al browser. `src/coach/toolHandlers.ts` lo esegue con le stesse funzioni dell'interfaccia (`src/domain/tappaOps.ts`, lo store), e il risultato torna al modello.
+5. **Le conferme.** Sorteggiare su una tappa con risultati, annullare un risultato e concludere una tappa chiedono «Conferma» o «Annulla» nella chat, prima di toccare qualcosa.
+6. **Il ciclo.** Domanda, strumento, risultato e nuova chiamata si ripetono al massimo 8 volte per domanda. Poi il Coach risponde con il testo, e i badge sotto la risposta dicono quali azioni ha fatto.
+7. **Fuori tema.** Se la domanda non riguarda il basket né l'app, il modello risponde con un marcatore e il server lo sostituisce con una frase fissa: «Sono il Coach di HOOP 3X3: posso aiutarti con il basket, le tue leghe e tappe, squadre, giocatori e regole del torneo. Chiedimi qualcosa su questo.»
+
+Strumenti, conferme e chiamate al server, uno per uno: [`docs/coach-ai-tool-calling.md`](docs/coach-ai-tool-calling.md).
+
+### La mappa dei campetti
+
+1. **L'apertura.** `src/pages/CampettiPage.tsx` chiede i campetti intorno al centro di Roma, entro 20 km: `GET /api/campetti?lat=&lng=&raggioKm=`, una lettura pubblica.
+2. **La ricerca per raggio.** Il backend (`CampettoService`) chiede al database un riquadro di coordinate, con un indice, poi calcola la distanza vera con la formula di **Haversine** (la distanza tra due punti di una sfera) e scarta gli angoli del riquadro. Al massimo 200 campetti, dal più vicino.
+3. **La ricerca per testo.** La casella manda il testo 300 millisecondi dopo l'ultimo tasto: `GET /api/campetti?q=`, nel nome e nella città, su tutta l'Italia. La risposta di una ricerca superata nel frattempo si scarta (`src/stores/useCampettiStore.ts`).
+4. **Un luogo.** Se il testo non trova campetti, la pagina chiede dove si trova: `GET /api/luoghi?q=`. Il backend (`LuoghiService`) lo chiede a Nominatim, al massimo una volta al secondo e con una cache di 500 ricerche. La mappa si sposta lì.
+5. **La posizione, solo se la chiedi.** «Usa la mia posizione» (`src/hooks/usePosizione.ts`) chiede il permesso al browser. La posizione resta nel browser e va al server solo come centro della ricerca.
+6. **La mappa.** `src/components/campetti/MappaCampetti.tsx` disegna la mappa con Leaflet e le tessere di OpenStreetMap. Ogni campetto è un pulsante, raggiungibile con Tab.
+
+## Glossario
+
+Una o due righe per termine, con la sezione in cui compare.
+
+### Il gioco
+
+- **3x3** — Il basket a tre contro tre, su mezzo campo e un canestro solo. Si vince a 21 punti o allo scadere dei 10 minuti. Vedi [Regole FIBA 3x3](#regole-fiba-3x3-default).
+- **Bye** — Il passaggio del turno senza giocare: nel tabellone, le migliori teste di serie quando le qualificate non riempiono i posti.
+- **Girone** — Un gruppo di squadre che giocano tutte contro tutte. Le prime passano al tabellone.
+- **Lega** — Il contenitore delle tappe di un organizzatore, per esempio un circuito di una stagione.
+- **Rank** (punti ranking) — Il punteggio di una squadra nel circuito: serve al sorteggio a serpentina e alla classifica del circuito.
+- **Roster** — L'elenco dei giocatori di una squadra: 3 o 4 in una tappa, fino a 6 nella scheda dell'anagrafe.
+- **Scontri diretti** — Il primo criterio di spareggio tra squadre a pari vittorie: contano solo le partite giocate tra loro.
+- **Serpentina** — Un sorteggio per ranking: la prima testa di serie va nel girone A, la seconda nel B e così via, poi si torna indietro. I gironi restano equilibrati.
+- **Shot clock** — Il tempo per tirare: nel 3x3, 12 secondi per ogni possesso.
+- **Supplementare** — Il tempo in più quando la gara finisce in parità: vince chi segna per primo 2 punti.
+- **Tabellino** — Le statistiche di ogni giocatore in una partita: punti, rimbalzi, assist, palle rubate, stoppate, palle perse, falli.
+- **Tabellone** — La fase a eliminazione diretta dopo i gironi: ottavi, quarti, semifinali, finale.
+- **Tappa** — Un torneo del circuito, con il suo nome, luogo, data e le sue squadre.
+
+### La tecnica
+
+- **API REST** — Un server che risponde a indirizzi e verbi HTTP (`GET`, `POST`, `PUT`, `DELETE`) con dati in JSON. Vedi [Architettura](#architettura).
+- **BCrypt e hash** — Un hash trasforma una password in un'impronta da cui non si torna indietro. BCrypt è un hash lento apposta. Vedi [Sicurezza](#sicurezza).
+- **CI** (integrazione continua) — Un servizio che a ogni modifica esegue lint, test e build. Qui GitHub Actions.
+- **Container** — Un pacchetto che contiene un programma con tutto ciò che gli serve per girare. Qui il backend, costruito dal `Dockerfile`.
+- **Cookie httpOnly** — Un cookie che il browser manda al server ma che JavaScript non può leggere.
+- **CORS e stessa origine** — L'origine è schema, host e porta di un sito. Il browser limita le richieste verso un'altra origine (CORS è il permesso di farle). Qui pagina e API stanno sulla stessa origine.
+- **Copertura** — La parte del codice che i test eseguono, in percentuale. Vedi [Qualità](#qualità).
+- **CSP** (Content-Security-Policy) — L'elenco delle origini da cui una pagina può caricare script, stili, immagini e frame. Vedi [Sicurezza](#sicurezza).
+- **CSRF** (Cross-Site Request Forgery) — Un sito estraneo che fa partire una richiesta a nome tuo, con i tuoi cookie.
+- **JSON** — Il formato di testo con cui viaggiano i dati: oggetti con chiavi e valori.
+- **JSONB** — Il tipo di PostgreSQL che conserva un JSON in forma binaria, interrogabile.
+- **JWT** (JSON Web Token) — Un biglietto firmato dal server che dice chi sei e fino a quando vale. Vedi [Una sessione](#una-sessione).
+- **Limite di frequenza** — Un tetto al numero di richieste in una finestra di tempo; oltre, il server risponde 429.
+- **Lint** — Un controllo automatico del codice che trova errori e cattive abitudini senza eseguirlo.
+- **Migrazione** — Un file SQL numerato che cambia lo schema del database; si applicano in ordine, una volta sola.
+- **ORM** (Object-Relational Mapping) — Una libreria che fa leggere e scrivere le tabelle come oggetti del linguaggio.
+- **Proxy e rewrite** — Un proxy fa da intermediario tra due parti. Una rewrite è la regola con cui il sito statico passa `/api/*` al backend.
+- **Refresh token** — Una credenziale lunga, nel cookie httpOnly, che serve solo a ottenere un JWT nuovo.
+- **SPA** (Single Page Application) — Un'app web che si carica una volta e cambia pagina senza ricaricare il sito.
+- **Test end-to-end** — Un test che usa l'app intera in un browser vero, come una persona.
+- **Test di integrazione** — Un test che fa lavorare insieme più parti vere, per esempio il server e il database.
+- **Test unitario** — Un test che prova una parte piccola da sola, per esempio una funzione.
+- **Tool calling** — La capacità di un modello linguistico di chiedere l'esecuzione di uno strumento con dei parametri. Vedi [Il Coach](#il-coach).
+- **Transazione** — Un gruppo di scritture sul database che riesce tutto insieme o non riesce affatto.
+- **UUID** — Un identificativo di 128 bit, scritto in esadecimale; quelli casuali non si indovinano.
+- **Variabile d'ambiente** — Un valore di configurazione dato al programma da fuori, senza scriverlo nel codice: qui le chiavi e gli indirizzi.
+- **XSS** (Cross-Site Scripting) — Codice estraneo che riesce a girare dentro la pagina.
+
+## Limiti noti e prossimi passi
+
+Sapere che cosa manca vale quanto sapere che cosa c'è. Questi sono i limiti di oggi, scritti nel codice, nei README e nel `TODO.md`.
+
+### Sessione e sicurezza
+
+- Il logout chiude la sessione del browser da cui parte. Un JWT già emesso resta valido fino alla scadenza, al massimo 30 minuti; gli altri dispositivi non vengono toccati.
+- Il server non riconosce il riuso di un refresh token già ruotato e non ha un «esci da tutti i dispositivi»: le sessioni si chiudono tutte solo cambiando la password.
+- Se la risposta di un rinnovo si perde (pagina chiusa, rete caduta), al rinnovo dopo si torna al login. Un periodo di grazia di qualche decina di secondi lo eviterebbe (`TODO.md`).
+- L'accesso fatto in una scheda non si vede nelle altre finché non si ricaricano (`TODO.md`).
+- I log del login fallito e della registrazione scrivono l'email intera; quelli del recupero password la mascherano.
+
+### Server e dati
+
+- C'è una sola istanza del server: i contatori dei limiti di frequenza stanno in memoria e si azzerano a ogni riavvio.
+- Sul piano gratuito di Render il backend dorme dopo 15 minuti senza visite, e il database scade dopo 30 giorni.
+- L'anagrafe è condivisa tra tutti i registrati e i nomi non sono unici: due squadre possono chiamarsi allo stesso modo.
+- L'anagrafe si scarica intera: la ricerca e la paginazione sul server sono nel `TODO.md`.
+- `GET /api/archivio/tappe` porta tutte le tappe pubblicate per intero, senza cache: va bene per decine di tappe, con centinaia servirà una paginazione o un calcolo sul server.
+- Le statistiche tra tappe le calcola il browser: in SQL servirebbe separare partite e statistiche dal JSONB.
+
+### Coach AI
+
+- La regola del contesto è di prodotto, non di sicurezza: un prompt costruito apposta può aggirarla, a spese della quota dell'utente.
+- `annulla_risultato` vale per i gironi, non per il tabellone.
+- Leggere i risultati da una foto del foglio di tappa scritto a mano è un'idea in prova, fuori dai repository: nessuna chiamata reale è stata fatta.
+
+### Video
+
+- Gli indirizzi `youtube.com/live/…` non si riconoscono come YouTube: si aprono in una nuova scheda.
+
+## Com'è cresciuto il progetto
+
+Il progetto nasce a giugno 2026 con il frontend; il repository del backend parte a settembre. Da ottobre il lavoro procede per fasi: ognuna ha un piano scritto, una pull request per repository e una revisione prima dell'unione. I numeri delle pull request sono quelli di GitHub: `Hoops-3x3#N` per il frontend, `hoop3x3-backend#N` per il backend.
+
+| Quando | Che cosa è entrato | Pull request |
+|---|---|---|
+| giugno 2026 | Prima versione dell'app: leghe, tappe, gironi e fasi dirette, anagrafe, Coach AI | commit diretti sul ramo principale |
+| 17 settembre 2026 | Il backend: API REST con JWT e PostgreSQL, proxy verso Groq | primo commit di hoop3x3-backend |
+| 1-2 ottobre | Operazioni di tappa come funzioni pure; sessione con refresh token; il design system «Asphalt» | Hoops-3x3#1, #2, #3; hoop3x3-backend#1 |
+| 2 ottobre | Fase 0: lint, test, end-to-end e CI; Java 25 e Maven Wrapper | Hoops-3x3#4; hoop3x3-backend#2 |
+| 5 ottobre | Fase 1: correzioni funzionali (tabellone, salvataggi, regole, Coach, sessione, permessi, import) | Hoops-3x3#5; hoop3x3-backend#3 |
+| 6 ottobre | Pubblicazione su Render: Blueprint, Dockerfile, controllo di salute | Hoops-3x3#6, #7, #8; hoop3x3-backend#4, #5 |
+| 7 ottobre | Fase 2: robustezza (errori visibili, conferme, accessibilità, versione delle tappe, archivio dal server, Flyway, limiti di frequenza) | Hoops-3x3#9; hoop3x3-backend#6 |
+| 7 ottobre | Fase 3: pulizia e struttura (Coach in tre file, store diviso, date in UTC, proprietà di configurazione) | Hoops-3x3#10; hoop3x3-backend#7 |
+| 8 ottobre | Fase 4: test e documentazione (soglie di copertura, test di guardia degli endpoint, README allineati) | Hoops-3x3#11; hoop3x3-backend#8 |
+| 8-9 ottobre | Revisione del codice: test con il backend vero, avvio a freddo, liveness, correzioni minori | Hoops-3x3#12, #13; hoop3x3-backend#9, #10 |
+| 9 ottobre | Aggiornamenti delle dipendenze proposti da Dependabot | Hoops-3x3#14, #15, #16, #19; hoop3x3-backend#11, #12 |
+| 12 ottobre | Fase 5: campetti con la mappa (prima un'immagine di Google, poi Leaflet e OpenStreetMap), ricerca di un luogo, tabellone accessibile | Hoops-3x3#20, da #24 a #30; hoop3x3-backend da #13 a #18 |
+| 12 ottobre | Recupero della password via email, con Brevo | Hoops-3x3#31; hoop3x3-backend da #19 a #23 |
+| 13 ottobre | Fase 6: la pagina Profilo (nome, password, email, eliminazione dell'account) | Hoops-3x3#32; hoop3x3-backend#24 |
+| 14 ottobre | Fase 7: il Coach resta nel suo contesto, statistiche di stagione per tutti, video a tutta larghezza | Hoops-3x3#33; hoop3x3-backend#25 |
+| 14 ottobre | Fase 8: questo README, con le tecnologie e le scelte spiegate | questa pull request |
 
 ## Funzionalità
 
