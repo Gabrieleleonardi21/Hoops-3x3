@@ -67,10 +67,10 @@ export function LegaPage() {
    *  file scelto prima che la pagina si ridisegni. Un secondo import partito sopra il primo creerebbe due leghe */
   const [importInCorso, setImportInCorso] = useState(false);
   const inCorso = useRef(false);
-  /** La lettura delle foto in corso: se la pagina si smonta (l'utente va altrove) si annulla. Senza, a lettura finita l'import
-   *  riporterebbe l'utente su /lega e la finestra dei dubbi andrebbe persa con la pagina */
-  const lettura = useRef<AbortController | null>(null);
-  useEffect(() => () => lettura.current?.abort(), []);
+  /** L'import in corso, JSON o foto: se la pagina si smonta (l'utente va altrove) si annulla. Senza, a lettura finita l'import
+   *  creerebbe la lega lo stesso, riporterebbe l'utente su /lega e la finestra dei dubbi andrebbe persa con la pagina */
+  const importAttuale = useRef<AbortController | null>(null);
+  useEffect(() => () => importAttuale.current?.abort(), []);
   /** «Importa file» e la richiesta di rimettergli il focus quando la finestra dei dubbi si chiude con «Non ora» (o Esc). La finestra
    *  ridarebbe il focus a chi lo aveva alla sua apertura, ma il pulsante, disattivato durante l'import, l'aveva perso: senza, il
    *  focus finirebbe su body e chi usa la tastiera ripartirebbe dall'inizio della pagina */
@@ -127,8 +127,9 @@ export function LegaPage() {
   };
 
   /** Importa una lega da un file JSON: il testo con FileReader e poi importaDaTesto. Restituisce una promessa che finisce con
-   *  l'import, così «Importa file» resta disattivato fino alla lega creata */
-  const importaJson = async (file: File) => {
+   *  l'import, così «Importa file» resta disattivato fino alla lega creata. Con `segnale` annullato (pagina smontata durante la
+   *  lettura del file) l'import non parte */
+  const importaJson = async (file: File, segnale: AbortSignal) => {
     let testo: string;
     try {
       testo = await new Promise<string>((risolvi, rifiuta) => {
@@ -142,26 +143,25 @@ export function LegaPage() {
       rifiutaImport("impossibile leggere il file");
       return;
     }
+    if (segnale.aborted) return;
     await importaDaTesto(testo, file.name);
   };
 
   /** Importa le foto dei fogli: le bozze lette diventano il file di una lega nuova (fileDaFogli) e si importano dalla stessa strada
    *  del JSON. Una foto non letta ferma tutto: nessuna lega a metà. A import fatto si apre la finestra dei dubbi */
-  const importaFoto = async (foto: File[]) => {
-    const controllo = new AbortController();
-    lettura.current = controllo;
+  const importaFoto = async (foto: File[], segnale: AbortSignal) => {
     let bozze: BozzaFoglio[];
     try {
-      bozze = await leggiFoto(foto, controllo.signal);
+      bozze = await leggiFoto(foto, segnale);
     } catch (e) {
       // Pagina smontata durante la lettura: niente da dire a nessuno
-      if (controllo.signal.aborted) return;
+      if (segnale.aborted) return;
       if (e instanceof Error) rifiutaImport(e.message);
       else rifiutaImport("errore imprevisto");
       return;
     }
     // Lettura finita dopo che la pagina si è smontata: l'import non parte (nessuna lega che l'utente non vede nascere)
-    if (controllo.signal.aborted) return;
+    if (segnale.aborted) return;
     const file = fileDaFogli(bozze, foto.map((f) => f.name));
     if (!file.ok) {
       rifiutaImport(file.errore);
@@ -172,7 +172,7 @@ export function LegaPage() {
   };
 
   /** I file scelti: tipo, regole e poi il ramo del JSON o delle foto */
-  const importaScelti = async (files: File[]) => {
+  const importaScelti = async (files: File[], segnale: AbortSignal) => {
     setErroreImport(null);
     let tipi: (TipoFile | null)[];
     try {
@@ -186,8 +186,8 @@ export function LegaPage() {
       rifiutaImport(errore);
       return;
     }
-    if (tipi[0] === "json") await importaJson(files[0]);
-    else await importaFoto(files);
+    if (tipi[0] === "json") await importaJson(files[0], segnale);
+    else await importaFoto(files, segnale);
   };
 
   /** «Importa file»: un JSON di HOOP 3X3 oppure da 1 a 10 foto di fogli. Il tipo si legge dai primi byte di ogni file (tipoFile),
@@ -199,8 +199,10 @@ export function LegaPage() {
     if (files.length === 0 || inCorso.current) return;
     inCorso.current = true;
     setImportInCorso(true);
+    const controllo = new AbortController();
+    importAttuale.current = controllo;
     try {
-      await importaScelti(files);
+      await importaScelti(files, controllo.signal);
     } finally {
       inCorso.current = false;
       setImportInCorso(false);

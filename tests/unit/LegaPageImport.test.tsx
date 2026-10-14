@@ -509,4 +509,31 @@ describe("LegaPage: «Importa file»", () => {
     await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
     expect(document.activeElement).toBe(pulsante());
   });
+
+  it("cambio pagina mentre si legge un JSON: l'import non parte dopo (né la lega né il ritorno su /lega)", async () => {
+    // Un FileReader che risponde quando lo decide il test: intanto l'utente va altrove
+    let carica: () => Promise<void> = async () => {};
+    vi.stubGlobal("FileReader", class {
+      result: string | null = null;
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      readAsText(file: File) {
+        carica = async () => {
+          this.result = await file.text();
+          this.onload?.();
+        };
+      }
+    });
+    apriLega(ospite);
+    scegli(fileValido());
+    await waitFor(() => expect(screen.getByRole("button", { name: /Importa file/ }).hasAttribute("disabled")).toBe(true));
+    fireEvent.click(screen.getByRole("link", { name: /Le mie leghe/ }));
+    expect(screen.getByText("Elenco delle leghe")).toBeTruthy();
+    // Il testo arriva a pagina smontata; il secondo act lascia finire ciò che la pagina avrebbe fatto subito dopo (import, navigate)
+    await act(async () => { await carica(); });
+    await act(async () => {});
+    expect(store().legaId).toBe("l1");
+    expect(store().tappe).toEqual([originale]);
+    expect(screen.getByText("Elenco delle leghe")).toBeTruthy();
+  });
 });
