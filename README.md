@@ -1,6 +1,306 @@
 # HOOP 3X3
 
-App web per la gestione di un circuito italiano di basket 3x3: tornei, gironi, statistiche e classifiche.
+App web per organizzare un circuito di basket 3x3: leghe, tappe, gironi, tabellone, statistiche, archivio pubblico e un assistente che conosce il regolamento.
+
+Questo è il documento principale del progetto. La prima parte spiega com'è fatto e perché, anche a chi non conosce le tecnologie usate. La seconda parte, «Riferimento», serve a chi lo avvia, lo prova o lo modifica.
+
+## Indice
+
+- [Il progetto in breve](#il-progetto-in-breve)
+- [Come leggere questo README](#come-leggere-questo-readme)
+- [Architettura](#architettura)
+- [Tecnologie, una per una, con il perché](#tecnologie-una-per-una-con-il-perché)
+- [Le scelte di progetto, con il perché](#le-scelte-di-progetto-con-il-perché)
+- [Funzionalità](#funzionalità)
+- [Stack](#stack)
+- [Requisiti](#requisiti)
+- [Avvio rapido](#avvio-rapido)
+- [Deploy su Render](#deploy-su-render)
+- [Script disponibili](#script-disponibili)
+- [Coach AI (opzionale)](#coach-ai-opzionale)
+- [Campetti](#campetti)
+- [API REST](#api-rest)
+- [Struttura del progetto](#struttura-del-progetto)
+- [Design system](#design-system)
+- [Dati e persistenza](#dati-e-persistenza)
+
+## Il progetto in breve
+
+### Il problema
+
+Un circuito di basket 3x3 è fatto di **tappe**: tornei di una o due giornate in città diverse. In ogni tappa si iscrivono le squadre, si giocano i gironi e poi un tabellone a eliminazione diretta. Iscrizioni, risultati e classifiche finiscono spesso in fogli di calcolo e chat. HOOP 3X3 tiene tutto in un posto solo, dal sorteggio dei gironi alla pagina pubblica dei risultati.
+
+### Chi lo usa
+
+- **L'organizzatore registrato.** Ha un account. Le sue leghe e le sue tappe stanno sul server e le vede da ogni dispositivo. Pubblica le tappe concluse nell'archivio e usa il Coach AI.
+- **L'Ospite.** Prova l'app senza account. La sua lega resta nel browser. Legge anagrafe, archivio e campetti, ma non scrive sul server.
+- **Il pubblico.** Apre il link di una tappa conclusa, senza account: squadre, risultati, classifiche, tabellone, leader e video.
+
+### Che cosa fa
+
+- Crea leghe e tappe da 2 a 64 squadre, con roster da 3-4 giocatori.
+- Sorteggia i gironi a caso o a serpentina per ranking e genera il calendario.
+- Registra i risultati con il tabellino di ogni giocatore e il cronometro da tavolo.
+- Calcola le classifiche dei gironi con i criteri del regolamento FIBA 3x3.
+- Costruisce il tabellone a eliminazione diretta e conclude la tappa.
+- Pubblica la tappa conclusa in un archivio che chiunque può leggere.
+- Tiene un'anagrafe condivisa di giocatori e squadre, con le statistiche di stagione.
+- Mostra i campetti da streetball su una mappa, con la ricerca per città o intorno a sé.
+- Offre il Coach AI, un assistente in chat che risponde sul 3x3 e agisce nell'app con dieci strumenti.
+- Gestisce il profilo: nome, password, email, recupero della password ed eliminazione dell'account.
+
+L'elenco completo, schermata per schermata, è in [`FUNZIONALITA.txt`](FUNZIONALITA.txt).
+
+### Dove provarlo
+
+- L'app pubblicata: <https://hoop3x3.onrender.com>.
+- L'archivio pubblico: <https://hoop3x3.onrender.com/archivio>. Da lì si apre la pagina pubblica di ogni tappa (`/tappa/<id>`), quella che un organizzatore condivide con il pubblico.
+
+Il server gira sul piano gratuito di Render: dopo 15 minuti senza visite si spegne. La prima apertura può aspettare il risveglio, anche più di un minuto.
+
+### I numeri, al 14 ottobre 2026
+
+Misurati sul ramo principale dei due repository, il 14 ottobre 2026, tutti senza fallimenti.
+
+| Che cosa | Quanti | Come si misura |
+|---|---|---|
+| Test unitari e di componenti del frontend | 1.933, in 105 file | `npm test` |
+| Test end-to-end del frontend, con il server finto | 77 | `npx playwright test` |
+| Test end-to-end con il backend vero | 5 | `npm run test:e2e:backend` (nella CI) |
+| Test unitari del backend | 851 | `./mvnw test` |
+| Test di integrazione del backend, su PostgreSQL | 294 | `./mvnw verify -Pintegrazione` |
+| Endpoint dell'API | 41, più 2 controlli di salute | le mappature dei controller del backend |
+| Migrazioni del database | 11 (da V1 a V11), per 12 tabelle | i file di `hoop3x3-backend/src/main/resources/db/migration` |
+
+## Come leggere questo README
+
+Tre percorsi, secondo che cosa ti serve:
+
+- **Valuti il progetto.** Leggi la parte 1 dall'inizio: architettura, tecnologie, scelte, come funziona, glossario, limiti. Ogni tecnologia e ogni scelta hanno il loro perché e il file in cui guardare.
+- **Vuoi avviarlo.** Vai a [Avvio rapido](#avvio-rapido), più avanti: requisiti, avvio, script e pubblicazione su Render.
+- **Devi modificarlo.** Parti da [Architettura](#architettura) e da [Le scelte di progetto, con il perché](#le-scelte-di-progetto-con-il-perché), poi la [struttura del progetto](#struttura-del-progetto) e i documenti in `docs/`: il [design system](docs/design-system.md) e la [guida del Coach AI](docs/coach-ai-tool-calling.md).
+
+Due documenti stanno accanto a questo. [`FUNZIONALITA.txt`](FUNZIONALITA.txt) elenca tutte le funzioni, schermata per schermata. Il README del [backend](https://github.com/Gabrieleleonardi21/hoop3x3-backend) è il riferimento tecnico del server: endpoint, limiti, variabili, migrazioni.
+
+## Architettura
+
+### Lo schema
+
+HOOP 3X3 è una **SPA** (Single Page Application, applicazione a pagina singola): il browser scarica una volta l'app React e poi cambia pagina senza ricaricare il sito. I dati arrivano da un'**API REST**: un server che risponde a indirizzi come `GET /api/leghe` con dati in **JSON** (il formato di testo degli oggetti JavaScript).
+
+```
+                BROWSER: una sola pagina React (src/)
++--------------------------------------------------------------------+
+|  pages/ ---> hooks/ ---> stores/ (Zustand) ---> services/api.ts    |
+|                |              |                       |            |
+|                v              v                       |            |
+|     domain/tappaOps.ts    Ospite: localStorage        |            |
+|     (funzioni pure)       Registrato: sul server <----+            |
++--------------------------------------------------------------------+
+        |  /api/*  sulla stessa origine del sito
+        |  Authorization: Bearer <JWT, 30 minuti>
+        |  cookie httpOnly hoop3x3_refresh (30 giorni, solo /api/auth)
+        v
++--------------------------------------------------------------------+
+|  RENDER, sito statico: build di Vite + rewrite /api/* -> backend   |
++--------------------------------------------------------------------+
+        |
+        v
+                BACKEND: Spring Boot (repository hoop3x3-backend)
++--------------------------------------------------------------------+
+|  JwtFilter ---> LimiteRichiesteFilter ---> LimiteDimensioneFilter  |
+|  (chi sei?)     (troppe richieste?)        (corpo oltre 2 MB?)     |
+|       |                                                            |
+|       v                                                            |
+|  controllers/ --> services/ (AccessGuard: è tuo?) --> repositories/|
++--------------------------------------------------------------------+
+        |                                   |
+        v                                   v
++-----------------------------+   +----------------------------------+
+| PostgreSQL                  |   | Servizi esterni, chiavi sul      |
+| schema di Flyway, V1-V11    |   | server:                          |
+| tappe: blocchi JSONB        |   |  Groq (Coach AI)                 |
+| colonna versione            |   |  Brevo (email)                   |
++-----------------------------+   |  Nominatim (ricerca dei luoghi)  |
+                                  +----------------------------------+
+```
+
+Dal browser partono anche, direttamente, le tessere della mappa di OpenStreetMap, i font di Google Fonts, i video di YouTube e i loghi delle squadre. La Content-Security-Policy li ammette uno per uno (vedi [Le scelte di progetto, con il perché](#le-scelte-di-progetto-con-il-perché)).
+
+### Dove sta il codice di ogni riquadro
+
+| Riquadro | Che cosa fa | Dove |
+|---|---|---|
+| Pagine | Una per indirizzo: home, leghe, tappa, anagrafe, archivio, campetti, profilo | `src/pages/`, rotte in `src/App.tsx` |
+| Hook | Collegano una pagina allo stato e alle operazioni | `src/hooks/`, per esempio `src/hooks/useTappa.ts` |
+| Operazioni di tappa | Sorteggio, risultati, tabellone, conclusione: funzioni pure | `src/domain/tappaOps.ts` |
+| Store | Lo stato dell'app in memoria e il suo salvataggio | `src/stores/useAppStore.ts`, `src/stores/saveQueue.ts`, `src/stores/memoriaBrowser.ts` |
+| Client HTTP | Ogni chiamata al server, con il JWT e il suo rinnovo | `src/services/api.ts` e gli altri file di `src/services/` |
+| Sito statico e rewrite | Serve la build e inoltra `/api/*` al backend | `render.yaml` |
+| Filtri del backend | Identità, limiti di frequenza, dimensione del corpo | `JwtFilter`, `LimiteRichiesteFilter`, `LimiteDimensioneFilter` (cartella `security/` del backend) |
+| Servizi del backend | Le regole, compresa la proprietà dei dati | `LegaService`, `ArchivioService`, `AccessGuard`… (cartella `services/` del backend) |
+| Database | Lo schema, versionato | le migrazioni `V1`-`V11` in `hoop3x3-backend/src/main/resources/db/migration` |
+
+### Le due modalità, uno stesso motore
+
+L'Ospite e il registrato usano le stesse pagine e le stesse operazioni di `src/domain/tappaOps.ts`. Cambia solo dove finisce la tappa quando lo store la salva:
+
+- **Ospite**: nel `localStorage` del browser (`src/stores/memoriaBrowser.ts`). Niente server, niente account. I controlli obbligatori su roster e punteggi sono spenti: l'Ospite fa prove libere.
+- **Registrato**: sul server, con la coda dei salvataggi (`src/stores/saveQueue.ts`) e il numero di versione della tappa. Solo il registrato pubblica nell'archivio, scrive nell'anagrafe e usa il Coach AI.
+
+### Perché due repository
+
+Il frontend ([Hoops-3x3](https://github.com/Gabrieleleonardi21/Hoops-3x3)) e il backend ([hoop3x3-backend](https://github.com/Gabrieleleonardi21/hoop3x3-backend)) sono due servizi diversi su Render: un sito statico e un container. Ognuno ha la sua CI, e ogni push sul suo ramo principale ripubblica solo il suo servizio. Il prezzo: una modifica che tocca tutti e due diventa due pull request, da rivedere e unire in coppia.
+
+## Tecnologie, una per una, con il perché
+
+Ogni riga risponde a quattro domande: che cos'è, a che cosa serve qui (con un file in cui vederla), perché questa, che prezzo ha o quale alternativa è stata scartata. Dove un motivo non è scritto da nessuna parte, la riga lo dice: «scelta di partenza del progetto». Le versioni sono quelle installate il 14 ottobre 2026, lette da `package-lock.json` e da `pom.xml`.
+
+### Frontend
+
+| Tecnologia | Che cos'è | A che cosa serve qui | Perché questa | Prezzo o alternativa scartata |
+|---|---|---|---|---|
+| **React** 19.3 | Una libreria per costruire interfacce a componenti: descrivi come appare la pagina per un certo stato, React aggiorna lo schermo | Tutte le pagine (`src/pages/`) e i componenti (`src/components/`) | Componenti e stato dichiarativi. `useEffectEvent`, arrivato con React 19.2, serve agli ascoltatori della sessione in `src/App.tsx` | Vue o Svelte avrebbero fatto lo stesso; React ha più materiale e più librerie |
+| **TypeScript** 5.9, modalità `strict` | JavaScript con i tipi, controllati prima di eseguire il codice | Tutto il codice; le regole sono in `tsconfig.json` | Un errore di forma, come un campo che manca in una tappa, esce alla compilazione e non in produzione. `noUnusedLocals` e `noUnusedParameters` tengono il codice pulito | Più codice da scrivere: i tipi |
+| **Vite** 6.4 | Lo strumento di sviluppo e di build: un server con la ricarica a caldo e il pacchetto finale per il sito | `vite.config.ts` | In sviluppo inoltra `/api` al backend sulla porta 3001, quindi il browser vede una sola origine. `vite preview` applica la stessa Content-Security-Policy di produzione, e i test end-to-end la provano. Vitest riusa la stessa configurazione | Next.js avrebbe portato un server di pagine che qui non serve: il sito è statico |
+| **Tailwind CSS** 4.3 e **tailwind-merge** 3.7 | Tailwind: un CSS fatto di classi piccole, scritte direttamente nel markup. tailwind-merge: risolve i conflitti tra classi | I colori e i font del tema in `@theme` di `src/index.css`; tailwind-merge in `src/components/ui/Button.tsx` | Un posto solo per colori e font, senza file di configurazione. tailwind-merge fa vincere le classi passate da fuori su quelle della variante del pulsante | Classi lunghe nel markup |
+| **Zustand** 5.0 | Una libreria per lo stato condiviso tra le pagine: uno store è una funzione con dati e azioni | `src/stores/useAppStore.ts`, `src/stores/useAnagrafeStore.ts`, `src/stores/useCampettiStore.ts` | Uno store piccolo, senza codice di contorno né provider. Con un selettore un componente si ridisegna solo quando cambia la parte che legge. Il salvataggio nel browser è scritto a mano (`src/stores/memoriaBrowser.ts`), così le chiavi `hoop3x3_*` sono sotto controllo | Redux avrebbe chiesto azioni e reducer per uno stato semplice. Due hook leggono ancora lo store intero e si ridisegnano a ogni cambio (`src/hooks/useLega.ts`, `src/hooks/useAuth.ts`) |
+| **React Router** 7.18 | Fa corrispondere un indirizzo a una pagina, senza ricaricare il sito | `src/App.tsx` e `src/components/auth/RequireAuth.tsx` | Le rotte pubbliche (`/tappa/:id`, `/archivio`) stanno accanto a quelle riservate a chi è entrato, raccolte sotto `RequireAuth` | Un'app a pagina singola chiede al server di rimandare ogni percorso a `index.html`: è la regola di rewrite in `render.yaml` |
+| **React Hook Form** 7.89 e **Zod** 3.25 | React Hook Form: gestisce i moduli lasciando i campi al browser. Zod: descrive la forma di un dato e la controlla | I moduli (`src/components/auth/AuthForm.tsx`); le regole di password ed email in `src/utils/credenziali.ts`; i file importati in `src/utils/legaFile.ts` | Moduli con pochi ridisegni e **una regola sola**, scritta come schema Zod: la usa il modulo e, dove serve, la stessa forma controlla le risposte del server | Due librerie in più. Schema e tipo TypeScript vanno tenuti allineati (`z.ZodType<…>`) |
+| **Leaflet** 1.9, **OpenStreetMap** e **Nominatim** | Leaflet: una libreria per mappe interattive. OpenStreetMap: la mappa libera fatta da volontari. Nominatim: il servizio che trova le coordinate di un luogo | La mappa in `src/components/campetti/MappaCampetti.tsx`; Nominatim solo dal backend, con `GET /api/luoghi` | Nessuna chiave nel browser, nessun costo, la Content-Security-Policy non cambia, la mappa si trascina (vedi [Perché OpenStreetMap con Leaflet e non Google Maps](#perché-openstreetmap-con-leaflet-e-non-google-maps)) | L'aspetto è diverso da Google Maps; le tessere sono di un servizio comunitario, con una politica d'uso da rispettare |
+| **Vitest** 4.1, **Testing Library** e **jsdom** 30.1 | Vitest: esegue i test. Testing Library: prova un componente come lo usa una persona, per ruoli ed etichette. jsdom: un DOM simulato dentro Node | `tests/unit/`; le soglie di copertura in `vite.config.ts` | Vitest usa la configurazione di Vite e misura la copertura con v8. Testing Library cerca i pulsanti per nome, non per classe di stile: un cambio di grafica non rompe i test | jsdom non è un browser: le misure, la stampa e la Content-Security-Policy si provano con Playwright |
+| **Playwright** 1.63, solo Chromium | Pilota un browser vero, come farebbe una persona | `tests/e2e/` (`playwright.config.ts`) e `tests/e2e-backend/` (`playwright.backend.config.ts`) | Prova l'app vera, costruita, su `vite preview` con la Content-Security-Policy; con il jar del backend prova i contratti veri. Un solo browser tiene la CI breve | Niente Safari né Firefox nella CI |
+| **ESLint** 9.39, con typescript-eslint, jsx-a11y e react-hooks | Un analizzatore del codice: trova errori e cattive abitudini senza eseguirlo | `eslint.config.js`; `npm run lint` | Le regole dell'accessibilità (jsx-a11y) e degli hook di React si controllano a ogni commit. Lo script ammette zero avvisi (`--max-warnings 0`), quindi un avviso ferma la CI | Due regole sono ancora «warn» nella configurazione: le rende bloccanti lo zero avvisi dello script |
+| **Node** 22 | L'ambiente che esegue JavaScript fuori dal browser: serve agli strumenti, non all'app | La CI (`.github/workflows/ci.yml`) e la build su Render (`NODE_VERSION` in `render.yaml`) | jsdom 30 chiede Node 22.22.2 o più nuovo nella serie 22, 24.15 nella serie 24, oppure 26. La stessa versione in CI e su Render | `package.json` non dichiara `engines`: il vincolo è scritto solo qui, nella CI e in `render.yaml` |
+| **Google Fonts** | Un servizio che distribuisce font sul web | `index.html` carica Barlow Condensed (titoli e numeri) e IBM Plex Sans (testo) | I due font del design system ([`docs/design-system.md`](docs/design-system.md)); dal servizio di Google non serve tenere i file nel repository | Una richiesta a Google a ogni visita, ammessa nella Content-Security-Policy. L'alternativa è servire i font dal sito |
+
+### Le API del browser
+
+Funzioni che il browser offre già, senza librerie.
+
+| API | Che cos'è | A che cosa serve qui | Perché questa | Prezzo o limite |
+|---|---|---|---|---|
+| **Web Locks** (`navigator.locks`) | Un lucchetto condiviso tra le schede dello stesso sito | Il rinnovo del JWT in `src/services/api.ts` (lucchetto `hoop3x3_refresh`) | Con più schede aperte rinnova una scheda alla volta: il server ruota il refresh token a ogni rinnovo, e di due rinnovi insieme con lo stesso cookie uno viene respinto | Dove manca (browser vecchi, pagine non HTTPS) il rinnovo parte senza lucchetto |
+| **`fetch` con `keepalive`** | Una richiesta che il browser porta a termine anche dopo la chiusura della pagina | I salvataggi alla chiusura (`src/stores/useAppStore.ts`) e il logout (`src/services/authService.ts`) | Una modifica fatta un attimo prima di chiudere arriva lo stesso al server | Il browser accetta al massimo 64 KiB di corpi `keepalive` in volo: le tappe più pesanti restano nel browser e partono alla prossima apertura |
+| **`crypto.randomUUID`** | Un generatore di identificativi casuali, sicuro per la crittografia | Gli id di tappe, squadre e partite, in `src/utils/uid.ts` | Il backend accetta solo UUID come id di tappa; un id casuale non si indovina | Esiste solo su HTTPS o localhost: altrove `src/utils/uid.ts` costruisce lo stesso UUID con `crypto.getRandomValues` |
+| **Geolocation** | La posizione del dispositivo, con il permesso dell'utente | «Usa la mia posizione» nei campetti, `src/hooks/usePosizione.ts` | Si chiede solo al clic, mai all'apertura della pagina | Con il permesso negato la pagina lo dice e resta usabile |
+| **Evento `storage`** | Avvisa una scheda quando un'altra scheda scrive nel `localStorage` | `src/services/api.ts` e `src/stores/useAppStore.ts` | Uscita, accesso e leghe dell'Ospite restano allineati tra le schede dello stesso browser | L'accesso fatto in un'altra scheda non si vede finché non si ricarica (nel `TODO.md`) |
+| **`AbortSignal.timeout`** | Interrompe una richiesta dopo un certo tempo | Il tempo massimo di ogni richiesta, in `src/services/api.ts` | 15 secondi per le richieste normali, 65 per il Coach, 90 per il rinnovo: oltre, conta come rete assente | Dove manca (Safari prima della 16) la richiesta parte senza tempo massimo |
+| **`localStorage` e `sessionStorage`** | Due archivi chiave-valore del browser: il primo resta, il secondo si svuota alla chiusura della scheda | `localStorage`: lega dell'Ospite, JWT, utente di sessione (`src/stores/memoriaBrowser.ts`). `sessionStorage`: la chat del Coach (`src/hooks/useCoachAI.ts`) | Nessun server per l'Ospite; la chat non sopravvive alla scheda | Lo spazio è limitato: se il browser rifiuta una scrittura, una barra lo dice |
+
+### Backend, in breve
+
+Il server ha un README suo, con la sezione completa delle tecnologie: [Tecnologie e scelte, con il perché](https://github.com/Gabrieleleonardi21/hoop3x3-backend#tecnologie-e-scelte-con-il-perché). Qui le righe essenziali, con i file del repository [hoop3x3-backend](https://github.com/Gabrieleleonardi21/hoop3x3-backend).
+
+| Tecnologia | Che cos'è | A che cosa serve qui | Perché questa | Prezzo o alternativa scartata |
+|---|---|---|---|---|
+| **Java** 25 | Il linguaggio e la piattaforma del server | Tutto il backend | Ultima versione a supporto lungo (LTS). I **thread virtuali** (thread leggeri della JVM) sono accesi: una chiamata lenta a Groq non tiene occupato un thread di sistema (`application.properties`) | Il JDK 25 va installato per lavorare in locale |
+| **Spring Boot** 4.1 | Un framework che mette insieme server web, sicurezza, accesso al database, validazione e controlli di salute | `pom.xml`: gli starter `webmvc`, `security`, `data-jpa`, `validation`, `actuator`, `flyway` | Un solo framework con tutto già integrato, configurato da proprietà (`application.properties`) | Qualche secondo di avvio e molti automatismi da conoscere |
+| **Spring Security** 7.1 e **JJWT** 0.13 | Spring Security: filtri e regole di accesso per ogni rotta. JJWT: la libreria che firma e legge i JWT | `SecurityConfig`, `JwtFilter`, `JwtTools` | Regole per rotta già pronte; JJWT firma e verifica i token. Il suo JSON passa da `JwtJson` con Jackson 3, per non portarsi dietro Jackson 2 (`pom.xml`) | Le regole di sicurezza vanno lette in un posto solo, `SecurityConfig` |
+| **BCrypt**, costo 12 | Una funzione di hash per le password, lenta apposta | `SecurityConfig` | Se il database venisse rubato, provare password a ripetizione costerebbe molto calcolo. Ogni punto di costo raddoppia il lavoro: 12 è quattro volte il valore di base di Spring (10) | Ogni login costa calcolo al server: per questo login e registrazione hanno un limite di frequenza |
+| **JPA** con **Hibernate** 7.4 | Un ORM (Object-Relational Mapping): legge e scrive le tabelle come oggetti Java | Le entity in `entities/`, i repository in `repositories/` | Niente SQL scritto a mano per le operazioni normali. `ddl-auto=validate` ferma l'avvio se le entity non combaciano con le tabelle. `open-in-view=false`: il database si legge solo dentro i servizi, non mentre si scrive la risposta, quindi nessuna query nascosta parte dal controller | Le query fuori dal comune restano native |
+| **Flyway** 12.4 | Applica le migrazioni del database: file SQL numerati, in ordine | `hoop3x3-backend/src/main/resources/db/migration`, da V1 a V11 | Lo schema è versionato nel repository e si applica da solo all'avvio: nessuno esegue SQL a mano | Una migrazione applicata non si modifica: un errore si corregge con una migrazione nuova |
+| **PostgreSQL** e **JSONB** | Un database relazionale; JSONB è il suo tipo per il JSON, salvato in forma binaria | Le tabelle di leghe, tappe, anagrafe, archivio, campetti | Transazioni e vincoli; i blocchi di gioco della tappa stanno in colonne JSONB perché il motore li legge e li scrive sempre interi. Gratuito su Render | Le statistiche tra tappe non si calcolano in SQL: le calcola il frontend |
+| **Jackson** 3.1 | La libreria che converte oggetti Java in JSON e ritorno | Ogni risposta dell'API | È il JSON di Spring Boot 4 (pacchetto `tools.jackson`) | Le annotazioni restano nel vecchio pacchetto `com.fasterxml` |
+| **RestClient** | Il client HTTP di Spring | Le chiamate a Groq, Brevo e Nominatim (`CoachAiService`, `EmailSenderBrevo`, `LuoghiService`) | Nessuna dipendenza in più; i tempi massimi sono scritti nel codice | È sincrono: la chiamata tiene occupato il suo thread, che però è virtuale |
+| **Lombok** 1.18 | Genera getter, setter e costruttori al posto di chi scrive | Le entity | Meno codice ripetuto | Un processore di annotazioni in più da conoscere |
+| **JUnit** 6, **Mockito**, **AssertJ**, **MockMvc** | Gli strumenti dei test Java: esecuzione, oggetti finti, asserzioni leggibili, richieste HTTP simulate | `hoop3x3-backend/src/test` | I test unitari girano senza database; quelli di integrazione (`*IT`) usano un PostgreSQL vero | Un database di prova da tenere a portata |
+| **PostgreSQL vero nei test**, niente Testcontainers | I test di integrazione parlano con un database vero, non con un'imitazione | Il profilo Maven `integrazione` | Lo stesso database della produzione; Testcontainers avrebbe chiesto Docker sulla macchina di sviluppo, che non c'è. In CI è un servizio `postgres:18` | In locale serve un database di prova, mai quello vero: i test lo svuotano |
+| **Docker** | Impacchetta il server con il suo ambiente in un'immagine | Il `Dockerfile` del backend | Render non ha un ambiente Java pronto: l'immagine porta il suo. Due fasi, un utente senza privilegi, heap al 60% della memoria | Un'immagine da costruire a ogni pubblicazione |
+| **Groq**, modello `openai/gpt-oss-120b` | Un servizio che esegue modelli linguistici, con un'API compatibile con quella di OpenAI | Il Coach AI, attraverso `POST /api/coach/chat` (`CoachAiService`) | Piano gratuito; il modello sa chiamare gli strumenti (il precedente, `llama-3.3-70b-versatile`, è stato dismesso) | Modello e limiti li decide il fornitore |
+| **Brevo** | Un servizio che invia email con un'API HTTP | Le email del recupero password e del cambio email (`EmailSenderBrevo`) | Sul piano gratuito di Render le porte SMTP sono chiuse: l'API di Brevo passa dalla porta 443. Fino a 300 email al giorno gratis | Oltre 300 email al giorno serve un piano a pagamento |
+| **Actuator** | Le sonde di salute di Spring Boot | `/actuator/health` e `/actuator/health/liveness` | Render riavvia il servizio se la sonda non risponde; il frontend la chiama all'apertura per svegliare il server | Gli altri endpoint dell'actuator restano chiusi |
+| **Maven Wrapper** | Uno script che scarica la versione giusta di Maven | `./mvnw` | Nessuna installazione di Maven; lo portano i progetti generati con Spring Initializr | Il primo avvio scarica Maven |
+
+### Strumenti di consegna
+
+| Strumento | Che cos'è | A che cosa serve qui | Perché questo | Prezzo o limite |
+|---|---|---|---|---|
+| **GitHub Actions** | La CI (integrazione continua) di GitHub: esegue i controlli a ogni push e pull request | `.github/workflows/ci.yml`: lint, tipi, test con copertura, build, end-to-end e end-to-end con il backend vero | Gratuita per i repository pubblici, accanto al codice | Un passo che fallisce ferma la pull request |
+| **Dependabot** | Un servizio di GitHub che propone l'aggiornamento delle dipendenze | `.github/dependabot.yml` | Una volta alla settimana, con versioni minori e patch raggruppate in una pull request sola | Ogni aggiornamento passa dalla CI prima di essere unito |
+| **Render** | Un servizio che ospita siti, container e database | `render.yaml`: sito statico, backend in Docker e PostgreSQL, a Francoforte | Un piano gratuito con le tre parti insieme, descritte in un solo file. Francoforte è la regione di Render in Europa | Il backend gratuito si spegne dopo 15 minuti senza visite; il database gratuito scade dopo 30 giorni |
+
+## Le scelte di progetto, con il perché
+
+Una tecnologia è uno strumento; una scelta è il modo in cui lo si usa. Ogni riga dice la scelta, il perché, che cosa costa o che cosa si è scartato, e dove guardare nel codice. I file del backend sono nel repository [hoop3x3-backend](https://github.com/Gabrieleleonardi21/hoop3x3-backend).
+
+### Sicurezza
+
+| Scelta | Perché | Alternativa scartata o limite | Dove nel codice |
+|---|---|---|---|
+| Il **JWT** (JSON Web Token, un biglietto firmato dal server che dice chi sei) porta l'id dell'utente, non l'email | Cambiare nome o email dal profilo non invalida il token in corso | Con l'email nel token, ogni cambio d'indirizzo avrebbe chiesto un token nuovo | `JwtTools` del backend |
+| JWT di 30 minuti nel `localStorage`, **refresh token** di 30 giorni in un cookie **httpOnly** (che JavaScript non può leggere) | Il JWT va letto dal codice per metterlo nell'intestazione `Authorization`; dura poco, quindi un JWT rubato vale al massimo 30 minuti. Il refresh token, che dura a lungo, sta dove uno script non arriva | Un attacco **XSS** (codice estraneo eseguito nella pagina) potrebbe leggere il JWT finché vale: per questo la Content-Security-Policy e niente `innerHTML`. Un JWT già emesso non si revoca: resta valido fino alla scadenza | `src/services/api.ts`; `AuthCookies` e `RefreshTokenService` del backend |
+| Protezione **CSRF** spenta (CSRF: un altro sito che fa partire richieste a nome tuo usando i tuoi cookie) | Le richieste autenticate usano l'intestazione `Authorization`, che un altro sito non può aggiungere. L'unico cookie è `SameSite=Lax` e lo leggono solo il rinnovo e l'uscita | Con frontend e backend su siti diversi servirebbero `SameSite=None` e un'intestazione di controllo: i passi sono nel README del backend, «Sessioni e refresh token» | `SecurityConfig` del backend |
+| Password con **BCrypt** a costo 12, e massimo 72 byte | Un hash lento rende costoso provare password a ripetizione. 72 byte è il limite di BCrypt, controllato in byte UTF-8 (una lettera accentata ne vale 2) | Ogni login costa calcolo al server: da qui il limite di frequenza sul login | `SecurityConfig`, `UtenteService` del backend; `src/utils/credenziali.ts` |
+| **Limiti di frequenza**: 10 al minuto per indirizzo su login, registrazione, rinnovo e richiesta del link di recupero; 10 al minuto per utente sui tre endpoint del profilo con la password; 20 al minuto e 300 al giorno per utente sul Coach. Oltre, 429 con `Retry-After` | Senza limite le password si proverebbero a ripetizione e la chiave Groq del server diventerebbe un servizio gratuito per chiunque si registri | I contatori stanno nella memoria del processo: valgono finché l'istanza è una sola, e non fermano un attacco da molti indirizzi | `LimiteRichiesteFilter` del backend |
+| Una **Content-Security-Policy** (CSP: l'elenco delle origini da cui la pagina può caricare script, stili, immagini, frame) uguale in `render.yaml` e in `vite.config.ts` | Uno script iniettato non parte, perché gli script ammessi sono solo quelli della build. La copia in `vite.config.ts` fa girare i test end-to-end con la policy di produzione | Ogni risorsa esterna nuova va aggiunta in tutti e due i posti: un test unitario fallisce se le copie divergono | `render.yaml`, `vite.config.ts`, `tests/unit/csp.test.ts`, `tests/e2e/csp.spec.ts` |
+| Video di YouTube da `youtube-nocookie.com` | L'embed non mette cookie di profilazione finché il video non parte; è anche l'unico host che la policy ammette nei frame | Un video di un altro sito si apre in una nuova scheda, non nella pagina | `src/components/video/VideoCard.tsx` |
+| Niente `innerHTML`; ogni indirizzo scritto da un utente passa da `safeUrl`; i loghi si caricano senza `Referer` | Un testo non diventa mai codice. `safeUrl` blocca `javascript:`, `data:` e gli indirizzi che portano a un altro sito. Senza `Referer` l'host di un logo non sa da quale pagina arriva la richiesta | Un indirizzo bloccato diventa `#`, un logo bloccato lascia il posto al ripiego. Il server applica la stessa regola agli indirizzi (`IndirizzoWeb`) | `src/utils/safeUrl.ts`, `src/components/ui/TeamLogo.tsx` |
+| Zod controlla la forma di alcune risposte del server: l'elenco e le tappe dell'archivio, i campetti, i luoghi, il profilo, i messaggi del recupero password. Le altre risposte (leghe e tappe, anagrafe, accesso, Coach) hanno solo i tipi TypeScript | Una risposta fuori forma diventa un errore con «Riprova» invece di una pagina disegnata a metà. Lo schema è arrivato con i client scritti o rivisti dalla fase 2 in poi; quelli delle prime versioni sono rimasti com'erano | Le risposte senza schema si fidano del contratto del backend: un cambio di forma si vedrebbe solo nell'uso. Anche i file importati e la lega dell'Ospite letta dal browser passano da Zod | `src/services/archivioApi.ts`, `src/services/campettiApi.ts`, `src/utils/legaFile.ts` |
+| Contro la **prompt injection** (testo che prova a dare ordini al modello): i dati della lega vanno al Coach dentro `<dati_lega>`, e ogni nome scritto da un utente passa da `pulisci` | Il prompt dice al modello di trattare come dati ciò che sta nel blocco. `pulisci` trasforma `<` e `>`, così un nome come `</dati_lega>` non chiude il blocco | Una mitigazione, non una garanzia: un modello può comunque seguire un testo ostile. Le azioni distruttive chiedono conferma all'utente | `src/utils/buildCoachContext.ts`, `src/hooks/useCoachAI.ts` |
+| Le chiavi dei servizi esterni stanno solo sul server, e il backend fa da proxy verso Groq con una lista degli strumenti ammessi | Una chiave nel browser è pubblica. Con strumenti diversi da quelli del Coach, Groq attiverebbe i suoi strumenti integrati, pagati con la chiave del server | Il prompt di sistema lo scrive il frontend, perché i dati della lega sono nel browser; il server aggiunge la sua regola del contesto e controlla quantità e strumenti (60 messaggi, 100.000 caratteri, 20 strumenti) | `src/services/aiService.ts`; `CoachAiService` e `AmbitoCoach` del backend |
+
+### Dati
+
+| Scelta | Perché | Alternativa scartata o limite | Dove nel codice |
+|---|---|---|---|
+| I dati di gioco della tappa (squadre, gironi, partite, tabellone, video) sono colonne **JSONB** | Il motore del torneo li legge e li scrive sempre come un blocco unico. Nome, luogo, data, regole e stato restano colonne normali | Le classifiche tra tappe non si calcolano in SQL: le calcola il frontend. Separarle in tabelle è nel `TODO.md` | `V1__schema_iniziale.sql` del backend; `src/stores/saveQueue.ts` |
+| Ogni tappa ha un numero di `versione`; un salvataggio con la versione vecchia riceve **409** | Il salvataggio sostituisce la tappa intera: senza versione, due dispositivi sulla stessa tappa si sovrascriverebbero in silenzio | Il client deve rileggere la lega dopo un 409 e decidere: la logica sta in `src/stores/versioniTappe.ts` e `src/utils/stessaTappa.ts` | migrazione V4 del backend; `src/stores/useAppStore.ts` |
+| La copia pubblica di una tappa la costruisce il server, dalla tappa che ha salvato | Nessuno può pubblicare risultati inventati: la pubblicazione non ha corpo | Il client salva prima e pubblica dopo; se la rinomina della lega non arriva al server, la copia porta il nome di prima | `ArchivioService` del backend; `pubblica` in `src/stores/useAppStore.ts` |
+| Le migrazioni dicono che cosa succede a chi resta: V2 lega le pubblicazioni alle tappe (cancellate con loro), V6 copia in colonne i campi dell'elenco dell'archivio, V8 e V11 lasciano campetti e schede dell'anagrafe senza autore invece di cancellarli | V2: una pubblicazione di una tappa eliminata restava orfana. V6: l'elenco pubblico non deve aprire il JSONB di ogni tappa. V8 e V11: campetti e schede sono dati del circuito, stanno nei roster degli altri | Un campetto o una scheda senza autore li modifica solo un ADMIN | `hoop3x3-backend/src/main/resources/db/migration` |
+| Gli id delle tappe li genera il browser, con un generatore sicuro (**UUID** casuali) | La tappa nasce nel browser, anche per l'Ospite che non ha server, e si salva dopo. Il backend accetta solo UUID; un id casuale non si indovina | Gli id sono pubblici e li sceglie il client: il server controlla che l'id di una nuova tappa non sia di una pubblicazione di un altro utente | `src/utils/uid.ts` |
+| Lo schema lo applica **Flyway**; Hibernate gira in `validate` | Nessuno esegue SQL a mano su un ambiente; una entity che non combacia ferma l'avvio con un messaggio chiaro | Una migrazione applicata non si tocca più: un errore si corregge con una nuova | `application.properties` del backend |
+| Le date del server sono in **UTC** | Il `ts` dell'API non dipende dal fuso della macchina | Un database scritto prima da un server con il fuso italiano ha le date di allora spostate di una o due ore | `Tempo` nella cartella `support/` del backend |
+| La lega si aggiorna con `@DynamicUpdate` | L'aggiornamento scrive solo le colonne cambiate: aggiungere una tappa non riporta indietro una rinomina fatta nel frattempo da un altro dispositivo | Un'annotazione da conoscere | `Lega` del backend |
+| L'anagrafe ha due forme: pubblica, senza dati personali, e completa per chi ha un account | Data di nascita, città, misure e referente sono dati personali | La cache del client va svuotata quando cambia chi guarda, all'accesso e all'uscita | `AnagrafeService` del backend; `src/stores/useAnagrafeStore.ts` |
+
+### Prodotto
+
+| Scelta | Perché | Alternativa scartata o limite | Dove nel codice |
+|---|---|---|---|
+| L'**Ospite** prova l'app senza account | Chi arriva vede subito come funziona, senza registrarsi | I suoi dati stanno solo in quel browser; niente pubblicazione, niente Coach, anagrafe e archivio in sola lettura | `src/stores/memoriaBrowser.ts`, `src/components/auth/GuestBanner.tsx` |
+| L'account si elimina con `POST /api/auth/me/elimina`, non con `DELETE` | La richiesta porta la password nel corpo, e un corpo in una `DELETE` non è garantito attraverso i proxy | Un verbo meno «parlante» | `src/services/profiloApi.ts`; `ProfiloController` del backend |
+| L'email cambia solo dopo la conferma dal **nuovo** indirizzo, con un clic sulla pagina | Un errore di battitura non lascia l'account con un indirizzo che nessuno legge. La pagina non manda niente finché non si preme il pulsante: uno scanner della posta che apre il link non consuma il token | Due passi invece di uno; nessuna email parte verso l'indirizzo vecchio | `src/pages/ConfermaEmailPage.tsx`; migrazione V10 del backend |
+| L'ADMIN nasce da `ADMIN_EMAIL` e non cambia email né si elimina dall'app | Il server lo riconosce da quella variabile: con un'email cambiata, al riavvio nascerebbe un secondo admin | Si gestisce dalla configurazione del server | `DataSeeder` del backend |
+| Le regole di gara sono quelle FIBA 3x3: 21 punti o 10 minuti, 12 secondi di possesso, niente pareggi. Le classifiche dei gironi seguono l'articolo 13 del regolamento | È il regolamento del circuito. Gli spareggi, in ordine: scontri diretti, media dei punti fatti, testa di serie | Le regole si cambiano per tappa | `src/constants/rules.ts`, `src/utils/standings.ts` |
+| Il supplementare parte con il pulsante «Avvia supplementare», non da solo | Nel 3x3 c'è una pausa prima del supplementare, e il tavolo può ancora registrare un canestro del tempo regolamentare: con l'avvio automatico diventerebbe un punto del supplementare | Un clic in più per il tavolo | `src/components/partita/MatchTimer.tsx`, `src/utils/statoGara.ts` |
+| I dati di prova del circuito (32 giocatori, 8 squadre, 4 tappe) hanno persone di fantasia | Il file sta nel jar del backend anche quando il seed è spento: non deve contenere dati di persone reali. Un test lo controlla | Squadre, tappe e risultati restano quelli del circuito | `DatiDiProvaTest` del backend |
+| Gli strumenti del Coach girano nel browser, con le stesse funzioni dell'interfaccia; il server fa solo da proxy | Il modello non scrive mai sul server da solo: ogni azione passa dagli stessi controlli di un clic. Sorteggiare su una tappa con risultati, annullare un risultato e concludere una tappa chiedono conferma nella chat | Il Coach risponde solo su basket e HOOP 3X3: la regola la aggiunge il server. È una regola di prodotto, non un confine di sicurezza | `src/coach/toolHandlers.ts`, [`docs/coach-ai-tool-calling.md`](docs/coach-ai-tool-calling.md); `AmbitoCoach` del backend |
+
+### Qualità
+
+| Scelta | Perché | Alternativa scartata o limite | Dove nel codice |
+|---|---|---|---|
+| Le operazioni di tappa sono **funzioni pure** (ricevono una tappa e ne restituiscono una nuova, senza toccare altro) | Prima il Coach duplicava la logica dell'interfaccia: ogni correzione andava fatta in due posti. Ora interfaccia e Coach chiamano le stesse funzioni, provate senza React | Lo store resta il solo punto che salva | `src/domain/tappaOps.ts`, `TODO.md` |
+| Test di guardia nel backend: test che non provano una funzione, ma una regola valida anche per il codice futuro | Un endpoint nuovo senza la sua riga nella tabella degli accessi, un endpoint con un id senza i casi 403 e 404, un corpo di richiesta non validato, un tetto di lunghezza più grande della sua colonna, un nome vero nei dati di prova: ognuno fa cadere un test | Controllano la forma (annotazioni, tabelle), non ogni comportamento | `AccessoEndpointIT`, `CampiDiTestoTest`, `LimitiColonneIT`, `DatiDiProvaTest` del backend |
+| Copertura minima dell'80% per file in `src/domain`, `src/utils`, `src/stores` e `src/services` | Con la media di cartella un file piccolo senza test (era `safeUrl`, l'unica difesa contro gli indirizzi `javascript:`) restava nascosto dietro quelli grandi | I componenti non hanno soglia: si provano di più dal browser | `vite.config.ts` |
+| Test end-to-end sulla build servita da `vite preview` | Il dev server non può avere la Content-Security-Policy di produzione; la build sì, e una risorsa esterna non ammessa si scopre nei test | La build si rifà prima di ogni corsa | `playwright.config.ts` |
+| Test end-to-end con il jar del backend vero | Provano ciò che il server finto può solo imitare: registrazione, rinnovo con il cookie vero, salvataggio e versioni | Servono Java e un database di prova; nella CI il jar si compila dal ramo principale del backend | `playwright.backend.config.ts`, `tests/e2e-backend/` |
+| Lint con zero avvisi e controllo dei tipi a ogni commit | `npm run check` fa lint, tipi e test in un comando: gli stessi passi che la CI ripete | Un avviso ferma la CI anche quando è innocuo | `package.json` |
+| CI su ogni pull request e aggiornamenti settimanali con Dependabot | Un errore si scopre prima di unire, non dopo la pubblicazione | Una pull request del frontend che dipende da una modifica del backend passa solo dopo che quella è unita | `.github/workflows/ci.yml`, `.github/dependabot.yml` |
+
+### Deploy
+
+| Scelta | Perché | Alternativa scartata o limite | Dove nel codice |
+|---|---|---|---|
+| Tutto su Render con un solo **Blueprint** (un file che descrive i servizi da creare) | Sito, backend e database nascono insieme, dalla stessa descrizione | Gli indirizzi pubblici vanno aggiornati a mano se Render li cambia | `render.yaml` |
+| Il sito statico inoltra `/api/*` al backend con una **rewrite** (una regola che passa la richiesta a un altro server senza che il browser lo sappia) | Per il browser pagina e API hanno la stessa origine: il cookie di refresh `SameSite=Lax` funziona senza altro | Il limite di frequenza per indirizzo deve vedere l'indirizzo del visitatore e non quello del proxy: da qui due variabili del backend in `render.yaml` | `render.yaml` |
+| Render controlla `/actuator/health/liveness`, non `/actuator/health` | La sonda di liveness dice solo se il processo è vivo. Quella intera comprende il database, e un database lento farebbe riavviare a vuoto un backend sano | Il frontend all'apertura aspetta `/actuator/health`, che il database lo comprende | `render.yaml`; `application.properties` del backend |
+| Il container limita l'heap Java al 60% della memoria ed esce a un `OutOfMemoryError` | Con il 75% il processo intero superava i 512 MB del piano gratuito e Render lo uccideva senza una riga nei log. Uscire subito fa ripartire il servizio | Circa 300 MB di heap | `Dockerfile` del backend |
+| Si pubblica prima il frontend, poi il backend | Quando un contratto cambia, il frontend nuovo sa parlare anche con il backend di prima | Una scheda rimasta aperta con il frontend vecchio va ricaricata | «Ordine di pubblicazione» nella parte 2 |
+| All'apertura l'app chiama `/actuator/health` | Il backend gratuito dorme dopo 15 minuti: svegliarlo subito fa sì che al login sia già pronto | Il primo avvio dopo la pausa può superare il minuto | `svegliaServer` in `src/services/api.ts` |
+
+### Interfaccia
+
+| Scelta | Perché | Alternativa scartata o limite | Dove nel codice |
+|---|---|---|---|
+| Un tema scuro unico, «Asphalt»: asfalto quasi nero, un solo accento arancio, testo color gesso | Un campetto di notte sotto le luci. Prodotto con molti numeri: bordi al posto delle ombre, cifre tabulari | Nessun tema chiaro, tranne in stampa | `src/index.css` (`@theme`), [`docs/design-system.md`](docs/design-system.md) |
+| Barlow Condensed per titoli e numeri, IBM Plex Sans per il testo | Un carattere condensato dà impatto ai punteggi senza allargare le colonne; IBM Plex Sans ha cifre leggibili a 12-13 px | Due font da caricare | `index.html`, [`docs/design-system.md`](docs/design-system.md) |
+| Contrasto del testo almeno 4,5:1 e dei bordi dei campi almeno 3:1, calcolati da un test | Leggibilità secondo le linee guida WCAG (le regole internazionali di accessibilità del web) | Il colore non è mai l'unico segnale: vittoria e sconfitta hanno anche la lettera, la differenza punti il segno | `tests/unit/contrastoCampi.test.ts` |
+| Ogni partita del tabellone è un gruppo con un nome (`role="group"`, «Semifinale 1: Alfa contro Beta») | Un lettore di schermo annuncia la partita; i test cercano la card per nome, non per classe di stile | Un attributo in più da tenere vero | `src/components/gironi/Bracket.tsx` |
+| Area di tocco di almeno 44×44 px sotto i 640 px di larghezza o con un puntatore grossolano | I pulsanti piccoli si toccano senza sbagliare; con il mouse l'aspetto non cambia | Le voci della navigazione e le schede dell'anagrafe restano come sono | `area-tocco` in `src/index.css`, `tests/e2e/area-di-tocco.spec.ts` |
+| Le finestre trattengono il focus, lo restituiscono alla chiusura e si chiudono con Esc una alla volta | Chi usa la tastiera non si perde dietro una finestra aperta | Il pannello del Coach non è modale: la pagina sotto resta raggiungibile | `src/components/ui/Modal.tsx`, `src/hooks/usePilaFinestre.ts` |
+| In stampa spariscono solo i comandi marcati `.no-print`, e il tema si inverte | Nella pagina di una tappa sono pulsanti anche le schede delle squadre e le intestazioni della classifica, che sulla carta servono. Su carta bianca i colori scuri darebbero testo chiaro su bianco | Ogni comando nuovo va marcato `.no-print` | `@media print` in `src/index.css`, `tests/e2e/stampa.spec.ts` |
 
 ## Funzionalità
 
