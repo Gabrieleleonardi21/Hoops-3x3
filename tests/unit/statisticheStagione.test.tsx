@@ -1,16 +1,22 @@
 // @vitest-environment jsdom
-import { describe, it, expect, afterEach } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { StatsCircuito } from "../../src/components/anagrafe/StatsCircuito";
 import { AnagrafePage } from "../../src/pages/AnagrafePage";
 import { GiocatorePage } from "../../src/pages/GiocatorePage";
 import { useAppStore } from "../../src/stores/useAppStore";
 import { useAnagrafeStore } from "../../src/stores/useAnagrafeStore";
+import { archivioApi } from "../../src/services/archivioApi";
+import { ApiError } from "../../src/services/api";
 import { tappaDiProva, unaGara } from "./tappeDiProva";
-import type { RegGiocatore, Tappa, User } from "../../src/types";
+import type { PubTappa, RegGiocatore, Tappa, User } from "../../src/types";
+
+// Le statistiche vengono dall'archivio pubblico più la lega aperta: di base l'archivio è vuoto, i test che lo riempiono lo dicono
+beforeEach(() => { vi.spyOn(archivioApi, "tappe").mockResolvedValue([]); });
 
 afterEach(() => {
+  vi.restoreAllMocks();
   cleanup(); // senza le globali di Vitest, Testing Library non smonta da sola
   useAppStore.getState().reset();
   // La cache dell'anagrafe è stato di modulo: ogni test riparte da «non ancora caricata»
@@ -75,15 +81,18 @@ const registrazione = (id: string, nome: string, cognome: string): RegGiocatore 
   squadra: "", esperienza: "", note: "", autore: "Anna", autoreId: "u1", ts: 1,
 });
 
-/** Apre la pagina di un giocatore con queste tappe nella lega attiva. L'anagrafe è già in cache: nessuna richiesta di rete */
-function apriProfilo(giocatore: RegGiocatore, tappe: Tappa[]) {
+/** Apre la pagina di un giocatore con queste tappe nella lega attiva e aspetta la risposta dell'archivio (per default vuoto).
+ *  L'anagrafe è già in cache: nessuna richiesta di rete per quella */
+async function apriProfilo(giocatore: RegGiocatore, tappe: Tappa[]) {
   useAppStore.setState({ user: registrato, tappe });
   useAnagrafeStore.setState({ giocatori: [giocatore], squadre: [], errore: null, caricata: true });
-  render(
-    <MemoryRouter initialEntries={[`/giocatore/${giocatore.id}`]}>
-      <Routes><Route path="/giocatore/:id" element={<GiocatorePage />} /></Routes>
-    </MemoryRouter>,
-  );
+  await act(async () => {
+    render(
+      <MemoryRouter initialEntries={[`/giocatore/${giocatore.id}`]}>
+        <Routes><Route path="/giocatore/:id" element={<GiocatorePage />} /></Routes>
+      </MemoryRouter>,
+    );
+  });
 }
 
 /** Il numero grande di un riquadro del profilo («Punti» → «22») */
@@ -109,8 +118,8 @@ describe("Profilo del giocatore: le statistiche di stagione", () => {
     ]),
   ];
 
-  it("somma le righe dello stesso nome nelle squadre diverse", () => {
-    apriProfilo(mario, dueSquadre());
+  it("somma le righe dello stesso nome nelle squadre diverse", async () => {
+    await apriProfilo(mario, dueSquadre());
     expect(riquadro("Punti")).toBe("22");
     expect(riquadro("Rimbalzi")).toBe("3");
     expect(riquadro("Assist")).toBe("2");
@@ -126,7 +135,7 @@ describe("Profilo del giocatore: le statistiche di stagione", () => {
     expect(vociUltimePartite().map((voce) => voce[3])).toEqual(["10 PT · 0 REB · 2 AST", "12 PT · 3 REB · 0 AST"]);
   });
 
-  it("«Ultime partite» segue il momento di registrazione del risultato, non il calendario; quelle senza momento stanno in coda", () => {
+  it("«Ultime partite» segue il momento di registrazione del risultato, non il calendario; quelle senza momento stanno in coda", async () => {
     // In t1 la seconda partita del calendario è stata registrata prima della prima; in t2 una partita è di prima che il momento
     // esistesse (senza ts) e una è la più recente di tutte
     const tappe = [
@@ -139,26 +148,26 @@ describe("Profilo del giocatore: le statistiche di stagione", () => {
         { a: "Alfa", b: "Zeta", ts: 300, pa: { "Mario Rossi": { pt: 4 } } },
       ]),
     ];
-    apriProfilo(mario, tappe);
+    await apriProfilo(mario, tappe);
     expect(vociUltimePartite().map((voce) => voce[1])).toEqual([
       "vs Zeta · Tappa t2", "vs Beta · Tappa t1", "vs Gamma · Tappa t1", "vs Delta · Tappa t2",
     ]);
   });
 
-  it("lo storico tappe è una tabella con il suo <caption> per i lettori di schermo", () => {
-    apriProfilo(mario, dueSquadre());
+  it("lo storico tappe è una tabella con il suo <caption> per i lettori di schermo", async () => {
+    await apriProfilo(mario, dueSquadre());
     const tabella = screen.getByRole<HTMLTableElement>("table", { name: "Storico tappe di Mario Rossi: piazzamento e statistiche per tappa" });
     expect(tabella.caption?.classList.contains("sr-only")).toBe(true);
   });
 
-  it("somma anche due squadre della stessa tappa con lo stesso nome: totali, storico, vittorie e partite", () => {
+  it("somma anche due squadre della stessa tappa con lo stesso nome: totali, storico, vittorie e partite", async () => {
     // Due «Mario Rossi» nello stesso torneo, uno per squadra, e tutte e due vincono: il profilo non può sapere quale sia il
     // suo, quindi li somma e dice le due squadre
     const t = tappaDiProva("t1", { Alfa: ["Mario Rossi"], Beta: ["Mario Rossi"], Gamma: ["Piero Neri"], Delta: ["Luca Bianchi"] }, [
       { a: "Alfa", b: "Gamma", pa: { "Mario Rossi": { pt: 12, rb: 3 } } },
       { a: "Beta", b: "Delta", pa: { "Mario Rossi": { pt: 7 } } },
     ]);
-    apriProfilo(mario, [t]);
+    await apriProfilo(mario, [t]);
     expect(riquadro("Punti")).toBe("19");
     expect(riquadro("Gare")).toBe("2");
     // Le due gare sono vinte: nessuna sconfitta
@@ -168,14 +177,14 @@ describe("Profilo del giocatore: le statistiche di stagione", () => {
     expect(screen.getByText(/sommate per nome sulle squadre di tappa: Alfa, Beta\./)).toBeTruthy();
   });
 
-  it("le partite singole seguono l'ordine in cui le partite sono state inserite, anche con due squadre dello stesso nome", () => {
+  it("le partite singole seguono l'ordine in cui le partite sono state inserite, anche con due squadre dello stesso nome", async () => {
     // Due «Mario Rossi» in squadre diverse che giocano a turno: l'andamento punti va partita per partita, non squadra per squadra
     const t = tappaDiProva("t1", { Alfa: ["Mario Rossi"], Beta: ["Mario Rossi"], Gamma: ["Piero Neri"], Delta: ["Luca Bianchi"] }, [
       { a: "Alfa", b: "Gamma", sb: 15, pa: { "Mario Rossi": { pt: 12 } } },
       { a: "Beta", b: "Delta", sb: 18, pa: { "Mario Rossi": { pt: 7 } } },
       { a: "Alfa", b: "Delta", sb: 10, pa: { "Mario Rossi": { pt: 9 } } },
     ]);
-    apriProfilo(mario, [t]);
+    await apriProfilo(mario, [t]);
     expect(screen.getByRole("img", { name: /Punti per partita/ }).getAttribute("aria-label")).toBe("Punti per partita: 12, 7, 9");
     // L'elenco parte dalla più recente, e ogni voce ha la sua avversaria e il suo punteggio
     expect(vociUltimePartite()).toEqual([
@@ -185,17 +194,17 @@ describe("Profilo del giocatore: le statistiche di stagione", () => {
     ]);
   });
 
-  it("un tabellino scritto nella scheda dell'altra squadra conta e compare nell'elenco: riquadro ed elenco dicono le stesse partite", () => {
+  it("un tabellino scritto nella scheda dell'altra squadra conta e compare nell'elenco: riquadro ed elenco dicono le stesse partite", async () => {
     const base = tappaDiProva("t1", { Alfa: ["Mario Rossi"], Gamma: ["Piero Neri"] }, [{ a: "Alfa", b: "Gamma" }]);
     // L'id di Mario, che sta nel roster di Alfa, è nella scheda di Gamma: un dato incoerente, possibile in un file di lega importato
     const t: Tappa = { ...base, partite: [{ ...base.partite[0], pb: { "t1:Alfa:Mario Rossi": { pt: 12 } } }] };
-    apriProfilo(mario, [t]);
+    await apriProfilo(mario, [t]);
     expect(riquadro("Gare")).toBe("1");
     expect(screen.getByText(/^1 partit\w+ · max 12$/)).toBeTruthy();
     expect(vociUltimePartite().map((voce) => voce[3])).toEqual(["12 PT · 0 REB · 0 AST"]);
   });
 
-  it("una partita pari non è una sconfitta: né nel riquadro «Gare» né nell'elenco delle partite", () => {
+  it("una partita pari non è una sconfitta: né nel riquadro «Gare» né nell'elenco delle partite", async () => {
     // La parità c'è solo in un file di lega importato (tappaOps la rifiuta): non è una vittoria e nemmeno una sconfitta.
     // Una vinta (21-15), una pari (15-15) e una persa (10-21): le gare sono 3 ma vinte e perse sono 1 e 1
     const t = tappaDiProva("t1", { Alfa: ["Mario Rossi"], Gamma: ["Piero Neri"] }, [
@@ -203,7 +212,7 @@ describe("Profilo del giocatore: le statistiche di stagione", () => {
       { a: "Alfa", b: "Gamma", sa: 15, sb: 15, pa: { "Mario Rossi": { pt: 8 } } },
       { a: "Alfa", b: "Gamma", sa: 10, sb: 21, pa: { "Mario Rossi": { pt: 5 } } },
     ]);
-    apriProfilo(mario, [t]);
+    await apriProfilo(mario, [t]);
     expect(riquadro("Gare")).toBe("3");
     expect(sottoRiquadro("Gare")).toBe("1V · 1P");
     // Dalla più recente: la persa, la pari (segnata «=», non «L») e la vinta
@@ -212,90 +221,207 @@ describe("Profilo del giocatore: le statistiche di stagione", () => {
     expect(screen.getAllByRole("listitem")[1].firstElementChild?.className).not.toContain("loss");
   });
 
-  it("punteggio e avversaria sono dal lato della squadra del giocatore, anche se gioca come squadra B", () => {
+  it("punteggio e avversaria sono dal lato della squadra del giocatore, anche se gioca come squadra B", async () => {
     // Gamma (A) perde 15-21 contro Alfa (B), dove gioca Mario: per lui è una vittoria 21-15 contro Gamma
     const t = tappaDiProva("t1", { Alfa: ["Mario Rossi"], Gamma: ["Piero Neri"] }, [
       { a: "Gamma", b: "Alfa", sa: 15, sb: 21, pb: { "Mario Rossi": { pt: 12, rb: 3, as: 1 } } },
     ]);
-    apriProfilo(mario, [t]);
+    await apriProfilo(mario, [t]);
     expect(vociUltimePartite()).toEqual([["W", "vs Gamma · Tappa t1", "21–15", "12 PT · 3 REB · 1 AST"]]);
     expect(sottoRiquadro("Gare")).toBe("1V · 0P");
   });
 
-  it("elenca le squadre da cui vengono le statistiche", () => {
-    apriProfilo(mario, dueSquadre());
+  it("elenca le squadre da cui vengono le statistiche", async () => {
+    await apriProfilo(mario, dueSquadre());
     expect(screen.getByText(/sommate per nome sulle squadre di tappa: Alfa, Beta\./)).toBeTruthy();
   });
 
-  it("una squadra in più tappe compare una volta sola, con la grafia dell'ultima", () => {
-    apriProfilo(mario, [unaGara("t1", "alfa", "Mario Rossi", { pt: 12 }), unaGara("t2", "ALFA", "Mario Rossi", { pt: 10 })]);
+  it("una squadra in più tappe compare una volta sola, con la grafia dell'ultima", async () => {
+    await apriProfilo(mario, [unaGara("t1", "alfa", "Mario Rossi", { pt: 12 }), unaGara("t2", "ALFA", "Mario Rossi", { pt: 10 })]);
     expect(riquadro("Punti")).toBe("22");
     expect(screen.getByText(/sommate per nome sulle squadre di tappa: ALFA\./)).toBeTruthy();
   });
 
-  it("una squadra compare una volta sola nell'elenco anche se il nome è scritto nei due ordini: «Mario Rossi» e «Rossi Mario»", () => {
+  it("una squadra compare una volta sola nell'elenco anche se il nome è scritto nei due ordini: «Mario Rossi» e «Rossi Mario»", async () => {
     // Per la tabella sono due nomi, quindi due righe di stagione, ma la squadra è la stessa anche se scritta «Alfa» e «ALFA»
-    apriProfilo(mario, [unaGara("t1", "Alfa", "Mario Rossi", { pt: 12 }), unaGara("t2", "ALFA", "Rossi Mario", { pt: 10 })]);
+    await apriProfilo(mario, [unaGara("t1", "Alfa", "Mario Rossi", { pt: 12 }), unaGara("t2", "ALFA", "Rossi Mario", { pt: 10 })]);
     expect(riquadro("Punti")).toBe("22");
     expect(screen.getByText(/sommate per nome sulle squadre di tappa: ALFA\./)).toBeTruthy();
   });
 
-  it("il nome si riconosce come nella tabella: maiuscole, spazi in più e accenti non contano", () => {
-    apriProfilo(registrazione("g1", "Nicolò", "Rossi"), [unaGara("t1", "Alfa", "  nicolo   ROSSI ", { pt: 14 })]);
+  it("il nome si riconosce come nella tabella: maiuscole, spazi in più e accenti non contano", async () => {
+    await apriProfilo(registrazione("g1", "Nicolò", "Rossi"), [unaGara("t1", "Alfa", "  nicolo   ROSSI ", { pt: 14 })]);
     expect(riquadro("Punti")).toBe("14");
-    expect(screen.queryByText(/Nessuna statistica nella lega attiva/)).toBeNull();
+    expect(screen.queryByText(/Nessuna statistica: il giocatore non compare nei tabellini delle tappe pubblicate/)).toBeNull();
     expect(righeTabella()).toEqual([["Tappa t1", "—", "1", "14", "0", "0"]]);
     // Anche le partite singole riconoscono il nome: la gara è vinta (21-15)
     expect(sottoRiquadro("Gare")).toBe("1V · 0P");
   });
 
-  it("l'apostrofo del telefono non cambia il nome: «Gianni D'Angelo» dell'anagrafe è «Gianni D’Angelo» nel roster", () => {
-    apriProfilo(registrazione("g1", "Gianni", "D'Angelo"), [unaGara("t1", "Alfa", "Gianni D\u2019Angelo", { pt: 12 })]);
+  it("l'apostrofo del telefono non cambia il nome: «Gianni D'Angelo» dell'anagrafe è «Gianni D’Angelo» nel roster", async () => {
+    await apriProfilo(registrazione("g1", "Gianni", "D'Angelo"), [unaGara("t1", "Alfa", "Gianni D\u2019Angelo", { pt: 12 })]);
     expect(riquadro("Punti")).toBe("12");
-    expect(screen.queryByText(/Nessuna statistica nella lega attiva/)).toBeNull();
+    expect(screen.queryByText(/Nessuna statistica: il giocatore non compare nei tabellini delle tappe pubblicate/)).toBeNull();
   });
 
-  it("una partita non giocata non entra nel profilo, nemmeno con un tabellino provvisorio", () => {
+  it("una partita non giocata non entra nel profilo, nemmeno con un tabellino provvisorio", async () => {
     const t = tappaDiProva("t1", { Alfa: ["Mario Rossi"], Avversari: ["Altro"] }, [
       { a: "Alfa", b: "Avversari", pa: { "Mario Rossi": { pt: 12 } } },
       { a: "Alfa", b: "Avversari", done: false, sa: 0, sb: 0, pa: { "Mario Rossi": { pt: 30 } } },
     ]);
-    apriProfilo(mario, [t]);
+    await apriProfilo(mario, [t]);
     expect(riquadro("Punti")).toBe("12");
     expect(riquadro("Gare")).toBe("1");
     // Neanche l'elenco delle partite la conta
     expect(screen.getByText(/^1 partit\w+ · max 12$/)).toBeTruthy();
   });
 
-  it("lo storico dice il piazzamento dalla finale del tabellone: 1° per chi l'ha vinta, 2° per chi l'ha persa", () => {
+  it("lo storico dice il piazzamento dalla finale del tabellone: 1° per chi l'ha vinta, 2° per chi l'ha persa", async () => {
     // Mario vince la finale con Alfa nella prima tappa e la perde con Beta nella seconda
     const conFinale = (t: Tappa, squadraA: string, squadraB: string, pA: number, pB: number): Tappa => ({
       ...t,
       bracket: [{ id: `${t.id}:f`, label: "Finale", squadraA: `${t.id}:${squadraA}`, squadraB: `${t.id}:${squadraB}`, pA, pB, done: true }],
     });
     const [t1, t2] = dueSquadre();
-    apriProfilo(mario, [conFinale(t1, "Alfa", "Avversari", 21, 15), conFinale(t2, "Beta", "Avversari", 12, 21)]);
+    await apriProfilo(mario, [conFinale(t1, "Alfa", "Avversari", 21, 15), conFinale(t2, "Beta", "Avversari", 12, 21)]);
     expect(righeTabella().map((riga) => riga[1])).toEqual(["1°", "2°"]);
   });
 
-  it("senza statistiche nella lega non c'è nessun elenco di squadre, solo la spiegazione di prima", () => {
-    apriProfilo(mario, [unaGara("t1", "Alfa", "Luca Bianchi", { pt: 9 })]);
+  it("senza statistiche nella lega non c'è nessun elenco di squadre, solo la spiegazione di prima", async () => {
+    await apriProfilo(mario, [unaGara("t1", "Alfa", "Luca Bianchi", { pt: 9 })]);
     expect(riquadro("Punti")).toBe("0");
     // Senza gare non c'è nemmeno la riga delle vittorie e delle sconfitte
     expect(screen.queryByText(/\dV · \dP/)).toBeNull();
     expect(screen.queryByText(/squadre di tappa/)).toBeNull();
-    expect(screen.getByText(/Nessuna statistica nella lega attiva/)).toBeTruthy();
+    expect(screen.getByText(/Nessuna statistica: il giocatore non compare nei tabellini delle tappe pubblicate/)).toBeTruthy();
   });
 });
 
+/** La pubblicazione di una tappa, come la manda GET /api/archivio/tappe */
+const pubblicata = (tappa: Tappa): PubTappa => ({ tappa, lega: "Circuito", autore: "Anna", autoreId: "u2", ts: 1 });
+
+/** Apre la scheda «Statistiche stagione» dell'anagrafe (già in cache) con queste tappe nella lega aperta, e aspetta l'archivio */
+async function apriStatistiche(utente: User, locali: Tappa[] = []) {
+  useAppStore.setState({ user: utente, tappe: locali });
+  useAnagrafeStore.setState({ giocatori: [], squadre: [], errore: null, caricata: true });
+  render(<MemoryRouter><AnagrafePage /></MemoryRouter>);
+  fireEvent.click(screen.getByRole("tab", { name: "Statistiche stagione" }));
+}
+
+const ospite: User = { id: "g", name: "Ospite", email: "", ruolo: "USER", guest: true };
+
 describe("Statistiche stagione: la nota sopra la tabella", () => {
-  it("dice come si riconosce un giocatore e il limite: chi cambia squadra compare su due righe", () => {
+  it("dice da dove vengono i numeri, come si riconosce un giocatore e il limite: chi cambia squadra compare su due righe", async () => {
+    await apriStatistiche(registrato);
+    const nota = screen.getByText(/Totali e medie per partita/).textContent;
+    expect(nota).toContain("tutte le tappe pubblicate nell'Archivio circuito, più quelle della tua lega aperta");
+    expect(nota).toContain("nome e squadra coincidono (maiuscole, spazi in più, accenti e tipo di apostrofo non contano)");
+    expect(nota).toContain("chi cambia squadra compare su due righe");
+    await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
+  });
+});
+
+describe("Statistiche stagione: uguali per tutti, dalle tappe pubblicate più la lega aperta", () => {
+  const pubblicate = () => [
+    pubblicata(unaGara("t1", "Alfa", "Mario Rossi", { pt: 12 })),
+    pubblicata(unaGara("t2", "Beta", "Luca Bianchi", { pt: 20 })),
+  ];
+
+  it("un utente registrato senza tappe nella lega vede la tabella con i numeri delle tappe pubblicate", async () => {
+    vi.mocked(archivioApi.tappe).mockResolvedValue(pubblicate());
+    await apriStatistiche(registrato, []);
+    await screen.findByRole("table");
+    expect(righeTabella().map((r) => r.slice(0, 5))).toEqual([
+      ["1", "Luca Bianchi", "Beta", "1", "20"],
+      ["2", "Mario Rossi", "Alfa", "1", "12"],
+    ]);
+  });
+
+  it("un ospite vede la stessa tabella", async () => {
+    vi.mocked(archivioApi.tappe).mockResolvedValue(pubblicate());
+    await apriStatistiche(ospite, []);
+    await screen.findByRole("table");
+    expect(righeTabella().map((r) => r.slice(0, 5))).toEqual([
+      ["1", "Luca Bianchi", "Beta", "1", "20"],
+      ["2", "Mario Rossi", "Alfa", "1", "12"],
+    ]);
+  });
+
+  it("le tappe della lega aperta si sommano a quelle pubblicate", async () => {
+    vi.mocked(archivioApi.tappe).mockResolvedValue(pubblicate());
+    await apriStatistiche(registrato, [unaGara("l9", "Alfa", "Mario Rossi", { pt: 8 })]);
+    await screen.findByRole("table");
+    expect(righeTabella().map((r) => r.slice(0, 5))).toEqual([
+      ["1", "Luca Bianchi", "Beta", "1", "20"],
+      ["2", "Mario Rossi", "Alfa", "2", "20"],
+    ]);
+  });
+
+  it("una tappa locale con lo stesso id di una pubblicata vale una volta sola, con i numeri locali", async () => {
+    vi.mocked(archivioApi.tappe).mockResolvedValue([pubblicata(unaGara("t1", "Alfa", "Mario Rossi", { pt: 12 }))]);
+    await apriStatistiche(registrato, [unaGara("t1", "Alfa", "Mario Rossi", { pt: 18 })]);
+    await screen.findByRole("table");
+    expect(righeTabella().map((r) => r.slice(0, 5))).toEqual([["1", "Mario Rossi", "Alfa", "1", "18"]]);
+  });
+
+  it("se l'archivio non risponde compare l'errore con «Riprova», non una tabella vuota; il clic richiede le tappe", async () => {
+    vi.mocked(archivioApi.tappe).mockRejectedValueOnce(new ApiError(503, "Servizio non disponibile"));
+    await apriStatistiche(registrato, []);
+    expect(await screen.findByText("Servizio non disponibile")).toBeTruthy();
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.queryByText(/Nessuna statistica disponibile/)).toBeNull();
+
+    vi.mocked(archivioApi.tappe).mockResolvedValue(pubblicate());
+    fireEvent.click(screen.getByRole("button", { name: "Riprova" }));
+    await screen.findByRole("table");
+    expect(archivioApi.tappe).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText("Servizio non disponibile")).toBeNull();
+  });
+
+  it("finché l'archivio non risponde c'è l'attesa e nessuna tabella", async () => {
+    vi.mocked(archivioApi.tappe).mockReturnValue(new Promise(() => {}));
+    await apriStatistiche(registrato, [unaGara("l9", "Alfa", "Mario Rossi", { pt: 8 })]);
+    expect(screen.getByRole("status")).toBeTruthy();
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.queryByText(/Nessuna statistica disponibile/)).toBeNull();
+  });
+
+  it("la richiesta all'archivio parte solo con la scheda «Statistiche» aperta", async () => {
     useAppStore.setState({ user: registrato, tappe: [] });
     useAnagrafeStore.setState({ giocatori: [], squadre: [], errore: null, caricata: true });
     render(<MemoryRouter><AnagrafePage /></MemoryRouter>);
+    expect(archivioApi.tappe).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("tab", { name: "Statistiche stagione" }));
-    const nota = screen.getByText(/Totali e medie per partita/).textContent;
-    expect(nota).toContain("nome e squadra coincidono (maiuscole, spazi in più, accenti e tipo di apostrofo non contano)");
-    expect(nota).toContain("chi cambia squadra compare su due righe");
+    await waitFor(() => expect(archivioApi.tappe).toHaveBeenCalledTimes(1));
+  });
+
+  it("senza tappe né pubblicate né locali la tabella dice che non c'è nessuna statistica, con il motivo giusto", async () => {
+    await apriStatistiche(registrato, []);
+    expect(await screen.findByText(/le classifiche individuali si calcolano dalle tappe pubblicate nell'archivio e da quelle della tua lega/)).toBeTruthy();
+  });
+
+  it("la pagina del giocatore somma i tabellini delle tappe pubblicate anche se non sono nella lega aperta", async () => {
+    vi.mocked(archivioApi.tappe).mockResolvedValue([pubblicata(unaGara("t1", "Alfa", "Mario Rossi", { pt: 22, rb: 4 }))]);
+    await apriProfilo(registrazione("g1", "Mario", "Rossi"), []);
+    expect(riquadro("Punti")).toBe("22");
+    expect(riquadro("Rimbalzi")).toBe("4");
+    expect(screen.queryByText(/Nessuna statistica: il giocatore non compare/)).toBeNull();
+  });
+
+  it("la pagina del giocatore, finché l'archivio non risponde, non dice «nessuna statistica»", async () => {
+    vi.mocked(archivioApi.tappe).mockReturnValue(new Promise(() => {}));
+    await apriProfilo(registrazione("g1", "Mario", "Rossi"), []);
+    expect(screen.getByRole("status")).toBeTruthy();
+    expect(screen.queryByText(/Nessuna statistica: il giocatore non compare/)).toBeNull();
+  });
+
+  it("la pagina del giocatore, se l'archivio non risponde, mostra l'errore con «Riprova» al posto dei riquadri", async () => {
+    vi.mocked(archivioApi.tappe).mockRejectedValueOnce(new ApiError(503, "Servizio non disponibile"));
+    await apriProfilo(registrazione("g1", "Mario", "Rossi"), []);
+    expect(await screen.findByText("Servizio non disponibile")).toBeTruthy();
+    expect(screen.queryByText("Punti")).toBeNull();
+    vi.mocked(archivioApi.tappe).mockResolvedValue([pubblicata(unaGara("t1", "Alfa", "Mario Rossi", { pt: 22 }))]);
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Riprova" })); });
+    expect(riquadro("Punti")).toBe("22");
   });
 });

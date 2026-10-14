@@ -1,11 +1,10 @@
 /** Pagina dell'anagrafe condivisa del circuito: due tab (giocatori / squadre) con
  *  ricerca testuale, form di registrazione e modale di dettaglio squadra. */
 import { useState } from "react";
-import { useAppStore } from "../stores/useAppStore";
 import { useAnagrafe } from "../hooks/useAnagrafe";
 import { useInvio } from "../hooks/useInvio";
 import { ApiError } from "../services/api";
-import { StatsCircuito } from "../components/anagrafe/StatsCircuito";
+import { StatisticheCircuito } from "../components/anagrafe/StatisticheCircuito";
 import { GiocatoreForm } from "../components/anagrafe/GiocatoreForm";
 import { GiocatoreCard } from "../components/anagrafe/GiocatoreCard";
 import { SquadraAnagrafeForm } from "../components/anagrafe/SquadraAnagrafeForm";
@@ -20,7 +19,6 @@ import { useUtente } from "../hooks/useUtente";
 
 export function AnagrafePage() {
   const user  = useUtente();
-  const tappe = useAppStore((s) => s.tappe);
   const [tab, setTab] = useState<"g" | "s" | "stats">("g");
   const [query, setQuery] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -137,11 +135,11 @@ export function AnagrafePage() {
       {tab === "stats" && (
         <>
           <p className="mb-1 text-xs text-chalk-muted">
-            Totali e medie per partita su tutte le tappe della lega corrente. Ordinate per media punti. Lo stesso giocatore è
-            una sola riga se nome e squadra coincidono (maiuscole, spazi in più, accenti e tipo di apostrofo non contano): chi
+            Totali e medie per partita su tutte le tappe pubblicate nell'Archivio circuito, più quelle della tua lega aperta.
+            Ordinate per media punti. Lo stesso giocatore è una sola riga se nome e squadra coincidono (maiuscole, spazi in più, accenti e tipo di apostrofo non contano): chi
             cambia squadra compare su due righe.
           </p>
-          <StatsCircuito tappe={tappe} />
+          <StatisticheCircuito />
         </>
       )}
 

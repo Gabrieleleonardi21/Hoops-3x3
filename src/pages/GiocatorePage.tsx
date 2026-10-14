@@ -1,5 +1,6 @@
 /** Profilo giocatore (route /giocatore/:id): anagrafica dalla RegGiocatore + statistiche
- *  aggregate sulle tappe della lega attiva. Il roster di tappa non ha un legame con l'anagrafe,
+ *  aggregate sulle tappe pubblicate nell'Archivio circuito più quelle della lega aperta (useStatisticheCircuito: le stesse della
+ *  tabella «Statistiche stagione», uguali per ospite, USER e ADMIN). Il roster di tappa non ha un legame con l'anagrafe,
  *  quindi l'abbinamento avviene per nome ("Nome Cognome" o "Cognome Nome"; maiuscole, spazi in
  *  più, accenti e tipo di apostrofo non contano, come nella tabella «Statistiche stagione»). I totali sono la somma delle
  *  righe di quella tabella con lo stesso nome, in una o più squadre: la funzione è la stessa
@@ -7,7 +8,7 @@
 import { useMemo } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAnagrafe } from "../hooks/useAnagrafe";
-import { useAppStore } from "../stores/useAppStore";
+import { useStatisticheCircuito } from "../hooks/useStatisticheCircuito";
 import { normalizza, statGiocatori, tabellini, type StatGiocatore } from "../utils/statGiocatori";
 import { eta } from "../utils/eta";
 import { Loading } from "../components/ui/Loading";
@@ -59,9 +60,13 @@ const somma = (righe: StatGiocatore[]): Totali => righe.reduce((acc, r) => ({
   g: acc.g + r.g, pt: acc.pt + r.pt, rb: acc.rb + r.rb, as: acc.as + r.as, ru: acc.ru + r.ru, st: acc.st + r.st,
 }), { g: 0, pt: 0, rb: 0, as: 0, ru: 0, st: 0 });
 
+/** Le tappe prima che l'archivio risponda: un array solo, perché i useMemo sotto non si rifacciano a ogni render */
+const NESSUNA_TAPPA: Tappa[] = [];
+
 export function GiocatorePage() {
   const { id } = useParams();
-  const tappe = useAppStore((s) => s.tappe);
+  const { tappe: caricate, errore: erroreStat, reload } = useStatisticheCircuito();
+  const tappe = caricate ?? NESSUNA_TAPPA;
   const navigate = useNavigate();
   const { giocatori, squadre, errore, load } = useAnagrafe();
 
@@ -167,76 +172,83 @@ export function GiocatorePage() {
         </div>
       </Card>
 
-      {/* Stat tile */}
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        <StatTile label="Punti" value={tot.pt} sub={avg(tot.pt)} highlight={tot.pt > 0} />
-        <StatTile label="Rimbalzi" value={tot.rb} sub={avg(tot.rb)} />
-        <StatTile label="Assist" value={tot.as} sub={avg(tot.as)} />
-        <StatTile label="Rubate" value={tot.ru} sub={avg(tot.ru)} />
-        <StatTile label="Stoppate" value={tot.st} sub={avg(tot.st)} />
-        <StatTile label="Gare" value={tot.g} sub={tot.g > 0 && `${wins}V · ${losses}P`} />
-        {/* Le squadre di tappa da cui vengono i totali: il legame è solo il nome, e chi legge deve vedere che cosa è stato sommato */}
-        {squadreStat.length > 0 && (
-          <p className="col-span-full text-[13px] text-chalk-muted">
-            Statistiche sommate per nome sulle squadre di tappa: {squadreStat.join(", ")}.
-          </p>
-        )}
-      </div>
+      {/* Le statistiche si disegnano solo a tappe arrivate: prima sarebbero zeri spacciati per «nessuna statistica» */}
+      {erroreStat && <ErroreCaricamento cosa="Non è stato possibile caricare le statistiche." motivo={erroreStat} onRiprova={reload} />}
+      {!erroreStat && caricate === null && <Loading>Sto calcolando le statistiche…</Loading>}
+      {!erroreStat && caricate !== null && (
+        <>
+        {/* Stat tile */}
+        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <StatTile label="Punti" value={tot.pt} sub={avg(tot.pt)} highlight={tot.pt > 0} />
+          <StatTile label="Rimbalzi" value={tot.rb} sub={avg(tot.rb)} />
+          <StatTile label="Assist" value={tot.as} sub={avg(tot.as)} />
+          <StatTile label="Rubate" value={tot.ru} sub={avg(tot.ru)} />
+          <StatTile label="Stoppate" value={tot.st} sub={avg(tot.st)} />
+          <StatTile label="Gare" value={tot.g} sub={tot.g > 0 && `${wins}V · ${losses}P`} />
+          {/* Le squadre di tappa da cui vengono i totali: il legame è solo il nome, e chi legge deve vedere che cosa è stato sommato */}
+          {squadreStat.length > 0 && (
+            <p className="col-span-full text-[13px] text-chalk-muted">
+              Statistiche sommate per nome sulle squadre di tappa: {squadreStat.join(", ")}.
+            </p>
+          )}
+        </div>
 
-      {tot.g === 0 && (
-        <Card className="mb-6">
-          <p className="m-0 text-[13px] text-chalk-muted">
-            Nessuna statistica nella lega attiva: il giocatore compare nei roster di tappa come «{g.nome} {g.cognome}»
-            solo se il nome coincide. <Button variant="link" onClick={() => navigate("/lega")}>Vai alle tappe</Button>
-          </p>
-        </Card>
-      )}
-
-      <div className="grid gap-6 lg:grid-cols-[3fr_2fr]">
-        <Section title="Andamento punti" kicker={games.length ? `${games.length} partite · max ${Math.max(...games.map((x) => x.pt))}` : "Nessuna partita"} className="mb-0">
-          <Card>
-            {games.length ? <Sparkline values={games.map((x) => x.pt)} height={72} label="Punti per partita" /> : <p className="m-0 text-[13px] text-chalk-muted">—</p>}
+        {tot.g === 0 && (
+          <Card className="mb-6">
+            <p className="m-0 text-[13px] text-chalk-muted">
+              Nessuna statistica: il giocatore non compare nei tabellini delle tappe pubblicate né in quelli della tua lega aperta.
+              Nei roster di tappa compare come «{g.nome} {g.cognome}» solo se il nome coincide. <Button variant="link" onClick={() => navigate("/lega")}>Vai alle tappe</Button>
+            </p>
           </Card>
-        </Section>
+        )}
 
-        <Section title="Storico tappe" kicker="Lega attiva" className="mb-0">
-          <div className="overflow-x-auto rounded border border-asphalt-700">
-            <table className="standtable">
-              <caption className="sr-only">Storico tappe di {g.nome} {g.cognome}: piazzamento e statistiche per tappa</caption>
-              {/* la colonna tappa prende lo spazio rimanente, le numeriche sono fisse */}
-              <colgroup><col /><col className="w-14" /><col className="w-10" /><col className="w-12" /><col className="w-12" /><col className="w-12" /></colgroup>
-              <thead><tr><th className="text-left" scope="col">Tappa</th><th scope="col">Piazz.</th><th scope="col">G</th><th scope="col">PT</th><th scope="col">REB</th><th scope="col">AST</th></tr></thead>
-              <tbody>
-                {perTappa.length === 0 && <tr><td colSpan={6} className="text-chalk-muted">Nessuna tappa giocata.</td></tr>}
-                {perTappa.map(({ tappa, row, piazzamento }) => (
-                  <tr key={tappa.id}>
-                    <td className="tname"><Link to={`/lega/tappa/${tappa.id}`} className="hover:text-court">{tappa.nome}</Link></td>
-                    <td className={piazzamento === 1 ? "text-gold font-display text-base" : ""}>{piazzamento ? `${piazzamento}°` : "—"}</td>
-                    <td>{row.g}</td><td className="font-semibold">{row.pt}</td><td>{row.rb}</td><td>{row.as}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Section>
-      </div>
+        <div className="grid gap-6 lg:grid-cols-[3fr_2fr]">
+          <Section title="Andamento punti" kicker={games.length ? `${games.length} partite · max ${Math.max(...games.map((x) => x.pt))}` : "Nessuna partita"} className="mb-0">
+            <Card>
+              {games.length ? <Sparkline values={games.map((x) => x.pt)} height={72} label="Punti per partita" /> : <p className="m-0 text-[13px] text-chalk-muted">—</p>}
+            </Card>
+          </Section>
 
-      {games.length > 0 && (
-        <Section title="Ultime partite" kicker="Dalla più recente" className="mt-8">
-          <ol className="m-0 list-none divide-y divide-asphalt-700 rounded border border-asphalt-700 bg-asphalt-900 p-0">
-            {ultime.map((x, i) => {
-              const { tone, lettera } = BADGE_ESITO[x.esito];
-              return (
-                <li key={i} className="flex flex-wrap items-center gap-3 px-3 py-2 text-[13px]">
-                  <Badge tone={tone}>{lettera}</Badge>
-                  <span className="min-w-0 flex-1 truncate"><span className="text-chalk-muted">vs</span> <span className="font-display text-base">{x.avversario}</span> <span className="text-chalk-dim">· {x.tappa}</span></span>
-                  <span className="font-display text-lg">{x.mio}–{x.suo}</span>
-                  <span className="text-chalk-muted">{x.pt} PT · {x.rb} REB · {x.as} AST</span>
-                </li>
-              );
-            })}
-          </ol>
-        </Section>
+          <Section title="Storico tappe" kicker="Lega attiva" className="mb-0">
+            <div className="overflow-x-auto rounded border border-asphalt-700">
+              <table className="standtable">
+                <caption className="sr-only">Storico tappe di {g.nome} {g.cognome}: piazzamento e statistiche per tappa</caption>
+                {/* la colonna tappa prende lo spazio rimanente, le numeriche sono fisse */}
+                <colgroup><col /><col className="w-14" /><col className="w-10" /><col className="w-12" /><col className="w-12" /><col className="w-12" /></colgroup>
+                <thead><tr><th className="text-left" scope="col">Tappa</th><th scope="col">Piazz.</th><th scope="col">G</th><th scope="col">PT</th><th scope="col">REB</th><th scope="col">AST</th></tr></thead>
+                <tbody>
+                  {perTappa.length === 0 && <tr><td colSpan={6} className="text-chalk-muted">Nessuna tappa giocata.</td></tr>}
+                  {perTappa.map(({ tappa, row, piazzamento }) => (
+                    <tr key={tappa.id}>
+                      <td className="tname"><Link to={`/lega/tappa/${tappa.id}`} className="hover:text-court">{tappa.nome}</Link></td>
+                      <td className={piazzamento === 1 ? "text-gold font-display text-base" : ""}>{piazzamento ? `${piazzamento}°` : "—"}</td>
+                      <td>{row.g}</td><td className="font-semibold">{row.pt}</td><td>{row.rb}</td><td>{row.as}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Section>
+        </div>
+
+        {games.length > 0 && (
+          <Section title="Ultime partite" kicker="Dalla più recente" className="mt-8">
+            <ol className="m-0 list-none divide-y divide-asphalt-700 rounded border border-asphalt-700 bg-asphalt-900 p-0">
+              {ultime.map((x, i) => {
+                const { tone, lettera } = BADGE_ESITO[x.esito];
+                return (
+                  <li key={i} className="flex flex-wrap items-center gap-3 px-3 py-2 text-[13px]">
+                    <Badge tone={tone}>{lettera}</Badge>
+                    <span className="min-w-0 flex-1 truncate"><span className="text-chalk-muted">vs</span> <span className="font-display text-base">{x.avversario}</span> <span className="text-chalk-dim">· {x.tappa}</span></span>
+                    <span className="font-display text-lg">{x.mio}–{x.suo}</span>
+                    <span className="text-chalk-muted">{x.pt} PT · {x.rb} REB · {x.as} AST</span>
+                  </li>
+                );
+              })}
+            </ol>
+          </Section>
+        )}
+        </>
       )}
     </>
   );
