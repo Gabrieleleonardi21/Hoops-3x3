@@ -408,11 +408,20 @@ describe("Statistiche stagione: uguali per tutti, dalle tappe pubblicate più la
     expect(screen.queryByText(/Nessuna statistica: il giocatore non compare/)).toBeNull();
   });
 
+  it("lo storico porta alla tappa giusta: la pagina della lega per una tappa della lega, quella pubblica per una solo pubblicata", async () => {
+    vi.mocked(archivioApi.tappe).mockResolvedValue([pubblicata(unaGara("p1", "Alfa", "Mario Rossi", { pt: 12 }))]);
+    await apriProfilo(registrazione("g1", "Mario", "Rossi"), [unaGara("l1", "Alfa", "Mario Rossi", { pt: 8 })]);
+    expect(screen.getByRole("link", { name: "Tappa l1" }).getAttribute("href")).toBe("/lega/tappa/l1");
+    expect(screen.getByRole("link", { name: "Tappa p1" }).getAttribute("href")).toBe("/tappa/p1");
+  });
+
   it("la pagina del giocatore, finché l'archivio non risponde, non dice «nessuna statistica»", async () => {
     vi.mocked(archivioApi.tappe).mockReturnValue(new Promise(() => {}));
     await apriProfilo(registrazione("g1", "Mario", "Rossi"), []);
     expect(screen.getByRole("status")).toBeTruthy();
     expect(screen.queryByText(/Nessuna statistica: il giocatore non compare/)).toBeNull();
+    // I riquadri restano nascosti finché l'archivio non risponde: degli zeri sembrerebbero dati veri
+    expect(screen.queryByText("Punti")).toBeNull();
   });
 
   it("la pagina del giocatore, se l'archivio non risponde, mostra l'errore con «Riprova» al posto dei riquadri", async () => {
