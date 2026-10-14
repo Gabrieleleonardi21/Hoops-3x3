@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   COPIA_LINK_NON_RIUSCITA, PERDITA_RIAPERTURA, SPAZIO_ESAURITO, SPAZIO_ESAURITO_ACCESSO, SPAZIO_ESAURITO_LEGA,
   conteggio, copiaPubblicaNonAggiornata, perditaAccount, perditaGiocatore, perditaLega, perditaSquadraAnagrafe, pubblicazioneSenzaSalvataggio, salvataggioRifiutato,
-  tappaNonPubblicata, BOZZA_FOGLIO_NON_VALIDA, FILE_NON_SUPPORTATO, FOTO_NON_RIDUCIBILE, FOTO_RISERVATA, FOTO_TROPPO_GRANDE,
+  tappaNonPubblicata, BOZZA_FOGLIO_NON_VALIDA, FILE_NON_SUPPORTATO, FOTO_NON_APRIBILE, FOTO_NON_RIDUCIBILE, FOTO_RISERVATA, FOTO_TROPPO_GRANDE,
   JSON_TROPPO_GRANDE, LETTURA_FALLITA, LETTURA_IN_CORSO, NESSUN_DUBBIO, SCELTA_FILE, TROPPE_FOTO,
 } from "../../src/utils/testi";
 import type { LegaMeta, RegGiocatore, RegSquadra } from "../../src/types";
@@ -181,6 +181,7 @@ describe("Importa file: i messaggi del JSON e delle foto dei fogli", () => {
     expect(FOTO_TROPPO_GRANDE("a.jpg")).toBe("La foto «a.jpg» supera 20 MB.");
     expect(JSON_TROPPO_GRANDE).toBe("Il file supera 5 MB.");
     expect(FOTO_NON_RIDUCIBILE("a.jpg")).toBe("La foto «a.jpg» resta troppo grande anche ridotta: ritagliala e riprova.");
+    expect(FOTO_NON_APRIBILE("a.jpg")).toBe("La foto «a.jpg» non si apre in questo browser: salvala come JPEG e riprova.");
   });
 
   it("ospite, lettura in corso, lettura fallita e risposta fuori forma", () => {

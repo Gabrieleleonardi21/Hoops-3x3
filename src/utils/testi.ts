@@ -243,6 +243,9 @@ export const JSON_TROPPO_GRANDE = "Il file supera 5 MB.";
 /** Anche il secondo passo della riduzione supera il limite del server */
 export const FOTO_NON_RIDUCIBILE = (nome: string) =>
   `La foto «${nome}» resta troppo grande anche ridotta: ritagliala e riprova.`;
+/** Il browser non decodifica la foto (file danneggiato, o un formato che ha la firma giusta ma non sa aprire) */
+export const FOTO_NON_APRIBILE = (nome: string) =>
+  `La foto «${nome}» non si apre in questo browser: salvala come JPEG e riprova.`;
 /** L'ospite sceglie una foto: la lettura passa da un fornitore a pagamento, come il Coach, ed è per chi ha un account */
 export const FOTO_RISERVATA =
   "La lettura delle foto è riservata agli utenti registrati: crea un account gratuito dalla home per usarla.";
