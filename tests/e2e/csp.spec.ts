@@ -1,28 +1,9 @@
 import { test, expect } from "@playwright/test";
-import { json, rispondiAlRisveglio } from "./helpers";
+import { json, rispondiAlRisveglio, ID, tappaPubblica } from "./helpers";
 
 /* La Content-Security-Policy di produzione (render.yaml) è la stessa che `vite preview` manda qui (vite.config.ts): una pagina
  * con tutto ciò che l'app carica dall'esterno (font di Google, il logo di una squadra da un host qualsiasi, l'embed di YouTube)
  * deve disegnarsi senza violazioni. Una risorsa nuova che la policy non ammette fa fallire questo test prima del deploy. */
-
-/** L'id della tappa: la pagina pubblica accetta solo UUID */
-const ID = "11111111-2222-4333-8444-555555555555";
-
-/** Una tappa pubblica dell'archivio con un logo esterno e un video di YouTube */
-const tappaPubblica = {
-  tappa: {
-    id: ID, nome: "Roma Open", luogo: "Roma", data: "2026-06-14", nGironi: 1, regole: { target: 21, durata: 10, ot: 2, shot: 12 },
-    squadre: [
-      { id: "s1", nome: "Falchi", rank: "40", logo: "https://loghi.esempio.it/falchi.png", giocatori: [{ id: "p1", nome: "Anna" }] },
-      { id: "s2", nome: "Lupi", rank: "", giocatori: [{ id: "p2", nome: "Bea" }] },
-    ],
-    gironi: [["s1", "s2"]],
-    partite: [{ id: "m1", g: 0, a: "s1", b: "s2", sa: 21, sb: 15, done: true }],
-    video: [{ id: "v1", titolo: "Finale", url: "https://www.youtube.com/watch?v=abcdefghijk" }],
-    conclusa: true, bracket: null,
-  },
-  lega: "Circuito", autore: "Anna", autoreId: "u1", ts: 1,
-};
 
 /** Un PNG di 1×1 pixel: il logo che l'host esterno finto restituisce */
 const PNG_1X1 = Buffer.from(
