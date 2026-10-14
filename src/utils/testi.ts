@@ -225,3 +225,32 @@ export function perditaAccount(leghe: number | null, anagrafeResta: boolean): st
   if (anagrafeResta) cheCosaResta = "I campetti e le schede dell'anagrafe che hai inserito restano, senza autore.";
   return `${leghePerse} ${cheCosaResta} Non si può annullare.`;
 }
+
+/* «Importa file» nella pagina della lega: un JSON di HOOP 3X3 oppure le foto dei fogli di tappa. La pagina li mostra dopo
+ * «Import non riuscito: », come gli errori del JSON. I nomi dei file li sceglie l'utente: restano testo, mai HTML. */
+
+/** Il file non è né un JSON né una foto ammessa (dai primi byte, non dall'estensione). HEIC, il formato degli iPhone, Chrome e
+ *  Firefox non lo decodificano: il messaggio dice come uscirne */
+export const FILE_NON_SUPPORTATO = (nome: string) =>
+  `Il file «${nome}» non è un JSON di HOOP 3X3 né una foto JPEG, PNG o WebP (una foto HEIC va salvata come JPEG).`;
+/** JSON e foto insieme, o più di un JSON: un import alla volta */
+export const SCELTA_FILE = "Scegli un file JSON esportato da HOOP 3X3 oppure fino a 10 foto (JPEG, PNG o WebP), non entrambi.";
+export const TROPPE_FOTO = "Al massimo 10 foto per volta.";
+/** Una foto oltre 20 MB prima della riduzione: il browser la terrebbe tutta in memoria per ridurla */
+export const FOTO_TROPPO_GRANDE = (nome: string) => `La foto «${nome}» supera 20 MB.`;
+/** Un JSON oltre 5 MB: leggerlo tutto bloccherebbe la scheda (un file di lega vero ne pesa poche centinaia di KB) */
+export const JSON_TROPPO_GRANDE = "Il file supera 5 MB.";
+/** Anche il secondo passo della riduzione supera il limite del server */
+export const FOTO_NON_RIDUCIBILE = (nome: string) =>
+  `La foto «${nome}» resta troppo grande anche ridotta: ritagliala e riprova.`;
+/** L'ospite sceglie una foto: la lettura passa da un fornitore a pagamento, come il Coach, ed è per chi ha un account */
+export const FOTO_RISERVATA =
+  "La lettura delle foto è riservata agli utenti registrati: crea un account gratuito dalla home per usarla.";
+/** Lo stato mostrato mentre le foto vanno al server una per una */
+export const LETTURA_IN_CORSO = (i: number, n: number) => `Lettura del foglio ${i} di ${n}…`;
+/** Una foto non letta: il suo nome e il motivo (il messaggio del server, o della riduzione) */
+export const LETTURA_FALLITA = (nome: string, motivo: string) => `Foto «${nome}»: ${motivo}`;
+/** La bozza arrivata dal server non ha la forma del contratto: non si importa niente */
+export const BOZZA_FOGLIO_NON_VALIDA = "La lettura del foglio non è nella forma attesa: riprova più tardi.";
+/** Nella finestra dei dubbi, per una tappa senza dubbi: la lettura resta da controllare */
+export const NESSUN_DUBBIO = "Il lettore non ha segnalato dubbi: controlla comunque nomi e punteggi.";

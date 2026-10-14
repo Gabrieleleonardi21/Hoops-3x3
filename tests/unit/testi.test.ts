@@ -2,7 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   COPIA_LINK_NON_RIUSCITA, PERDITA_RIAPERTURA, SPAZIO_ESAURITO, SPAZIO_ESAURITO_ACCESSO, SPAZIO_ESAURITO_LEGA,
   conteggio, copiaPubblicaNonAggiornata, perditaAccount, perditaGiocatore, perditaLega, perditaSquadraAnagrafe, pubblicazioneSenzaSalvataggio, salvataggioRifiutato,
-  tappaNonPubblicata,
+  tappaNonPubblicata, BOZZA_FOGLIO_NON_VALIDA, FILE_NON_SUPPORTATO, FOTO_NON_RIDUCIBILE, FOTO_RISERVATA, FOTO_TROPPO_GRANDE,
+  JSON_TROPPO_GRANDE, LETTURA_FALLITA, LETTURA_IN_CORSO, NESSUN_DUBBIO, SCELTA_FILE, TROPPE_FOTO,
 } from "../../src/utils/testi";
 import type { LegaMeta, RegGiocatore, RegSquadra } from "../../src/types";
 
@@ -165,5 +166,30 @@ describe("perditaAccount: che cosa sparisce e che cosa resta con l'account", () 
   it("se l'anagrafe non resta, dice che le schede spariscono con l'account", () => {
     expect(perditaAccount(2, false)).toContain("le schede dell'anagrafe che hai creato spariscono con l'account");
     expect(perditaAccount(2, false)).not.toContain("restano, senza autore. Non");
+  });
+});
+
+describe("Importa file: i messaggi del JSON e delle foto dei fogli", () => {
+  it("formati e limiti nominano il file e dicono che cosa fare", () => {
+    expect(FILE_NON_SUPPORTATO("foglio.heic")).toBe(
+      "Il file «foglio.heic» non è un JSON di HOOP 3X3 né una foto JPEG, PNG o WebP (una foto HEIC va salvata come JPEG).",
+    );
+    expect(SCELTA_FILE).toBe(
+      "Scegli un file JSON esportato da HOOP 3X3 oppure fino a 10 foto (JPEG, PNG o WebP), non entrambi.",
+    );
+    expect(TROPPE_FOTO).toBe("Al massimo 10 foto per volta.");
+    expect(FOTO_TROPPO_GRANDE("a.jpg")).toBe("La foto «a.jpg» supera 20 MB.");
+    expect(JSON_TROPPO_GRANDE).toBe("Il file supera 5 MB.");
+    expect(FOTO_NON_RIDUCIBILE("a.jpg")).toBe("La foto «a.jpg» resta troppo grande anche ridotta: ritagliala e riprova.");
+  });
+
+  it("ospite, lettura in corso, lettura fallita e risposta fuori forma", () => {
+    expect(FOTO_RISERVATA).toBe(
+      "La lettura delle foto è riservata agli utenti registrati: crea un account gratuito dalla home per usarla.",
+    );
+    expect(LETTURA_IN_CORSO(2, 3)).toBe("Lettura del foglio 2 di 3…");
+    expect(LETTURA_FALLITA("b.jpg", "Lettore dei fogli non raggiungibile")).toBe("Foto «b.jpg»: Lettore dei fogli non raggiungibile");
+    expect(BOZZA_FOGLIO_NON_VALIDA).toBe("La lettura del foglio non è nella forma attesa: riprova più tardi.");
+    expect(NESSUN_DUBBIO).toBe("Il lettore non ha segnalato dubbi: controlla comunque nomi e punteggi.");
   });
 });
