@@ -37,3 +37,23 @@ describe("ConfirmDialog (finestra di conferma)", () => {
     expect(onConfirm).not.toHaveBeenCalled();
   });
 });
+
+describe("ConfirmDialog: etichette dei pulsanti", () => {
+  it("si possono cambiare (la finestra dei dubbi dopo l'import: «Apri il Coach» e «Non ora»), Esc resta l'annullamento", () => {
+    const onConfirm = vi.fn();
+    const onCancel = vi.fn();
+    render(
+      <ConfirmDialog title="Tappa importata dal foglio" confermaTesto="Apri il Coach" annullaTesto="Non ora"
+        onConfirm={onConfirm} onCancel={onCancel}>
+        <ul><li>Un dubbio</li></ul>
+      </ConfirmDialog>,
+    );
+    expect(screen.queryByRole("button", { name: "Conferma" })).toBeNull();
+    expect(screen.getByRole("listitem").textContent).toBe("Un dubbio");
+    fireEvent.click(screen.getByRole("button", { name: "Apri il Coach" }));
+    fireEvent.click(screen.getByRole("button", { name: "Non ora" }));
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+    expect(onCancel).toHaveBeenCalledTimes(2);
+  });
+});
