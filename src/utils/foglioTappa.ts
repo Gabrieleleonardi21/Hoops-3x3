@@ -90,9 +90,9 @@ function gironiLetti(bozza: BozzaFoglio, squadre: SquadraTappa[], perNome: PerNo
 
 /** Copia i risultati letti nelle partite del calendario. Ogni risultato passa da registraRisultato, con le sue regole (interi,
  *  niente pareggi, al massimo target + 4): uno che non le rispetta lascia la partita da giocare, con il dubbio, invece di
- *  entrare in classifica. Una partita senza nessun punteggio è solo da giocare; una coppia scritta due volte vale la prima. */
+ *  entrare in classifica. Una partita senza nessun punteggio è solo da giocare. Una coppia scritta due volte vale il primo
+ *  risultato registrato: se il primo era stato rifiutato (un 21-21 corretto più sotto in 21-19) vale quello dopo. */
 function risultatiLetti(tappa: Tappa, bozza: BozzaFoglio, perNome: PerNome, dubbi: string[]): Tappa {
-  const viste = new Set<string>();
   let esito = tappa;
   for (const p of bozza.partite) {
     if (p.puntiA === null && p.puntiB === null) continue;
@@ -110,11 +110,12 @@ function risultatiLetti(tappa: Tappa, bozza: BozzaFoglio, perNome: PerNome, dubb
       dubbi.push(`${titolo} non registrata: le due squadre non si incontrano nei gironi.`);
       continue;
     }
-    if (viste.has(partita.id)) {
+    // Già registrata da una riga precedente del foglio. Si guarda la partita registrata, non la coppia già vista: una riga
+    // rifiutata non deve far scartare la sua correzione
+    if (partita.done) {
       dubbi.push(`${titolo} ripetuta sul foglio: vale la prima.`);
       continue;
     }
-    viste.add(partita.id);
     if (p.puntiA === null || p.puntiB === null) {
       dubbi.push(`${titolo} non registrata: manca un punteggio.`);
       continue;

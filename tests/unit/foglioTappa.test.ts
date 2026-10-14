@@ -159,6 +159,15 @@ describe("fileDaFogli: risultati che non rispettano le regole restano da giocare
     expect(partitaTra(nessuno.lega.tappe[0], "Alfa", "Beta")?.done).toBe(false);
   });
 
+  it("una coppia scritta due volte con il primo risultato non valido: vale il secondo, senza il dubbio «vale la prima»", () => {
+    const { lega, dubbi } = importa([bozza({
+      partite: [{ a: "Alfa", b: "Beta", puntiA: 21, puntiB: 21 }, { a: "Alfa", b: "Beta", puntiA: 21, puntiB: 19 }],
+    })]);
+    expect(partitaTra(lega.tappe[0], "Alfa", "Beta")).toEqual({ Alfa: 21, Beta: 19, done: true });
+    expect(dubbi[0]).toHaveLength(1);
+    expect(dubbi[0][0]).toMatch(/^Partita Alfa-Beta 21-21 non registrata: /);
+  });
+
   it("squadre di gironi diversi, squadra sconosciuta, coppia ripetuta (vale la prima)", () => {
     const { lega, dubbi } = importa([bozza({
       partite: [
