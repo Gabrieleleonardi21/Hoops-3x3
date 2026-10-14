@@ -423,4 +423,39 @@ describe("LegaPage: «Importa file»", () => {
     await screen.findByRole("alertdialog");
     expect(screen.getByRole("button", { name: /Importa file/ }).hasAttribute("disabled")).toBe(false);
   });
+
+  it("un import alla volta: durante la lettura il pulsante è disattivato e un secondo file non avvia un altro import", async () => {
+    let risolvi: (b: BozzaFoglio[]) => void = () => {};
+    // Lo stato dell'hook resta vuoto: il pulsante si disattiva per l'import in corso, non per il testo della lettura
+    fotoFinte.leggiFoto.mockImplementation(() => new Promise((r) => { risolvi = r; }));
+    serverCreaLega();
+    apriLega(registrato);
+    scegli(fotoDi("sabato.jpg"));
+    const pulsante = screen.getByRole("button", { name: /Importa file/ });
+    await waitFor(() => expect(pulsante.hasAttribute("disabled")).toBe(true));
+    scegli(fotoDi("domenica.jpg"));
+    scegli(fileValido());
+    risolvi([bozzaFoglio("Sabato")]);
+    await screen.findByRole("alertdialog");
+    expect(fotoFinte.leggiFoto).toHaveBeenCalledTimes(1);
+    expect(api.create).toHaveBeenCalledTimes(1);
+    expect(pulsante.hasAttribute("disabled")).toBe(false);
+  });
+
+  it("anche il JSON: finché il server non ha creato la lega il pulsante resta disattivato", async () => {
+    let crea: () => void = () => {};
+    api.create.mockImplementation((nome, tappe = []) => new Promise((r) => {
+      crea = () => r({ id: "lega-json", nome, ts: 1, nTappe: tappe.length });
+    }));
+    apriLega(registrato);
+    scegli(fileValido());
+    const pulsante = screen.getByRole("button", { name: /Importa file/ });
+    await waitFor(() => expect(api.create).toHaveBeenCalledTimes(1));
+    expect(pulsante.hasAttribute("disabled")).toBe(true);
+    scegli(fileValido());
+    crea();
+    await waitFor(() => expect(store().legaId).toBe("lega-json"));
+    await waitFor(() => expect(pulsante.hasAttribute("disabled")).toBe(false));
+    expect(api.create).toHaveBeenCalledTimes(1);
+  });
 });

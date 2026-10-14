@@ -63,6 +63,10 @@ export function LegaPage() {
   const { leggiFoto, stato: statoLettura } = useImportaFoto();
   /** Le tappe appena importate dalle foto con i loro dubbi: finché c'è, la finestra dei dubbi è aperta */
   const [dubbi, setDubbi] = useState<TappaDubbi[] | null>(null);
+  /** Un import alla volta, dalla scelta dei file alla lega creata: lo stato disattiva «Importa file», la ref ferma anche un secondo
+   *  file scelto prima che la pagina si ridisegni. Un secondo import partito sopra il primo creerebbe due leghe */
+  const [importInCorso, setImportInCorso] = useState(false);
+  const inCorso = useRef(false);
 
   /** Crea la tappa e la apre; se i dati sono fuori dai limiti restituisce il motivo, che il form mostra */
   const creaEApri = (input: NuovaTappaInput) => {
@@ -107,13 +111,23 @@ export function LegaPage() {
     }
   };
 
-  /** Importa una lega da un file JSON: il testo con FileReader e poi importaDaTesto */
-  const importaJson = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = () => { void importaDaTesto(String(reader.result), file.name); };
-    // File spostato o senza permessi dopo averlo scelto
-    reader.onerror = () => rifiutaImport("impossibile leggere il file");
-    reader.readAsText(file);
+  /** Importa una lega da un file JSON: il testo con FileReader e poi importaDaTesto. Restituisce una promessa che finisce con
+   *  l'import, così «Importa file» resta disattivato fino alla lega creata */
+  const importaJson = async (file: File) => {
+    let testo: string;
+    try {
+      testo = await new Promise<string>((risolvi, rifiuta) => {
+        const reader = new FileReader();
+        reader.onload = () => risolvi(String(reader.result));
+        reader.onerror = () => rifiuta(new Error("lettura"));
+        reader.readAsText(file);
+      });
+    } catch {
+      // File spostato o senza permessi dopo averlo scelto
+      rifiutaImport("impossibile leggere il file");
+      return;
+    }
+    await importaDaTesto(testo, file.name);
   };
 
   /** Importa le foto dei fogli: le bozze lette diventano il file di una lega nuova (fileDaFogli) e si importano dalla stessa strada
@@ -136,13 +150,8 @@ export function LegaPage() {
     if (lega) setDubbi(lega.tappe.map((t, i) => ({ nome: t.nome, dubbi: file.dubbi[i] })));
   };
 
-  /** «Importa file»: un JSON di HOOP 3X3 oppure da 1 a 10 foto di fogli. Il tipo si legge dai primi byte di ogni file (tipoFile),
-   *  non dall'estensione; formati, numero e dimensioni si controllano prima di leggere o mandare qualcosa. */
-  const importaFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = [...(e.target.files ?? [])];
-    // Resetta il campo così si può scegliere di nuovo lo stesso file (i File sono già copiati sopra)
-    e.target.value = "";
-    if (files.length === 0) return;
+  /** I file scelti: tipo, regole e poi il ramo del JSON o delle foto */
+  const importaScelti = async (files: File[]) => {
     setErroreImport(null);
     let tipi: (TipoFile | null)[];
     try {
@@ -156,8 +165,25 @@ export function LegaPage() {
       rifiutaImport(errore);
       return;
     }
-    if (tipi[0] === "json") importaJson(files[0]);
+    if (tipi[0] === "json") await importaJson(files[0]);
     else await importaFoto(files);
+  };
+
+  /** «Importa file»: un JSON di HOOP 3X3 oppure da 1 a 10 foto di fogli. Il tipo si legge dai primi byte di ogni file (tipoFile),
+   *  non dall'estensione; formati, numero e dimensioni si controllano prima di leggere o mandare qualcosa. */
+  const importaFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = [...(e.target.files ?? [])];
+    // Resetta il campo così si può scegliere di nuovo lo stesso file (i File sono già copiati sopra)
+    e.target.value = "";
+    if (files.length === 0 || inCorso.current) return;
+    inCorso.current = true;
+    setImportInCorso(true);
+    try {
+      await importaScelti(files);
+    } finally {
+      inCorso.current = false;
+      setImportInCorso(false);
+    }
   };
 
   // Classifica circuito: aggrega tutte le squadre da tutte le tappe, prende il rank massimo per squadra (nome case-insensitive) e
@@ -205,11 +231,11 @@ export function LegaPage() {
             value={legaName} onChange={(e) => setLegaName(e.target.value)} maxLength={MAX_NOME_LEGA}
             placeholder="Es. Roma Streetball League" className="font-display text-2xl h-12" />
         </div>
-        {/* Esporta JSON / Importa file (JSON o foto dei fogli). Disattivato mentre le foto si leggono: un secondo import partirebbe
-            sopra il primo */}
+        {/* Esporta JSON / Importa file (JSON o foto dei fogli). Disattivato finché un import è in corso: un secondo partirebbe sopra
+            il primo */}
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={esportaLega}><Icon name="download" size={14} /> Esporta JSON</Button>
-          <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()} disabled={statoLettura !== null}>
+          <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()} disabled={importInCorso}>
             <Icon name="upload" size={14} /> Importa file
           </Button>
           {/* Un solo input file nascosto: `accept` è solo un suggerimento al selettore dei file; il tipo vero si legge dai byte
