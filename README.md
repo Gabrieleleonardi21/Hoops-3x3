@@ -68,7 +68,7 @@ Misurati il 14 ottobre 2026, tutti senza fallimenti. I test del frontend compren
 | Test unitari e di componenti del frontend | 1.933, in 105 file | `npm test` |
 | Test end-to-end del frontend, con il server finto | 77 | `npx playwright test` |
 | Test end-to-end con il backend vero | 5 | `npm run test:e2e:backend` (nella CI, l'integrazione continua di GitHub) |
-| Test unitari del backend | 851 | `./mvnw test` |
+| Test unitari del backend, compreso il test di guardia del suo README | 856 | `./mvnw test` |
 | Test di integrazione del backend, su PostgreSQL | 294 | `./mvnw verify -Pintegrazione` |
 | Endpoint dell'API | 41, più 2 controlli di salute | le mappature dei controller del backend |
 | Migrazioni del database | 11 (da V1 a V11), per 12 tabelle | i file di `hoop3x3-backend/src/main/resources/db/migration` |
@@ -134,6 +134,8 @@ Le parole dello schema, in breve (sono anche nel [Glossario](#glossario)):
                                   +----------------------------------+
 ```
 
+Le parti del backend, senza presupporre Spring: un **filtro** guarda ogni richiesta prima di tutto il resto e può fermarla; un **controller** riceve la richiesta di un indirizzo e la passa avanti; un **service** applica le regole (chi può, che cosa si salva); un **repository** legge e scrive le tabelle del database.
+
 Dal browser partono anche, direttamente, le tessere della mappa di OpenStreetMap, i font di Google Fonts, i video di YouTube e i loghi delle squadre. La Content-Security-Policy (l'elenco delle origini da cui la pagina può caricare risorse) li ammette uno per uno (vedi [Le scelte di progetto, con il perché](#le-scelte-di-progetto-con-il-perché)).
 
 ### Dove sta il codice di ogni riquadro
@@ -179,7 +181,7 @@ Ogni riga risponde a quattro domande: che cos'è, a che cosa serve qui (con un f
 | **Leaflet** 1.9, **OpenStreetMap** e **Nominatim** | Leaflet: una libreria per mappe interattive. OpenStreetMap: la mappa libera fatta da volontari. Nominatim: il servizio che trova le coordinate di un luogo | La mappa in `src/components/campetti/MappaCampetti.tsx`; Nominatim solo dal backend, con `GET /api/luoghi` | Nessuna chiave nel browser, nessun costo, la Content-Security-Policy non cambia, la mappa si trascina (vedi [Perché OpenStreetMap con Leaflet e non Google Maps](#perché-openstreetmap-con-leaflet-e-non-google-maps)) | L'aspetto è diverso da Google Maps; le tessere sono di un servizio comunitario, con una politica d'uso da rispettare |
 | **Vitest** 4.1, **Testing Library** e **jsdom** 30.1 | Vitest: esegue i test. Testing Library: prova un componente come lo usa una persona, per ruoli ed etichette. jsdom: un DOM (la struttura della pagina che il browser costruisce dall'HTML) simulato dentro Node | `tests/unit/`; le soglie di copertura in `vite.config.ts` | Vitest usa la configurazione di Vite e misura la copertura con v8. Testing Library cerca i pulsanti per nome, non per classe di stile: così un cambio di grafica non rompe quei test | jsdom non è un browser: le misure, la stampa e la Content-Security-Policy si provano con Playwright |
 | **Playwright** 1.63, solo Chromium | Pilota un browser vero, come farebbe una persona | `tests/e2e/` (`playwright.config.ts`) e `tests/e2e-backend/` (`playwright.backend.config.ts`) | Prova l'app vera, costruita, su `vite preview` con la Content-Security-Policy; con il jar del backend (il pacchetto eseguibile Java del server) prova i contratti veri. Un solo browser tiene la CI breve | Niente Safari né Firefox nella CI |
-| **ESLint** 9.39, con typescript-eslint, jsx-a11y e react-hooks | Un analizzatore del codice: trova errori e cattive abitudini senza eseguirlo | `eslint.config.js`; `npm run lint` | Le regole dell'accessibilità (jsx-a11y) e degli hook di React si controllano a ogni commit. Lo script ammette zero avvisi (`--max-warnings 0`), quindi un avviso ferma la CI | Quattro regole sono ancora «warn» nella configurazione: le rende bloccanti lo zero avvisi dello script |
+| **ESLint** 9.39, con typescript-eslint, jsx-a11y e react-hooks | Un analizzatore del codice: trova errori e cattive abitudini senza eseguirlo | `eslint.config.js`; `npm run lint` | Le regole dell'accessibilità (jsx-a11y) e degli hook di React si controllano a ogni push e pull request (CI); `npm run check` li esegue prima del commit. Lo script ammette zero avvisi (`--max-warnings 0`), quindi un avviso ferma la CI | Quattro regole sono ancora «warn» nella configurazione: le rende bloccanti lo zero avvisi dello script |
 | **Node** 22 | L'ambiente che esegue JavaScript fuori dal browser: serve agli strumenti, non all'app | La CI (`.github/workflows/ci.yml`) e la build su Render (`NODE_VERSION` in `render.yaml`) | jsdom 30 chiede Node 22.22.2 o più nuovo nella serie 22, 24.15 nella serie 24, oppure 26. La stessa versione in CI e su Render | `package.json` non dichiara `engines`: il vincolo è scritto solo qui, nella CI e in `render.yaml` |
 | **Google Fonts** | Un servizio che distribuisce font sul web | `index.html` carica Barlow Condensed (titoli e numeri) e IBM Plex Sans (testo) | I due font del design system ([`docs/design-system.md`](docs/design-system.md)); dal servizio di Google non serve tenere i file nel repository | Una richiesta a Google a ogni visita, ammessa nella Content-Security-Policy. L'alternativa è servire i font dal sito |
 
@@ -194,7 +196,7 @@ Funzioni che il browser offre già, senza librerie.
 | **`crypto.randomUUID`** | Un generatore di identificativi casuali, sicuro per la crittografia | Gli id di tappe, squadre e partite, in `src/utils/uid.ts` | Il backend accetta solo UUID (identificativi universali di 128 bit) come id di tappa; un id casuale non si indovina | Esiste solo su HTTPS o localhost: altrove `src/utils/uid.ts` costruisce lo stesso UUID con `crypto.getRandomValues` |
 | **Geolocation** | La posizione del dispositivo, con il permesso dell'utente | «Usa la mia posizione» nei campetti, `src/hooks/usePosizione.ts` | Si chiede solo al clic, mai all'apertura della pagina | Con il permesso negato la pagina lo dice e resta usabile |
 | **Evento `storage`** | Avvisa una scheda quando un'altra scheda scrive nel `localStorage` | `src/services/api.ts` e `src/stores/useAppStore.ts` | Uscita, accesso e leghe dell'Ospite restano allineati tra le schede dello stesso browser | L'accesso fatto in un'altra scheda non si vede finché non si ricarica (nel `TODO.md`) |
-| **`AbortSignal.timeout`** | Interrompe una richiesta dopo un certo tempo | Il tempo massimo di ogni richiesta, in `src/services/api.ts` | 15 secondi per le richieste normali, 65 per il Coach, 90 per il rinnovo: oltre, conta come rete assente | Dove manca (Safari prima della 16) la richiesta parte senza tempo massimo |
+| **`AbortSignal.timeout`** | Interrompe una richiesta dopo un certo tempo | Il tempo massimo di ogni richiesta, in `src/services/api.ts`; i 65 secondi del Coach in `src/services/aiService.ts` | 15 secondi per le richieste normali, 65 per il Coach, 90 per il rinnovo: oltre, conta come rete assente | Dove manca (Safari prima della 16) la richiesta parte senza tempo massimo |
 | **`localStorage` e `sessionStorage`** | Due archivi chiave-valore del browser: il primo resta, il secondo si svuota alla chiusura della scheda | `localStorage`: lega dell'Ospite, JWT, utente di sessione (`src/stores/memoriaBrowser.ts`). `sessionStorage`: la chat del Coach, con la chiave `coach_chat` (`src/hooks/useCoachAI.ts`) | Nessun server per l'Ospite; la chat non sopravvive alla scheda | Lo spazio è limitato: se il browser rifiuta una scrittura, una barra lo dice |
 
 ### Backend, in breve
@@ -227,7 +229,7 @@ Il server ha un README suo, con la sezione completa delle tecnologie: [Tecnologi
 |---|---|---|---|---|
 | **GitHub Actions** | La CI (integrazione continua) di GitHub: esegue i controlli a ogni push e pull request | `.github/workflows/ci.yml`: lint, tipi, test con copertura, build, end-to-end e end-to-end con il backend vero | Gratuita per i repository pubblici, accanto al codice | Un passo che fallisce ferma la pull request |
 | **Dependabot** | Un servizio di GitHub che propone l'aggiornamento delle dipendenze | `.github/dependabot.yml` | Una volta alla settimana, con versioni minori e patch raggruppate in una pull request sola | Ogni aggiornamento passa dalla CI prima di essere unito |
-| **Render** | Un servizio che ospita siti, container e database | `render.yaml`: sito statico, backend in Docker e PostgreSQL, a Francoforte | Un piano gratuito con le tre parti insieme, descritte in un solo file. Francoforte è la regione di Render in Europa | Il backend gratuito si spegne dopo 15 minuti senza visite; il database gratuito scade dopo 30 giorni |
+| **Render** | Un servizio che ospita siti, container e database | `render.yaml`: sito statico, backend in Docker e PostgreSQL, a Francoforte | Un piano gratuito con le tre parti insieme, descritte in un solo file. Francoforte è l'unica regione europea di Render | Il backend gratuito si spegne dopo 15 minuti senza visite; il database gratuito scade dopo 30 giorni |
 
 ## Le scelte di progetto, con il perché
 
@@ -245,7 +247,7 @@ Una tecnologia è uno strumento; una scelta è il modo in cui lo si usa. Ogni ri
 | Una **Content-Security-Policy** (CSP: l'elenco delle origini da cui la pagina può caricare script, stili, immagini, frame) uguale in `render.yaml` e in `vite.config.ts` | Uno script iniettato non parte, perché gli script ammessi sono solo quelli della build. La copia in `vite.config.ts` fa girare i test end-to-end con la policy di produzione | Ogni risorsa esterna nuova va aggiunta in tutti e due i posti: un test unitario fallisce se le copie divergono | `render.yaml`, `vite.config.ts`, `tests/unit/csp.test.ts`, `tests/e2e/csp.spec.ts` |
 | Video di YouTube da `youtube-nocookie.com` | L'embed non mette cookie di profilazione finché il video non parte; è anche l'unico host che la policy ammette nei frame | Un video di un altro sito si apre in una nuova scheda, non nella pagina | `src/components/video/VideoCard.tsx` |
 | Niente `innerHTML`; ogni indirizzo scritto da un utente passa da `safeUrl`; i loghi si caricano senza `Referer` | Un testo non diventa mai codice. `safeUrl` blocca `javascript:`, `data:` e gli indirizzi che portano a un altro sito. Senza `Referer` l'host di un logo non sa da quale pagina arriva la richiesta | Un indirizzo bloccato diventa `#`, un logo bloccato lascia il posto al ripiego. Il server applica la stessa regola agli indirizzi (`IndirizzoWeb`) | `src/utils/safeUrl.ts`, `src/components/ui/TeamLogo.tsx` |
-| Zod controlla la forma di alcune risposte del server: l'elenco e le tappe dell'archivio, i campetti, i luoghi, il profilo, i messaggi del recupero password. Le altre risposte (leghe e tappe, anagrafe, accesso, Coach) hanno solo i tipi TypeScript | Una risposta fuori forma diventa un errore con «Riprova» invece di una pagina disegnata a metà. Lo schema è arrivato con i client scritti o rivisti dalla fase 2 in poi; quelli delle prime versioni sono rimasti com'erano | Le risposte senza schema si fidano del contratto del backend: un cambio di forma si vedrebbe solo nell'uso. Anche i file importati e la lega dell'Ospite letta dal browser passano da Zod | `src/services/archivioApi.ts`, `src/services/campettiApi.ts`, `src/utils/legaFile.ts` |
+| Zod controlla la forma di alcune risposte del server: l'elenco e le tappe dell'archivio, i campetti, i luoghi, il profilo, i messaggi del recupero password. Le altre risposte (leghe e tappe, anagrafe, accesso, Coach) hanno solo i tipi TypeScript | Una risposta fuori forma diventa un errore con «Riprova» invece di una pagina disegnata a metà. Lo schema è arrivato con i client scritti o rivisti dal 7 ottobre 2026 in poi; quelli delle prime versioni sono rimasti com'erano | Le risposte senza schema si fidano del contratto del backend: un cambio di forma si vedrebbe solo nell'uso. Anche i file importati e la lega dell'Ospite letta dal browser passano da Zod | `src/services/archivioApi.ts`, `src/services/campettiApi.ts`, `src/utils/legaFile.ts` |
 | Contro la **prompt injection** (testo che prova a dare ordini al modello): i dati della lega vanno al Coach dentro `<dati_lega>`, e ogni nome scritto da un utente passa da `pulisci` | Il prompt dice al modello di trattare come dati ciò che sta nel blocco. `pulisci` trasforma `<` e `>`, così un nome come `</dati_lega>` non chiude il blocco | Una mitigazione, non una garanzia: un modello può comunque seguire un testo ostile. Le azioni distruttive chiedono conferma all'utente | `src/utils/buildCoachContext.ts`, `src/hooks/useCoachAI.ts` |
 | Le chiavi dei servizi esterni stanno solo sul server, e il backend fa da proxy verso Groq con una lista degli strumenti ammessi | Una chiave nel browser è pubblica. Con strumenti diversi da quelli del Coach, Groq attiverebbe i suoi strumenti integrati, pagati con la chiave del server | Il prompt di sistema lo scrive il frontend, perché i dati della lega sono nel browser; il server aggiunge la sua regola del contesto e controlla quantità e strumenti (60 messaggi, 100.000 caratteri, 20 strumenti) | `src/services/aiService.ts`; `CoachAiService` e `AmbitoCoach` del backend |
 
@@ -282,11 +284,11 @@ Una tecnologia è uno strumento; una scelta è il modo in cui lo si usa. Ogni ri
 | Scelta | Perché | Alternativa scartata o limite | Dove nel codice |
 |---|---|---|---|
 | Le operazioni di tappa sono **funzioni pure** (ricevono una tappa e ne restituiscono una nuova, senza toccare altro) | Prima il Coach duplicava la logica dell'interfaccia: ogni correzione andava fatta in due posti. Ora interfaccia e Coach chiamano le stesse funzioni, provate senza React | Lo store resta il solo punto che salva | `src/domain/tappaOps.ts`, `TODO.md` |
-| Test di guardia nel backend: test che non provano una funzione, ma una regola valida anche per il codice futuro | Un endpoint nuovo senza la sua riga nella tabella degli accessi, un endpoint con un id senza i casi 403 e 404, un corpo di richiesta non validato, un tetto di lunghezza più grande della sua colonna, un nome vero nei dati di prova: ognuno fa cadere un test | Controllano la forma (annotazioni, tabelle), non ogni comportamento | `AccessoEndpointIT`, `CampiDiTestoTest`, `LimitiColonneIT`, `DatiDiProvaTest` del backend |
+| Test di guardia nel backend: test che non provano una funzione, ma una regola valida anche per il codice futuro | Cinque regole, e ognuna fa cadere un test: ogni endpoint sta in una lista della tabella degli accessi, con i casi 403 e 404 per quelli con un id e il corpo validato (`AccessoEndpointIT`); ogni campo di testo con un tetto è nella tabella dei tetti (`CampiDiTestoTest`); nessun tetto supera la lunghezza della sua colonna (`LimitiColonneIT`); un carattere oltre il tetto dà 400, su un endpoint per ogni modulo (`ValidazioneWebTest`); ogni tabella nuova è svuotata da `svuota.sql` prima dei test (`MigrazioniIT`) | Controllano la forma (annotazioni, tabelle), non ogni comportamento | `AccessoEndpointIT`, `CampiDiTestoTest`, `LimitiColonneIT`, `MigrazioniIT` e `hoop3x3-backend/src/test/java/com/hoop3x3/backend/web/ValidazioneWebTest.java` del backend |
 | Copertura minima dell'80% per file in `src/domain`, `src/utils`, `src/stores` e `src/services` | Con la media di cartella un file piccolo senza test (era `safeUrl`, l'unica difesa contro gli indirizzi `javascript:`) restava nascosto dietro quelli grandi | I componenti non hanno soglia: si provano di più dal browser | `vite.config.ts` |
 | Test end-to-end sulla build servita da `vite preview` | Il dev server non può avere la Content-Security-Policy di produzione; la build sì, e una risorsa esterna non ammessa si scopre nei test | La build si rifà prima di ogni corsa | `playwright.config.ts` |
 | Test end-to-end con il jar del backend vero | Provano ciò che il server finto può solo imitare: registrazione, rinnovo con il cookie vero, salvataggio e versioni | Servono Java e un database di prova; nella CI il jar si compila dal ramo principale del backend | `playwright.backend.config.ts`, `tests/e2e-backend/` |
-| Lint con zero avvisi e controllo dei tipi a ogni commit | `npm run check` fa lint, tipi e test in un comando: gli stessi passi che la CI ripete | Un avviso ferma la CI anche quando è innocuo | `package.json` |
+| Lint con zero avvisi e controllo dei tipi a ogni push e pull request (CI); `npm run check` prima del commit | `npm run check` fa lint, tipi e test in un comando: gli stessi passi che la CI ripete | Un avviso ferma la CI anche quando è innocuo | `package.json` |
 | CI su ogni pull request e aggiornamenti settimanali con Dependabot | Un errore si scopre prima di unire, non dopo la pubblicazione | Una pull request del frontend che dipende da una modifica del backend passa solo dopo che quella è unita | `.github/workflows/ci.yml`, `.github/dependabot.yml` |
 
 ### Deploy
@@ -306,11 +308,11 @@ Una tecnologia è uno strumento; una scelta è il modo in cui lo si usa. Ogni ri
 |---|---|---|---|
 | Un tema scuro unico, «Asphalt»: asfalto quasi nero, un solo accento arancio, testo color gesso | Un campetto di notte sotto le luci. Prodotto con molti numeri: bordi al posto delle ombre, cifre tabulari | Nessun tema chiaro, tranne in stampa | `src/index.css` (`@theme`), [`docs/design-system.md`](docs/design-system.md) |
 | Barlow Condensed per titoli e numeri, IBM Plex Sans per il testo | Un carattere condensato dà impatto ai punteggi senza allargare le colonne; IBM Plex Sans ha cifre leggibili a 12-13 px | Due font da caricare | `index.html`, [`docs/design-system.md`](docs/design-system.md) |
-| Contrasto del testo almeno 4,5:1 e dei bordi dei campi almeno 3:1, calcolati da un test | Leggibilità secondo le linee guida WCAG (le regole internazionali di accessibilità del web) | Il colore non è mai l'unico segnale: vittoria e sconfitta hanno anche la lettera, la differenza punti il segno | `tests/unit/contrastoCampi.test.ts` |
+| Testo almeno 4,5:1 (valori in `docs/design-system.md`); bordi dei campi almeno 3:1, provati da `contrastoCampi.test.ts` | Leggibilità secondo le linee guida WCAG (le regole internazionali di accessibilità del web) | Il colore non è mai l'unico segnale: vittoria e sconfitta hanno anche la lettera, la differenza punti il segno | [`docs/design-system.md`](docs/design-system.md), `tests/unit/contrastoCampi.test.ts` |
 | Ogni partita del tabellone è un gruppo con un nome (`role="group"`, «Semifinale 1: Alfa contro Beta») | Un lettore di schermo annuncia la partita; i test cercano la card per nome, non per classe di stile | Un attributo in più da tenere vero | `src/components/gironi/Bracket.tsx` |
 | Area di tocco di almeno 44×44 px sotto i 640 px di larghezza o con un puntatore grossolano | I pulsanti piccoli si toccano senza sbagliare; con il mouse l'aspetto non cambia | Le voci della navigazione e le schede dell'anagrafe restano come sono | `area-tocco` in `src/index.css`, `tests/e2e/area-di-tocco.spec.ts` |
 | Le finestre trattengono il focus, lo restituiscono alla chiusura e si chiudono con Esc una alla volta | Chi usa la tastiera non si perde dietro una finestra aperta | Il pannello del Coach non è modale: la pagina sotto resta raggiungibile | `src/components/ui/Modal.tsx`, `src/hooks/usePilaFinestre.ts` |
-| In stampa spariscono solo i comandi marcati `.no-print`, e il tema si inverte | Nella pagina di una tappa sono pulsanti anche le schede delle squadre e le intestazioni della classifica, che sulla carta servono. Su carta bianca i colori scuri darebbero testo chiaro su bianco | Ogni comando nuovo va marcato `.no-print` | `@media print` in `src/index.css`, `tests/e2e/stampa.spec.ts` |
+| In stampa spariscono intestazione, navigazione, Coach e i comandi `.no-print`, e il tema si inverte | Nella pagina di una tappa sono pulsanti anche le schede delle squadre e le intestazioni della classifica, che sulla carta servono. Su carta bianca i colori scuri darebbero testo chiaro su bianco | Ogni comando nuovo va marcato `.no-print` | `@media print` in `src/index.css`, `tests/e2e/stampa.spec.ts` |
 
 ## Come funziona, passo per passo
 
@@ -340,7 +342,9 @@ Cinque percorsi raccontati dall'inizio alla fine, con i file in cui succede ogni
 3. **Lo schermo.** `replaceTappa` mette la tappa nuova nello store (`src/stores/useAppStore.ts`). La classifica del girone si ricalcola subito, prima di qualunque risposta del server.
 4. **Il salvataggio.** Per l'Ospite lo store scrive la lega nel `localStorage`, e il viaggio finisce qui. Per il registrato la coda dei salvataggi (`src/stores/saveQueue.ts`) aspetta 400 millisecondi dall'ultima modifica, poi manda la tappa intera con `PUT /api/tappe/{id}` e la `versione` che conosce.
 5. **Il server.** `TappaController` passa la richiesta a `LegaService`. Il servizio controlla, in ordine: che la versione ci sia, che la tappa esista e sia dell'utente, che la versione sia quella del database. Poi salva e risponde 200 con la versione nuova, che il client userà al salvataggio successivo.
-6. **Il conflitto.** Se un altro dispositivo ha salvato la stessa tappa nel frattempo, il server risponde **409**. Il client rilegge la lega con `GET /api/leghe/{id}`, mostra la tappa com'è sul server e lo dice nella barra degli avvisi (`src/components/layout/SyncBanner.tsx`). Se invece la tappa del server è un suo salvataggio rimasto senza risposta, il conflitto è suo: prende la versione nuova e rimanda, senza avvisi.
+6. **Il conflitto.** Se un altro dispositivo ha salvato la stessa tappa nel frattempo, il server risponde **409**.
+   - Il client rilegge la lega con `GET /api/leghe/{id}`, mostra la tappa com'è sul server e lo dice nella barra degli avvisi (`src/components/layout/SyncBanner.tsx`).
+   - Se invece la tappa del server è un suo salvataggio rimasto senza risposta, il conflitto è suo: prende la versione nuova e rimanda, senza avvisi.
 7. **La rete che manca.** La coda riprova da sola dopo 2, 5 e 15 secondi. Intanto la barra dice quante tappe aspettano, con «Riprova ora». Alla chiusura della pagina ciò che resta parte con `keepalive`.
 
 ### La pubblicazione nell'archivio
@@ -396,7 +400,9 @@ Una o due righe per termine, con la sezione in cui compare.
 
 ### La tecnica
 
+- **ADMIN** — Il ruolo dell'amministratore: modifica ed elimina i dati di chiunque. Nasce dalla configurazione del server (`ADMIN_EMAIL`).
 - **API REST** — Un server che risponde a indirizzi e verbi HTTP (`GET`, `POST`, `PUT`, `DELETE`) con dati in JSON. Vedi [Architettura](#architettura).
+- **Bearer** — Il modo di mandare il JWT: l'intestazione `Authorization: Bearer <token>`, «al portatore», cioè vale per chi lo presenta.
 - **BCrypt e hash** — Un hash trasforma una password in un'impronta da cui non si torna indietro. BCrypt è un hash lento apposta. Vedi [Sicurezza](#sicurezza).
 - **CI** (integrazione continua) — Un servizio che a ogni modifica esegue lint, test e build. Qui GitHub Actions.
 - **Container** — Un pacchetto che contiene un programma con tutto ciò che gli serve per girare. Qui il backend, costruito dal `Dockerfile`.
@@ -405,6 +411,8 @@ Una o due righe per termine, con la sezione in cui compare.
 - **Copertura** — La parte del codice che i test eseguono, in percentuale. Vedi [Qualità](#qualità).
 - **CSP** (Content-Security-Policy) — L'elenco delle origini da cui una pagina può caricare script, stili, immagini e frame. Vedi [Sicurezza](#sicurezza).
 - **CSRF** (Cross-Site Request Forgery) — Un sito estraneo che fa partire una richiesta a nome tuo, con i tuoi cookie.
+- **Endpoint** — Un indirizzo dell'API con il suo verbo, per esempio `PUT /api/tappe/{id}`.
+- **Heap** — La memoria in cui la JVM tiene gli oggetti del programma; nel container è limitata al 60% della memoria.
 - **JSON** — Il formato di testo con cui viaggiano i dati: oggetti con chiavi e valori.
 - **JSONB** — Il tipo di PostgreSQL che conserva un JSON in forma binaria, interrogabile.
 - **JWT** (JSON Web Token) — Un biglietto firmato dal server che dice chi sei e fino a quando vale. Vedi [Una sessione](#una-sessione).
@@ -415,12 +423,14 @@ Una o due righe per termine, con la sezione in cui compare.
 - **Proxy e rewrite** — Un proxy fa da intermediario tra due parti. Una rewrite è la regola con cui il sito statico passa `/api/*` al backend.
 - **Refresh token** — Una credenziale lunga, nel cookie httpOnly, che serve solo a ottenere un JWT nuovo.
 - **SPA** (Single Page Application) — Un'app web che si carica una volta e cambia pagina senza ricaricare il sito.
+- **Starter** — Un pacchetto di Spring Boot che porta con sé una funzione intera (web, sicurezza, database) con la sua configurazione di base.
 - **Test end-to-end** — Un test che usa l'app intera in un browser vero, come una persona.
 - **Test di integrazione** — Un test che fa lavorare insieme più parti vere, per esempio il server e il database.
 - **Test unitario** — Un test che prova una parte piccola da sola, per esempio una funzione.
 - **Tool calling** — La capacità di un modello linguistico di chiedere l'esecuzione di uno strumento con dei parametri. Vedi [Il Coach](#il-coach).
 - **Transazione** — Un gruppo di scritture sul database che riesce tutto insieme o non riesce affatto.
 - **UUID** — Un identificativo di 128 bit, scritto in esadecimale; quelli casuali non si indovinano.
+- **USER** — Il ruolo di ogni utente registrato: modifica solo i dati che ha creato.
 - **Variabile d'ambiente** — Un valore di configurazione dato al programma da fuori, senza scriverlo nel codice: qui le chiavi e gli indirizzi.
 - **XSS** (Cross-Site Scripting) — Codice estraneo che riesce a girare dentro la pagina.
 
@@ -713,12 +723,17 @@ La stessa policy è in `vite.config.ts` (`CSP`, applicata da `vite preview`), su
 
 **Dopo il deploy**
 
-- Controlla gli URL assegnati. Oggi sono `https://hoop3x3.onrender.com` (frontend) e `https://hoop3x3-api-06m1.onrender.com` (backend: `hoop3x3-api.onrender.com` era già di un altro account e Render ha aggiunto il suffisso). Se cambiano, o con un nuovo Blueprint, aggiorna i punti segnati con «URL» in `render.yaml` (le rewrite di `/api/*` e `/actuator/health` e `CORS_ORIGINS`) oppure gli stessi valori nella dashboard. Con un dominio personalizzato vale lo stesso per `CORS_ORIGINS`.
+- Controlla gli URL assegnati.
+  - Oggi sono `https://hoop3x3.onrender.com` (frontend) e `https://hoop3x3-api-06m1.onrender.com` (backend: `hoop3x3-api.onrender.com` era già di un altro account e Render ha aggiunto il suffisso).
+  - Se cambiano, o con un nuovo Blueprint, aggiorna i punti segnati con «URL» in `render.yaml` (le rewrite di `/api/*` e `/actuator/health` e `CORS_ORIGINS`) oppure gli stessi valori nella dashboard.
+  - Con un dominio personalizzato vale lo stesso per `CORS_ORIGINS`.
 - Un 503 con la pagina «Service Suspended» su login o registrazione vuol dire che la rewrite di `/api/*` punta a un servizio che non è il tuo: confronta l'indirizzo in `render.yaml` con quello della dashboard del backend.
 - Prova login, ricarica della pagina e un salvataggio. Un 403 «Invalid CORS request» sulle POST vuol dire che `CORS_ORIGINS` non coincide con l'origine del frontend.
 - I dati di prova: `SEED_CAMPETTI=true` carica solo i nove campetti di esempio (sei di Torino e tre di Roma, intestati all'admin); `SEED_DEMO=true` carica il circuito Estathé 2025 (leghe, squadre, giocatori di fantasia e tappe). Il Blueprint imposta `SEED_CAMPETTI=true` e `SEED_DEMO=false`.
-- Il Blueprint imposta sul backend `SERVER_FORWARD_HEADERS_STRATEGY=native` e `LIMITE_AUTH_AL_MINUTO=60`. Dietro la rewrite il limite di login, registrazione e rinnovo potrebbe contare un solo indirizzo per tutto il sito, e 60 è il valore provvisorio finché non si verifica quale indirizzo arriva. Come verificarlo: «Limiti di frequenza» nel README di [hoop3x3-backend](https://github.com/Gabrieleleonardi21/hoop3x3-backend).
-- Un servizio creato prima della fase 2 può avere ancora `DB_INIT_MODE` nella dashboard: non ha più effetto e si può togliere. Lo stesso vale per `MAPS_API_KEY`, che il backend non usa più (vedi [Campetti](#campetti)).
+- Il Blueprint imposta sul backend `SERVER_FORWARD_HEADERS_STRATEGY=native` e `LIMITE_AUTH_AL_MINUTO=60`.
+  - Dietro la rewrite il limite di login, registrazione e rinnovo potrebbe contare un solo indirizzo per tutto il sito, e 60 è il valore provvisorio finché non si verifica quale indirizzo arriva.
+  - Come verificarlo: «Limiti di frequenza» nel README di [hoop3x3-backend](https://github.com/Gabrieleleonardi21/hoop3x3-backend).
+- Un servizio creato prima del 7 ottobre 2026 può avere ancora `DB_INIT_MODE` nella dashboard: non ha più effetto e si può togliere. Lo stesso vale per `MAPS_API_KEY`, che il backend non usa più (vedi [Campetti](#campetti)).
 
 **Piani gratuiti.** Il backend si spegne dopo 15 minuti senza richieste. La prima richiesta dopo la pausa aspetta il riavvio della JVM, anche più di un minuto: oltre i 15 secondi di attesa del client, la prima chiamata può fallire con «Il server non risponde». Il database gratuito scade dopo 30 giorni.
 
@@ -726,7 +741,12 @@ Per ridurre l'attesa l'app chiama `/actuator/health` appena si apre (`svegliaSer
 
 **Ordine di pubblicazione.** Frontend e backend non vanno online nello stesso istante, quindi l'ordine conta: prima questo frontend, subito dopo il backend, in un momento senza tornei in corso (nessuno sta salvando una tappa), poi si ricaricano le schede aperte.
 
-Il backend rifiuta con 400 il salvataggio di una tappa senza `versione`. Una scheda di questo frontend rimasta aperta dal backend precedente rilegge la lega e rimanda da sola (vedi [Versioni e conflitti](#versioni-e-conflitti)); una scheda di un frontend più vecchio riceve il 400 finché non si ricarica la pagina. Il perché, visto dal backend, è nel README di [hoop3x3-backend](https://github.com/Gabrieleleonardi21/hoop3x3-backend): «Sessioni e refresh token» e «Tappe e modifiche da più dispositivi».
+Il backend rifiuta con 400 il salvataggio di una tappa senza `versione`.
+
+- Una scheda di questo frontend rimasta aperta dal backend precedente rilegge la lega e rimanda da sola (vedi [Versioni e conflitti](#versioni-e-conflitti)).
+- Una scheda di un frontend più vecchio riceve il 400 finché non si ricarica la pagina.
+
+Il perché, visto dal backend, è nel README di [hoop3x3-backend](https://github.com/Gabrieleleonardi21/hoop3x3-backend): «Sessioni e refresh token» e «Tappe e modifiche da più dispositivi».
 
 ### API REST
 
@@ -912,7 +932,9 @@ Dal profilo, con la password.
 #### L'anagrafe
 
 - Si scarica una volta sola e resta in cache nello store (`src/stores/useAnagrafeStore.ts`), non a ogni apertura di pagina. Ogni scrittura, dalle pagine o dal Coach AI, aggiorna server e cache. Le modifiche di altri utenti si vedono ricaricando la pagina.
-- **La versione.** Ogni voce ha una `versione` decisa dal server, come le tappe. La PUT la rimanda (se il server non la manda ancora, non si invia). Se un altro dispositivo ha salvato la voce nel frattempo, il server risponde 409: lo store rilegge la voce, la mette in cache, e la scheda esce dalla modifica mostrandola con l'avviso «modificata da un altro dispositivo». Ciò che era scritto non si salva sopra e si riscrive con «Modifica».
+- **La versione.** Ogni voce ha una `versione` decisa dal server, come le tappe. La PUT la rimanda (se il server non la manda ancora, non si invia).
+  - Se un altro dispositivo ha salvato la voce nel frattempo, il server risponde 409: lo store rilegge la voce, la mette in cache, e la scheda esce dalla modifica mostrandola con l'avviso «modificata da un altro dispositivo».
+  - Ciò che era scritto non si salva sopra e si riscrive con «Modifica».
 - **La ricerca di una squadra per nome** (`trovaSquadra`) che non trova la lista del server rifiuta, invece di dire «non trovata»: altrimenti la pagina della tappa creerebbe un doppione.
 - **Gli errori di caricamento** si vedono, con «Riprova»: un'anagrafe, un archivio o una tappa pubblica che non si sono potuti caricare non si mostrano come vuoti o «non trovati». Una pagina che non si riesce a disegnare mostra un messaggio con «Ricarica» (`ErrorBoundary`), e il resto dell'app resta usabile.
 
@@ -955,9 +977,9 @@ Per le stesse ragioni della mappa non c'è nessuna chiave nel browser e nessun d
 
 #### Perché OpenStreetMap con Leaflet e non Google Maps
 
-Fino alla fase 5 la mappa dei campetti era un'immagine statica della Maps Static API, generata dal backend con la chiave di Google. Si è passati a Leaflet con le tessere di OpenStreetMap per quattro motivi, e con un prezzo:
+Nelle prime versioni della pagina Campetti (12 ottobre 2026) la mappa era un'immagine statica della Maps Static API di Google. Si è passati a Leaflet con le tessere di OpenStreetMap (Hoops-3x3#28) per questi motivi, e con un prezzo:
 
-- **(a)** La chiave Google finiva nel browser: era nel bundle, quindi pubblica a chiunque apra la pagina. La sua protezione stava solo nelle restrizioni impostate in Google Cloud.
+- **(a)** Nella prima versione (Hoops-3x3#20) la chiave era nel bundle, quindi pubblica a chiunque apra la pagina. Con Hoops-3x3#27 è passata al backend, ma restano (b), (c) e (d).
 - **(b)** La mappa interattiva di Google richiede `'unsafe-inline'` nella CSP del sito (la guida di Google lo chiede). Lo spazio concesso agli attacchi XSS, cioè all'esecuzione di script iniettati, si allargherebbe per tutto il sito, non solo per la mappa.
 - **(c)** L'immagine statica non si poteva trascinare, né ingrandire con il mouse: il pin provvisorio del modulo si trascina per correggere il punto, e la mappa va esplorata.
 - **(d)** Leaflet e le tessere di OpenStreetMap non richiedono chiave né fatturazione: nessun costo che cresce con le visite. La CSP non cambia (il codice viene dal bundle, le tessere arrivano da `img-src https:`). L'attribuzione «© OpenStreetMap contributors» è obbligatoria ed è nel controllo della mappa, con il link alla licenza.

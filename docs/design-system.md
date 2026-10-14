@@ -2,7 +2,7 @@
 
 Direzione visiva dell'app (la design pass, unita in `main`). I token Tailwind sono in `src/index.css`
 (`@theme`), che è la fonte di verità: dove questo documento e il CSS divergono vale il CSS.
-Mockup di partenza in `docs/design/stitch-screens/` (home, profilo giocatore, campetti, punteggio partita).
+Mockup di partenza in `docs/design/` (home, profilo giocatore, campetti, punteggio partita).
 
 ## Concetto
 
