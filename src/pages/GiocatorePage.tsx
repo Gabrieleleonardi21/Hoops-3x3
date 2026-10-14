@@ -217,7 +217,7 @@ export function GiocatorePage() {
             </Card>
           </Section>
 
-          <Section title="Storico tappe" kicker="Lega attiva" className="mb-0">
+          <Section title="Storico tappe" kicker="Tappe pubblicate e lega aperta" className="mb-0">
             <div className="overflow-x-auto rounded border border-asphalt-700">
               <table className="standtable">
                 <caption className="sr-only">Storico tappe di {g.nome} {g.cognome}: piazzamento e statistiche per tappa</caption>
