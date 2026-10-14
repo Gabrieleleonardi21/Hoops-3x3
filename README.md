@@ -17,7 +17,7 @@ App web per la gestione di un circuito italiano di basket 3x3: tornei, gironi, s
 - **Archivio** — le tappe concluse e pubblicate (la pubblicazione è dei registrati), consultabili senza account in `/archivio` e `/tappa/:id`
   - squadre e roster, risultati, classifiche dei gironi, tabellone, leader e video, con «Stampa / PDF»
   - il link pubblico di una tappa conclusa si copia dalla sua pagina
-- **Video** — link video per tappa, che si aggiungono e si tolgono anche a tappa conclusa (ogni cambio ripubblica la copia nell'archivio): quelli di YouTube si incorporano nella pagina (embed `youtube-nocookie.com`), gli altri si aprono in una nuova scheda
+- **Video** — link video per tappa, che si aggiungono e si tolgono anche a tappa conclusa (ogni cambio ripubblica la copia nell'archivio): quelli di YouTube si incorporano nella pagina (embed `youtube-nocookie.com`), uno per riga, a tutta la larghezza della colonna, 16:9 e mai più alti dello schermo (`.video-pieno` in `index.css`; la sezione non si stampa), gli altri si aprono in una nuova scheda
 - **Coach AI** — assistente virtuale che conosce le regole FIBA 3x3 e i dati della lega corrente
   - agisce nell'app con 10 strumenti: crea lega e tappa, sorteggia, registra e annulla risultati, genera le fasi dirette, conclude la tappa, scrive nell'anagrafe
   - chiede conferma prima di sorteggiare su una tappa con risultati, annullare un risultato e concludere una tappa

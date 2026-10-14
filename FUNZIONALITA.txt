@@ -376,6 +376,9 @@ Profilo dell'utente (/profilo)
   caratteri, come vuole il server): altrimenti resta nel campo con il motivo.
 - I link YouTube vengono incorporati direttamente come player nella pagina
   (embed youtube-nocookie.com, senza cookie di profilazione).
+- Un video per riga, largo quanto la colonna della pagina (tutto lo schermo,
+  meno i bordi, sul telefono), sempre 16:9 e mai più alto dello schermo sotto
+  la testata. La sezione dei video non si stampa.
 - Gli altri URL si aprono in una nuova scheda.
 - Rimozione di singoli video, anche a tappa conclusa: ogni video aggiunto o
   tolto ripubblica la copia nell'Archivio circuito.
