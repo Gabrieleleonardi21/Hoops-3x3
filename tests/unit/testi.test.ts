@@ -3,7 +3,7 @@ import {
   COPIA_LINK_NON_RIUSCITA, PERDITA_RIAPERTURA, SPAZIO_ESAURITO, SPAZIO_ESAURITO_ACCESSO, SPAZIO_ESAURITO_LEGA,
   conteggio, copiaPubblicaNonAggiornata, perditaAccount, perditaGiocatore, perditaLega, perditaSquadraAnagrafe, pubblicazioneSenzaSalvataggio, salvataggioRifiutato,
   tappaNonPubblicata, BOZZA_FOGLIO_NON_VALIDA, FILE_NON_SUPPORTATO, FOTO_NON_APRIBILE, FOTO_NON_RIDUCIBILE, FOTO_RISERVATA, FOTO_TROPPO_GRANDE,
-  JSON_TROPPO_GRANDE, LETTURA_FALLITA, LETTURA_IN_CORSO, NESSUN_DUBBIO, SCELTA_FILE, TROPPE_FOTO,
+  JSON_TROPPO_GRANDE, LETTURA_FALLITA, LETTURA_IN_CORSO, NESSUN_DUBBIO, SCELTA_FILE, TROPPE_FOTO, messaggioDubbi,
 } from "../../src/utils/testi";
 import type { LegaMeta, RegGiocatore, RegSquadra } from "../../src/types";
 
@@ -192,5 +192,23 @@ describe("Importa file: i messaggi del JSON e delle foto dei fogli", () => {
     expect(LETTURA_FALLITA("b.jpg", "Lettore dei fogli non raggiungibile")).toBe("Foto «b.jpg»: Lettore dei fogli non raggiungibile");
     expect(BOZZA_FOGLIO_NON_VALIDA).toBe("La lettura del foglio non è nella forma attesa: riprova più tardi.");
     expect(NESSUN_DUBBIO).toBe("Il lettore non ha segnalato dubbi: controlla comunque nomi e punteggi.");
+  });
+});
+
+describe("messaggioDubbi: il messaggio con cui il Coach si apre dopo l'import dalle foto", () => {
+  const CHIUSURA = "Dimmi che cosa correggere: posso rinominare una squadra, sistemare i suoi giocatori, registrare o annullare "
+    + "un risultato, sorteggiare i gironi.";
+
+  it("una tappa con i dubbi: tappa, lega, i dubbi uno dopo l'altro e che cosa può fare il Coach", () => {
+    expect(messaggioDubbi("Sabato", [{ nome: "Sabato", dubbi: ["Alpha o Alfa?", "Squadra «Beta» ripetuta sul foglio."] }])).toBe(
+      "Ho importato dal foglio la tappa «Sabato» nella lega «Sabato». Il lettore non era sicuro di: Alpha o Alfa?; "
+      + `Squadra «Beta» ripetuta sul foglio. ${CHIUSURA}`,
+    );
+  });
+
+  it("senza dubbi lo dice; con più tappe le nomina tutte", () => {
+    expect(messaggioDubbi("Lega", [{ nome: "A", dubbi: [] }, { nome: "B", dubbi: [] }])).toBe(
+      `Ho importato dai fogli le tappe «A», «B» nella lega «Lega». ${NESSUN_DUBBIO} ${CHIUSURA}`,
+    );
   });
 });

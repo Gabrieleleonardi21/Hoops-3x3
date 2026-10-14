@@ -18,9 +18,10 @@ import { leggiFileLega, testoFileLega } from "../utils/legaFile";
 import { tipoFile, type TipoFile } from "../utils/tipoFile";
 import { fileDaFogli } from "../utils/foglioTappa";
 import {
-  FILE_NON_SUPPORTATO, FOTO_RISERVATA, FOTO_TROPPO_GRANDE, JSON_TROPPO_GRANDE, SCELTA_FILE, TROPPE_FOTO,
+  FILE_NON_SUPPORTATO, FOTO_RISERVATA, FOTO_TROPPO_GRANDE, JSON_TROPPO_GRANDE, SCELTA_FILE, TROPPE_FOTO, messaggioDubbi,
 } from "../utils/testi";
 import { useImportaFoto } from "../hooks/useImportaFoto";
+import { apriCoach } from "../hooks/useCoachAI";
 import { useUtente } from "../hooks/useUtente";
 import { DialogoDubbi, type TappaDubbi } from "../components/lega/DialogoDubbi";
 import type { BozzaFoglio, Lega } from "../types";
@@ -258,8 +259,12 @@ export function LegaPage() {
         </Section>
       )}
 
-      {/* Dopo l'import dalle foto: i dubbi del lettore e la scelta di passare le correzioni al Coach */}
-      {dubbi && <DialogoDubbi tappe={dubbi} onCoach={() => setDubbi(null)} onChiudi={() => setDubbi(null)} />}
+      {/* Dopo l'import dalle foto: i dubbi del lettore e la scelta di passare le correzioni al Coach, che si apre con il messaggio
+          dei dubbi sulla lega appena importata (è quella aperta: i suoi strumenti, senza il nome della tappa, usano l'ultima) */}
+      {dubbi && (
+        <DialogoDubbi tappe={dubbi} onChiudi={() => setDubbi(null)}
+          onCoach={() => { apriCoach(messaggioDubbi(legaName, dubbi)); setDubbi(null); }} />
+      )}
     </>
   );
 }

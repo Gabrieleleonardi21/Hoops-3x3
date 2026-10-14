@@ -257,3 +257,19 @@ export const LETTURA_FALLITA = (nome: string, motivo: string) => `Foto «${nome}
 export const BOZZA_FOGLIO_NON_VALIDA = "La lettura del foglio non è nella forma attesa: riprova più tardi.";
 /** Nella finestra dei dubbi, per una tappa senza dubbi: la lettura resta da controllare */
 export const NESSUN_DUBBIO = "Il lettore non ha segnalato dubbi: controlla comunque nomi e punteggi.";
+
+/** Il primo messaggio del Coach dopo l'import dalle foto («Apri il Coach» nella finestra dei dubbi): che cosa è stato importato,
+ *  dove, i dubbi del lettore e che cosa il Coach può correggere. Entra nella cronologia che il modello riceve: così sa di quali
+ *  tappe e dubbi si parla. Nomi e dubbi vengono dalla foto: restano testo (la chat li mostra come testo React) */
+export function messaggioDubbi(lega: string, tappe: { nome: string; dubbi: string[] }[]): string {
+  let importate = `dal foglio la tappa «${tappe[0]?.nome ?? ""}»`;
+  if (tappe.length > 1) importate = `dai fogli le tappe ${tappe.map((t) => `«${t.nome}»`).join(", ")}`;
+  const dubbi = tappe.flatMap((t) => t.dubbi);
+  let incerti = NESSUN_DUBBIO;
+  if (dubbi.length > 0) {
+    incerti = `Il lettore non era sicuro di: ${dubbi.join("; ")}`;
+    if (!/[.?!]$/.test(incerti)) incerti += ".";
+  }
+  return `Ho importato ${importate} nella lega «${lega}». ${incerti} Dimmi che cosa correggere: posso rinominare una squadra, `
+    + "sistemare i suoi giocatori, registrare o annullare un risultato, sorteggiare i gironi.";
+}

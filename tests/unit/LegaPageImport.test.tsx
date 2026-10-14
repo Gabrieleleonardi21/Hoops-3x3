@@ -4,6 +4,8 @@ import type { MockInstance } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { LegaPage } from "../../src/pages/LegaPage";
+import { CoachPanel } from "../../src/components/coach/CoachPanel";
+import { chiudiCoach, useCoachAperto } from "../../src/hooks/useCoachAI";
 import { useAppStore } from "../../src/stores/useAppStore";
 import { legheApi } from "../../src/services/legheApi";
 import { ApiError } from "../../src/services/api";
@@ -56,6 +58,13 @@ function nuovaTappa(nome: string): Tappa {
 /** La tappa della lega aperta prima dell'import: deve restare dov'è se l'import non riesce */
 let originale: Tappa;
 
+/** Il pannello del Coach come in App: compare quando lo stato del Coach dice aperto */
+function Coach() {
+  const aperto = useCoachAperto();
+  if (!aperto) return null;
+  return <CoachPanel onClose={chiudiCoach} />;
+}
+
 /** Apre la pagina della lega "l1", che ha una tappa */
 function apriLega(user: User) {
   originale = nuovaTappa("Tappa originale");
@@ -68,6 +77,7 @@ function apriLega(user: User) {
         <Route path="/lega" element={<LegaPage />} />
         <Route path="/leghe" element={<p>Elenco delle leghe</p>} />
       </Routes>
+      <Coach />
     </MemoryRouter>,
   );
 }
@@ -347,6 +357,21 @@ describe("LegaPage: «Importa file»", () => {
     expect(screen.queryByRole("alertdialog")).toBeNull();
     expect(screen.getByText("Le tappe del circuito")).toBeTruthy();
     expect(screen.getAllByText("Domenica").length).toBeGreaterThan(0);
+  });
+
+  it("«Apri il Coach»: il pannello si apre con il messaggio dei dubbi, sulla lega importata", async () => {
+    fotoFinte.leggiFoto.mockResolvedValue([bozzaFoglio("Sabato", ["Alpha o Alfa?"])]);
+    serverCreaLega();
+    apriLega(registrato);
+    scegli(fotoDi("sabato.jpg"));
+    await screen.findByRole("alertdialog", { name: "Tappa importata dal foglio" });
+    fireEvent.click(screen.getByRole("button", { name: "Apri il Coach" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    const chat = screen.getByRole("log", { name: "Conversazione con il Coach" });
+    expect(chat.textContent).toContain("Ho importato dal foglio la tappa «Sabato» nella lega «Sabato». Il lettore non era sicuro di: Alpha o Alfa?");
+    expect(store().legaId).toBe("lega-foto");
+    chiudiCoach();
+    sessionStorage.clear();
   });
 
   it("una foto letta: il titolo è al singolare", async () => {
