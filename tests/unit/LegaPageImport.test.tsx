@@ -495,7 +495,10 @@ describe("LegaPage: «Importa file»", () => {
       passaggio.remove();
       expect(document.activeElement).toBe(document.body);
       risolvi([bozzaFoglio(nome)]);
-      await screen.findByRole("alertdialog");
+      const finestra = await screen.findByRole("alertdialog");
+      // La finestra è nel DOM prima che girino i suoi effetti (l'ascolto di Esc, il focus iniziale): con la macchina carica un Esc
+      // dato subito andrebbe perso. Il focus dentro la finestra dice che gli effetti sono girati
+      await waitFor(() => expect(finestra.contains(document.activeElement)).toBe(true));
     }
     serverCreaLega();
     apriLega(registrato);
@@ -506,7 +509,7 @@ describe("LegaPage: «Importa file»", () => {
     // La seconda volta con Esc
     await importaConFocusPerso("Domenica");
     fireEvent.keyDown(window, { key: "Escape" });
-    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(screen.queryByRole("alertdialog")).toBeNull();
     expect(document.activeElement).toBe(pulsante());
   });
 
