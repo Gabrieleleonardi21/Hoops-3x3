@@ -8,6 +8,7 @@
 import { useMemo } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAnagrafe } from "../hooks/useAnagrafe";
+import { useAppStore } from "../stores/useAppStore";
 import { useStatisticheCircuito } from "../hooks/useStatisticheCircuito";
 import { normalizza, statGiocatori, tabellini, type StatGiocatore } from "../utils/statGiocatori";
 import { eta } from "../utils/eta";
@@ -67,6 +68,13 @@ export function GiocatorePage() {
   const { id } = useParams();
   const { tappe: caricate, errore: erroreStat, reload } = useStatisticheCircuito();
   const tappe = caricate ?? NESSUNA_TAPPA;
+  // Le tappe della lega aperta: solo queste si aprono in /lega/tappa/:id, che le cerca nello store. Una tappa solo pubblicata si
+  // apre nella pagina pubblica dell'archivio
+  const tappeLega = useAppStore((s) => s.tappe);
+  const linkTappa = (tappaId: string) => {
+    if (tappeLega.some((t) => t.id === tappaId)) return `/lega/tappa/${tappaId}`;
+    return `/tappa/${tappaId}`;
+  };
   const navigate = useNavigate();
   const { giocatori, squadre, errore, load } = useAnagrafe();
 
@@ -220,7 +228,7 @@ export function GiocatorePage() {
                   {perTappa.length === 0 && <tr><td colSpan={6} className="text-chalk-muted">Nessuna tappa giocata.</td></tr>}
                   {perTappa.map(({ tappa, row, piazzamento }) => (
                     <tr key={tappa.id}>
-                      <td className="tname"><Link to={`/lega/tappa/${tappa.id}`} className="hover:text-court">{tappa.nome}</Link></td>
+                      <td className="tname"><Link to={linkTappa(tappa.id)} className="hover:text-court">{tappa.nome}</Link></td>
                       <td className={piazzamento === 1 ? "text-gold font-display text-base" : ""}>{piazzamento ? `${piazzamento}°` : "—"}</td>
                       <td>{row.g}</td><td className="font-semibold">{row.pt}</td><td>{row.rb}</td><td>{row.as}</td>
                     </tr>
