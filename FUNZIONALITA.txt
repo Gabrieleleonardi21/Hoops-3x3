@@ -456,7 +456,13 @@ Scheda SQUADRA
     cancellazione chiede conferma.
 
 Statistiche stagione (tab dedicato)
-  - Tabella aggregata di tutti i giocatori su tutte le tappe della lega.
+  - Tabella aggregata di tutti i giocatori sulle tappe pubblicate
+    nell'Archivio circuito più quelle della lega aperta: uguale per ospite,
+    utente registrato e amministratore (le tappe pubblicate sono pubbliche).
+    Una tappa pubblicata che è anche nella lega aperta conta una volta sola,
+    nella versione locale. I dati si chiedono al server solo quando la
+    scheda è aperta; se l'archivio non risponde compare l'errore con
+    «Riprova», mai una tabella vuota.
   - Lo stesso giocatore in più tappe è una sola riga con i totali: si
     riconosce dal nome e dalla squadra (maiuscole, spazi in più, accenti e
     tipo di apostrofo non contano: «De Rossi» e «DeRossi» sono diversi).
@@ -468,7 +474,8 @@ Statistiche stagione (tab dedicato)
     rubate, stoppate.
   - Ordinata per media punti decrescente.
   - La scheda del giocatore (dall'anagrafe) somma le sue statistiche per
-    nome, anche di squadre diverse, ed elenca le squadre da cui vengono.
+    nome, anche di squadre diverse, ed elenca le squadre da cui vengono; i
+    numeri sono quelli della tabella (stesse tappe).
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
