@@ -49,6 +49,10 @@ export const COPIA_LINK_NON_RIUSCITA =
  *  possibile caricare l'archivio», con il «Riprova»: un elenco che non si può leggere non è un elenco vuoto. */
 export const ELENCO_ARCHIVIO_NON_VALIDO = "Risposta del server non valida. Riprova più tardi.";
 
+/** L'elenco delle tappe pubblicate (le statistiche) arriva fuori forma: compare come motivo sotto l'errore di caricamento con il
+ *  «Riprova». Meglio nessuna statistica con il motivo che numeri calcolati su dati a metà */
+export const TAPPE_ARCHIVIO_NON_VALIDE = "L'elenco delle tappe pubblicate non è nella forma attesa: riprova più tardi.";
+
 /** Un campetto, o l'elenco dei campetti, arriva con una forma che l'app non riconosce: stesso testo e stesso uso dell'archivio */
 export const RISPOSTA_CAMPETTI_NON_VALIDA = ELENCO_ARCHIVIO_NON_VALIDO;
 

@@ -163,3 +163,50 @@ describe("archivioApi.list: l'elenco sintetico", () => {
     });
   });
 });
+
+describe("archivioApi.tappe: le tappe pubblicate intere, per le statistiche", () => {
+  /** Una pubblicazione con la forma minima che le statistiche leggono */
+  const pubblicazione = (id: string, extra: object = {}) => ({
+    tappa: { id, squadre: [], partite: [], ...extra }, lega: "Circuito", autore: "Anna", autoreId: "u1", ts: 1,
+  });
+
+  it("GET /api/archivio/tappe senza corpo", async () => {
+    rispondi([]);
+    await archivioApi.tappe();
+    const [url, init] = fetchFinto.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/api/archivio/tappe");
+    expect(init.method).toBe("GET");
+    expect(init.body).toBeUndefined();
+  });
+
+  it("restituisce l'elenco com'è, anche con campi che lo schema non conosce", async () => {
+    const elenco = [pubblicazione("a"), pubblicazione("b", { campoNuovo: { dentro: true } })];
+    rispondi(elenco);
+    await expect(archivioApi.tappe()).resolves.toEqual(elenco);
+  });
+
+  it("un archivio vuoto è un elenco vuoto, non un errore", async () => {
+    rispondi([]);
+    await expect(archivioApi.tappe()).resolves.toEqual([]);
+  });
+
+  describe("una risposta fuori forma è un errore, mai statistiche calcolate su metà dati", () => {
+    const casi: [string, unknown][] = [
+      ["una voce senza tappa.partite", [{ ...pubblicazione("a"), tappa: { id: "a", squadre: [] } }]],
+      ["una voce senza tappa.squadre", [{ ...pubblicazione("a"), tappa: { id: "a", partite: [] } }]],
+      ["una voce con tappa.id vuoto", [pubblicazione("")]],
+      ["una voce senza tappa", [{ lega: "Circuito" }]],
+      ["una voce cattiva in mezzo a quelle buone", [pubblicazione("a"), { ...pubblicazione("b"), tappa: { id: "b" } }]],
+      ["un oggetto al posto dell'array", { elenco: [pubblicazione("a")] }],
+      ["null al posto dell'array", null],
+    ];
+
+    it.each(casi)("%s", async (_nome, corpo) => {
+      rispondi(corpo);
+      const esito = await archivioApi.tappe().then(() => null, (e: unknown) => e);
+      expect(esito).toBeInstanceOf(ApiError);
+      expect((esito as ApiError).status).toBe(200);
+      expect((esito as ApiError).message).toBe("L'elenco delle tappe pubblicate non è nella forma attesa: riprova più tardi.");
+    });
+  });
+});
