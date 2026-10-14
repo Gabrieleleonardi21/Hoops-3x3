@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizza, statGiocatori } from "../../src/utils/statGiocatori";
+import { normalizza, statGiocatori, unisciTappe } from "../../src/utils/statGiocatori";
 import { tappaLeaders } from "../../src/utils/tappaLeaders";
 import { tappaDiProva, unaGara } from "./tappeDiProva";
 
@@ -185,5 +185,35 @@ describe("statGiocatori e tappaLeaders", () => {
     // Le righe dei leader hanno anche l'id del giocatore, quelle di stagione la chiave: si confrontano le sole statistiche
     const statistiche = ({ nome, squadra, g, pt, rb, as, ru, st, pe, fa }: RigaConStat) => ({ nome, squadra, g, pt, rb, as, ru, st, pe, fa });
     expect(statGiocatori([t]).map(statistiche)).toEqual(tappaLeaders(t).map(statistiche));
+  });
+});
+
+describe("unisciTappe: le tappe pubblicate più quelle della lega aperta", () => {
+  const p1 = unaGara("p1", "Alfa", "Mario Rossi", { pt: 10 });
+  const p2 = unaGara("p2", "Alfa", "Mario Rossi", { pt: 12 });
+  const l3 = unaGara("l3", "Alfa", "Mario Rossi", { pt: 8 });
+
+  it("le pubblicate vengono prima, le locali dopo, ciascuna nel suo ordine", () => {
+    expect(unisciTappe([p1, p2], [l3]).map((t) => t.id)).toEqual(["p1", "p2", "l3"]);
+  });
+
+  it("una locale con l'id di una pubblicata la sostituisce e sta dopo: la gara conta una volta, con i numeri locali", () => {
+    const l2 = { ...unaGara("p2", "ALFA", "Mario Rossi", { pt: 20 }) };
+    const unite = unisciTappe([p1, p2], [l2]);
+    expect(unite).toEqual([p1, l2]);
+    // I numeri sono quelli locali, la grafia mostrata è quella della locale (l'ultima dell'elenco)
+    expect(statGiocatori(unite).map(colonne)).toEqual([{ nome: "Mario Rossi", squadra: "ALFA", g: 2, pt: 30 }]);
+  });
+
+  it("elenchi vuoti danno un elenco vuoto", () => {
+    expect(unisciTappe([], [])).toEqual([]);
+  });
+
+  it("gli elenchi ricevuti non vengono modificati", () => {
+    const pubblicate = [p1, p2];
+    const locali = [{ ...p2 }, l3];
+    unisciTappe(pubblicate, locali);
+    expect(pubblicate.map((t) => t.id)).toEqual(["p1", "p2"]);
+    expect(locali.map((t) => t.id)).toEqual(["p2", "l3"]);
   });
 });
