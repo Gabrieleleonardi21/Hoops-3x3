@@ -102,8 +102,9 @@ test("un nome lungo e senza spazi resta dentro la finestra di conferma", async (
   await page.getByRole("button", { name: "Elimina", exact: true }).click();
   const scheda = page.getByRole("alertdialog", { name: "Eliminare la tappa?" });
   await expect(scheda).toContainText("N".repeat(120));
-  // Se il nome non va a capo, il testo è più largo del corpo della finestra, che scorrerebbe in orizzontale
-  const sbordo = await scheda.locator("p").evaluate((testo) => {
+  // Se il nome non va a capo, il testo è più largo del corpo della finestra, che scorrerebbe in orizzontale. Il testo si cerca per
+  // contenuto: il suo contenitore è un div (la finestra può avere elenchi, come quella dei dubbi dopo l'import dalle foto)
+  const sbordo = await scheda.getByText("N".repeat(120)).evaluate((testo) => {
     const corpo = testo.parentElement as HTMLElement;
     return corpo.scrollWidth - corpo.clientWidth;
   });
