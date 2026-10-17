@@ -42,6 +42,9 @@ export default defineConfig({
         // Il cookie di refresh nasce Secure (T5): la pagina dei test gira su http://localhost, e non dipendiamo da come
         // il browser tratta localhost
         AUTH_COOKIE_SECURE: "false",
+        // Lettura delle foto dei fogli spenta, anche se chi lancia i test ha un fornitore nell'ambiente: i test non chiamano mai Groq
+        // o Anthropic, e importa-foto.spec.ts prova proprio il 503 «non configurata»
+        AI_LETTORE_FOGLIO: "",
       },
     },
     {

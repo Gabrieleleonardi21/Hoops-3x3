@@ -6,3 +6,4 @@ export * from "./partita";
 export * from "./tappa";
 export * from "./anagrafe";
 export * from "./campetto";
+export * from "./foglio";

@@ -1,10 +1,10 @@
 import { test, expect, type Page } from "@playwright/test";
 import { ospiteConLega } from "./helpers";
 
-/** Il campo file nascosto di «Importa JSON» */
+/** Il campo file nascosto di «Importa file» */
 const campoFile = (page: Page) => page.locator("input[type=file]");
 
-/** Sceglie in «Importa JSON» un file con questo contenuto. Il file si costruisce dentro la pagina (File e DataTransfer):
+/** Sceglie in «Importa file» un file con questo contenuto. Il file si costruisce dentro la pagina (File e DataTransfer):
  *  setInputFiles con un contenuto in memoria vuole un Buffer, e i tipi di Node non sono nel progetto. */
 async function scegliFile(page: Page, nome: string, contenuto: string) {
   await campoFile(page).evaluate((campo, [nomeFile, testo]) => {
@@ -33,7 +33,7 @@ test("una lega esportata si reimporta come lega nuova, anche se l'originale esis
   await expect(page).toHaveURL(/\/lega\/tappa\//);
   await page.getByRole("link", { name: /Tutte le tappe/i }).click();
 
-  // Il file è quello che scarica «Esporta JSON»; lo si sceglie in «Importa JSON»
+  // Il file è quello che scarica «Esporta JSON»; lo si sceglie in «Importa file»
   const [scaricato] = await Promise.all([
     page.waitForEvent("download"),
     page.getByRole("button", { name: /Esporta JSON/i }).click(),

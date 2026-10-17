@@ -3,7 +3,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, cleanup, fireEvent, render, renderHook, screen, waitFor, within } from "@testing-library/react";
 import { createElement, useState, type ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
-import { useCoachAI } from "../../src/hooks/useCoachAI";
+import { alternaCoach, apriCoach, chiudiCoach, useCoachAI, useCoachAperto } from "../../src/hooks/useCoachAI";
+import { CoachFAB } from "../../src/components/coach/CoachFAB";
 import { eseguiStrumento, type ContestoStrumenti } from "../../src/coach/toolHandlers";
 import { useAuth } from "../../src/hooks/useAuth";
 import { CoachPanel } from "../../src/components/coach/CoachPanel";
@@ -1528,5 +1529,126 @@ describe("Coach AI: registra_squadra e registra_giocatore non fanno doppioni nel
     expect(esiti(richieste)[0]).toMatch(/^Errore: In anagrafe c'è già il giocatore "Nome1 Cognome1" \(di Bruno\)/);
     expect(anagrafeApi.createGiocatore).toHaveBeenCalledTimes(1);
     expect(anagrafeApi.createGiocatore).toHaveBeenCalledWith(expect.objectContaining({ cognome: "Bianchi" }));
+  });
+});
+
+describe("Coach AI: correggi_squadra, nome e giocatori di una squadra della tappa", () => {
+  it("rinomina una squadra dell'ultima tappa senza che si nomini la tappa, e compare il badge «Squadra corretta»", async () => {
+    const richieste = modello(strumenti(["correggi_squadra", { squadra: "Alfa", nuovo_nome: "Alfa Roma" }]), testo("Fatto."));
+    const c = coach();
+    await chiedi(c, "Rinomina la squadra Alfa in Alfa Roma");
+    expect(store().tappe[0].squadre.map((s) => s.nome)).toEqual(["Alfa Roma", "Beta", "Gamma"]);
+    expect(esiti(richieste)[0]).toBe("Squadra «Alfa» corretta: nome Alfa Roma, nessun giocatore.");
+    expect(c.current.msgs.at(-1)).toEqual({ role: "assistant", content: "Fatto.", tools: ["correggi_squadra"] });
+    render(createElement(MemoryRouter, null, createElement(CoachPanel, { onClose: vi.fn() })));
+    expect(screen.getByTitle("Azione eseguita dal Coach AI").textContent).toContain("Squadra corretta");
+  });
+
+  it("con `giocatori` il roster si sostituisce (una parte del nome basta a trovare la squadra)", async () => {
+    const richieste = modello(
+      strumenti(["correggi_squadra", { squadra: "bet", giocatori: ["Mario Rossi", "Luca Bianchi", "Anna Verdi"] }]),
+      testo("Roster aggiornato."),
+    );
+    await chiedi(coach(), "I giocatori di Beta sono Mario Rossi, Luca Bianchi e Anna Verdi");
+    expect(store().tappe[0].squadre[1].giocatori.map((g) => g.nome)).toEqual(["Mario Rossi", "Luca Bianchi", "Anna Verdi"]);
+    expect(esiti(richieste)[0]).toBe("Squadra «Beta» corretta: nome Beta, giocatori Mario Rossi, Luca Bianchi, Anna Verdi.");
+  });
+
+  it.each([
+    ["squadra sconosciuta", { squadra: "Omega", nuovo_nome: "Alfa Roma" }, 'Nessuna squadra della tappa "Roma Open" si chiama "Omega".'],
+    ["squadra mancante", { nuovo_nome: "Alfa Roma" }, "Manca il nome attuale della squadra (squadra)."],
+    ["niente da correggere", { squadra: "Alfa" }, "Niente da correggere: indica il nuovo nome o i giocatori."],
+    ["giocatori non in un elenco", { squadra: "Alfa", giocatori: "Mario Rossi" }, "I giocatori (giocatori) vanno dati come elenco di nomi."],
+    ["nome di un'altra squadra", { squadra: "Alfa", nuovo_nome: "Beta" }, "Nella tappa c'è già la squadra «Beta»."],
+  ])("%s: nessuna modifica, il modello riceve il motivo e non c'è il badge", async (_caso, args, motivo) => {
+    const prima = store().tappe[0];
+    const richieste = modello(strumenti(["correggi_squadra", args]), testo("Non ho potuto correggere la squadra."));
+    const c = coach();
+    await chiedi(c, "Correggi la squadra");
+    expect(store().tappe[0]).toBe(prima);
+    expect(esiti(richieste)[0]).toContain(motivo);
+    expect(c.current.msgs.at(-1)).toEqual({ role: "assistant", content: "Non ho potuto correggere la squadra." });
+  });
+
+  it("su una tappa conclusa è rifiutata con il motivo di tappaOps", async () => {
+    useAppStore.setState({ tappe: [{ ...romaOpenGiocata(), conclusa: true }] });
+    const richieste = modello(strumenti(["correggi_squadra", { squadra: "Alfa", nuovo_nome: "Alfa Roma" }]), testo("È conclusa."));
+    await chiedi(coach(), "Rinomina Alfa in Alfa Roma");
+    expect(store().tappe[0].squadre[0].nome).toBe("Alfa");
+    expect(esiti(richieste)[0]).toContain('Tappa "Roma Open": La tappa è conclusa: riaprila per modificarla.');
+  });
+});
+
+describe("Coach AI: il pannello si apre anche da fuori (apriCoach), con un messaggio dell'assistente", () => {
+  /** Come in App: il pulsante flottante alterna il pannello, che si apre se lo stato del Coach dice aperto */
+  function Radice() {
+    const aperto = useCoachAperto();
+    return createElement(MemoryRouter, null,
+      aperto && createElement(CoachPanel, { onClose: chiudiCoach }),
+      createElement(CoachFAB, { onClick: alternaCoach }));
+  }
+  const MESSAGGIO = "Ho importato dal foglio la tappa «Roma Open». Il lettore non era sicuro di: Alpha o Alfa?";
+
+  afterEach(() => { act(() => { chiudiCoach(); }); });
+
+  it("apriCoach(messaggio) apre il pannello con il messaggio come turno dell'assistente, senza badge e senza chiamare il server", () => {
+    const richieste = modello();
+    render(createElement(Radice));
+    expect(screen.queryByRole("dialog", { name: "Coach AI" })).toBeNull();
+    act(() => { apriCoach(MESSAGGIO); });
+    const chat = within(screen.getByRole("log", { name: "Conversazione con il Coach" }));
+    expect(chat.getByText(MESSAGGIO)).toBeTruthy();
+    expect(chat.queryByTitle("Azione eseguita dal Coach AI")).toBeNull();
+    expect(richieste).toHaveLength(0);
+    act(() => { chiudiCoach(); });
+    expect(screen.queryByRole("dialog", { name: "Coach AI" })).toBeNull();
+  });
+
+  it("apriCoach() senza messaggio apre soltanto; il pulsante flottante alterna aperto e chiuso", () => {
+    render(createElement(Radice));
+    act(() => { apriCoach(); });
+    expect(screen.getByRole("dialog", { name: "Coach AI" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Apri Coach AI" }));
+    expect(screen.queryByRole("dialog", { name: "Coach AI" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Apri Coach AI" }));
+    expect(screen.getByRole("dialog", { name: "Coach AI" })).toBeTruthy();
+    expect(screen.queryByRole("log", { name: "Conversazione con il Coach" })?.textContent).not.toContain("Ho importato");
+  });
+
+  it("il messaggio locale entra nella cronologia che il modello riceve al turno dopo, così conosce i dubbi", async () => {
+    const richieste = modello(testo("Dimmi pure."));
+    act(() => { apriCoach(MESSAGGIO); });
+    const c = coach();
+    await chiedi(c, "Correggi i nomi");
+    expect(richieste[0]).toContainEqual({ role: "assistant", content: MESSAGGIO });
+    expect(c.current.msgs.map((m) => m.content)).toEqual([MESSAGGIO, "Correggi i nomi", "Dimmi pure."]);
+  });
+
+  it("apriCoach mentre una domanda è in corso: nella chat restano sia il messaggio dei dubbi sia la risposta", async () => {
+    const risposta = differita<Risposta>();
+    modello(risposta.p);
+    const c = coach();
+    const invio = inviaSenzaAspettare(c, "Quanto dura una gara?");
+    act(() => { apriCoach(MESSAGGIO); });
+    await act(async () => {
+      risposta.ok(testo("10 minuti."));
+      await invio;
+    });
+    expect(c.current.msgs.map((m) => m.content)).toEqual(["Quanto dura una gara?", MESSAGGIO, "10 minuti."]);
+  });
+
+  it("anche un errore del server si accoda alla chat di adesso, senza cancellare il messaggio dei dubbi", async () => {
+    const risposta = differita<Response>();
+    modello(risposta.p as unknown as Promise<Risposta>);
+    const c = coach();
+    const invio = inviaSenzaAspettare(c, "Quanto dura una gara?");
+    act(() => { apriCoach(MESSAGGIO); });
+    await act(async () => {
+      risposta.ok(new Response(JSON.stringify({ message: "Errore" }), { status: 500 }));
+      await invio;
+    });
+    expect(c.current.msgs.map((m) => m.content)).toEqual([
+      "Quanto dura una gara?", MESSAGGIO, "Si è verificato un errore, riprova tra poco.",
+    ]);
   });
 });

@@ -18,6 +18,7 @@ const TOOL_LABELS: Record<string, string> = {
   registra_squadra:    "Squadra registrata",
   registra_giocatore:  "Giocatore registrato",
   aggiorna_squadra:    "Squadra aggiornata",
+  correggi_squadra:    "Squadra corretta",
   sorteggia_gironi:    "Gironi sorteggiati",
   genera_fasi_dirette: "Fasi dirette generate",
   registra_risultato:  "Risultato registrato",

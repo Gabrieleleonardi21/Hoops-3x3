@@ -33,6 +33,8 @@ interface StatoChat {
   scartati: number;
   loading: boolean;
   conferma: RichiestaConferma | null;
+  /** Il pannello è aperto. Sta qui e non in App: lo apre anche la pagina della lega dopo l'import dalle foto (apriCoach) */
+  aperto: boolean;
 }
 
 /** Chi usa la chat: «ospite» per l'ospite; per il registrato l'id, o l'email (e il nome) se la sessione è salvata senza
@@ -77,7 +79,9 @@ function cronologiaSalvata(): ChatMsg[] {
 
 /** La chat vive qui e non nel pannello: il pannello si smonta quando si chiude, e una risposta arrivata nel frattempo
  *  andava persa */
-const useChat = create<StatoChat>(() => ({ msgs: cronologiaSalvata(), scartati: 0, loading: false, conferma: null }));
+const useChat = create<StatoChat>(() => ({
+  msgs: cronologiaSalvata(), scartati: 0, loading: false, conferma: null, aperto: false,
+}));
 
 /** Scrive la chat (solo gli ultimi MAX_MESSAGGI) nello store e nella sessionStorage, con chi l'ha scritta. `msgs` è la chat intera,
  *  quella di adesso più ciò che si aggiunge: quelli che escono dalla testa si contano nello stesso aggiornamento dei messaggi */
@@ -123,6 +127,26 @@ function chiediConferma(titolo: string, testo: string): Promise<boolean> {
 useAppStore.subscribe((stato, prima) => {
   if (autore(stato.user) !== autore(prima.user)) cancellaChat();
 });
+
+/** true se il pannello del Coach è aperto (App lo mostra) */
+export const useCoachAperto = () => useChat((s) => s.aperto);
+
+/** Apre il pannello del Coach. Con un messaggio lo aggiunge alla chat come turno dell'assistente, senza chiamare il server, e lo
+ *  salva come gli altri: entra nella cronologia che il modello riceve alla domanda dopo, così sa di che cosa si parla (i dubbi della
+ *  tappa letta dalla foto, dopo «Importa file») */
+export function apriCoach(messaggio?: string) {
+  if (messaggio) salvaChat([...useChat.getState().msgs, { role: "assistant", content: messaggio }]);
+  useChat.setState({ aperto: true });
+}
+
+export function chiudiCoach() {
+  useChat.setState({ aperto: false });
+}
+
+/** Il pulsante flottante: apre il pannello chiuso e chiude quello aperto */
+export function alternaCoach() {
+  useChat.setState((s) => ({ aperto: !s.aperto }));
+}
 
 /** Il messaggio per l'utente secondo il codice dell'errore (AiError, da aiService). Testi per chi usa l'app: che cosa è successo e
  *  che cosa fare, senza istruzioni da sviluppatore (la chiave del server la imposta chi lo amministra, non chi chatta). */
@@ -187,6 +211,7 @@ export function useCoachAI() {
         "Per crea_tappa: chiamalo UNA SOLA VOLTA mettendo tutte le squadre nell'array 'squadre'. Non chiamarlo più volte.",
         "Flusso di una tappa: crea_tappa → sorteggia_gironi → registra_risultato (per ogni gara dei gironi) → genera_fasi_dirette → registra_risultato (per ogni gara della fase finale) → concludi_tappa.",
         "registra_risultato gestisce sia i gironi sia la fase finale; usa il parametro 'fase' SOLO se la stessa coppia gioca in entrambe e serve distinguere.",
+        "correggi_squadra sistema nome e giocatori di una squadra della tappa (per esempio dopo l'import da una foto).",
         context ? `\nDati lega dell'utente:\n${context}` : "",
       ].filter(Boolean).join(" ");
 
@@ -195,13 +220,15 @@ export function useCoachAI() {
       // Allega i tool eseguiti: la UI li mostra come badge sotto la risposta
       const assistantMsg: ChatMsg = { role: "assistant", content: reply };
       if (calledTools.length) assistantMsg.tools = calledTools;
-      salvaChat([...history, assistantMsg]);
+      // In coda alla chat di adesso, non alla cronologia presa all'inizio: un messaggio aggiunto nel frattempo (apriCoach dopo
+      // l'import dalle foto) resta
+      salvaChat([...useChat.getState().msgs, assistantMsg]);
     } catch (err) {
       if (!attiva()) return;
       // Un errore a metà del ciclo non cancella le azioni già fatte: l'errore le mostra come badge, come una risposta
       const erroreMsg: ChatMsg = { role: "assistant", content: messaggioErroreCoach(err) };
       if (err instanceof AiError && err.calledTools.length) erroreMsg.tools = err.calledTools;
-      salvaChat([...history, erroreMsg]);
+      salvaChat([...useChat.getState().msgs, erroreMsg]);
     } finally {
       if (attiva()) useChat.setState({ loading: false });
       if (richiestaInCorso === richiesta) richiestaInCorso = null;

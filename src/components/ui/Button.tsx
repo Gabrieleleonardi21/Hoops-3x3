@@ -3,7 +3,7 @@
  *  Le classi passate con `className` vincono su quelle della variante e della misura: si uniscono con tailwind-merge, che toglie la
  *  classe della variante quando l'esterno ne mette una dello stesso tipo (`text-chalk-muted` al posto di `text-court`). Con le classi
  *  solo in fila decideva l'ordine delle regole nel CSS generato, e in produzione perdevano. */
-import type { ButtonHTMLAttributes } from "react";
+import type { ButtonHTMLAttributes, Ref } from "react";
 import { twMerge } from "tailwind-merge";
 
 type Variant = "primary" | "outline" | "ghost" | "link";
@@ -11,6 +11,8 @@ type Variant = "primary" | "outline" | "ghost" | "link";
 interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
   size?: "sm" | "md";
+  /** Il pulsante vero, per chi deve rimettergli il focus (la pagina della lega dopo la finestra dei dubbi) */
+  ref?: Ref<HTMLButtonElement>;
 }
 
 // area-tocco: col dito (schermi stretti, puntatore grossolano) ogni pulsante arriva a 44 px di altezza e di larghezza (vedi index.css)

@@ -16,6 +16,13 @@ describe("Coach AI: definizioni ed esecutori degli strumenti (FP-6)", () => {
     expect(definiti).toEqual([...NOMI_STRUMENTI].sort());
   });
 
+  it("c'è correggi_squadra, che sistema nome e giocatori di una squadra della tappa (dopo l'import da una foto)", () => {
+    expect(NOMI_STRUMENTI).toContain("correggi_squadra");
+    const def = COACH_TOOLS.find((t) => t.function.name === "correggi_squadra");
+    expect(def?.function.parameters.required).toEqual(["squadra"]);
+    expect(Object.keys(def?.function.parameters.properties ?? {}).sort()).toEqual(["giocatori", "nuovo_nome", "squadra", "tappa_nome"]);
+  });
+
   // FP-7 nacque da 8 strumenti documentati su 10: uno strumento nuovo senza la sua sezione in docs/ non passa più inosservato
   it.each(NOMI_STRUMENTI)("docs/coach-ai-tool-calling.md ha la sezione di %s", (nome) => {
     expect(documentazione.split("\n")).toContain(`### \`${nome}\``);

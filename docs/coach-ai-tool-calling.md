@@ -228,6 +228,22 @@ omonimi esatti):
 
 ---
 
+### `correggi_squadra`
+- **Descrizione:** Corregge il nome e/o i giocatori di una squadra **della tappa** (non dell'anagrafe condivisa, che resta di `aggiorna_squadra`). Serve soprattutto dopo l'import di una tappa dalla foto di un foglio («Importa file»), quando il lettore ha letto male un nome.
+- **Parametro obbligatorio:** `squadra` (nome attuale nella tappa: quello esatto, maiuscole a parte, oppure una parte che corrisponde a una squadra sola, come in `registra_risultato`)
+- **Parametri opzionali:** `nuovo_nome`; `giocatori` (elenco completo di 1-4 nomi, che **sostituisce** il roster; un testo al posto dell'elenco è un errore); `tappa_nome` (default: ultima tappa della lega aperta, quella appena importata). Almeno uno tra `nuovo_nome` e `giocatori`
+- **Conferma:** no (non cancella risultati: sorteggio e partite si riferiscono alla squadra per id)
+- **Azione:** `correggiSquadra(tappa, squadraId, { nome, giocatori })` di `tappaOps`, poi `replaceTappa`:
+  - il nome, senza spazi ai lati, non è vuoto, ha al massimo 120 caratteri e non è quello di un'altra squadra della tappa (maiuscole e accenti a parte);
+  - i giocatori sono da 1 a 4, con un nome non vuoto e non ripetuto; chi ha lo stesso nome (normalizzato) di un giocatore attuale tiene il suo id, e quindi le sue statistiche; gli altri ricevono un id nuovo;
+  - un giocatore tolto che ha un tabellino in una partita giocata è un errore («Il giocatore X ha statistiche in partite già giocate: annulla prima quei risultati.»);
+  - una squadra collegata all'anagrafe che cambia nome si **scollega** (`regId` tolto, come «Scollega» nella pagina): altrimenti l'allineamento con l'anagrafe all'apertura della tappa le rimetterebbe il nome di lì;
+  - una tappa conclusa è rifiutata.
+- **Risultato per il modello:** «Squadra «Alfa» corretta: nome Alfa Roma, giocatori Mario Rossi, Luca Bianchi.» (nomi passati da `pulisci`), oppure l'errore
+- **Esempi:** *"Rinomina la squadra Alpha in Alfa"* — *"I giocatori dei Falchi sono Mario Rossi, Luca Bianchi e Anna Verdi"*
+
+---
+
 ### `registra_squadra`
 - **Descrizione:** Registra una nuova squadra nell'anagrafe condivisa del circuito.
 - **Parametri obbligatori:** `nome`

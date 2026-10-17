@@ -1,7 +1,7 @@
 /** Gli strumenti che il Coach AI può invocare nell'app, come li vede il modello: nome, descrizione e argomenti.
  *  Chi li esegue è in toolHandlers.ts, una funzione per strumento con lo stesso nome. */
 import type { ToolDef } from "../services/aiService";
-import { MAX_SQUADRE, MIN_SQUADRE } from "../constants/rules";
+import { MAX_ROSTER, MAX_SQUADRE, MIN_SQUADRE } from "../constants/rules";
 
 export const COACH_TOOLS: ToolDef[] = [
   {
@@ -71,6 +71,23 @@ export const COACH_TOOLS: ToolDef[] = [
           note:      { type: "string", description: "Note libere" },
         },
         required: ["nome"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "correggi_squadra",
+      description: "Corregge il nome e/o i giocatori di una squadra di una tappa (per esempio dopo l'import da una foto del foglio, quando il lettore ha sbagliato un nome). Non tocca l'anagrafe condivisa: per quella usa aggiorna_squadra. Passa solo ciò che cambia. Se non specifichi la tappa, usa l'ultima.",
+      parameters: {
+        type: "object",
+        properties: {
+          squadra:    { type: "string", description: "Nome attuale della squadra nella tappa (o una parte che si trova in una squadra sola)" },
+          nuovo_nome: { type: "string", description: "Il nome corretto della squadra" },
+          giocatori:  { type: "array",  description: `L'elenco completo dei giocatori della squadra, da 1 a ${MAX_ROSTER} nomi: sostituisce quello di adesso`, items: { type: "string" } },
+          tappa_nome: { type: "string", description: "Nome della tappa (opzionale, default: ultima tappa)" },
+        },
+        required: ["squadra"],
       },
     },
   },

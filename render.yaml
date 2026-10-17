@@ -123,6 +123,18 @@ services:
         sync: false
       - key: GROQ_API_KEY
         sync: false
+      # Lettore delle foto dei fogli di «Importa file»: groq, anthropic, oppure vuota (lettura spenta, il server risponde 503).
+      # Lo sceglie Gabriele dal pannello di Render, insieme alla chiave del fornitore scelto
+      - key: AI_LETTORE_FOGLIO
+        sync: false
+      # Chiave Anthropic, serve solo con AI_LETTORE_FOGLIO=anthropic. Non sta nel repository: la imposta Gabriele dal
+      # pannello di Render (con groq basta GROQ_API_KEY qui sopra)
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      # Modello con immagini di Groq per le foto dei fogli (con AI_LETTORE_FOGLIO=groq). Se non è impostata vale il predefinito del backend;
+      # è cambiato più volte nel 2026: se Groq lo ritira, Gabriele lo cambia dal pannello senza toccare il codice
+      - key: GROQ_MODELLO_VISIONE
+        sync: false
       # true = al primo avvio carica i dati di prova del circuito Estathé 2025 (serve l'admin)
       - key: SEED_DEMO
         value: "false"
