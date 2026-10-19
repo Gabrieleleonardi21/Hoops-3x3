@@ -870,7 +870,10 @@ describe("correggiSquadra: nome e giocatori di una squadra della tappa (Coach, d
 
   it("chi viene riconosciuto per nome conserva il regId dell'anagrafe, così la sua persona non si perde", () => {
     const t = tappaConRoster();
-    const conRegId = { ...t, squadre: t.squadre.map((s) => (s.id === "a" ? { ...s, giocatori: [{ id: "p1", nome: "Mario Rossi", regId: "reg-mario" }, ...s.giocatori.slice(1)] } : s)) };
+    const conRegId = { ...t, squadre: t.squadre.map((s) => {
+      if (s.id !== "a") return s;
+      return { ...s, giocatori: [{ id: "p1", nome: "Mario Rossi", regId: "reg-mario" }, ...s.giocatori.slice(1)] };
+    }) };
     const squadra = alfa(correggiSquadra(conRegId, "a", { giocatori: [" mario rossi ", "Luca Bianchi"] }));
     expect(squadra?.giocatori).toEqual([{ id: "p1", nome: "mario rossi", regId: "reg-mario" }, { id: "p2", nome: "Luca Bianchi" }]);
   });
