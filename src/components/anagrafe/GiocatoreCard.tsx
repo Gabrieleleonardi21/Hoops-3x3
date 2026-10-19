@@ -4,6 +4,7 @@
 import { Link } from "react-router-dom";
 import { useConfermaPerdita } from "../../hooks/useConfermaPerdita";
 import { eta } from "../../utils/eta";
+import { squadraDelGiocatore } from "../../utils/identita";
 import { puoModificare } from "../../utils/permessi";
 import { perditaGiocatore } from "../../utils/testi";
 import { Icon } from "../ui/Icon";
@@ -15,8 +16,9 @@ export function GiocatoreCard({ g, user, squadre, onRemove, onOpen, disabled = f
   g: RegGiocatore; user: User; squadre?: RegSquadra[]; onRemove: () => void; onOpen: () => void; disabled?: boolean;
 }) {
   const { chiedi, finestra } = useConfermaPerdita(() => perditaGiocatore(g, squadre));
-  // Cerca il logo della squadra abbinando il nome del giocatore con la lista squadre
-  const squadraLogo = squadre?.find((s) => s.nome === g.squadra)?.logo ?? null;
+  // Il logo della squadra in cui gioca: quella il cui roster lo contiene, o l'unica che si chiama come lui. Con due «Roma» senza
+  // roster, il nome non dice quale: nessun logo (squadraDelGiocatore)
+  const squadraLogo = squadraDelGiocatore(g, squadre ?? [])?.logo ?? null;
   const age = eta(g.nascita);
   const dettagli = [
     g.nascita ? `Nato il ${g.nascita}${age !== null ? ` (${age} anni)` : ""}${g.citta ? ` a ${g.citta}` : ""}` : g.citta,

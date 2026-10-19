@@ -8,6 +8,7 @@ import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
 import { CampiGiocatore } from "./CampiAnagrafe";
 import { eta } from "../../utils/eta";
+import { squadraDelGiocatore } from "../../utils/identita";
 import { puoModificare } from "../../utils/permessi";
 import { perditaGiocatore } from "../../utils/testi";
 import { ApiError } from "../../services/api";
@@ -86,8 +87,8 @@ export function GiocatoreModal({
   const annullaModifica = () => { setEditing(false); setErrore(null); };
   const canEdit = puoModificare(user, g.autoreId);
   const age = eta(g.nascita);
-  // Cerca il logo della squadra abbinando il nome del giocatore con la lista squadre
-  const squadraLogo = squadre?.find((s) => s.nome === g.squadra)?.logo ?? null;
+  // Il logo della squadra in cui gioca: quella il cui roster lo contiene, o l'unica che si chiama come lui (squadraDelGiocatore)
+  const squadraLogo = squadraDelGiocatore(g, squadre ?? [])?.logo ?? null;
 
   const row = (label: string, value: React.ReactNode) => (
     <div className="flex gap-2 text-[13.5px]"><span className="w-28 shrink-0 text-chalk-muted">{label}</span><span className="font-semibold text-chalk">{value}</span></div>
