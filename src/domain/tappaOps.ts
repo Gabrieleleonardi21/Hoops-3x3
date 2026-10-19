@@ -260,6 +260,14 @@ export function primoNomeLibero(nomi: string[], candidato: (n: number) => string
   return candidato(n);
 }
 
+/** La tappa della lega con lo stesso nome (senza contare maiuscole, accenti e spazi), esclusa `daEscludere` (quella che si
+ *  modifica). Serve solo a segnalarlo: i nomi delle tappe possono ripetersi. Un nome vuoto non ne ha. */
+export function tappaOmonima(tappe: Tappa[], nome: string, daEscludere?: string): Tappa | undefined {
+  const chiave = normalizza(nome);
+  if (!chiave) return undefined;
+  return tappe.find((t) => t.id !== daEscludere && normalizza(t.nome) === chiave);
+}
+
 /** Aggiunge una squadra con il nome provvisorio «Squadra N», il primo libero. Il sorteggio fatto non vale più. */
 export function aggiungiSquadra(tappa: Tappa): Esito {
   if (tappa.conclusa) return ko(CONCLUSA);

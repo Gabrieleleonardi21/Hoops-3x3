@@ -283,3 +283,20 @@ export const TITOLO_OMONIMI = "Due giocatori con lo stesso nome nella stessa squ
  *  che le ha giocate non è collegata, quindi non si sa a quale attribuirle */
 export const GARE_NON_ATTRIBUITE = (n: number) => `${conteggio(n, "gara con questo nome non è attribuita", "gare con questo nome non sono attribuite")}: `
   + "in anagrafe ci sono più giocatori che si chiamano così.";
+
+/* Avvisi sui doppioni: il nome c'è già (in una lega, in una rosa o nell'anagrafe), ma si può creare lo stesso. Sono testo sotto il
+ * campo, mai un errore che blocca: i doppioni restano permessi. */
+/** Il nome di una tappa che c'è già nella lega. Data e luogo dicono come si distinguono (o che mancano) */
+export const AVVISO_TAPPA_OMONIMA = (t: { nome: string; data: string; luogo: string }) =>
+  `Esiste già una tappa «${t.nome}» (${t.data || "senza data"}, ${t.luogo || "senza luogo"}). `
+  + "Il nome può ripetersi: le tappe si distinguono per data e luogo.";
+/** Il nome di una squadra che c'è già in questa tappa */
+export const AVVISO_SQUADRA_OMONIMA =
+  "Un'altra squadra di questa tappa si chiama così: nelle statistiche contano i collegamenti all'anagrafe.";
+/** Due giocatori con lo stesso nome nella stessa rosa */
+export const AVVISO_GIOCATORE_RIPETUTO =
+  "Due giocatori con lo stesso nome: nelle statistiche saranno sommati, a meno che la squadra sia collegata all'anagrafe con entrambi registrati.";
+const REGISTRARNE: Record<"squadra" | "giocatore", string> = { squadra: "un'altra", giocatore: "un altro" };
+/** Una voce dell'anagrafe con lo stesso nome. `descrizione` la identifica (««Roma» (Torino, di Gabriele)»); il secondo Salva registra */
+export const AVVISO_VOCE_OMONIMA = (descrizione: string, cosa: "squadra" | "giocatore") =>
+  `Esiste già ${descrizione}. Premi di nuovo Salva per registrarne ${REGISTRARNE[cosa]}.`;

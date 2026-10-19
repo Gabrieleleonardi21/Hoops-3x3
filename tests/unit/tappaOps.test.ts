@@ -4,7 +4,7 @@ import {
   aggiungiSquadra, rimuoviSquadra, impostaNumeroGironi, perditaRisultati, annullaRisultato, rinominaTappa,
   erroreLimitiTappa, erroreTestiTappa, creaTappa,
   perditaTappa, perditaTabellone, perditaSquadra, eSegnaposto, annullaRisultatoBracket, perditaGiocatore, correggiSquadra,
-  primoNomeLibero,
+  primoNomeLibero, tappaOmonima,
 } from "../../src/domain/tappaOps";
 import type { Esito } from "../../src/domain/tappaOps";
 import { nomeSegnaposto } from "../../src/constants/rules";
@@ -492,6 +492,21 @@ describe("primoNomeLibero: i nomi predefiniti non si ripetono dopo una cancellaz
   it("aggiungiSquadra dopo aver tolto la «Squadra 1» usa il numero rimasto libero, non di nuovo «Squadra 3»", () => {
     const t = nuova(aggiungiSquadra(conSquadre(["Squadra 2", "Squadra 3"])));
     expect(t.squadre.map((s) => s.nome)).toEqual(["Squadra 2", "Squadra 3", "Squadra 1"]);
+  });
+});
+
+describe("tappaOmonima: la tappa della lega con lo stesso nome, per l'avviso", () => {
+  const tappe: Tappa[] = [{ ...tappaNuova(), id: "t1", nome: "Roma Open" }, { ...tappaNuova(), id: "t2", nome: "Torino" }];
+
+  it("trova la tappa con lo stesso nome, senza contare maiuscole, accenti e spazi", () => {
+    expect(tappaOmonima(tappe, "  roma OPEN ")?.id).toBe("t1");
+    expect(tappaOmonima(tappe, "Roma")).toBeUndefined();
+  });
+
+  it("esclude la tappa che si sta modificando; un nome vuoto non ha omonime", () => {
+    expect(tappaOmonima(tappe, "Roma Open", "t1")).toBeUndefined();
+    expect(tappaOmonima([...tappe, { ...tappe[0], id: "t3" }], "Roma Open", "t1")?.id).toBe("t3");
+    expect(tappaOmonima(tappe, "   ")).toBeUndefined();
   });
 });
 
