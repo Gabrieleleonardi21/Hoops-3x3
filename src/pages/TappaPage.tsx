@@ -69,12 +69,13 @@ export function TappaPage() {
 
   if (!h.tappa) return <Navigate to="/lega" replace />;
   const t = h.tappa;
-  // Quante squadre della tappa portano ciascun nome (senza contare maiuscole e spazi; i segnaposto «Squadra N» non contano):
+  // Quante squadre della tappa portano ciascun nome (senza contare maiuscole e spazi; i segnaposto «Squadra N» e i nomi vuoti non contano):
   // da due in su, ogni squadra con quel nome ha l'avviso sotto il nome
   const conteggioNomi = new Map<string, number>();
   for (const s of t.squadre) {
-    if (eSegnaposto(s.nome)) continue;
     const chiave = normalizza(s.nome);
+    // Un nome cancellato (vuoto) non è un nome: due campi vuoti non sono omonimi
+    if (eSegnaposto(s.nome) || !chiave) continue;
     conteggioNomi.set(chiave, (conteggioNomi.get(chiave) ?? 0) + 1);
   }
 
