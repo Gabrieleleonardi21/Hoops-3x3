@@ -38,7 +38,7 @@ export function generaPunteggio(
   forzaB: number | null,
   rng: Rng = Math.random,
 ): { sa: number; sb: number } {
-  const { target } = regole;
+  const { target, ot } = regole;
   const esito = rng();
   let vincente = 0;
   let perdente = 0;
@@ -47,14 +47,19 @@ export function generaPunteggio(
     vincente = target;
     perdente = intero(rng, Math.max(0, target - 15), target - 2);
   } else if (esito < 0.95) {
-    // Allo scadere: il vincitore sta sotto il target, il perdente da 1 a 8 punti meno di lui
-    vincente = intero(rng, 11, target - 1);
-    perdente = vincente - intero(rng, 1, 8);
+    // Allo scadere: il vincitore sta sotto il target (da 11 in su, ma almeno 1 con target piccoli), il perdente da 1 a 8
+    // punti meno di lui. Così non esce mai un pareggio né un punteggio sopra il target
+    const massimo = Math.max(1, target - 1);
+    vincente = intero(rng, Math.min(11, massimo), massimo);
+    perdente = Math.max(0, vincente - intero(rng, 1, 8));
   } else {
-    // Supplementare: x a x + ot, con x tra 14 e 20, così il massimo resta sotto target + 4
-    const x = intero(rng, 14, 20);
-    vincente = x + regole.ot;
-    perdente = x;
+    // Supplementare: si vince di `ot` punti (almeno 1). Il perdente x sta tra 14 e 20 con il target di 21. Se ot è grande
+    // x scende, così x + ot non supera target + 4 e lo scarto resta ot (solo con target piccoli lo scarto si accorcia)
+    const scarto = Math.max(1, ot);
+    const minimo = Math.max(0, target - 7);
+    const massimoX = Math.max(minimo, Math.min(target - 1, target + 4 - scarto));
+    perdente = intero(rng, minimo, massimoX);
+    vincente = Math.min(perdente + scarto, target + 4);
   }
 
   // Probabilità che vinca la squadra A: se una ha un ranking più alto dell'altra, la vantaggia
@@ -99,8 +104,9 @@ export interface CriteriScelta {
 }
 
 /** Le squadre che un nome indicato dal modello corrisponde: il nome esatto, altrimenti una parte del nome. È la regola di
- *  trovaPerNome (coach/toolHandlers), copiata qui perché importarla farebbe un ciclo (toolHandlers importa questo file). La
- *  differenza: l'ambiguità non lancia un'eccezione ma torna come elenco, perché qui la risposta è un Esito. */
+ *  trovaPerNome (coach/strumentiComuni), copiata qui perché strumentiComuni importa lo store e le API: il dominio non deve
+ *  dipendere da loro (né portarseli nei test). La differenza: l'ambiguità non lancia un'eccezione ma torna come elenco,
+ *  perché qui la risposta è un Esito. */
 function cercaSquadra(squadre: RegSquadra[], nome: string): RegSquadra[] {
   const nl = nome.trim().toLowerCase();
   const esatte = squadre.filter((s) => s.nome.toLowerCase() === nl);
@@ -334,8 +340,9 @@ export function riepilogoSimulazione(
 ): string {
   const giocate = rapporto.gareGironi + rapporto.gareTabellone;
   const frasi: string[] = [];
+  // Con le sole gare del tabellone non ci sono tabellini da dichiarare: il tabellone non li ha mai
   let tabellini = "";
-  if (dettagli.tabellini) tabellini = " con i tabellini";
+  if (dettagli.tabellini && rapporto.gareGironi > 0) tabellini = " con i tabellini";
   let finale = "";
   if (rapporto.finale) finale = `, fase finale giocata: vince ${rapporto.finale}`;
   if (dettagli.nuova) {

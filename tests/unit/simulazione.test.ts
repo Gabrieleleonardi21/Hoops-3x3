@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
-  generaPunteggio, generaTabellino, scegliSquadre, simulaTappa, riepilogoSimulazione,
+  generaPunteggio, generaTabellino, scegliSquadre, simulaTappa, riepilogoSimulazione, type Rng,
 } from "../../src/domain/simulazione";
-import { sorteggia, generaFasiDirette } from "../../src/domain/tappaOps";
+import { sorteggia, generaFasiDirette, registraRisultato } from "../../src/domain/tappaOps";
 import { DEFAULT_RULES } from "../../src/constants/rules";
-import type { GiocatoreRoster, RegGiocatore, RegSquadra, SquadraTappa, StatSheet, Tappa } from "../../src/types";
+import type { GiocatoreRoster, Regole, RegGiocatore, RegSquadra, SquadraTappa, StatSheet, Tappa } from "../../src/types";
 
 /** Generatore pseudo-casuale con seme: stessa sequenza a ogni esecuzione, così i test sono riproducibili (mai Math.random) */
 const lcg = (seme: number) => () => (seme = (seme * 1664525 + 1013904223) % 2 ** 32) / 2 ** 32;
@@ -73,6 +73,30 @@ function anagrafeFinta(conRoster: number, totale: number): { squadre: RegSquadra
 /** Il punteggio di una gara a 21, così come esce da generaPunteggio */
 const gareA21 = (sa: number, sb: number) => sa === 21 || sb === 21;
 
+/** Generatore con seme il cui primo numero è `primo`: forza l'esito della gara (0,97 = supplementare, 0,7 = allo scadere) */
+const primoEsito = (primo: number, seme: number): Rng => {
+  const seguito = lcg(seme);
+  let primoGiro = true;
+  return () => {
+    if (primoGiro) {
+      primoGiro = false;
+      return primo;
+    }
+    return seguito();
+  };
+};
+
+/** Regole diverse dal default: il punteggio deve restare valido anche con un altro target o un altro supplementare */
+const REGOLE_VARIE: [string, Partial<Regole>][] = [
+  ["predefinite", {}],
+  ["target 11", { target: 11 }],
+  ["target 15", { target: 15 }],
+  ["supplementare a 6", { ot: 6 }],
+  ["supplementare a 0", { ot: 0 }],
+  ["supplementare a 1", { ot: 1 }],
+  ["target 11 e supplementare a 6", { target: 11, ot: 6 }],
+];
+
 describe("generaPunteggio", () => {
   it("mai pareggi, interi, non negativi e con il massimo a target + 4", () => {
     const rng = lcg(1);
@@ -85,12 +109,41 @@ describe("generaPunteggio", () => {
     }
   });
 
-  it("produce tutti e tre gli esiti: gara a 21, allo scadere e supplementare", () => {
+  it("produce gare a 21 e gare allo scadere (il supplementare è nel test sotto, con l'esito forzato)", () => {
     const rng = lcg(2);
     const punteggi = Array.from({ length: 1000 }, () => generaPunteggio(DEFAULT_RULES, null, null, rng));
     expect(punteggi.some((p) => gareA21(p.sa, p.sb))).toBe(true);
     expect(punteggi.some((p) => Math.max(p.sa, p.sb) < 21)).toBe(true);
-    expect(punteggi.some((p) => Math.max(p.sa, p.sb) >= 16 && Math.abs(p.sa - p.sb) === 2)).toBe(true);
+  });
+
+  it("ai supplementari lo scarto è esattamente ot e il perdente sta tra 14 e 20 (esito forzato)", () => {
+    for (let seme = 1; seme <= 200; seme++) {
+      const { sa, sb } = generaPunteggio(DEFAULT_RULES, null, null, primoEsito(0.97, seme));
+      expect(Math.abs(sa - sb)).toBe(DEFAULT_RULES.ot);
+      expect(Math.min(sa, sb)).toBeGreaterThanOrEqual(14);
+    }
+  });
+
+  it("supplementare con target 15 e ot 6: scarto pari a 6 e massimo a 19 (target + 4)", () => {
+    const regole = { ...DEFAULT_RULES, target: 15, ot: 6 };
+    for (let seme = 1; seme <= 200; seme++) {
+      const { sa, sb } = generaPunteggio(regole, null, null, primoEsito(0.97, seme));
+      expect(Math.abs(sa - sb)).toBe(6);
+      expect(Math.max(sa, sb)).toBeLessThanOrEqual(19);
+    }
+  });
+
+  it.each(REGOLE_VARIE)("regole %s: registraRisultato accetta ogni gara simulata, con le regole della tappa", (_, cambi) => {
+    const base = { ...tappaOtto(), regole: { ...DEFAULT_RULES, ...cambi } };
+    const partita = base.partite[0];
+    const rifiutate: string[] = [];
+    const rng = lcg(30);
+    for (let i = 0; i < 1000; i++) {
+      const { sa, sb } = generaPunteggio(base.regole, null, null, rng);
+      const esito = registraRisultato(base, partita.id, { sa, sb });
+      if (!esito.ok) rifiutate.push(`${sa}-${sb}: ${esito.errore}`);
+    }
+    expect(rifiutate).toEqual([]);
   });
 
   it("con ranking nettamente diversi vince la squadra più forte in più del 55% dei casi", () => {
@@ -342,6 +395,13 @@ describe("riepilogoSimulazione", () => {
     expect(testo).toContain("1. ");
     expect(testo).toContain("Classifiche dei gironi");
     expect(testo.endsWith("La tappa non è conclusa: per pubblicarla chiedi di concluderla.")).toBe(true);
+  });
+
+  it("senza gare dei gironi (solo tabellone) non dice «con i tabellini», che non ci sono", () => {
+    const rapporto = { gareGironi: 0, gareTabellone: 3, classifiche: [], campione: "Alfa", finale: "Alfa su Beta 21-17", note: [] };
+    const testo = riepilogoSimulazione("Demo", rapporto, { nuova: false, tabellini: true });
+    expect(testo).toContain('Tappa "Demo": 3 gare mancanti giocate, fase finale giocata: vince Alfa su Beta 21-17.');
+    expect(testo).not.toContain("con i tabellini");
   });
 
   it("per una tappa esistente conta le gare mancanti", () => {
