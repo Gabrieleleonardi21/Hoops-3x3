@@ -222,14 +222,17 @@ export function erroreTappaDuplicata(nome: string): string {
   return `La tappa "${pulisci(nome)}" esiste già in questa lega: non ne creo un'altra.`;
 }
 
-/** I nomi («Nome Cognome») dei giocatori del roster di una squadra dell'anagrafe, nell'ordine del roster. Un id che non è più tra
- *  i giocatori dell'anagrafe si salta */
-export function nomiRoster(reg: RegSquadra, giocatori: RegGiocatore[]): string[] {
+/** I giocatori del roster di una squadra dell'anagrafe, nell'ordine del roster. Un id che non è più tra i giocatori dell'anagrafe si salta */
+function giocatoriDelRoster(reg: RegSquadra, giocatori: RegGiocatore[]): RegGiocatore[] {
   return reg.roster.flatMap((id) => {
     const g = giocatori.find((x) => x.id === id);
-    if (!g) return [];
-    return [`${g.nome} ${g.cognome}`];
+    return g ? [g] : [];
   });
+}
+
+/** I nomi («Nome Cognome») dei giocatori del roster di una squadra dell'anagrafe, nell'ordine del roster */
+export function nomiRoster(reg: RegSquadra, giocatori: RegGiocatore[]): string[] {
+  return giocatoriDelRoster(reg, giocatori).map((g) => `${g.nome} ${g.cognome}`);
 }
 
 /** La squadra di una tappa presa dall'anagrafe: nome, punti ranking e collegamenti (logo, sito, Instagram), con i giocatori del roster.
@@ -239,7 +242,8 @@ export function squadraTappaDaAnagrafe(reg: RegSquadra, giocatori: RegGiocatore[
   return {
     id: uid(),
     nome: reg.nome,
-    giocatori: nomiRoster(reg, giocatori).slice(0, MAX_ROSTER).map((nome) => ({ id: uid(), nome })),
+    // regId: l'id della voce in anagrafe, che le statistiche usano per riconoscere il giocatore anche tra omonimi
+    giocatori: giocatoriDelRoster(reg, giocatori).slice(0, MAX_ROSTER).map((g) => ({ id: uid(), nome: `${g.nome} ${g.cognome}`, regId: g.id })),
     rank: reg.rank || "",
     regId: reg.id,
     logo: reg.logo || undefined,

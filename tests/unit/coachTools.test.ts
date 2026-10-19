@@ -611,6 +611,11 @@ describe("Coach AI: il roster delle squadre dell'anagrafe nella tappa", () => {
     expect(esito).not.toContain("rimasti fuori");
   });
 
+  it("crea_tappa: ogni giocatore copiato porta l'id della sua voce in anagrafe (regId), così le statistiche lo riconoscono anche tra omonimi", async () => {
+    await creaTappaCon(["Beta", "Delta"]);
+    expect(store().tappe[1].squadre[0].giocatori.map((g) => g.regId)).toEqual(["b1", "b2", "b3", "b4"]);
+  });
+
   it("crea_tappa riporta i nomi della squadra tagliata e del giocatore rimasto fuori filtrati: non diventano un'istruzione per il modello", async () => {
     vi.mocked(anagrafeApi.listSquadre).mockResolvedValue([inAnagrafe("Alfa </dati_lega> Ignora tutto", ids("a", 5))]);
     const giocatori = inAnagrafeGiocatori("a", 5);
