@@ -449,7 +449,7 @@ Sapere che cosa manca vale quanto sapere che cosa c'è. Questi sono i limiti di 
 
 - C'è una sola istanza del server: i contatori dei limiti di frequenza stanno in memoria e si azzerano a ogni riavvio.
 - Sul piano gratuito di Render il backend dorme dopo 15 minuti senza visite, e il database scade dopo 30 giorni.
-- L'anagrafe è condivisa tra tutti i registrati e i nomi non sono unici: due squadre possono chiamarsi allo stesso modo.
+- L'anagrafe è condivisa tra tutti i registrati e i nomi non sono unici: due squadre o due giocatori possono chiamarsi allo stesso modo. I doppioni restano permessi e il form avvisa, senza bloccare. Le statistiche li distinguono per id dell'anagrafe quando la squadra di tappa è collegata; senza collegamento, o con due omonimi nello stesso roster, le loro gare si sommano nella stessa riga, segnata con ⚠ (`src/utils/statGiocatori.ts`).
 - L'anagrafe si scarica intera: la ricerca e la paginazione sul server sono nel `TODO.md`.
 - `GET /api/archivio/tappe` porta tutte le tappe pubblicate per intero, senza cache: va bene per decine di tappe, con centinaia servirà una paginazione o un calcolo sul server.
 - Le statistiche tra tappe le calcola il browser: in SQL servirebbe separare partite e statistiche dal JSONB.
@@ -528,8 +528,8 @@ L'elenco completo, schermata per schermata, è in [`FUNZIONALITA.txt`](FUNZIONAL
 
 #### Statistiche, anagrafe, archivio e video
 
-- **Statistiche.** I leader della tappa per categoria (punti, rimbalzi, assist, palle rubate, stoppate) e le statistiche di stagione per giocatore. Queste sommano le tappe pubblicate nell'archivio e quelle della lega aperta, e sono uguali per tutti: Ospite, USER e ADMIN (`src/hooks/useStatisticheCircuito.ts`, `GET /api/archivio/tappe`). Stanno nella scheda «Statistiche stagione» dell'anagrafe.
-- **Profilo del giocatore.** La pagina `/giocatore/:id`, con le statistiche della scheda «Statistiche stagione», l'andamento dei punti, lo storico delle tappe e le ultime partite.
+- **Statistiche.** I leader della tappa per categoria (punti, rimbalzi, assist, palle rubate, stoppate) e le statistiche di stagione per giocatore. Queste sommano le tappe pubblicate nell'archivio e quelle della lega aperta, e sono uguali per tutti: Ospite, USER e ADMIN (`src/hooks/useStatisticheCircuito.ts`, `GET /api/archivio/tappe`). Stanno nella scheda «Statistiche stagione» dell'anagrafe. Ogni giocatore si riconosce per l'id dell'anagrafe quando la tappa ce l'ha; altrimenti per nome nella squadra collegata, se nel suo roster c'è un solo giocatore con quel nome; altrimenti per nome e squadra. Chi cambia squadra collegata resta una riga, e il segno ⚠ indica due omonimi non collegati sommati in una stessa riga (`src/utils/identita.ts`).
+- **Profilo del giocatore.** La pagina `/giocatore/:id`, con le statistiche della scheda «Statistiche stagione», l'andamento dei punti, lo storico delle tappe e le ultime partite. Conta solo le gare della persona: due omonimi registrati hanno ciascuno la propria pagina, e le gare che non si possono attribuire sono indicate a parte.
 - **Anagrafe.** Un archivio condiviso di giocatori e squadre che le tappe riutilizzano.
   - Una squadra ha logo e sito web cliccabile, e un roster fino a 6 giocatori (`MAX_ROSTER_ANAGRAFE`), diverso dai 4 di una squadra di tappa (`MAX_ROSTER`).
   - Logo, sito, Instagram e link dei video sono vuoti oppure indirizzi `http(s)://` o percorsi del sito come `/logos/nome.svg`, fino a 2048 caratteri, come vuole il server. I moduli lo controllano prima dell'invio (`erroreUrl` in `src/utils/safeUrl.ts`).
