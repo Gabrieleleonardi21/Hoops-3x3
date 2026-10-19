@@ -49,7 +49,8 @@ export function risolviGiocatore(
   if (!squadra) return null;
   const omonimi = squadra.roster.flatMap((id) => {
     const g = giocatoriPerId.get(id);
-    return g && stessoNomeGiocatore(nome, g) ? [g] : [];
+    if (!g || !stessoNomeGiocatore(nome, g)) return [];
+    return [g];
   });
   const [unico, ...altri] = omonimi;
   if (altri.length > 0 || !unico) return null;

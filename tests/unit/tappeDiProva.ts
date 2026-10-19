@@ -83,8 +83,9 @@ export function tappaDaSquadre(id: string, squadre: SquadraDiProva[], gare: Gara
     rank: "",
     regId: s.regId,
     giocatori: s.giocatori.map((g, j) => {
-      const { nome, regId } = typeof g === "string" ? { nome: g, regId: undefined } : g;
-      return { id: idGiocatore(i, j), nome, regId };
+      // Un giocatore scritto come stringa non ha regId
+      if (typeof g === "string") return { id: idGiocatore(i, j), nome: g, regId: undefined };
+      return { id: idGiocatore(i, j), nome: g.nome, regId: g.regId };
     }),
   }));
   const partite = gare.map((g, k): Partita => ({

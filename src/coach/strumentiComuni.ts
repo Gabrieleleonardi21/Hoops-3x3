@@ -226,7 +226,8 @@ export function erroreTappaDuplicata(nome: string): string {
 function giocatoriDelRoster(reg: RegSquadra, giocatori: RegGiocatore[]): RegGiocatore[] {
   return reg.roster.flatMap((id) => {
     const g = giocatori.find((x) => x.id === id);
-    return g ? [g] : [];
+    if (!g) return [];
+    return [g];
   });
 }
 
