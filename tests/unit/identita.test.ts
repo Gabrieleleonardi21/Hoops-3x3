@@ -4,6 +4,7 @@ import {
 } from "../../src/utils/identita";
 import { normalizza as normalizzaDaStat } from "../../src/utils/statGiocatori";
 import type { RegGiocatore, RegSquadra } from "../../src/types";
+import { tappaDaSquadre } from "./tappeDiProva";
 
 /* ── Fixture: un giocatore e una squadra dell'anagrafe, con i soli campi che contano ── */
 
@@ -122,5 +123,16 @@ describe("squadraDelGiocatore", () => {
 
   it("un giocatore senza squadra scritta non ha squadra", () => {
     expect(squadraDelGiocatore(giocatore("g9", "Mario", "Rossi", ""), [roma1])).toBeUndefined();
+  });
+});
+
+describe("tappaDaSquadre: gli id restano distinti anche con nomi uguali", () => {
+  it("due squadre «Roma» e due giocatori «Mario Rossi» nella stessa rosa hanno id diversi", () => {
+    const tappa = tappaDaSquadre("t1", [
+      { nome: "Roma", giocatori: ["Mario Rossi", "Mario Rossi"] },
+      { nome: "Roma", giocatori: [] },
+    ], []);
+    expect(new Set(tappa.squadre.map((s) => s.id)).size).toBe(2);
+    expect(new Set(tappa.squadre[0].giocatori.map((g) => g.id)).size).toBe(2);
   });
 });
