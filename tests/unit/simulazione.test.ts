@@ -10,7 +10,10 @@ import type { GiocatoreRoster, Regole, RegGiocatore, RegSquadra, SquadraTappa, S
 const lcg = (seme: number) => () => (seme = (seme * 1664525 + 1013904223) % 2 ** 32) / 2 ** 32;
 
 /** Somma dei punti di un tabellino (i formati vecchi sono numeri: sono i soli punti) */
-const puntiDi = (foglio: StatSheet) => Object.values(foglio).reduce<number>((s, v) => s + (typeof v === "number" ? v : (v.pt ?? 0)), 0);
+const puntiDi = (foglio: StatSheet) => Object.values(foglio).reduce<number>((s, v) => {
+  if (typeof v === "number") return s + v;
+  return s + (v.pt ?? 0);
+}, 0);
 
 /** Giocatori di una squadra della tappa, con id che non si ripetono tra squadre */
 function roster(sq: string, n: number): GiocatoreRoster[] {
@@ -62,8 +65,11 @@ function anagrafeFinta(conRoster: number, totale: number): { squadre: RegSquadra
         giocatori.push(regGiocatore(id));
       }
     }
+    // Le prime quattro squadre sono di Roma, le altre di Milano (per il criterio «citta»)
+    let citta = "Milano";
+    if (i <= 4) citta = "Roma";
     squadre.push({
-      id: `r${i}`, nome: `Squadra ${i}`, citta: i <= 4 ? "Roma" : "Milano", anno: "", rank: String(100 - i * 10),
+      id: `r${i}`, nome: `Squadra ${i}`, citta, anno: "", rank: String(100 - i * 10),
       referente: "", roster: ids, logo: "", website: "", instagram: "", note: "", autore: "", autoreId: null, ts: 0,
     });
   }
@@ -303,7 +309,10 @@ describe("simulaTappa", () => {
 
   it("tappa con 10 gare su 12 già giocate: le 10 restano identiche, si giocano solo le 2 mancanti", () => {
     const base = tappaOtto();
-    const giocate = base.partite.map((m, i) => (i < 10 ? { ...m, sa: 21, sb: 9, done: true, pa: {}, pb: {} } : m));
+    const giocate = base.partite.map((m, i) => {
+      if (i >= 10) return m;
+      return { ...m, sa: 21, sb: 9, done: true, pa: {}, pb: {} };
+    });
     const parziale: Tappa = { ...base, partite: giocate };
     const esito = simulaTappa(parziale, { fase: "gironi", tabellini: true, qualificate: 2 }, lcg(13));
     if (!esito.ok) throw new Error(esito.errore);

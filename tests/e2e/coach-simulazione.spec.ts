@@ -43,17 +43,11 @@ test("il Coach crea una tappa di prova giocata fino alla finale, con una sola PO
   let chiamateCoach = 0;
   await page.route("**/api/coach/chat", (route) => {
     chiamateCoach++;
-    const risposta = chiamateCoach === 1
-      ? {
-        choices: [{
-          message: {
-            role: "assistant", content: null,
-            tool_calls: [{ id: "1", type: "function", function: { name: "crea_tappa_simulata", arguments: JSON.stringify({ nome: "Demo", nSquadre: 4 }) } }],
-          },
-        }],
-      }
-      : { choices: [{ message: { role: "assistant", content: "Ho creato la tappa di prova." } }] };
-    return route.fulfill(json(risposta));
+    if (chiamateCoach > 1) {
+      return route.fulfill(json({ choices: [{ message: { role: "assistant", content: "Ho creato la tappa di prova." } }] }));
+    }
+    const chiamata = { id: "1", type: "function", function: { name: "crea_tappa_simulata", arguments: JSON.stringify({ nome: "Demo", nSquadre: 4 }) } };
+    return route.fulfill(json({ choices: [{ message: { role: "assistant", content: null, tool_calls: [chiamata] } }] }));
   });
 
   await page.goto("/");

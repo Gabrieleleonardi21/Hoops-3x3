@@ -27,7 +27,8 @@ export type Argomenti = Record<string, unknown>;
 
 /** Legge un campo stringa dagli argomenti del tool, con fallback a stringa vuota. */
 export function str(args: Argomenti, key: string): string {
-  return typeof args[key] === "string" ? (args[key] as string).trim() : "";
+  if (typeof args[key] !== "string") return "";
+  return (args[key] as string).trim();
 }
 
 /** Testo obbligatorio: se manca o è vuoto lo strumento non agisce (un nome vuoto «corrisponde» a qualsiasi squadra,
@@ -123,7 +124,10 @@ export function trovaPerNome<T>(elementi: T[], nome: string, nomeDi: (e: T) => s
 /** Trova una tappa per nome (trovaPerNome); se il nome manca restituisce l'ultima. Con «Roma Open» e «Roma Open 2» aperte
  *  insieme, «Roma» è un errore e non la prima delle due (registra_risultato non chiede conferma) */
 function findTappa(tappe: Tappa[], nomeTappa?: string): Tappa | null {
-  if (!nomeTappa) return tappe.length > 0 ? tappe[tappe.length - 1] : null;
+  if (!nomeTappa) {
+    if (tappe.length === 0) return null;
+    return tappe[tappe.length - 1];
+  }
   return trovaPerNome(tappe, nomeTappa, (t) => t.nome, "tappe");
 }
 
