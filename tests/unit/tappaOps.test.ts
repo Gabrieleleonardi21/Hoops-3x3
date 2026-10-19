@@ -4,8 +4,10 @@ import {
   aggiungiSquadra, rimuoviSquadra, impostaNumeroGironi, perditaRisultati, annullaRisultato, rinominaTappa,
   erroreLimitiTappa, erroreTestiTappa, creaTappa,
   perditaTappa, perditaTabellone, perditaSquadra, eSegnaposto, annullaRisultatoBracket, perditaGiocatore, correggiSquadra,
+  primoNomeLibero,
 } from "../../src/domain/tappaOps";
 import type { Esito } from "../../src/domain/tappaOps";
+import { nomeSegnaposto } from "../../src/constants/rules";
 import type { Tappa } from "../../src/types";
 
 /** Tappa con 4 squadre e 2 gironi, non ancora sorteggiata (rank: Alfa 40, Beta 30, Gamma 20, Delta 10) */
@@ -404,7 +406,8 @@ describe("cambi di struttura: squadre e numero di gironi (R1)", () => {
   it("aggiungiSquadra aggiunge «Squadra N» e azzera gironi, calendario e tabellone", () => {
     const t = nuova(aggiungiSquadra(tappaConBracket()));
     expect(t.squadre).toHaveLength(5);
-    expect(t.squadre[4]).toMatchObject({ nome: "Squadra 5", giocatori: [], rank: "" });
+    // Nessuna squadra si chiama «Squadra N»: il primo nome libero è «Squadra 1»
+    expect(t.squadre[4]).toMatchObject({ nome: "Squadra 1", giocatori: [], rank: "" });
     senzaSorteggio(t);
   });
 
@@ -471,6 +474,24 @@ describe("eSegnaposto: il nome provvisorio delle squadre appena aggiunte", () =>
     for (const nome of ["", "Squadra", "Squadra 3A", "squadra 3", "Falchi", "Squadra Tre"]) {
       expect(eSegnaposto(nome)).toBe(false);
     }
+  });
+});
+
+describe("primoNomeLibero: i nomi predefiniti non si ripetono dopo una cancellazione", () => {
+  /** Tappa con le squadre date per nome, nell'ordine dato */
+  const conSquadre = (nomi: string[]): Tappa => ({
+    ...tappaNuova(), squadre: nomi.map((nome, i) => ({ id: `s${i}`, nome, giocatori: [], rank: "" })),
+  });
+
+  it("dà il primo «Squadra N» libero, senza contare maiuscole e spazi", () => {
+    expect(primoNomeLibero(["Squadra 1", "Squadra 3"], nomeSegnaposto)).toBe("Squadra 2");
+    expect(primoNomeLibero(["  squadra 2 ", "Squadra 1"], nomeSegnaposto)).toBe("Squadra 3");
+    expect(primoNomeLibero([], nomeSegnaposto)).toBe("Squadra 1");
+  });
+
+  it("aggiungiSquadra dopo aver tolto la «Squadra 1» usa il numero rimasto libero, non di nuovo «Squadra 3»", () => {
+    const t = nuova(aggiungiSquadra(conSquadre(["Squadra 2", "Squadra 3"])));
+    expect(t.squadre.map((s) => s.nome)).toEqual(["Squadra 2", "Squadra 3", "Squadra 1"]);
   });
 });
 
@@ -830,6 +851,13 @@ describe("correggiSquadra: nome e giocatori di una squadra della tappa (Coach, d
     expect(squadra?.giocatori[0].id).toBe("p1");
     expect(squadra?.giocatori[1].id).toBe("p3");
     expect(["p1", "p2", "p3"]).not.toContain(squadra?.giocatori[2].id);
+  });
+
+  it("chi viene riconosciuto per nome conserva il regId dell'anagrafe, così la sua persona non si perde", () => {
+    const t = tappaConRoster();
+    const conRegId = { ...t, squadre: t.squadre.map((s) => (s.id === "a" ? { ...s, giocatori: [{ id: "p1", nome: "Mario Rossi", regId: "reg-mario" }, ...s.giocatori.slice(1)] } : s)) };
+    const squadra = alfa(correggiSquadra(conRegId, "a", { giocatori: [" mario rossi ", "Luca Bianchi"] }));
+    expect(squadra?.giocatori).toEqual([{ id: "p1", nome: "mario rossi", regId: "reg-mario" }, { id: "p2", nome: "Luca Bianchi" }]);
   });
 
   it("da 1 a 4 giocatori, nomi non vuoti e non ripetuti", () => {
