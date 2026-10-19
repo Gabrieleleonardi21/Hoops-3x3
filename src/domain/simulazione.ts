@@ -354,6 +354,8 @@ export function riepilogoSimulazione(
     frasi.push(`Classifiche dei gironi (vittorie-sconfitte): ${righe}.`);
   }
   frasi.push(...rapporto.note);
+  // Sempre, anche per una tappa esistente: il Coach non deve presentare questi punteggi come veri
+  frasi.push("I punteggi sono numeri di prova generati dall'app, non risultati veri.");
   frasi.push("La tappa non è conclusa: per pubblicarla chiedi di concluderla.");
   return frasi.join(" ");
 }

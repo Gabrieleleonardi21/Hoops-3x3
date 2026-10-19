@@ -212,7 +212,7 @@ export function useCoachAI() {
         "Flusso di una tappa: crea_tappa → sorteggia_gironi → registra_risultato (per ogni gara dei gironi) → genera_fasi_dirette → registra_risultato (per ogni gara della fase finale) → concludi_tappa.",
         "registra_risultato gestisce sia i gironi sia la fase finale; usa il parametro 'fase' SOLO se la stessa coppia gioca in entrambe e serve distinguere.",
         "correggi_squadra sistema nome e giocatori di una squadra della tappa (per esempio dopo l'import da una foto).",
-        "crea_tappa_simulata crea una tappa di prova: squadre scelte dall'anagrafe, gare e tabellini generati dall'app, fino alla finale. I punteggi che ne escono sono numeri di prova: non presentarli come risultati veri.",
+        "crea_tappa_simulata crea una tappa di prova: squadre scelte dall'anagrafe, gare e tabellini generati dall'app, fino alla finale.",
         "simula_risultati inventa i risultati delle gare mancanti di una tappa, sempre con la conferma dell'utente; se l'utente detta i risultati, usa registra_risultati.",
         "registra_risultati registra più risultati dettati in un colpo: ogni voce è un registra_risultato. Riferisci gli errori e le gare che mancano.",
         context ? `\nDati lega dell'utente:\n${context}` : "",
