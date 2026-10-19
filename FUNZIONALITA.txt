@@ -581,7 +581,7 @@ esplicitamente:
                       tabellini e la fase finale. Simulato: i punteggi e i
                       tabellini li genera l'app, sono numeri di prova e non
                       risultati veri. Non scrive niente nell'anagrafe.
-  sorteggia_gironi   Esegue il sorteggio (casuale o per ranking) su una tappa.
+  sorteggia_gironi    Esegue il sorteggio (casuale o per ranking) su una tappa.
                       Se la tappa ha già dei risultati chiede conferma.
   genera_fasi_dirette Genera il tabellone a eliminazione diretta dalla
                       classifica dei gironi (le prime N di ogni girone, di
@@ -599,7 +599,7 @@ esplicitamente:
                       tabellini. Simulato: le gare già registrate non si
                       toccano e i numeri sono di prova. Chiede sempre
                       conferma, che dice quante gare saranno inventate.
-  annulla_risultatoAnnulla un risultato di girone già inserito (riporta la
+  annulla_risultato   Annulla un risultato di girone già inserito (riporta la
                       partita a "non disputata", i punteggi restano come
                       bozza). Chiede sempre conferma.
   correggi_squadra    Corregge nome e giocatori di una squadra della tappa (non

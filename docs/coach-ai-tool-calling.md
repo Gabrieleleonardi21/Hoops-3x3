@@ -3,7 +3,8 @@
 ## Panoramica
 
 Il Coach AI può eseguire azioni nell'app in autonomo quando l'utente lo chiede esplicitamente. Gli strumenti sono **14**
-(elencati sotto); ognuno ha una definizione per il modello (`src/coach/toolDefs.ts`) e un esecutore (`src/coach/toolHandlers.ts`).
+(elencati sotto); ognuno ha una definizione per il modello (`src/coach/toolDefs.ts`) e un esecutore (`src/coach/toolHandlers.ts`, con le tappe di
+prova in `src/coach/toolHandlersSimulazione.ts`; i helper condivisi stanno in `src/coach/strumentiComuni.ts`).
 
 Il frontend parla solo con il backend, mai con Groq: ogni giro di conversazione è una `POST /api/coach/chat` con
 `{ messages, tools }` (`chiamaCoach` in `src/services/aiService.ts`). Il backend tiene la chiave `GROQ_API_KEY`, sceglie il
