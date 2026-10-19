@@ -303,6 +303,23 @@ describe("statGiocatori per id: l'anagrafe dice chi è chi", () => {
     expect(statGiocatori([t])).toMatchObject([{ g: 5, omonimi: false }]);
   });
 
+  // La tappa vecchia (senza regId) si attribuisce a g1 dalla squadra collegata A; la nuova ha il regId nella squadra B: una riga
+  it("una tappa vecchia senza regId in una squadra collegata e una nuova con regId in un'altra: una riga sola", () => {
+    const anagrafe: Anagrafe = {
+      squadre: [squadraReg("sq1", "Alfa", ["g1"]), squadraReg("sq2", "Beta", [])],
+      giocatori: [giocatoreReg("g1", "Mario", "Rossi")],
+    };
+    const vecchia = tappaDaSquadre("t1", [{ nome: "Alfa", regId: "sq1", giocatori: ["Mario Rossi"] }, { nome: "Avversari", giocatori: ["Altro"] }], [
+      { a: 0, b: 1, pa: { 0: { pt: 12 } } },
+    ]);
+    const nuova = tappaDaSquadre("t2", [{ nome: "Beta", regId: "sq2", giocatori: [{ nome: "Mario Rossi", regId: "g1" }] }, { nome: "Avversari", giocatori: ["Altro"] }], [
+      { a: 0, b: 1, pa: { 0: { pt: 10 } } },
+    ]);
+    const righe = statGiocatori([vecchia, nuova], anagrafe);
+    expect(righe).toHaveLength(1);
+    expect(righe[0]).toMatchObject({ regId: "g1", g: 2, pt: 22 });
+  });
+
   // Due squadre «Roma» collegate a voci diverse dell'anagrafe: un giocatore omonimo in ciascuna resta distinto
   it("due squadre omonime collegate a voci diverse non si fondono", () => {
     const t = tappaDaSquadre("t1", [

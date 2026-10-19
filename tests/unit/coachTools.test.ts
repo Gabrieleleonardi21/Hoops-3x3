@@ -1774,6 +1774,9 @@ describe("Coach AI: crea_tappa_simulata, una tappa di prova con squadre dall'ana
     expect(demo.nome).toBe("Demo");
     expect(demo.squadre.map((s) => s.nome).sort()).toEqual([...NOMI_OTTO].sort());
     expect(demo.squadre.every((s) => s.giocatori.length === 4 && s.regId?.startsWith("reg-"))).toBe(true);
+    // Ogni giocatore porta l'id della sua voce in anagrafe, come crea_tappa: così le statistiche lo riconoscono anche tra omonimi
+    const idAnagrafe = new Set(NOMI_OTTO.flatMap((_, i) => inAnagrafeGiocatori(`p${i}-`, 4).map((g) => g.id)));
+    expect(demo.squadre.flatMap((s) => s.giocatori.map((g) => g.regId)).every((id) => idAnagrafe.has(id ?? ""))).toBe(true);
     // Le 12 gare dei gironi hanno un tabellino e la somma dei punti è il punteggio della squadra
     expect(demo.partite).toHaveLength(12);
     for (const m of demo.partite) {
