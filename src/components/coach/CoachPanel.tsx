@@ -24,6 +24,9 @@ const TOOL_LABELS: Record<string, string> = {
   registra_risultato:  "Risultato registrato",
   annulla_risultato:   "Risultato annullato",
   concludi_tappa:      "Tappa conclusa",
+  crea_tappa_simulata: "Tappa simulata",
+  simula_risultati:    "Risultati simulati",
+  registra_risultati:  "Risultati registrati",
 };
 
 /** Colore del badge per natura dell'azione: le correzioni/undo risaltano in RED, il resto ORANGE. */

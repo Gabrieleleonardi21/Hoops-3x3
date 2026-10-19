@@ -12,7 +12,8 @@ export interface ChatMsg {
 export interface ToolParamProp {
   type: string;
   description: string;
-  items?: { type: string }; // usato quando type === "array"
+  // usato quando type === "array": un tipo semplice, oppure oggetti con i loro campi (es. le righe di registra_risultati)
+  items?: { type: string } | { type: "object"; properties: Record<string, ToolParamProp>; required?: string[] };
   enum?: string[];          // valori ammessi (es. la modalità di sorteggio)
 }
 

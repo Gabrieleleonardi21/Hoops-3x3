@@ -19,13 +19,14 @@ import {
 import type { RegSquadra, SquadraTappa, Tappa } from "../types";
 import { squadraDi } from "../utils/tappaInfo";
 import { puoModificare } from "../utils/permessi";
+import { eseguiCreaTappaSimulata, eseguiRegistraRisultati, eseguiSimulaRisultati } from "./toolHandlersSimulazione";
 import {
   applica, confermata, erroreTappaDuplicata, fermaSeCancellata, fetchGiocatori, fetchSquadre, gironiRichiesti, nomiRoster,
   nomiSquadre, obbligatorio, presente, prova, qualificateRichieste, registraUnaRiga, squadraDellaPartita, squadraRichiesta,
   squadraTappaDaAnagrafe, squadreRichieste, stessaCoppia, str, tappaRichiesta, trovaPerNome, type Argomenti, type ContestoStrumenti,
 } from "./strumentiComuni";
 
-// Gli strumenti del Coach che si scrivono in altri file restano in questo elenco di tipi: chi li importa da qui non cambia
+// ContestoStrumenti sta in strumentiComuni.ts, dove lo usano anche gli strumenti in altri file: qui si ri-esporta perché chi lo importa da toolHandlers non cambi
 export type { ContestoStrumenti } from "./strumentiComuni";
 
 
@@ -412,6 +413,9 @@ const ESECUTORI = new Map<string, Esecutore>([
   ["correggi_squadra", eseguiCorreggiSquadra],
   ["genera_fasi_dirette", eseguiGeneraFasiDirette],
   ["concludi_tappa", eseguiConcludiTappa],
+  ["crea_tappa_simulata", eseguiCreaTappaSimulata],
+  ["simula_risultati", eseguiSimulaRisultati],
+  ["registra_risultati", eseguiRegistraRisultati],
 ]);
 
 /** I nomi degli strumenti che hanno un esecutore */

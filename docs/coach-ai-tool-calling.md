@@ -274,6 +274,18 @@ omonimi esatti):
 
 ---
 
+### `crea_tappa_simulata`
+
+Crea una tappa di prova: squadre scelte dall'anagrafe, gare e tabellini generati dall'app, fino alla finale.
+
+### `simula_risultati`
+
+Inventa i risultati delle gare mancanti di una tappa, dopo la conferma dell'utente.
+
+### `registra_risultati`
+
+Registra più risultati dettati in un colpo, con gli errori riga per riga.
+
 ## Conferme prima delle azioni distruttive (D4)
 
 Tre azioni cancellano o rendono definitivo qualcosa: il nuovo **sorteggio** su una tappa con risultati, **`annulla_risultato`** e

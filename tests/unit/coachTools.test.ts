@@ -1739,8 +1739,9 @@ describe("Coach AI: crea_tappa_simulata, una tappa di prova con squadre dall'ana
     // Tabellone da 4 qualificate: due semifinali e la finale, tutte giocate
     expect(demo.bracket).toHaveLength(3);
     expect(demo.bracket?.every((m) => m.done)).toBe(true);
-    // Una sola tappa salvata (una POST) e nessuna scrittura nell'anagrafe
-    expect(legheApi.addTappa).toHaveBeenCalledTimes(1);
+    // Una sola tappa salvata (una POST, che la coda manda dopo il suo ritardo) e nessuna scrittura nell'anagrafe
+    await vi.waitFor(() => expect(legheApi.addTappa).toHaveBeenCalledTimes(1), { timeout: 2000 });
+    expect(legheApi.putTappa).not.toHaveBeenCalled();
     expect(anagrafeApi.createSquadra).not.toHaveBeenCalled();
     expect(anagrafeApi.updateSquadra).not.toHaveBeenCalled();
     // Il modello legge le gare contate come l'app le ha giocate (12 dei gironi e 3 del tabellone) e la finale
@@ -1794,6 +1795,25 @@ describe("Coach AI: crea_tappa_simulata, una tappa di prova con squadre dall'ana
     expect(esiti(richieste)[0]).toContain("La lega ha già 100 tappe");
     expect(store().tappe).toHaveLength(100);
   });
+
+  it.each([
+    ["criterio sconosciuto", { scelta: "a caso" }, "Criterio di scelta non valido"],
+    ["fino_a sconosciuto", { fino_a: "semifinali" }, "Fino a dove giocare non valido"],
+    ["scelta per città senza città", { scelta: "citta" }, "Per scegliere per città indica la città."],
+  ])("%s: errore al modello e nessuna tappa", async (_caso, extra, motivo) => {
+    const richieste = modello(strumenti(["crea_tappa_simulata", { nome: "Demo", nSquadre: 8, ...extra }]), testo("Non ho creato la tappa."));
+    await chiedi(coach(), "Crea una tappa di prova");
+    expect(esiti(richieste)[0]).toContain(motivo);
+    expect(store().tappe).toHaveLength(1);
+  });
+
+  it("«tabellini: false» e «scelta: ranking»: si gioca senza tabellini, con le squadre migliori per ranking", async () => {
+    modello(strumenti(["crea_tappa_simulata", { nome: "Demo", nSquadre: 4, tabellini: false, scelta: "ranking" }]), testo("Fatto."));
+    await chiedi(coach(), "Crea una tappa di prova senza tabellini");
+    const demo = store().tappe[1];
+    expect(demo.squadre).toHaveLength(4);
+    expect(demo.partite.every((m) => m.done && m.pa === undefined && m.pb === undefined)).toBe(true);
+  });
 });
 
 describe("Coach AI: simula_risultati, i risultati mancanti di una tappa, con conferma (D4)", () => {
@@ -1808,7 +1828,8 @@ describe("Coach AI: simula_risultati, i risultati mancanti di una tappa, con con
     const prima = store().tappe[0];
     const richieste = modello(strumenti(["simula_risultati", { tappa_nome: "Vera" }]), testo("Va bene, non simulo."));
     const richiesta = await chiediEConferma(coach(), "Simula i risultati mancanti di Vera", false);
-    expect(richiesta.testo).toBe('Inventare i risultati delle 2 gare mancanti di "Vera"? Sono numeri di prova, non veri.');
+    // Conta tutte le gare che si inventano: le 2 dei gironi e le 3 del tabellone che ne segue
+    expect(richiesta.testo).toBe('Inventare i risultati delle 5 gare mancanti di "Vera"? Sono numeri di prova, non veri.');
     expect(store().tappe[0]).toBe(prima);
     expect(esiti(richieste)[0]).toMatch(/L'utente ha annullato/);
   });
@@ -1823,7 +1844,7 @@ describe("Coach AI: simula_risultati, i risultati mancanti di una tappa, con con
     expect(dopo.partite.slice(10).every((m) => m.done)).toBe(true);
     expect(dopo.bracket).toHaveLength(3);
     expect(dopo.bracket?.every((m) => m.done)).toBe(true);
-    expect(legheApi.putTappa).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(legheApi.putTappa).toHaveBeenCalledTimes(1), { timeout: 2000 });
     expect(c.current.msgs.at(-1)?.tools).toEqual(["simula_risultati"]);
   });
 
@@ -1832,6 +1853,14 @@ describe("Coach AI: simula_risultati, i risultati mancanti di una tappa, con con
     const c = coach();
     await chiedi(c, "Simula la finale di Vera");
     expect(esiti(richieste)[0]).toContain("Per la finale mancano ancora");
+    expect(c.current.conferma).toBeNull();
+  });
+
+  it("una fase che non esiste: errore e nessuna conferma", async () => {
+    const richieste = modello(strumenti(["simula_risultati", { tappa_nome: "Vera", fase: "semifinali" }]), testo("Dico quali fasi esistono."));
+    const c = coach();
+    await chiedi(c, "Simula le semifinali di Vera");
+    expect(esiti(richieste)[0]).toContain("Fase non valida");
     expect(c.current.conferma).toBeNull();
   });
 });
@@ -1872,6 +1901,14 @@ describe("Coach AI: registra_risultati, più risultati dettati in un colpo", () 
     await chiedi(c, "Registra i risultati");
     expect(esiti(richieste)[0]).toContain("Manca l'elenco dei risultati (risultati).");
     expect(esiti(richieste)[1]).toContain("da 1 a 64");
+    expect(store().tappe[0]).toBe(prima);
+  });
+
+  it("una voce che non è un oggetto: errore e nessuna modifica", async () => {
+    const prima = store().tappe[0];
+    const richieste = modello(strumenti(["registra_risultati", { risultati: ["Alfa 21-15 Beta"] }]), testo("Errore."));
+    await chiedi(coach(), "Alfa 21-15 Beta");
+    expect(esiti(richieste)[0]).toContain("Ogni risultato è un oggetto");
     expect(store().tappe[0]).toBe(prima);
   });
 });

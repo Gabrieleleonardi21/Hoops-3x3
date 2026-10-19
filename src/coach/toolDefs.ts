@@ -1,7 +1,7 @@
 /** Gli strumenti che il Coach AI può invocare nell'app, come li vede il modello: nome, descrizione e argomenti.
  *  Chi li esegue è in toolHandlers.ts, una funzione per strumento con lo stesso nome. */
 import type { ToolDef } from "../services/aiService";
-import { MAX_ROSTER, MAX_SQUADRE, MIN_SQUADRE } from "../constants/rules";
+import { MAX_RISULTATI, MAX_ROSTER, MAX_SQUADRE, MIN_ROSTER, MIN_SQUADRE } from "../constants/rules";
 
 export const COACH_TOOLS: ToolDef[] = [
   {
@@ -199,6 +199,76 @@ export const COACH_TOOLS: ToolDef[] = [
           tappa_nome: { type: "string", description: "Nome della tappa da concludere (opzionale, default: ultima tappa)" },
         },
         required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "crea_tappa_simulata",
+      description: "Crea una tappa DI PROVA completa: sceglie da sola le squadre dall'anagrafe tra quelle con i giocatori, le iscrive, sorteggia e gioca tutte le gare con risultati e tabellini generati dall'app, fino alla finale. Usalo quando l'utente chiede una tappa di prova, di esempio, simulata o 'completa' senza dettare i risultati. Non registra niente nell'anagrafe.",
+      parameters: {
+        type: "object",
+        properties: {
+          nome:       { type: "string", description: "Nome della tappa di prova (es. 'Demo Roma')" },
+          nSquadre:   { type: "number", description: `Quante squadre, da ${MIN_SQUADRE} a ${MAX_SQUADRE} (default 8)` },
+          nGironi:    { type: "number", description: "Numero di gironi: intero da 1 a metà delle squadre (default 2, oppure 1 con meno di 4 squadre)" },
+          scelta:     { type: "string", enum: ["casuale", "ranking", "citta"], description: "Come scegliere le squadre: 'casuale' (default), 'ranking' (quelle con più punti ranking) oppure 'citta' (solo quelle della città indicata)" },
+          citta:      { type: "string", description: "Città delle squadre, obbligatoria con scelta 'citta'" },
+          squadre:    { type: "array", description: `Nomi di squadre da includere comunque, se in anagrafe hanno almeno ${MIN_ROSTER} giocatori; il resto si sceglie con 'scelta'`, items: { type: "string" } },
+          luogo:      { type: "string", description: "Luogo dove si svolge la tappa" },
+          data:       { type: "string", description: "Data in formato YYYY-MM-DD" },
+          qualificate: { type: "number", description: "Quante squadre per girone passano alla fase finale: intero da 1 in su (default 2)" },
+          fino_a:     { type: "string", enum: ["finale", "gironi"], description: "'finale' (default): gioca anche tabellone e finale; 'gironi': si fermano ai gironi" },
+          tabellini:  { type: "boolean", description: "Se generare i tabellini dei giocatori (default true)" },
+        },
+        required: ["nome"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "simula_risultati",
+      description: "Inventa i risultati delle gare NON ancora giocate di una tappa esistente (gironi e fase finale). Chiede sempre conferma all'utente, perché i numeri sono di prova. Usalo solo se l'utente chiede di simulare, inventare o 'giocare' i risultati mancanti; se li detta, usa registra_risultati.",
+      parameters: {
+        type: "object",
+        properties: {
+          tappa_nome: { type: "string", description: "Nome (o parte del nome) della tappa. Ometti per usare l'ultima tappa." },
+          fase:       { type: "string", enum: ["tutto", "gironi", "finale"], description: "Cosa giocare: 'tutto' (default), 'gironi' oppure 'finale' (solo se i gironi sono finiti)" },
+          tabellini:  { type: "boolean", description: "Se generare i tabellini dei giocatori nelle gare dei gironi (default true)" },
+          qualificate: { type: "number", description: "Quante squadre per girone passano alla fase finale: intero da 1 in su (default 2)" },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "registra_risultati",
+      description: "Registra in un colpo solo più risultati dettati dall'utente (es. 'Alfa 21-15 Beta, Gamma 19-17 Delta'). Ogni voce vale come registra_risultato. Risponde con i registrati, gli errori (con il numero di riga) e le gare che mancano.",
+      parameters: {
+        type: "object",
+        properties: {
+          tappa_nome: { type: "string", description: "Nome della tappa (opzionale, default: ultima tappa)" },
+          risultati: {
+            type: "array",
+            description: `I risultati, da 1 a ${MAX_RISULTATI}: una voce per partita`,
+            items: {
+              type: "object",
+              properties: {
+                squadra_a: { type: "string", description: "Nome della prima squadra (o una parte che si trova in una squadra sola)" },
+                punti_a:   { type: "number", description: "Punteggio della prima squadra" },
+                squadra_b: { type: "string", description: "Nome della seconda squadra (o una parte che si trova in una squadra sola)" },
+                punti_b:   { type: "number", description: "Punteggio della seconda squadra" },
+                fase:      { type: "string", description: "Opzionale: 'girone' o 'diretta'. Passalo SOLO se la stessa coppia si affronta in entrambe le fasi" },
+              },
+              required: ["squadra_a", "punti_a", "squadra_b", "punti_b"],
+            },
+          },
+        },
+        required: ["risultati"],
       },
     },
   },
