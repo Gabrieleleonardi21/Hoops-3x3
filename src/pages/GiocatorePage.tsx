@@ -1,16 +1,17 @@
 /** Profilo giocatore (route /giocatore/:id): anagrafica dalla RegGiocatore + statistiche
  *  aggregate sulle tappe pubblicate nell'Archivio circuito più quelle della lega aperta (useStatisticheCircuito: le stesse della
- *  tabella «Statistiche stagione», uguali per ospite, USER e ADMIN). Il roster di tappa non ha un legame con l'anagrafe,
- *  quindi l'abbinamento avviene per nome ("Nome Cognome" o "Cognome Nome"; maiuscole, spazi in
- *  più, accenti e tipo di apostrofo non contano, come nella tabella «Statistiche stagione»). I totali sono la somma delle
- *  righe di quella tabella con lo stesso nome, in una o più squadre: la funzione è la stessa
- *  (utils/statGiocatori), quindi i numeri coincidono. */
+ *  tabella «Statistiche stagione», uguali per ospite, USER e ADMIN). Un tabellino è del giocatore per il suo regId dell'anagrafe
+ *  quando c'è; altrimenti per nome ("Nome Cognome" o "Cognome Nome", come nella tabella), e solo se nell'anagrafe nessun altro
+ *  giocatore si chiama così. I totali sono la somma delle righe di stagione del giocatore, in una o più squadre: la funzione è
+ *  la stessa (utils/statGiocatori), quindi i numeri coincidono. */
 import { useMemo } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAnagrafe } from "../hooks/useAnagrafe";
 import { useAppStore } from "../stores/useAppStore";
 import { useStatisticheCircuito } from "../hooks/useStatisticheCircuito";
-import { normalizza, statGiocatori, tabellini, type StatGiocatore } from "../utils/statGiocatori";
+import { risolviTabellini, statGiocatori, type StatGiocatore } from "../utils/statGiocatori";
+import { nomeCompleto, squadraDelGiocatore, stessoNomeGiocatore } from "../utils/identita";
+import { GARE_NON_ATTRIBUITE } from "../utils/testi";
 import { eta } from "../utils/eta";
 import { Loading } from "../components/ui/Loading";
 import { Badge } from "../components/ui/Badge";
@@ -26,11 +27,11 @@ import { nomeSquadra } from "../utils/tappaInfo";
 import { fmtMedia } from "../utils/formato";
 import { TeamLogo } from "../components/ui/TeamLogo";
 
-/** true se il nome nel roster corrisponde al giocatore dell'anagrafe, in un ordine o nell'altro. Si confronta con la
- *  stessa normalizzazione della tabella di stagione */
-function sameName(rosterName: string, g: RegGiocatore): boolean {
-  const n = normalizza(rosterName);
-  return n === normalizza(`${g.nome} ${g.cognome}`) || n === normalizza(`${g.cognome} ${g.nome}`);
+/** Vero se la riga o il tabellino è di questo giocatore: per id dell'anagrafe quando c'è; altrimenti per nome, ma solo se
+ *  nell'anagrafe nessun altro giocatore si chiama così (nomeUnico): sennò non si sa a chi attribuirla */
+function eDelGiocatore(r: { regId?: string; nome: string }, g: RegGiocatore, nomeUnico: boolean): boolean {
+  if (r.regId) return r.regId === g.id;
+  return nomeUnico && stessoNomeGiocatore(r.nome, g);
 }
 
 /** Gare e statistiche sommate di una o più righe di stagione */
@@ -79,25 +80,46 @@ export function GiocatorePage() {
   const { giocatori, squadre, errore, load } = useAnagrafe();
 
   const g = giocatori?.find((x) => x.id === id) ?? null;
-  const logo = g ? squadre?.find((s) => s.nome === g.squadra)?.logo : undefined;
+  // Il logo è quello della squadra in cui il giocatore gioca: con due squadre omonime, quella del suo roster
+  let logo: string | undefined;
+  if (g) logo = squadraDelGiocatore(g, squadre ?? [])?.logo;
 
-  // Le righe della tabella di stagione di questo giocatore: lo stesso nome (normalizzato) in una o più squadre. I totali
-  // sono la loro somma e le squadre sono quelle da cui vengono. Anche lo storico per tappa usa la stessa funzione
+  // Con l'anagrafe le statistiche riconoscono i giocatori per id; finché le squadre non sono arrivate si conta per nome
+  const anagrafe = useMemo(() => {
+    if (!giocatori || !squadre) return undefined;
+    return { giocatori, squadre };
+  }, [giocatori, squadre]);
+  // Il nome è unico se nell'anagrafe nessun altro giocatore si chiama così: solo allora una riga senza regId è di questo giocatore
+  const nomeUnico = useMemo(() => {
+    if (!g) return false;
+    return !(giocatori ?? []).some((x) => x.id !== g.id && stessoNomeGiocatore(nomeCompleto(x), g));
+  }, [g, giocatori]);
+  const righeTutte = useMemo(() => statGiocatori(tappe, anagrafe), [tappe, anagrafe]);
+
+  // Le righe della tabella di stagione di questo giocatore, in una o più squadre. I totali sono la loro somma e le squadre
+  // sono quelle da cui vengono. Anche lo storico per tappa usa la stessa funzione
   const stagione = useMemo(() => {
     if (!g) return [];
-    return statGiocatori(tappe).filter((r) => sameName(r.nome, g));
-  }, [g, tappe]);
+    return righeTutte.filter((r) => eDelGiocatore(r, g, nomeUnico));
+  }, [g, righeTutte, nomeUnico]);
+
+  // Gare con il suo nome che nessun giocatore può prendere: righe senza id in un nome che più giocatori registrati condividono
+  const nonAttribuite = useMemo(() => {
+    if (!g || nomeUnico) return 0;
+    return righeTutte.filter((r) => !r.regId && stessoNomeGiocatore(r.nome, g)).reduce((somma, r) => somma + r.g, 0);
+  }, [g, righeTutte, nomeUnico]);
 
   // Statistiche per tappa: una riga per ogni tappa in cui il giocatore ha giocato
   const perTappa = useMemo<TappaRow[]>(() => {
     if (!g) return [];
     const out: TappaRow[] = [];
     for (const t of tappe) {
-      const righe = statGiocatori([t]).filter((r) => sameName(r.nome, g));
+      const righe = statGiocatori([t], anagrafe).filter((r) => eDelGiocatore(r, g, nomeUnico));
       if (righe.length === 0) continue;
-      // piazzamento: dalla finale del bracket se disponibile (1° o 2°), altrimenti sconosciuto. Con più squadre nella
-      // stessa tappa vale la prima
-      const team = t.squadre.find((s) => s.nome === righe[0].squadra);
+      // piazzamento: dalla finale del bracket se disponibile (1° o 2°), altrimenti sconosciuto. La squadra è quella della scheda
+      // in cui gioca per primo, per id: con due squadre omonime nella tappa non si sbaglia
+      const primo = risolviTabellini(t, anagrafe).find((x) => eDelGiocatore(x, g, nomeUnico));
+      const team = t.squadre.find((s) => s.id === primo?.squadraId);
       const finale = t.bracket?.find((m) => m.label === "Finale" && m.done);
       let piazzamento: number | null = null;
       if (finale && team) {
@@ -108,17 +130,18 @@ export function GiocatorePage() {
       out.push({ tappa: t, row: somma(righe), piazzamento });
     }
     return out;
-  }, [g, tappe]);
+  }, [g, tappe, anagrafe, nomeUnico]);
 
   // Partite singole (per sparkline e "ultime partite"), nell'ordine in cui le partite sono state inserite. Sono i tabellini di
-  // tabellini(), gli stessi dei totali: comprendono tutte le squadre della tappa che hanno un giocatore con questo nome
+  // risolviTabellini(), gli stessi dei totali: comprendono tutte le squadre della tappa che hanno questo giocatore
   const games = useMemo<GameRow[]>(() => {
     if (!g) return [];
     const out: GameRow[] = [];
     for (const t of tappe) {
       const nameOf = (tid: string) => nomeSquadra(t.squadre, tid);
-      for (const { nome, stat, partita: m, lato } of tabellini(t)) {
-        if (!sameName(nome, g)) continue;
+      for (const x of risolviTabellini(t, anagrafe)) {
+        if (!eDelGiocatore(x, g, nomeUnico)) continue;
+        const { stat, partita: m, lato } = x;
         // Punti fatti, punti subiti e squadra avversaria, dal lato della scheda in cui sta il tabellino
         let mio = m.sa, suo = m.sb, avversario = m.b;
         if (lato === "b") { mio = m.sb; suo = m.sa; avversario = m.a; }
@@ -126,7 +149,7 @@ export function GiocatorePage() {
       }
     }
     return out;
-  }, [g, tappe]);
+  }, [g, tappe, anagrafe, nomeUnico]);
 
   // «Ultime partite, dalla più recente»: l'ordine è quello di registrazione del risultato (ts), non del calendario. Le partite senza
   // ts (registrate prima che esistesse) contano come più vecchie e stanno in coda, nell'ordine inverso del calendario (il sort è stabile)
@@ -147,8 +170,8 @@ export function GiocatorePage() {
 
   const tot = somma(stagione);
   // Le squadre da cui vengono i totali, ognuna una volta: lo stesso nome scritto nei due ordini nella stessa squadra sono due
-  // righe di stagione, ma una squadra sola. Vale la grafia dell'ultima riga
-  const squadreStat = [...new Map(stagione.map((row): [string, string] => [normalizza(row.squadra), row.squadra])).values()];
+  // righe di stagione, ma una squadra sola; due squadre omonime collegate a voci diverse sono due. Vale la grafia dell'ultima riga
+  const squadreStat = [...new Map(stagione.map((row): [string, string] => [row.squadraChiave, row.squadra])).values()];
   const avg = (v: number) => (tot.g ? `(${fmtMedia(v / tot.g)}/g)` : undefined);
   const age = eta(g.nascita);
   const bio = [g.ruolo, g.squadra, g.citta, age !== null ? `${age} anni` : "", g.altezza ? `${g.altezza} cm` : "", g.peso ? `${g.peso} kg` : ""].filter(Boolean);
@@ -199,6 +222,7 @@ export function GiocatorePage() {
               Statistiche sommate per nome sulle squadre di tappa: {squadreStat.join(", ")}.
             </p>
           )}
+          {nonAttribuite > 0 && <p className="col-span-full text-[13px] text-chalk-muted">{GARE_NON_ATTRIBUITE(nonAttribuite)}</p>}
         </div>
 
         {tot.g === 0 && (

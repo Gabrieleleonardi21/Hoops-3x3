@@ -273,3 +273,13 @@ export function messaggioDubbi(lega: string, tappe: { nome: string; dubbi: strin
   return `Ho importato ${importate} nella lega «${lega}». ${incerti} Dimmi che cosa correggere: posso rinominare una squadra, `
     + "sistemare i suoi giocatori, registrare o annullare un risultato, sorteggiare i gironi.";
 }
+
+/* Statistiche di stagione: il segno ⚠ e la riga delle gare che nessun giocatore può prendere. */
+/** Il segno ⚠ accanto a un giocatore con due omonimi nella stessa squadra non collegata: la spiegazione, come titolo e come nome
+ *  per chi legge lo schermo */
+export const TITOLO_OMONIMI = "Due giocatori con lo stesso nome nella stessa squadra, non collegati all'anagrafe: le loro gare sono "
+  + "sommate. Collega la squadra all'anagrafe e registra entrambi i giocatori.";
+/** Le gare con questo nome che non vanno a nessun giocatore dell'anagrafe: più giocatori registrati si chiamano così e la squadra
+ *  che le ha giocate non è collegata, quindi non si sa a quale attribuirle */
+export const GARE_NON_ATTRIBUITE = (n: number) => `${conteggio(n, "gara con questo nome non è attribuita", "gare con questo nome non sono attribuite")}: `
+  + "in anagrafe ci sono più giocatori che si chiamano così.";

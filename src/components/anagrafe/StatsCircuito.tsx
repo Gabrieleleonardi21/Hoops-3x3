@@ -2,13 +2,15 @@
  *  insieme StatisticheCircuito). L'aggregazione è quella di utils/statGiocatori, la stessa della pagina del giocatore: qui si ordina
  *  soltanto. */
 import { useMemo } from "react";
-import { statGiocatori } from "../../utils/statGiocatori";
+import { statGiocatori, type Anagrafe } from "../../utils/statGiocatori";
 import type { Tappa } from "../../types";
 import { fmtMedia } from "../../utils/formato";
+import { TITOLO_OMONIMI } from "../../utils/testi";
 
-export function StatsCircuito({ tappe }: { tappe: Tappa[] }) {
+/** `anagrafe` è facoltativa: con lei i giocatori si riconoscono per id, senza per nome (come prima) */
+export function StatsCircuito({ tappe, anagrafe }: { tappe: Tappa[]; anagrafe?: Anagrafe }) {
   // Per media punti a partita, la più alta in cima. L'array è nuovo: ordinarlo qui non tocca altro
-  const rows = useMemo(() => statGiocatori(tappe).sort((a, b) => b.pt / b.g - a.pt / a.g), [tappe]);
+  const rows = useMemo(() => statGiocatori(tappe, anagrafe).sort((a, b) => b.pt / b.g - a.pt / a.g), [tappe, anagrafe]);
 
   if (rows.length === 0) {
     return (
@@ -40,7 +42,11 @@ export function StatsCircuito({ tappe }: { tappe: Tappa[] }) {
           {rows.map((r, i) => (
             <tr key={r.chiave} className={i === 0 ? "bg-court/5" : ""}>
               <td className={`font-display text-base ${i < 3 ? "text-court" : "text-chalk-muted"}`}>{i + 1}</td>
-              <td className="tname font-display text-base">{r.nome}</td>
+              <td className="tname font-display text-base">
+                {r.nome}
+                {/* Omonimi non riconosciuti sotto la stessa riga: le gare sono sommate, e lo si dice */}
+                {r.omonimi && <span role="img" title={TITOLO_OMONIMI} aria-label={TITOLO_OMONIMI} className="ml-1 text-gold">⚠</span>}
+              </td>
               <td className="text-left text-xs text-chalk-muted">{r.squadra}</td>
               <td className="text-chalk-muted">{r.g}</td>
               <td className="font-display text-lg text-court">{r.pt}</td>
