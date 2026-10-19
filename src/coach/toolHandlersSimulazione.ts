@@ -13,7 +13,7 @@ import {
 } from "../domain/simulazione";
 import type { Tappa } from "../types";
 import {
-  applica, confermata, erroreTappaDuplicata, fermaSeCancellata, fetchGiocatori, fetchSquadre, gironiRichiesti, nomiSquadre,
+  applica, confermata, ERRORE_NESSUNA_LEGA, erroreTappaDuplicata, fermaSeCancellata, fetchGiocatori, fetchSquadre, gironiRichiesti, nomiSquadre,
   numero, obbligatorio, presente, qualificateRichieste, registraUnaRiga, squadraTappaDaAnagrafe, str, tappaRichiesta,
   type Argomenti, type ContestoStrumenti,
 } from "./strumentiComuni";
@@ -93,7 +93,7 @@ function gareMancanti(t: Tappa): string[] {
  *  e l'anagrafe non si tocca (le squadre si scelgono, non si registrano) */
 export async function eseguiCreaTappaSimulata(args: Argomenti, ctx: ContestoStrumenti): Promise<string> {
   const { legaId, tappe } = useAppStore.getState();
-  if (!legaId) throw new Error("Nessuna lega attiva: crea prima una lega prima di aggiungere tappe.");
+  if (!legaId) throw new Error(ERRORE_NESSUNA_LEGA);
   if (tappe.length >= MAX_TAPPE_LEGA) throw new Error(`La lega ha già ${MAX_TAPPE_LEGA} tappe: non ne creo un'altra.`);
 
   const nome = obbligatorio(args, "nome", "il nome della tappa");

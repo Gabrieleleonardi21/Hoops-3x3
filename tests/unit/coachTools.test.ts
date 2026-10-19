@@ -758,6 +758,46 @@ describe("Coach AI: fase finale", () => {
   });
 });
 
+describe("Coach AI: testi degli errori e delle conferme (lega aperta, nomi di tappa)", () => {
+  it.each([
+    ["crea_tappa", { nome: "Tappa 2", squadre: ["Alfa", "Beta"] }],
+    ["crea_tappa_simulata", { nome: "Tappa 2" }],
+  ])("%s senza lega aperta: il messaggio dice di creare una lega prima, con un solo «prima»", async (strumento, args) => {
+    useAppStore.setState({ legaId: null, leghe: [], legaName: "", tappe: [] });
+    const richieste = modello(strumenti([strumento, args]), testo("Ok."));
+    await chiedi(coach(), "Crea una tappa");
+    expect(esiti(richieste)[0]).toContain("Nessuna lega attiva: crea una lega prima di aggiungere tappe.");
+  });
+
+  it("crea_tappa_simulata con un nome già usato: il nome nel messaggio passa da pulisci (< diventa ‹)", async () => {
+    useAppStore.setState({ tappe: [{ ...romaOpen(), nome: "Roma <b>Open" }] });
+    const richieste = modello(strumenti(["crea_tappa_simulata", { nome: "Roma <b>Open", nSquadre: 8 }]), testo("Scelgo un altro nome."));
+    await chiedi(coach(), "Crea una tappa di prova chiamata Roma <b>Open");
+    expect(esiti(richieste)[0]).toContain('La tappa "Roma ‹b›Open" esiste già in questa lega');
+  });
+
+  it("sorteggia_gironi: il titolo della conferma usa il nome della tappa passato da pulisci", async () => {
+    useAppStore.setState({ tappe: [{ ...romaOpen(), nome: "Roma <i>Open" }] });
+    modello(strumenti(["sorteggia_gironi", { tappa_nome: "Roma <i>Open" }]), testo("Va bene."));
+    const richiesta = await chiediEConferma(coach(), "Rifai il sorteggio di Roma Open", false);
+    expect(richiesta.titolo).toBe('Rifare il sorteggio di "Roma ‹i›Open"?');
+  });
+
+  it("annulla_risultato: il testo della conferma usa il nome della tappa passato da pulisci", async () => {
+    useAppStore.setState({ tappe: [{ ...romaOpen(), nome: "Roma <i>Open" }] });
+    modello(strumenti(["annulla_risultato", { squadra_a: "Alfa", squadra_b: "Beta" }]), testo("Il risultato resta."));
+    const richiesta = await chiediEConferma(coach(), "Annulla il risultato di Alfa-Beta", false);
+    expect(richiesta.testo).toBe('La partita di "Roma ‹i›Open" torna da giocare e non conta più in classifica.');
+  });
+
+  it("concludi_tappa: il titolo della conferma usa il nome della tappa passato da pulisci", async () => {
+    useAppStore.setState({ tappe: [{ ...romaOpenGiocata(), nome: "Roma <i>Open" }] });
+    modello(strumenti(["concludi_tappa", { tappa_nome: "Roma <i>Open" }]), testo("Non concludo."));
+    const richiesta = await chiediEConferma(coach(), "Concludi Roma Open", false);
+    expect(richiesta.titolo).toBe('Concludere "Roma ‹i›Open"?');
+  });
+});
+
 describe("Coach AI: conferma nel pannello prima delle azioni distruttive (D4)", () => {
   const rifaiSorteggio = strumenti(["sorteggia_gironi", { tappa_nome: "Roma Open" }]);
 

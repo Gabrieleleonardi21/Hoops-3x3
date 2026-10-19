@@ -21,7 +21,7 @@ import { squadraDi } from "../utils/tappaInfo";
 import { puoModificare } from "../utils/permessi";
 import { eseguiCreaTappaSimulata, eseguiRegistraRisultati, eseguiSimulaRisultati } from "./toolHandlersSimulazione";
 import {
-  applica, confermata, erroreTappaDuplicata, fermaSeCancellata, fetchGiocatori, fetchSquadre, gironiRichiesti, nomiRoster,
+  applica, confermata, ERRORE_NESSUNA_LEGA, erroreTappaDuplicata, fermaSeCancellata, fetchGiocatori, fetchSquadre, gironiRichiesti, nomiRoster,
   nomiSquadre, obbligatorio, presente, prova, qualificateRichieste, registraUnaRiga, squadraDellaPartita, squadraRichiesta,
   squadraTappaDaAnagrafe, squadreRichieste, stessaCoppia, str, tappaRichiesta, trovaPerNome, type Argomenti, type ContestoStrumenti,
 } from "./strumentiComuni";
@@ -103,7 +103,7 @@ async function eseguiCreaLega(args: Argomenti, ctx: ContestoStrumenti): Promise<
 async function eseguiCreaTappa(args: Argomenti, ctx: ContestoStrumenti): Promise<string> {
   // Lega e tappe di adesso: comprendono la lega e le tappe create dagli strumenti precedenti della richiesta
   const { legaId, tappe } = useAppStore.getState();
-  if (!legaId) throw new Error("Nessuna lega attiva: crea prima una lega prima di aggiungere tappe.");
+  if (!legaId) throw new Error(ERRORE_NESSUNA_LEGA);
 
   const nomeTappa = obbligatorio(args, "nome", "il nome della tappa");
   // Guard: evita che il modello crei duplicati chiamando il tool più volte
@@ -250,7 +250,7 @@ async function eseguiSorteggiaGironi(args: Argomenti, ctx: ContestoStrumenti): P
   const perdita = perditaRisultati(tappa);
   if (perdita) {
     prova(tappa, sorteggio);
-    await confermata(ctx, `Rifare il sorteggio di "${tappa.nome}"?`, perdita);
+    await confermata(ctx, `Rifare il sorteggio di "${pulisci(tappa.nome)}"?`, perdita);
   }
   const nuova = applica(tappa, sorteggio);
   ctx.vai(`/lega/tappa/${tappa.id}`);
@@ -301,7 +301,7 @@ async function eseguiAnnullaRisultato(args: Argomenti, ctx: ContestoStrumenti): 
   await confermata(
     ctx,
     `Togliere il risultato ${nomeOf(partita.a)} ${partita.sa}-${partita.sb} ${nomeOf(partita.b)}?`,
-    `La partita di "${tappa.nome}" torna da giocare e non conta più in classifica.`,
+    `La partita di "${pulisci(tappa.nome)}" torna da giocare e non conta più in classifica.`,
   );
   applica(tappa, annulla);
   return `Risultato di "${pulisci(nomeOf(partita.a))}" vs "${pulisci(nomeOf(partita.b))}" annullato: la partita è tornata a non disputata.`;
@@ -377,7 +377,7 @@ async function eseguiConcludiTappa(args: Argomenti, ctx: ContestoStrumenti): Pro
   prova(tappa, concludi);
   await confermata(
     ctx,
-    `Concludere "${tappa.nome}"?`,
+    `Concludere "${pulisci(tappa.nome)}"?`,
     "La tappa viene pubblicata nell'Archivio circuito e da lì non si modifica più: per cambiarla andrà riaperta.",
   );
   const conclusa = applica(tappa, concludi);

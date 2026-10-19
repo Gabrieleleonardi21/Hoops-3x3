@@ -209,9 +209,13 @@ export async function fetchGiocatori(): Promise<RegGiocatore[]> {
   return anagrafeApi.listGiocatori().catch(anagrafeNonRisponde);
 }
 
-/** Il nome di una tappa nuova non può esistere già nella lega aperta: il messaggio è lo stesso per crea_tappa e per le tappe simulate */
+/** Il messaggio quando non c'è una lega aperta: lo stesso per crea_tappa e crea_tappa_simulata */
+export const ERRORE_NESSUNA_LEGA = "Nessuna lega attiva: crea una lega prima di aggiungere tappe.";
+
+/** Il nome di una tappa nuova non può esistere già nella lega aperta: il messaggio è lo stesso per crea_tappa e per le tappe simulate.
+ *  Il nome lo ha scritto il modello (o l'utente), e passa da pulisci come gli altri nomi nei testi */
 export function erroreTappaDuplicata(nome: string): string {
-  return `La tappa "${nome}" esiste già in questa lega: non ne creo un'altra.`;
+  return `La tappa "${pulisci(nome)}" esiste già in questa lega: non ne creo un'altra.`;
 }
 
 /** I nomi («Nome Cognome») dei giocatori del roster di una squadra dell'anagrafe, nell'ordine del roster. Un id che non è più tra
