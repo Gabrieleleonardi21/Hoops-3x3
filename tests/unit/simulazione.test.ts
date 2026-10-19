@@ -336,7 +336,8 @@ describe("riepilogoSimulazione", () => {
     const { rapporto } = esito;
     const testo = riepilogoSimulazione("Demo", rapporto, { squadre: ["A", "B"], nuova: true, tabellini: true });
     expect(testo).toContain('Tappa "Demo" creata con 2 squadre dall\'anagrafe (A, B)');
-    expect(testo).toContain("12 gare giocate con i tabellini");
+    // 12 gare nei gironi e 3 nel tabellone (semifinali e finale)
+    expect(testo).toContain(`${rapporto.gareGironi + rapporto.gareTabellone} gare giocate con i tabellini`);
     expect(testo).toContain(`vince ${rapporto.finale ?? ""}`);
     expect(testo).toContain("1. ");
     expect(testo).toContain("Classifiche dei gironi");
@@ -345,8 +346,7 @@ describe("riepilogoSimulazione", () => {
 
   it("per una tappa esistente conta le gare mancanti", () => {
     const rapporto = { gareGironi: 2, gareTabellone: 0, classifiche: [], campione: null, finale: null, note: [] };
-    const testo = riepilogoSimulazione("Demo", rapporto, { nuova: false, tabellini: true });
-    expect(testo).toContain('Tappa "Demo": 2 gare mancanti giocate.');
-    expect(testo).not.toContain("fase finale");
+    const testo = riepilogoSimulazione("Demo", rapporto, { nuova: false, tabellini: false });
+    expect(testo).toBe('Tappa "Demo": 2 gare mancanti giocate. La tappa non è conclusa: per pubblicarla chiedi di concluderla.');
   });
 });
