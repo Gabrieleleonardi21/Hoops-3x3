@@ -347,6 +347,16 @@ describe("riepilogoSimulazione", () => {
   it("per una tappa esistente conta le gare mancanti", () => {
     const rapporto = { gareGironi: 2, gareTabellone: 0, classifiche: [], campione: null, finale: null, note: [] };
     const testo = riepilogoSimulazione("Demo", rapporto, { nuova: false, tabellini: false });
-    expect(testo).toBe('Tappa "Demo": 2 gare mancanti giocate. La tappa non è conclusa: per pubblicarla chiedi di concluderla.');
+    expect(testo).toBe(
+      'Tappa "Demo": 2 gare mancanti giocate. I punteggi sono numeri di prova generati dall\'app, non risultati veri. '
+        + "La tappa non è conclusa: per pubblicarla chiedi di concluderla.",
+    );
+  });
+
+  it("dice sempre che i punteggi sono numeri di prova, sia per una tappa nuova sia per una esistente", () => {
+    const frase = "I punteggi sono numeri di prova generati dall'app, non risultati veri.";
+    const rapporto = { gareGironi: 1, gareTabellone: 0, classifiche: [], campione: null, finale: null, note: [] };
+    expect(riepilogoSimulazione("Demo", rapporto, { nuova: false, tabellini: false })).toContain(frase);
+    expect(riepilogoSimulazione("Demo", rapporto, { squadre: ["A", "B"], nuova: true, tabellini: true })).toContain(frase);
   });
 });
