@@ -119,8 +119,8 @@ export function AnagrafePage() {
 
       {eliminazione.errore && <p className="mb-2.5 text-[13px] font-semibold text-loss" role="alert">{eliminazione.errore}</p>}
 
-      {showForm && tab === "g" && <GiocatoreForm squadre={squadre || []} onSave={(d) => guard(() => saveGiocatore(d))} />}
-      {showForm && tab === "s" && <SquadraAnagrafeForm giocatori={giocatori || []} onSave={(d) => guard(() => saveSquadra(d))} />}
+      {showForm && tab === "g" && <GiocatoreForm squadre={squadre || []} giocatori={giocatori || []} onSave={(d) => guard(() => saveGiocatore(d))} />}
+      {showForm && tab === "s" && <SquadraAnagrafeForm giocatori={giocatori || []} squadre={squadre || []} onSave={(d) => guard(() => saveSquadra(d))} />}
 
       {tab === "g" && contenuto(giocatori, gList,
         { vuoto: "Nessun giocatore registrato: aggiungi il primo.", nessuno: "Nessun giocatore trovato con questa ricerca." },
