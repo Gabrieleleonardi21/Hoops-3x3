@@ -9,8 +9,8 @@ export function normalizza(testo: string): string {
   return testo
     .toLowerCase()
     .normalize("NFD") // separa la lettera dal suo accento («ò» diventa «o» più il segno)
-    .replace(/[̀-ͯ]/g, "") // toglie i segni degli accenti
-    .replace(/[‘’]/g, "'") // ’ e ‘, che la tastiera del telefono scrive da sola, diventano l'apostrofo semplice
+    .replace(/[\u0300-\u036f]/g, "") // toglie i segni degli accenti
+    .replace(/[\u2018\u2019]/g, "'") // ’ e ‘, che la tastiera del telefono scrive da sola, diventano l'apostrofo semplice
     .replace(/\s+/g, " ") // spazi, tabulazioni e a capo diventano un solo spazio
     .trim();
 }
