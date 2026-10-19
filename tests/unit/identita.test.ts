@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
-  normalizza, identitaSquadra, nomeCompleto, stessoNomeGiocatore, perId, risolviGiocatore, squadraDelGiocatore,
+  normalizza, identitaSquadra, nomeCompleto, stessoNomeGiocatore, perId, risolviGiocatore, squadraDelGiocatore, doppioniDelRoster,
 } from "../../src/utils/identita";
 import { normalizza as normalizzaDaStat } from "../../src/utils/statGiocatori";
-import type { RegGiocatore, RegSquadra } from "../../src/types";
+import type { GiocatoreRoster, RegGiocatore, RegSquadra } from "../../src/types";
 import { tappaDaSquadre } from "./tappeDiProva";
 
 /* ── Fixture: un giocatore e una squadra dell'anagrafe, con i soli campi che contano ── */
@@ -134,5 +134,31 @@ describe("tappaDaSquadre: gli id restano distinti anche con nomi uguali", () => 
     ], []);
     expect(new Set(tappa.squadre.map((s) => s.id)).size).toBe(2);
     expect(new Set(tappa.squadre[0].giocatori.map((g) => g.id)).size).toBe(2);
+  });
+});
+
+describe("doppioniDelRoster: i giocatori di una squadra che si chiamano allo stesso modo", () => {
+  /** Un giocatore del roster di tappa, con il regId dell'anagrafe solo se c'è */
+  const r = (id: string, nome: string, regId?: string): GiocatoreRoster => {
+    const x: GiocatoreRoster = { id, nome };
+    if (regId) x.regId = regId;
+    return x;
+  };
+
+  it("due omonimi senza regId sono entrambi nel set, anche con maiuscole e spazi diversi; un nome unico no", () => {
+    expect([...doppioniDelRoster([r("p1", "Mario Rossi"), r("p2", "  mario ROSSI"), r("p3", "Luca")])].sort()).toEqual(["p1", "p2"]);
+  });
+
+  it("omonimi con regId diversi sono persone diverse: nessun avviso", () => {
+    expect(doppioniDelRoster([r("p1", "Mario Rossi", "g1"), r("p2", "Mario Rossi", "g2")]).size).toBe(0);
+  });
+
+  it("un omonimo senza regId, o con lo stesso regId, avvisa", () => {
+    expect(doppioniDelRoster([r("p1", "Mario Rossi", "g1"), r("p2", "Mario Rossi")]).size).toBe(2);
+    expect(doppioniDelRoster([r("p1", "Mario Rossi", "g1"), r("p2", "Mario Rossi", "g1")]).size).toBe(2);
+  });
+
+  it("i nomi vuoti non contano", () => {
+    expect(doppioniDelRoster([r("p1", ""), r("p2", "  ")]).size).toBe(0);
   });
 });

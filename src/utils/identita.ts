@@ -1,6 +1,6 @@
 /** Identità di squadre e giocatori: la regola unica con cui si riconosce chi è chi. Il modulo è puro e importa solo tipi, così
  *  lo usano le statistiche, il Coach e le pagine senza creare cicli di import. */
-import type { RegGiocatore, RegSquadra, SquadraTappa } from "../types";
+import type { GiocatoreRoster, RegGiocatore, RegSquadra, SquadraTappa } from "../types";
 
 /** Nome o squadra confrontabili: spazi ai lati tolti, spazi interni ridotti a uno (ma non tolti: «De Rossi» e «DeRossi»
  *  restano diversi), maiuscole e accenti ignorati («Nicolò  Rossi» e «nicolo rossi» sono lo stesso giocatore), apostrofi
@@ -55,6 +55,26 @@ export function risolviGiocatore(
   const [unico, ...altri] = omonimi;
   if (altri.length > 0 || !unico) return null;
   return unico;
+}
+
+/** I giocatori di una rosa che si chiamano allo stesso modo (maiuscole, accenti e spazi a parte), per id. Due omonimi con regId
+ *  diversi sono due persone registrate e non avvisano; in tutti gli altri casi sì, perché le loro gare si sommano. I nomi vuoti
+ *  non contano */
+export function doppioniDelRoster(giocatori: GiocatoreRoster[]): Set<string> {
+  const gruppi = new Map<string, GiocatoreRoster[]>();
+  for (const g of giocatori) {
+    const chiave = normalizza(g.nome);
+    if (!chiave) continue;
+    gruppi.set(chiave, [...(gruppi.get(chiave) ?? []), g]);
+  }
+  const doppioni = new Set<string>();
+  for (const gruppo of gruppi.values()) {
+    if (gruppo.length < 2) continue;
+    // Tutti registrati, ognuno con un regId diverso: persone diverse
+    const persone = gruppo.every((g) => g.regId) && new Set(gruppo.map((g) => g.regId)).size === gruppo.length;
+    if (!persone) gruppo.forEach((g) => doppioni.add(g.id));
+  }
+  return doppioni;
 }
 
 /** La squadra dell'anagrafe di un giocatore: quella il cui roster lo contiene; se nessuna, l'unica squadra che si chiama come
