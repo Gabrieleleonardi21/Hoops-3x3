@@ -19,6 +19,7 @@ Questo è il documento principale del progetto. La prima parte spiega com'è fat
   - [Funzionalità](#funzionalità)
   - [Regole FIBA 3x3 (default)](#regole-fiba-3x3-default)
   - [Avviare, provare, pubblicare](#avviare-provare-pubblicare)
+  - [Lettura delle foto](#lettura-delle-foto)
   - [API REST](#api-rest)
   - [Struttura del progetto](#struttura-del-progetto)
   - [Design system](#design-system)
@@ -47,7 +48,7 @@ Un circuito di basket 3x3 è fatto di **tappe**: tornei che si giocano in luoghi
 - Pubblica la tappa conclusa in un archivio che chiunque può leggere.
 - Tiene un'anagrafe condivisa di giocatori e squadre, con le statistiche di stagione.
 - Mostra i campetti da streetball su una mappa, con la ricerca per città o intorno a sé.
-- Offre il Coach AI, un assistente in chat che risponde sul 3x3 e agisce nell'app con dieci strumenti.
+- Offre il Coach AI, un assistente in chat che risponde sul 3x3 e agisce nell'app con undici strumenti. Con «Importa file» legge anche la foto di un foglio di tappa scritto a mano.
 - Gestisce il profilo: nome, password, email, recupero della password ed eliminazione dell'account.
 
 L'elenco completo, schermata per schermata, è in [`FUNZIONALITA.txt`](FUNZIONALITA.txt).
@@ -59,18 +60,18 @@ L'elenco completo, schermata per schermata, è in [`FUNZIONALITA.txt`](FUNZIONAL
 
 Il server gira sul piano gratuito di Render: dopo 15 minuti senza visite si spegne. La prima apertura può aspettare il risveglio, anche più di un minuto.
 
-### I numeri, al 14 ottobre 2026
+### I numeri, al 19 ottobre 2026
 
-Misurati il 14 ottobre 2026, tutti senza fallimenti. I test del frontend comprendono il test di guardia di questo README (`tests/unit/readme.test.ts`); quelli con il backend vero sono l'ultima corsa della CI sul ramo principale.
+Misurati il 19 ottobre 2026, tutti senza fallimenti. Fa eccezione il numero dei test di integrazione del backend, misurato il 14 ottobre perché richiede un database di prova. I test del frontend comprendono il test di guardia di questo README (`tests/unit/readme.test.ts`).
 
 | Che cosa | Quanti | Come si misura |
 |---|---|---|
-| Test unitari e di componenti del frontend | 1.933, in 105 file | `npm test` |
-| Test end-to-end del frontend, con il server finto | 77 | `npx playwright test` |
-| Test end-to-end con il backend vero | 5 | `npm run test:e2e:backend` (nella CI, l'integrazione continua di GitHub) |
-| Test unitari del backend, compreso il test di guardia del suo README | 856 | `./mvnw test` |
-| Test di integrazione del backend, su PostgreSQL | 294 | `./mvnw verify -Pintegrazione` |
-| Endpoint dell'API | 41, più 2 controlli di salute | le mappature dei controller del backend |
+| Test unitari e di componenti del frontend | 2.013, in 111 file | `npm test` |
+| Test end-to-end del frontend, con il server finto | 80 | `npx playwright test` |
+| Test end-to-end con il backend vero | 6 | `npm run test:e2e:backend` (nella CI, l'integrazione continua di GitHub) |
+| Test unitari del backend, compreso il test di guardia del suo README | 997 | `./mvnw test` |
+| Test di integrazione del backend, su PostgreSQL | 294 (misurati il 14 ottobre) | `./mvnw verify -Pintegrazione` |
+| Endpoint dell'API | 42, più 2 controlli di salute | le mappature dei controller del backend |
 | Migrazioni del database | 11 (da V1 a V11), per 12 tabelle | i file di `hoop3x3-backend/src/main/resources/db/migration` |
 
 ## Come leggere questo README
@@ -128,7 +129,7 @@ Le parole dello schema, in breve (sono anche nel [Glossario](#glossario)):
 +-----------------------------+   +----------------------------------+
 | PostgreSQL                  |   | Servizi esterni, chiavi sul      |
 | schema di Flyway, V1-V11    |   | server:                          |
-| tappe: blocchi JSONB        |   |  Groq (Coach AI)                 |
+| tappe: blocchi JSONB        |   |  Anthropic (Coach AI, foto)      |
 | colonna versione            |   |  Brevo (email)                   |
 +-----------------------------+   |  Nominatim (ricerca dei luoghi)  |
                                   +----------------------------------+
@@ -165,7 +166,7 @@ Il frontend ([Hoops-3x3](https://github.com/Gabrieleleonardi21/Hoops-3x3)) e il 
 
 ## Tecnologie, una per una, con il perché
 
-Ogni riga risponde a quattro domande: che cos'è, a che cosa serve qui (con un file in cui vederla), perché questa, che prezzo ha o quale alternativa è stata scartata. Le versioni sono quelle installate il 14 ottobre 2026, lette da `package-lock.json`, da `pom.xml` e dalle dipendenze che Spring Boot 4.1.1 fissa per il backend. I limiti dei piani gratuiti (Render, Brevo, Groq) sono quelli del 14 ottobre 2026.
+Ogni riga risponde a quattro domande: che cos'è, a che cosa serve qui (con un file in cui vederla), perché questa, che prezzo ha o quale alternativa è stata scartata. Le versioni sono quelle installate il 14 ottobre 2026, lette da `package-lock.json`, da `pom.xml` e dalle dipendenze che Spring Boot 4.1.1 fissa per il backend. I limiti dei piani gratuiti (Render, Brevo) sono quelli del 14 ottobre 2026.
 
 ### Frontend
 
@@ -205,7 +206,7 @@ Il server ha un README suo, con la sezione completa delle tecnologie: [Tecnologi
 
 | Tecnologia | Che cos'è | A che cosa serve qui | Perché questa | Prezzo o alternativa scartata |
 |---|---|---|---|---|
-| **Java** 25 | Il linguaggio e la piattaforma del server | Tutto il backend; la versione è `java.version` in `pom.xml` | Ultima versione a supporto lungo (LTS). I **thread virtuali** (thread leggeri della JVM, la Java Virtual Machine che esegue il codice) sono accesi: una chiamata lenta a Groq non tiene occupato un thread di sistema (`application.properties`) | Il JDK 25 (Java Development Kit, il compilatore e la macchina virtuale) va installato per lavorare in locale |
+| **Java** 25 | Il linguaggio e la piattaforma del server | Tutto il backend; la versione è `java.version` in `pom.xml` | Ultima versione a supporto lungo (LTS). I **thread virtuali** (thread leggeri della JVM, la Java Virtual Machine che esegue il codice) sono accesi: una chiamata lenta al fornitore del Coach non tiene occupato un thread di sistema (`application.properties`) | Il JDK 25 (Java Development Kit, il compilatore e la macchina virtuale) va installato per lavorare in locale |
 | **Spring Boot** 4.1 | Un framework che mette insieme server web, sicurezza, accesso al database, validazione e controlli di salute | `pom.xml`: gli starter `webmvc`, `security`, `data-jpa`, `validation`, `actuator`, `flyway` | Un solo framework con tutto già integrato, configurato da proprietà (`application.properties`) | Qualche secondo di avvio e molti automatismi da conoscere |
 | **Spring Security** 7.1 e **JJWT** 0.13 | Spring Security: filtri e regole di accesso per ogni rotta. JJWT: la libreria che firma e legge i JWT | `SecurityConfig`, `JwtFilter`, `JwtTools` | Regole per rotta già pronte; JJWT firma e verifica i token. Il suo JSON passa da `JwtJson` con Jackson 3, per non portarsi dietro Jackson 2 (`pom.xml`) | Le regole di sicurezza vanno lette in un posto solo, `SecurityConfig` |
 | **BCrypt**, costo 12 | Una funzione di hash per le password, lenta apposta | `SecurityConfig` | Se il database venisse rubato, provare password a ripetizione costerebbe molto calcolo. Ogni punto di costo raddoppia il lavoro: 12 è quattro volte il valore di base di Spring (10) | Ogni login costa calcolo al server: per questo login e registrazione hanno un limite di frequenza |
@@ -213,12 +214,13 @@ Il server ha un README suo, con la sezione completa delle tecnologie: [Tecnologi
 | **Flyway** 12.4 | Applica le migrazioni del database: file SQL numerati, in ordine | `hoop3x3-backend/src/main/resources/db/migration`, da V1 a V11 | Lo schema è versionato nel repository e si applica da solo all'avvio: nessuno esegue SQL a mano | Una migrazione applicata non si modifica: un errore si corregge con una migrazione nuova |
 | **PostgreSQL** e **JSONB** | Un database relazionale; JSONB è il suo tipo per il JSON, salvato in forma binaria | Le tabelle di leghe, tappe, anagrafe, archivio, campetti, create da `V1__schema_iniziale.sql` e dalle migrazioni dopo | Transazioni e vincoli; i blocchi di gioco della tappa stanno in colonne JSONB perché il motore li legge e li scrive sempre interi. Gratuito su Render | Le statistiche tra tappe non si calcolano in SQL: le calcola il frontend |
 | **Jackson** 3.1 | La libreria che converte oggetti Java in JSON e ritorno | Ogni risposta dell'API; anche il JSON dei token, in `JwtJson` | È il JSON di Spring Boot 4 (pacchetto `tools.jackson`) | Le annotazioni restano nel vecchio pacchetto `com.fasterxml` |
-| **RestClient** | Il client HTTP di Spring | Le chiamate a Groq, Brevo e Nominatim (`CoachAiService`, `EmailSenderBrevo`, `LuoghiService`) | Nessuna dipendenza in più; i tempi massimi sono scritti nel codice | È sincrono: la chiamata tiene occupato il suo thread, che però è virtuale |
+| **RestClient** | Il client HTTP di Spring | Le chiamate ad Anthropic o Groq, Brevo e Nominatim (`CoachAiService`, `EmailSenderBrevo`, `LuoghiService`) | Nessuna dipendenza in più; i tempi massimi sono scritti nel codice | È sincrono: la chiamata tiene occupato il suo thread, che però è virtuale |
 | **Lombok** 1.18 | Genera getter, setter e costruttori al posto di chi scrive | Le entity in `entities/`, per esempio `Lega` | Meno codice ripetuto | Un processore di annotazioni in più da conoscere |
 | **JUnit** 6, **Mockito**, **AssertJ**, **MockMvc** | Gli strumenti dei test Java: esecuzione, oggetti finti, asserzioni leggibili, richieste HTTP simulate | `hoop3x3-backend/src/test` | I test unitari girano senza database; quelli di integrazione (`*IT`) usano un PostgreSQL vero | Un database di prova da tenere a portata |
 | **PostgreSQL vero nei test**, niente Testcontainers | I test di integrazione parlano con un database vero, non con un'imitazione | Il profilo Maven `integrazione` | Lo stesso database della produzione; Testcontainers avrebbe chiesto Docker sulla macchina di sviluppo, che non c'è. In CI è un servizio `postgres:18` | In locale serve un database di prova, mai quello vero: i test lo svuotano |
 | **Docker** | Impacchetta il server con il suo ambiente in un'immagine | Il `Dockerfile` del backend | Render non ha un ambiente Java pronto: l'immagine porta il suo. Due fasi, un utente senza privilegi, heap al 60% della memoria | Un'immagine da costruire a ogni pubblicazione |
-| **Groq**, modello `openai/gpt-oss-120b` | Un servizio che esegue modelli linguistici, con un'API compatibile con quella di OpenAI | Il Coach AI, attraverso `POST /api/coach/chat` (`CoachAiService`) | Piano gratuito; il modello sa chiamare gli strumenti (il precedente, `llama-3.3-70b-versatile`, è stato dismesso) | Modello e limiti li decide il fornitore |
+| **Groq**, modello `openai/gpt-oss-120b` | Un servizio che esegue modelli linguistici, con un'API compatibile con quella di OpenAI | Il Coach AI, attraverso `POST /api/coach/chat` (`CoachAiService`), con `COACH_FORNITORE=groq` | Scelta di partenza del progetto: il Coach nasce con Groq. Il modello sa chiamare gli strumenti (il precedente, `llama-3.3-70b-versatile`, è stato dismesso) | Non è bastato: per avere risposte costanti e ridurre al minimo la possibilità di errore, il deploy usa Anthropic. Groq resta disponibile |
+| **Anthropic**, modello `claude-haiku-5-5` | Un servizio che esegue i modelli Claude con la Messages API | Il Coach AI (`CoachAnthropic`) e la lettura delle foto dei fogli (`LettoreFoglioAnthropic`), con `COACH_FORNITORE=anthropic` e `AI_LETTORE_FOGLIO=anthropic` | Scelto per avere una risposta costante e ridurre al minimo la possibilità di errore. Un solo fornitore e un solo modello per il Coach e per le foto, con la stessa chiave | Alternativa scartata: Groq. Il modello si cambia con `ANTHROPIC_MODEL` |
 | **Brevo** | Un servizio che invia email con un'API HTTP | Le email del recupero password e del cambio email (`EmailSenderBrevo`) | Sul piano gratuito di Render le porte SMTP (il protocollo classico della posta) sono chiuse: l'API di Brevo passa dalla porta 443. Fino a 300 email al giorno gratis | Oltre 300 email al giorno serve un piano a pagamento |
 | **Actuator** | Le sonde di salute di Spring Boot | `/actuator/health` e `/actuator/health/liveness`, configurati da `management.*` in `application.properties` | Render riavvia il servizio se la sonda non risponde; il frontend la chiama all'apertura per svegliare il server | Gli altri endpoint dell'actuator restano chiusi |
 | **Maven Wrapper** | Uno script che scarica la versione giusta di Maven | `./mvnw` | Nessuna installazione di Maven; lo portano i progetti generati con Spring Initializr | Il primo avvio scarica Maven |
@@ -243,13 +245,13 @@ Una tecnologia è uno strumento; una scelta è il modo in cui lo si usa. Ogni ri
 | JWT di 30 minuti nel `localStorage`, **refresh token** di 30 giorni in un cookie **httpOnly** (che JavaScript non può leggere) | Il JWT va letto dal codice per metterlo nell'intestazione `Authorization`; dura poco, quindi un JWT rubato vale al massimo 30 minuti. Il refresh token, che dura a lungo, sta dove uno script non arriva | Un attacco **XSS** (codice estraneo eseguito nella pagina) potrebbe leggere il JWT finché vale: per questo la Content-Security-Policy e niente `innerHTML`. Un JWT già emesso non si revoca: resta valido fino alla scadenza | `src/services/api.ts`; `AuthCookies` e `RefreshTokenService` del backend |
 | Protezione **CSRF** spenta (CSRF: un altro sito che fa partire richieste a nome tuo usando i tuoi cookie) | Le richieste autenticate usano l'intestazione `Authorization`, che un altro sito non può aggiungere. L'unico cookie è `SameSite=Lax` e lo leggono solo il rinnovo e l'uscita | Con frontend e backend su siti diversi servirebbero `SameSite=None` e un'intestazione di controllo: i passi sono nel README del backend, «Sessioni e refresh token» | `SecurityConfig` del backend |
 | Password con **BCrypt** a costo 12, e massimo 72 byte | Un hash lento rende costoso provare password a ripetizione. 72 byte è il limite di BCrypt, controllato in byte UTF-8 (una lettera accentata ne vale 2) | Ogni login costa calcolo al server: da qui il limite di frequenza sul login | `SecurityConfig`, `UtenteService` del backend; `src/utils/credenziali.ts` |
-| **Limiti di frequenza**: 10 al minuto per indirizzo su login, registrazione, rinnovo e richiesta del link di recupero; 10 al minuto per utente sui tre endpoint del profilo con la password; 20 al minuto e 300 al giorno per utente sul Coach. Oltre, 429 con `Retry-After` | Senza limite le password si proverebbero a ripetizione e la chiave Groq del server diventerebbe un servizio gratuito per chiunque si registri | I contatori stanno nella memoria del processo: valgono finché l'istanza è una sola, e non fermano un attacco da molti indirizzi | `LimiteRichiesteFilter` del backend |
+| **Limiti di frequenza**: 10 al minuto per indirizzo su login, registrazione, rinnovo e richiesta del link di recupero; 10 al minuto per utente sui tre endpoint del profilo con la password; 20 al minuto e 300 al giorno per utente sul Coach. Oltre, 429 con `Retry-After` | Senza limite le password si proverebbero a ripetizione e la chiave del fornitore del Coach diventerebbe un servizio gratuito per chiunque si registri | I contatori stanno nella memoria del processo: valgono finché l'istanza è una sola, e non fermano un attacco da molti indirizzi | `LimiteRichiesteFilter` del backend |
 | Una **Content-Security-Policy** (CSP: l'elenco delle origini da cui la pagina può caricare script, stili, immagini, frame) uguale in `render.yaml` e in `vite.config.ts` | Uno script iniettato non parte, perché gli script ammessi sono solo quelli della build. La copia in `vite.config.ts` fa girare i test end-to-end con la policy di produzione | Ogni risorsa esterna nuova va aggiunta in tutti e due i posti: un test unitario fallisce se le copie divergono | `render.yaml`, `vite.config.ts`, `tests/unit/csp.test.ts`, `tests/e2e/csp.spec.ts` |
 | Video di YouTube da `youtube-nocookie.com` | L'embed non mette cookie di profilazione finché il video non parte; è anche l'unico host che la policy ammette nei frame | Un video di un altro sito si apre in una nuova scheda, non nella pagina | `src/components/video/VideoCard.tsx` |
 | Niente `innerHTML`; ogni indirizzo scritto da un utente passa da `safeUrl`; i loghi si caricano senza `Referer` | Un testo non diventa mai codice. `safeUrl` blocca `javascript:`, `data:` e gli indirizzi che portano a un altro sito. Senza `Referer` l'host di un logo non sa da quale pagina arriva la richiesta | Un indirizzo bloccato diventa `#`, un logo bloccato lascia il posto al ripiego. Il server applica la stessa regola agli indirizzi (`IndirizzoWeb`) | `src/utils/safeUrl.ts`, `src/components/ui/TeamLogo.tsx` |
 | Zod controlla la forma di alcune risposte del server: l'elenco e le tappe dell'archivio, i campetti, i luoghi, il profilo, i messaggi del recupero password. Le altre risposte (leghe e tappe, anagrafe, accesso, Coach) hanno solo i tipi TypeScript | Una risposta fuori forma diventa un errore con «Riprova» invece di una pagina disegnata a metà. Lo schema è arrivato con i client scritti o rivisti dal 7 ottobre 2026 in poi; quelli delle prime versioni sono rimasti com'erano | Le risposte senza schema si fidano del contratto del backend: un cambio di forma si vedrebbe solo nell'uso. Anche i file importati e la lega dell'Ospite letta dal browser passano da Zod | `src/services/archivioApi.ts`, `src/services/campettiApi.ts`, `src/utils/legaFile.ts` |
 | Contro la **prompt injection** (testo che prova a dare ordini al modello): i dati della lega vanno al Coach dentro `<dati_lega>`, e ogni nome scritto da un utente passa da `pulisci` | Il prompt dice al modello di trattare come dati ciò che sta nel blocco. `pulisci` trasforma `<` e `>`, così un nome come `</dati_lega>` non chiude il blocco | Una mitigazione, non una garanzia: un modello può comunque seguire un testo ostile. Le azioni distruttive chiedono conferma all'utente | `src/utils/buildCoachContext.ts`, `src/hooks/useCoachAI.ts` |
-| Le chiavi dei servizi esterni stanno solo sul server, e il backend fa da proxy verso Groq con una lista degli strumenti ammessi | Una chiave nel browser è pubblica. Con strumenti diversi da quelli del Coach, Groq attiverebbe i suoi strumenti integrati, pagati con la chiave del server | Il prompt di sistema lo scrive il frontend, perché i dati della lega sono nel browser; il server aggiunge la sua regola del contesto e controlla quantità e strumenti (60 messaggi, 100.000 caratteri, 20 strumenti) | `src/services/aiService.ts`; `CoachAiService` e `AmbitoCoach` del backend |
+| Le chiavi dei servizi esterni stanno solo sul server, e il backend fa da proxy verso il fornitore del Coach con una lista degli strumenti ammessi | Una chiave nel browser è pubblica. Con strumenti diversi da quelli del Coach, Groq attiverebbe i suoi strumenti integrati, pagati con la chiave del server | Il prompt di sistema lo scrive il frontend, perché i dati della lega sono nel browser; il server aggiunge la sua regola del contesto e controlla quantità e strumenti (60 messaggi, 100.000 caratteri, 20 strumenti) | `src/services/aiService.ts`; `CoachAiService` e `AmbitoCoach` del backend |
 
 ### Dati
 
@@ -284,7 +286,7 @@ Una tecnologia è uno strumento; una scelta è il modo in cui lo si usa. Ogni ri
 | Scelta | Perché | Alternativa scartata o limite | Dove nel codice |
 |---|---|---|---|
 | Le operazioni di tappa sono **funzioni pure** (ricevono una tappa e ne restituiscono una nuova, senza toccare altro) | Prima il Coach duplicava la logica dell'interfaccia: ogni correzione andava fatta in due posti. Ora interfaccia e Coach chiamano le stesse funzioni, provate senza React | Lo store resta il solo punto che salva | `src/domain/tappaOps.ts`, `TODO.md` |
-| Test di guardia nel backend: test che non provano una funzione, ma una regola valida anche per il codice futuro | Cinque regole, e ognuna fa cadere un test: ogni endpoint sta in una lista della tabella degli accessi, con i casi 403 e 404 per quelli con un id e il corpo validato (`AccessoEndpointIT`); ogni campo di testo con un tetto è nella tabella dei tetti (`CampiDiTestoTest`); nessun tetto supera la lunghezza della sua colonna (`LimitiColonneIT`); un carattere oltre il tetto dà 400, su un endpoint per ogni modulo (`ValidazioneWebTest`); ogni tabella nuova è svuotata da `svuota.sql` prima dei test (`MigrazioniIT`) | Controllano la forma (annotazioni, tabelle), non ogni comportamento | `AccessoEndpointIT`, `CampiDiTestoTest`, `LimitiColonneIT`, `MigrazioniIT` e `hoop3x3-backend/src/test/java/com/hoop3x3/backend/web/ValidazioneWebTest.java` del backend |
+| Test di guardia nel backend: test che non provano una funzione, ma una regola valida anche per il codice futuro | Sei regole, e ognuna fa cadere un test: ogni endpoint sta in una lista della tabella degli accessi, con i casi 403 e 404 per quelli con un id e il corpo validato (`AccessoEndpointIT`); ogni campo di testo con un tetto è nella tabella dei tetti (`CampiDiTestoTest`); nessun tetto supera la lunghezza della sua colonna (`LimitiColonneIT`); un carattere oltre il tetto dà 400, su un endpoint per ogni modulo (`ValidazioneWebTest`); ogni tabella nuova è svuotata da `svuota.sql` prima dei test (`MigrazioniIT`); il README del backend cita file che esistono e ha un indice che combacia (`ReadmeTest`) | Controllano la forma (annotazioni, tabelle), non ogni comportamento | `AccessoEndpointIT`, `CampiDiTestoTest`, `LimitiColonneIT`, `MigrazioniIT` e `hoop3x3-backend/src/test/java/com/hoop3x3/backend/web/ValidazioneWebTest.java` del backend |
 | Copertura minima dell'80% per file in `src/domain`, `src/utils`, `src/stores` e `src/services` | Con la media di cartella un file piccolo senza test (era `safeUrl`, l'unica difesa contro gli indirizzi `javascript:`) restava nascosto dietro quelli grandi | I componenti non hanno soglia: si provano di più dal browser | `vite.config.ts` |
 | Test end-to-end sulla build servita da `vite preview` | Il dev server non può avere la Content-Security-Policy di produzione; la build sì, e una risorsa esterna non ammessa si scopre nei test | La build si rifà prima di ogni corsa | `playwright.config.ts` |
 | Test end-to-end con il jar del backend vero | Provano ciò che il server finto può solo imitare: registrazione, rinnovo con il cookie vero, salvataggio e versioni | Servono Java e un database di prova; nella CI il jar si compila dal ramo principale del backend | `playwright.backend.config.ts`, `tests/e2e-backend/` |
@@ -361,7 +363,7 @@ Se il proprietario elimina la tappa o la lega, il database toglie anche la pubbl
 
 1. **La domanda.** Il registrato scrive nel pannello (`src/components/coach/CoachPanel.tsx`). Un Ospite riceve l'invito a creare un account, e non parte nessuna chiamata.
 2. **Il prompt.** `src/hooks/useCoachAI.ts` scrive il prompt di sistema: chi è il Coach, le regole FIBA 3x3, come usare gli strumenti. Aggiunge i dati della lega aperta, preparati da `src/utils/buildCoachContext.ts` dentro il blocco `<dati_lega>`. Insieme vanno gli ultimi 30 messaggi della chat.
-3. **Il proxy.** `src/services/aiService.ts` manda tutto a `POST /api/coach/chat`, con le definizioni dei dieci strumenti (`src/coach/toolDefs.ts`). Il backend controlla i limiti (20 richieste al minuto e 300 al giorno per utente, 60 messaggi, 100.000 caratteri, solo strumenti del Coach), aggiunge la sua regola del contesto e chiama Groq con la chiave che tiene lui.
+3. **Il proxy.** `src/services/aiService.ts` manda tutto a `POST /api/coach/chat`, con le definizioni degli undici strumenti (`src/coach/toolDefs.ts`). Il backend controlla i limiti (20 richieste al minuto e 300 al giorno per utente, 60 messaggi, 100.000 caratteri, solo strumenti del Coach), aggiunge la sua regola del contesto e chiama il fornitore scelto con la chiave che tiene lui.
 4. **Gli strumenti.** Se il modello chiede uno strumento, per esempio `registra_risultato`, la risposta torna al browser. `src/coach/toolHandlers.ts` lo esegue con le stesse funzioni dell'interfaccia (`src/domain/tappaOps.ts`, lo store), e il risultato torna al modello.
 5. **Le conferme.** Sorteggiare su una tappa con risultati, annullare un risultato e concludere una tappa chiedono «Conferma» o «Annulla» nella chat, prima di toccare qualcosa.
 6. **Il ciclo.** Domanda, strumento, risultato e nuova chiamata si ripetono al massimo 8 volte per domanda. Poi il Coach risponde con il testo, e i badge sotto la risposta dicono quali azioni ha fatto.
@@ -371,12 +373,7 @@ Strumenti, conferme e chiamate al server, uno per uno: [`docs/coach-ai-tool-call
 
 ### La mappa dei campetti
 
-1. **L'apertura.** `src/pages/CampettiPage.tsx` chiede i campetti intorno al centro di Roma, entro 20 km: `GET /api/campetti?lat=&lng=&raggioKm=`, una lettura pubblica.
-2. **La ricerca per raggio.** Il backend (`CampettoService`) chiede al database un riquadro di coordinate, con un indice, poi calcola la distanza vera con la formula di **Haversine** (la distanza tra due punti di una sfera) e scarta gli angoli del riquadro. Al massimo 200 campetti, dal più vicino.
-3. **La ricerca per testo.** La casella manda il testo 300 millisecondi dopo l'ultimo tasto: `GET /api/campetti?q=`, nel nome e nella città, su tutta l'Italia. La risposta di una ricerca superata nel frattempo si scarta (`src/stores/useCampettiStore.ts`).
-4. **Un luogo.** Se il testo non trova campetti, la pagina chiede dove si trova: `GET /api/luoghi?q=`. Il backend (`LuoghiService`) lo chiede a Nominatim, al massimo una volta al secondo e con una cache di 500 ricerche. La mappa si sposta lì.
-5. **La posizione, solo se la chiedi.** «Usa la mia posizione» (`src/hooks/usePosizione.ts`) chiede il permesso al browser. La posizione resta nel browser e va al server solo come centro della ricerca.
-6. **La mappa.** `src/components/campetti/MappaCampetti.tsx` disegna la mappa con Leaflet e le tessere di OpenStreetMap. Ogni campetto è un pulsante, raggiungibile con Tab.
+La pagina dei campetti chiede i campi al backend, li cerca per raggio, per testo o per luogo, e li mostra su una mappa Leaflet. La posizione dell'utente si chiede solo con il suo clic. I passi, con i file, sono nella parte di riferimento, in [Campetti](#campetti).
 
 ## Glossario
 
@@ -459,11 +456,25 @@ Sapere che cosa manca vale quanto sapere che cosa c'è. Questi sono i limiti di 
 
 - La regola del contesto è di prodotto, non di sicurezza: un prompt costruito apposta può aggirarla, a spese della quota dell'utente.
 - `annulla_risultato` vale per i gironi, non per il tabellone.
-- Leggere i risultati da una foto del foglio di tappa scritto a mano è un'idea in prova, fuori dai repository: nessuna chiamata reale è stata fatta.
+- La lettura delle foto dipende da un modello: un foglio scritto male o una foto storta possono dare una bozza sbagliata. La bozza si controlla prima di creare la lega, e i dubbi del modello lo segnalano. La lettura va provata con fogli scritti a mano veri.
 
 ### Video
 
 - Gli indirizzi `youtube.com/live/…` non si riconoscono come YouTube: si aprono in una nuova scheda.
+
+### Tabellini live (da progettare)
+
+Oggi chi guarda una tappa vede i risultati ricaricando la pagina, o quando la tappa è pubblicata nell'archivio. Un tabellino in diretta vorrebbe dire mandare ogni salvataggio a chi guarda, senza ricaricare.
+
+L'idea è un canale WebSocket dal backend, con una connessione per tappa: a ogni salvataggio il server manda il tabellino aggiornato. Non è ancora progettato. Restano da decidere:
+
+- chi può guardare: la tappa pubblica, o solo il registrato proprietario della lega;
+- come autenticare la connessione: il browser non manda l'intestazione `Authorization` con un WebSocket, quindi il JWT andrebbe passato in un altro modo;
+- la Content-Security-Policy: `connect-src` oggi ammette solo la stessa origine, e va verificata per il canale;
+- il limite di connessioni contemporanee sul piano gratuito di Render, dove il backend si spegne dopo 15 minuti senza richieste;
+- la versione della tappa: il tabellino arriva dal server, quindi la coda dei salvataggi e i conflitti restano la fonte di verità.
+
+Un'alternativa più semplice, se basta il flusso dal server al browser, sono gli eventi inviati dal server (Server-Sent Events).
 
 ## Com'è cresciuto il progetto
 
@@ -486,7 +497,8 @@ Il progetto nasce a giugno 2026 con il frontend; il repository del backend parte
 | 12 ottobre | Recupero della password via email, con Brevo | Hoops-3x3#31; hoop3x3-backend da #19 a #23 |
 | 13 ottobre | Fase 6: la pagina Profilo (nome, password, email, eliminazione dell'account) | Hoops-3x3#32; hoop3x3-backend#24 |
 | 14 ottobre | Fase 7: il Coach resta nel suo contesto, statistiche di stagione per tutti, video a tutta larghezza | Hoops-3x3#33; hoop3x3-backend#25 |
-| 14 ottobre | Fase 8: questo README, con le tecnologie e le scelte spiegate | questa pull request |
+| 14 ottobre | Fase 8: il README con le tecnologie e le scelte spiegate | Hoops-3x3#34 |
+| 17 ottobre | Fase 9: «Importa file» legge la foto di un foglio di tappa, con la finestra dei dubbi; il Coach corregge le squadre | Hoops-3x3#35; hoop3x3-backend#27 |
 
 ## Riferimento
 
@@ -502,6 +514,7 @@ L'elenco completo, schermata per schermata, è in [`FUNZIONALITA.txt`](FUNZIONAL
   - Si creano, si rinominano, si aprono dall'elenco e si eliminano, con una conferma che per un registrato ricorda che le tappe pubblicate escono dall'archivio.
   - Se l'elenco non arriva dal server la pagina lo dice, con «Riprova», invece di mostrarlo vuoto; se non si legge solo l'ultima lega aperta, l'elenco resta.
   - Una lega si esporta in un file JSON e si importa da file: l'import crea sempre una lega nuova.
+  - «Importa file» accetta anche la foto di un foglio di tappa scritto a mano: la foto diventa una lega nuova con la sua tappa. I dubbi del modello compaiono in una finestra, con «Apri il Coach» per correggerli (vedi «Lettura delle foto»).
   - La classifica del circuito ordina le squadre con punti ranking per il punteggio più alto ottenuto nelle tappe, con il numero di tappe giocate. Le segnaposto «Squadra N» e quelle senza punti restano fuori.
 - **Tappe.** Nome, luogo, data, da 2 a 64 squadre con roster di 3-4 giocatori (almeno 3 per sorteggiare), un numero di gironi da 1 a metà delle squadre (al massimo 32) e regole di gara per tappa. Sorteggio dei gironi casuale o a serpentina per ranking, calendario all'italiana, fase finale a eliminazione diretta, conclusione e riapertura.
 - **Gironi e fase finale.** La classifica del girone ordina per vittorie, poi scontri diretti, media dei punti fatti per gara e, a parità, ordine delle teste di serie (articolo 13 del regolamento FIBA 3x3). Il tabellone va a turni (ottavi, quarti, semifinali, finale); con più di un girone, le migliori teste di serie passano il primo turno senza giocare quando le qualificate non riempiono i posti.
@@ -531,7 +544,7 @@ L'elenco completo, schermata per schermata, è in [`FUNZIONALITA.txt`](FUNZIONAL
 #### Coach AI e campetti
 
 - **Coach AI.** Un assistente che conosce le regole FIBA 3x3 e i dati della lega aperta.
-  - Agisce nell'app con 10 strumenti: crea lega e tappa, sorteggia, registra e annulla risultati, genera le fasi dirette, conclude la tappa, scrive nell'anagrafe.
+  - Agisce nell'app con 11 strumenti: crea lega e tappa, sorteggia, registra e annulla risultati, genera le fasi dirette, conclude la tappa, scrive nell'anagrafe, corregge nomi e giocatori di una squadra (per esempio dopo la lettura di una foto).
   - Chiede conferma prima di sorteggiare su una tappa con risultati, di annullare un risultato e di concludere una tappa.
   - Solo per i registrati, attraverso il backend: vedi [Coach AI (facoltativo)](#coach-ai-facoltativo) e [`docs/coach-ai-tool-calling.md`](docs/coach-ai-tool-calling.md).
 - **Campetti.** I campi da streetball del circuito, letti dal server senza account (vedi [Campetti](#campetti)).
@@ -677,16 +690,15 @@ Il workflow ha solo il permesso di lettura del repository (`permissions: content
 
 #### Coach AI (facoltativo)
 
-Il Coach AI usa [Groq](https://console.groq.com/) attraverso il backend (`POST /api/coach/chat`): la chiave non arriva mai al browser. Il modello lo sceglie il backend (`GROQ_MODEL`, di base `openai/gpt-oss-120b`). La chiave va nell'`env.properties` del backend:
+Il Coach AI passa dal backend (`POST /api/coach/chat`): la chiave non arriva mai al browser. Il fornitore lo sceglie `COACH_FORNITORE`: sul deploy è [Anthropic](https://www.anthropic.com/) con `claude-haiku-5-5`; il codice supporta anche [Groq](https://console.groq.com/) con `openai/gpt-oss-120b`. Le chiavi vanno nell'`env.properties` del backend:
 
 ```properties
-GROQ_API_KEY=gsk_...
+ANTHROPIC_API_KEY=...
+COACH_FORNITORE=anthropic
 ```
 
 - **Senza chiave** il Coach risponde «Coach AI non è disponibile su questo server. Il resto dell'app funziona normalmente.» (il 503 del backend).
 - **Solo per i registrati.** Un Ospite riceve in chat l'invito a creare un account, e non parte nessuna chiamata.
-- **La regola del contesto.** Il Coach risponde solo su basket (3x3 e in generale) e sull'app. La regola sta nel server (`AmbitoCoach` del backend), non nel prompt del client, così vale per ogni client.
-- **Fuori tema.** Se il modello giudica la domanda del tutto estranea, il server sostituisce la risposta con una frase fissa e toglie gli strumenti. In chat compare come una risposta normale, senza badge di azioni; `tests/unit/coachTools.test.ts` fissa il contratto.
 - **La quota.** Il rifiuto conta nella quota del Coach (20 richieste al minuto e 300 al giorno per utente), perché il modello viene chiamato comunque. È una regola di prodotto, non un confine di sicurezza: un prompt costruito apposta può aggirarla.
 
 Strumenti, conferme, chiamate al backend e limiti del ciclo: [`docs/coach-ai-tool-calling.md`](docs/coach-ai-tool-calling.md).
@@ -701,7 +713,7 @@ Il sito statico inoltra `/api/*` al backend con una regola di rewrite. Per il br
 
 1. Su Render collega l'account GitHub con l'accesso a tutti e due i repository (`Hoops-3x3` e `hoop3x3-backend`).
 2. Dashboard → **New → Blueprint** → scegli questo repository: Render legge `render.yaml` e mostra i tre servizi.
-3. Compila i valori richiesti: `ADMIN_EMAIL` e `ADMIN_PASSWORD` (almeno 8 caratteri e diversa da `admin123`, altrimenti l'admin non viene creato) e, facoltativa, `GROQ_API_KEY` per il Coach AI, sul servizio backend. `JWT_SECRET` lo genera Render, i dati del database arrivano da soli.
+3. Compila i valori richiesti: `ADMIN_EMAIL` e `ADMIN_PASSWORD` (almeno 8 caratteri e diversa da `admin123`, altrimenti l'admin non viene creato) e, sul servizio backend, la chiave del Coach e della lettura delle foto: `ANTHROPIC_API_KEY`, con `COACH_FORNITORE=anthropic` e `AI_LETTORE_FOGLIO=anthropic`. `JWT_SECRET` lo genera Render, i dati del database arrivano da soli.
 4. Per le email del recupero password e del cambio email imposta a mano sul servizio backend `BREVO_API_KEY` (un segreto), `MAIL_USERNAME` (il mittente) e `APP_FRONTEND_URL`: non stanno nel repository né in `render.yaml` (vedi «Recupero password» nel README del backend).
 5. Al primo avvio il backend crea le tabelle con le migrazioni di Flyway, da V1 a V11, e l'admin. Nessuno script da eseguire e nessuna variabile da impostare.
 6. Render considera pronto il backend quando `/actuator/health/liveness` risponde 200 (`healthCheckPath` in `render.yaml`). È la sonda che dice se il processo è vivo, e con quella Render riavvia un servizio che non risponde. Non si usa `/actuator/health` intero, che comprende il database: un database in pausa o lento farebbe riavviare a vuoto un backend sano.
@@ -748,6 +760,18 @@ Il backend rifiuta con 400 il salvataggio di una tappa senza `versione`.
 
 Il perché, visto dal backend, è nel README di [hoop3x3-backend](https://github.com/Gabrieleleonardi21/hoop3x3-backend): «Sessioni e refresh token» e «Tappe e modifiche da più dispositivi».
 
+### Lettura delle foto
+
+«Importa file» accetta, oltre al JSON di una lega, la foto di un foglio di tappa scritto a mano.
+
+- **Nel browser.** La foto viene ridotta prima dell'invio (`src/utils/ridimensionaFoto.ts`), così resta sotto il limite del server.
+- **Sul server.** `POST /api/coach/foglio` (autenticato) manda la foto al fornitore di lettura, che sul deploy è [Anthropic](https://www.anthropic.com/) con il modello `claude-haiku-5-5`. Il server restituisce una bozza: nome, luogo, data, squadre con i giocatori, gironi, partite e dubbi. Non decide niente della lega.
+- **Nel browser, di nuovo.** La bozza (`src/utils/foglioTappa.ts`) diventa una lega nuova con la sua tappa. I dubbi del modello compaiono in una finestra (`src/components/lega/DialogoDubbi.tsx`), con «Apri il Coach» per correggerli con il Coach.
+- **Privacy.** La foto va al fornitore e contiene nomi di persone. Il server non la salva e non la logga: vive per la durata della richiesta. Nei log restano solo utente, dimensione, durata e numeri della bozza. Il dettaglio è nel README del backend, «Lettura dei fogli (foto)».
+- **Se il lettore non è configurato** il server risponde 503, la pagina lo dice con il messaggio, e nessuna lega nasce.
+
+I limiti di dimensione e di frequenza sono nel README del backend, «Limiti dell'API» e «Limiti di frequenza».
+
 ### API REST
 
 Il contratto del backend (endpoint per endpoint, chi può chiamarlo, codici di stato) è nella sezione «Endpoint» del README di [hoop3x3-backend](https://github.com/Gabrieleleonardi21/hoop3x3-backend), che lo ricava dai test di accesso. I limiti (dimensioni, lunghezze, frequenza) sono in «Limiti dell'API» e «Limiti di frequenza». Qui non si ripetono, per non farli divergere.
@@ -766,8 +790,9 @@ Il frontend chiama il backend solo da `src/services/`, e ogni servizio ha il suo
 | `recuperoApi.ts` | `/api/auth/password/dimenticata` (richiesta del link) e `/api/auth/password/reimposta` (nuova password con il token del link): rotte pubbliche, senza JWT |
 | `profiloApi.ts` | `PATCH /api/auth/me` (nome), `POST /api/auth/me/password`, `POST /api/auth/me/email` (richiesta del cambio), `POST /api/auth/email/conferma` (conferma con il token del link, pubblica) e `POST /api/auth/me/elimina` (eliminazione dell'account, con la password nel corpo) |
 | `aiService.ts` | `POST /api/coach/chat` (il Coach AI) |
+| `foglioApi.ts` | `POST /api/coach/foglio` (la lettura della foto di un foglio, da «Importa file») |
 
-Il frontend non usa `GET /api/utenti` (solo ADMIN) né `GET /api/coach/status`: la chiave Groq mancante la scopre dal 503 della chat.
+Il frontend non usa `GET /api/utenti` (solo ADMIN) né `GET /api/coach/status`: la chiave del fornitore mancante la scopre dal 503 della chat.
 
 Negli store e nelle pagine il client mostra all'utente il campo `message` delle risposte d'errore del backend (`testoErrore`), o «Errore <status>» se il corpo manca. La chat del Coach ha testi suoi (`messaggioErroreCoach` in `src/hooks/useCoachAI.ts`) e riporta il `message` del backend per il 400 e per il 429, che dice quale limite è finito.
 
@@ -943,10 +968,6 @@ Dal profilo, con la password.
 Lo schema del database lo crea Flyway nel backend all'avvio, con le migrazioni da V1 a V11 (`hoop3x3-backend/src/main/resources/db/migration`).
 
 Con `SEED_DEMO=true` in `env.properties` il primo avvio carica i dati di prova del circuito Estathé 2025 (32 giocatori di fantasia, 8 squadre, una lega con 4 tappe concluse e l'archivio), intestandoli all'admin; gli avvii successivi non li duplicano. `SEED_CAMPETTI=true` carica solo i campetti di esempio.
-
-#### Perché JSONB
-
-I dati di gioco della tappa (squadre iscritte, gironi, partite con statistiche ed eventi, tabellone, video) sono colonne `JSONB` della tabella `tappe`: il motore del torneo li legge e li scrive sempre come blocco unico. Regole, nome, luogo, data e stato sono colonne normali. Il prezzo è scritto in [Dati](#dati): le statistiche tra tappe non si calcolano in SQL.
 
 ### Campetti
 
