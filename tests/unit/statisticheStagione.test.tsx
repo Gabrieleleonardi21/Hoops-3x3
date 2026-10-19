@@ -175,7 +175,7 @@ describe("Profilo del giocatore: le statistiche di stagione", () => {
     expect(sottoRiquadro("Gare")).toBe("2V · 0P");
     expect(screen.getByText("2 partite · max 12")).toBeTruthy();
     expect(righeTabella()).toEqual([["Tappa t1", "—", "2", "19", "3", "0"]]);
-    expect(screen.getByText(/sommate per nome sulle squadre di tappa: Alfa, Beta\./)).toBeTruthy();
+    expect(screen.getByText(/Statistiche dalle squadre di tappa: Alfa, Beta\. Con la squadra collegata .* id del giocatore/)).toBeTruthy();
   });
 
   it("le partite singole seguono l'ordine in cui le partite sono state inserite, anche con due squadre dello stesso nome", async () => {
@@ -234,20 +234,20 @@ describe("Profilo del giocatore: le statistiche di stagione", () => {
 
   it("elenca le squadre da cui vengono le statistiche", async () => {
     await apriProfilo(mario, dueSquadre());
-    expect(screen.getByText(/sommate per nome sulle squadre di tappa: Alfa, Beta\./)).toBeTruthy();
+    expect(screen.getByText(/Statistiche dalle squadre di tappa: Alfa, Beta\. Con la squadra collegata .* id del giocatore/)).toBeTruthy();
   });
 
   it("una squadra in più tappe compare una volta sola, con la grafia dell'ultima", async () => {
     await apriProfilo(mario, [unaGara("t1", "alfa", "Mario Rossi", { pt: 12 }), unaGara("t2", "ALFA", "Mario Rossi", { pt: 10 })]);
     expect(riquadro("Punti")).toBe("22");
-    expect(screen.getByText(/sommate per nome sulle squadre di tappa: ALFA\./)).toBeTruthy();
+    expect(screen.getByText(/Statistiche dalle squadre di tappa: ALFA\. Con la squadra collegata .* id del giocatore/)).toBeTruthy();
   });
 
   it("una squadra compare una volta sola nell'elenco anche se il nome è scritto nei due ordini: «Mario Rossi» e «Rossi Mario»", async () => {
     // Per la tabella sono due nomi, quindi due righe di stagione, ma la squadra è la stessa anche se scritta «Alfa» e «ALFA»
     await apriProfilo(mario, [unaGara("t1", "Alfa", "Mario Rossi", { pt: 12 }), unaGara("t2", "ALFA", "Rossi Mario", { pt: 10 })]);
     expect(riquadro("Punti")).toBe("22");
-    expect(screen.getByText(/sommate per nome sulle squadre di tappa: ALFA\./)).toBeTruthy();
+    expect(screen.getByText(/Statistiche dalle squadre di tappa: ALFA\. Con la squadra collegata .* id del giocatore/)).toBeTruthy();
   });
 
   it("il nome si riconosce come nella tabella: maiuscole, spazi in più e accenti non contano", async () => {

@@ -11,7 +11,7 @@ import { useAppStore } from "../stores/useAppStore";
 import { useStatisticheCircuito } from "../hooks/useStatisticheCircuito";
 import { risolviTabellini, statGiocatori, type StatGiocatore } from "../utils/statGiocatori";
 import { nomeCompleto, squadraDelGiocatore, stessoNomeGiocatore } from "../utils/identita";
-import { GARE_NON_ATTRIBUITE } from "../utils/testi";
+import { GARE_NON_ATTRIBUITE, NOTA_SQUADRE_STAT } from "../utils/testi";
 import { eta } from "../utils/eta";
 import { Loading } from "../components/ui/Loading";
 import { Badge } from "../components/ui/Badge";
@@ -216,12 +216,8 @@ export function GiocatorePage() {
           <StatTile label="Rubate" value={tot.ru} sub={avg(tot.ru)} />
           <StatTile label="Stoppate" value={tot.st} sub={avg(tot.st)} />
           <StatTile label="Gare" value={tot.g} sub={tot.g > 0 && `${wins}V · ${losses}P`} />
-          {/* Le squadre di tappa da cui vengono i totali: il legame è solo il nome, e chi legge deve vedere che cosa è stato sommato */}
-          {squadreStat.length > 0 && (
-            <p className="col-span-full text-[13px] text-chalk-muted">
-              Statistiche sommate per nome sulle squadre di tappa: {squadreStat.join(", ")}.
-            </p>
-          )}
+          {/* Le squadre di tappa da cui vengono i totali, e come si riconosce il giocatore (vedi NOTA_SQUADRE_STAT) */}
+          {squadreStat.length > 0 && <p className="col-span-full text-[13px] text-chalk-muted">{NOTA_SQUADRE_STAT(squadreStat.join(", "))}</p>}
           {nonAttribuite > 0 && <p className="col-span-full text-[13px] text-chalk-muted">{GARE_NON_ATTRIBUITE(nonAttribuite)}</p>}
         </div>
 

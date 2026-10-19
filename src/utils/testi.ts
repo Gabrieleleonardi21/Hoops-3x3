@@ -284,6 +284,12 @@ export const TITOLO_OMONIMI = "Due giocatori con lo stesso nome nella stessa squ
 export const GARE_NON_ATTRIBUITE = (n: number) => `${conteggio(n, "gara con questo nome non è attribuita", "gare con questo nome non sono attribuite")}: `
   + "in anagrafe ci sono più giocatori che si chiamano così.";
 
+/** La nota sotto i totali della scheda del giocatore: da quali squadre di tappa vengono i numeri e come si riconosce il giocatore.
+ *  Con la squadra collegata si conta per id dell'anagrafe, senza per nome e squadra: lo dice, perché chi legge deve sapere che cosa
+ *  è stato sommato */
+export const NOTA_SQUADRE_STAT = (squadre: string) => `Statistiche dalle squadre di tappa: ${squadre}. `
+  + "Con la squadra collegata all'anagrafe le gare si attribuiscono per id del giocatore; altrimenti per nome e squadra.";
+
 /* Avvisi sui doppioni: il nome c'è già (in una lega, in una rosa o nell'anagrafe), ma si può creare lo stesso. Sono testo sotto il
  * campo, mai un errore che blocca: i doppioni restano permessi. */
 /** Il nome di una tappa che c'è già nella lega. Data e luogo dicono come si distinguono (o che mancano) */
