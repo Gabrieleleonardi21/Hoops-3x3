@@ -462,6 +462,20 @@ Sapere che cosa manca vale quanto sapere che cosa c'è. Questi sono i limiti di 
 
 - Gli indirizzi `youtube.com/live/…` non si riconoscono come YouTube: si aprono in una nuova scheda.
 
+### Tabellini live (da progettare)
+
+Oggi chi guarda una tappa vede i risultati ricaricando la pagina, o quando la tappa è pubblicata nell'archivio. Un tabellino in diretta vorrebbe dire mandare ogni salvataggio a chi guarda, senza ricaricare.
+
+L'idea è un canale WebSocket dal backend, con una connessione per tappa: a ogni salvataggio il server manda il tabellino aggiornato. Non è ancora progettato. Restano da decidere:
+
+- chi può guardare: la tappa pubblica, o solo il registrato proprietario della lega;
+- come autenticare la connessione: il browser non manda l'intestazione `Authorization` con un WebSocket, quindi il JWT andrebbe passato in un altro modo;
+- la Content-Security-Policy: `connect-src` oggi ammette solo la stessa origine, e va verificata per il canale;
+- il limite di connessioni contemporanee sul piano gratuito di Render, dove il backend si spegne dopo 15 minuti senza richieste;
+- la versione della tappa: il tabellino arriva dal server, quindi la coda dei salvataggi e i conflitti restano la fonte di verità.
+
+Un'alternativa più semplice, se basta il flusso dal server al browser, sono gli eventi inviati dal server (Server-Sent Events).
+
 ## Com'è cresciuto il progetto
 
 Il progetto nasce a giugno 2026 con il frontend; il repository del backend parte a settembre. Da ottobre il lavoro procede per fasi: ognuna ha un piano scritto, una pull request per repository e una revisione prima dell'unione. I numeri delle pull request sono quelli di GitHub: `Hoops-3x3#N` per il frontend, `hoop3x3-backend#N` per il backend.
