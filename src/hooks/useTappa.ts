@@ -4,6 +4,7 @@ import { useStatoArchivio } from "./useStatoArchivio";
 import { anagrafeApi } from "../services/anagrafeApi";
 import { useAnagrafeStore } from "../stores/useAnagrafeStore";
 import { uid } from "../utils/uid";
+import { normalizza } from "../utils/identita";
 import { PERDITA_RIAPERTURA } from "../utils/testi";
 import { giocatoriDi, nomeGiocatore, nomeSquadra } from "../utils/tappaInfo";
 import * as ops from "../domain/tappaOps";
@@ -258,7 +259,10 @@ export function useTappa(id: string | undefined) {
       ...s,
       giocatori: (s.giocatori || []).map((p) => {
         if (p.id !== pid) return p;
-        return { ...p, nome };
+        // Solo maiuscole, accenti o spazi cambiati è la stessa persona e conserva il regId; un altro nome non lo è più, e
+        // il regId (che dice a chi appartengono le gare) si toglie: il giocatore si riconosce di nuovo per nome
+        if (normalizza(nome) === normalizza(p.nome)) return { ...p, nome };
+        return { id: p.id, nome };
       }),
     }));
   const removePlayer = (teamId: string, pid: string) =>
