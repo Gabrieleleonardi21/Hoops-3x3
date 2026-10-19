@@ -62,15 +62,15 @@ Il server gira sul piano gratuito di Render: dopo 15 minuti senza visite si speg
 
 ### I numeri, al 19 ottobre 2026
 
-Misurati il 19 ottobre 2026, tutti senza fallimenti. Fa eccezione il numero dei test di integrazione del backend, misurato il 14 ottobre perché richiede un database di prova. I test del frontend comprendono il test di guardia di questo README (`tests/unit/readme.test.ts`).
+Misurati il 19 ottobre 2026, tutti senza fallimenti; i test di integrazione del backend richiedono un database di prova. I test del frontend comprendono il test di guardia di questo README (`tests/unit/readme.test.ts`).
 
 | Che cosa | Quanti | Come si misura |
 |---|---|---|
-| Test unitari e di componenti del frontend | 2.013, in 111 file | `npm test` |
-| Test end-to-end del frontend, con il server finto | 80 | `npx playwright test` |
+| Test unitari e di componenti del frontend | 2.082, in 112 file | `npm test` |
+| Test end-to-end del frontend, con il server finto | 81 | `npx playwright test` |
 | Test end-to-end con il backend vero | 6 | `npm run test:e2e:backend` (nella CI, l'integrazione continua di GitHub) |
 | Test unitari del backend, compreso il test di guardia del suo README | 997 | `./mvnw test` |
-| Test di integrazione del backend, su PostgreSQL | 294 (misurati il 14 ottobre) | `./mvnw verify -Pintegrazione` |
+| Test di integrazione del backend, su PostgreSQL | 298 | `./mvnw verify -Pintegrazione` |
 | Endpoint dell'API | 42, più 2 controlli di salute | le mappature dei controller del backend |
 | Migrazioni del database | 11 (da V1 a V11), per 12 tabelle | i file di `hoop3x3-backend/src/main/resources/db/migration` |
 
@@ -458,6 +458,7 @@ Sapere che cosa manca vale quanto sapere che cosa c'è. Questi sono i limiti di 
 
 - La regola del contesto è di prodotto, non di sicurezza: un prompt costruito apposta può aggirarla, a spese della quota dell'utente.
 - `annulla_risultato` vale per i gironi, non per il tabellone.
+- Le gare del tabellone di una tappa di prova non hanno tabellini: il modello dati li prevede per i gironi, non per il tabellone (come per le statistiche di stagione).
 - La lettura delle foto dipende da un modello: un foglio scritto male o una foto storta possono dare una bozza sbagliata. La bozza si controlla prima di creare la lega, e i dubbi del modello lo segnalano. La lettura va provata con fogli scritti a mano veri.
 
 ### Video
