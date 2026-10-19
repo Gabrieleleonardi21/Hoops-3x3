@@ -2,7 +2,7 @@
 
 ## Panoramica
 
-Il Coach AI può eseguire azioni nell'app in autonomo quando l'utente lo chiede esplicitamente. Gli strumenti sono **10**
+Il Coach AI può eseguire azioni nell'app in autonomo quando l'utente lo chiede esplicitamente. Gli strumenti sono **14**
 (elencati sotto); ognuno ha una definizione per il modello (`src/coach/toolDefs.ts`) e un esecutore (`src/coach/toolHandlers.ts`).
 
 Il frontend parla solo con il backend, mai con Groq: ogni giro di conversazione è una `POST /api/coach/chat` con
@@ -275,21 +275,58 @@ omonimi esatti):
 ---
 
 ### `crea_tappa_simulata`
+- **Descrizione:** Crea una tappa **di prova** completa: sceglie da sola le squadre dell'anagrafe che hanno almeno 3 giocatori, le iscrive, sorteggia e gioca tutte le gare dei gironi con risultati e tabellini generati dall'app, fino alla finale. Serve quando l'utente chiede una tappa di prova, di esempio o simulata senza dettare i risultati. Non scrive niente nell'anagrafe.
+- **Parametri obbligatori:** `nome`
+- **Parametri opzionali:** `nSquadre` (da 2 a 64, default 8); `nGironi` (default 2, o 1 con meno di 4 squadre); `scelta` (`"casuale"` il default, `"ranking"` per i punti ranking più alti, `"citta"` per le squadre di una città); `citta` (obbligatoria con `scelta` `"citta"`); `squadre` (nomi da includere comunque, se in anagrafe hanno almeno 3 giocatori); `luogo`; `data` (YYYY-MM-DD); `qualificate` (default 2); `fino_a` (`"finale"` il default: gioca anche tabellone e finale; `"gironi"`: si ferma ai gironi); `tabellini` (default `true`)
+- **Conferma:** no (è una tappa nuova, nata per prova)
+- **Azione:**
+  1. Controlla la lega attiva, il limite di 100 tappe per lega e che il nome non sia già usato nella lega.
+  2. Legge in sola lettura squadre e giocatori dell'anagrafe. `scegliSquadre` prende solo le squadre con almeno 3 giocatori presenti: prima quelle di `squadre`, poi le altre secondo `scelta` (`casuale` con il generatore dell'app, `ranking`, `citta` e poi ranking). Il roster è quello dell'anagrafe, fino a 4 giocatori (`squadraTappaDaAnagrafe`).
+  3. Costruisce la tappa **in memoria**: `creaTappa`, poi `sorteggia` (per ranking se `scelta` è `ranking`, altrimenti casuale).
+  4. `simulaTappa` (`src/domain/simulazione.ts`) gioca le gare dei gironi con punteggi e tabellini (la somma dei punti di un tabellino è il punteggio della squadra) e, con `fino_a` `"finale"`, genera il tabellone e lo gioca fino alla finale. I numeri li genera il codice: il modello non li vede né li sceglie.
+  5. Se nel frattempo la chat è stata cancellata o la lega aperta è cambiata, non crea niente. Altrimenti `addTappa` **una sola volta** (una sola richiesta di salvataggio) e apre `/lega/tappa/:id`.
+  6. Il risultato per il modello è il riepilogo di `riepilogoSimulazione`: le squadre scelte, le gare giocate, le classifiche, il campione, la frase «I punteggi sono numeri di prova generati dall'app, non risultati veri.» e «La tappa non è conclusa: per pubblicarla chiedi di concluderla.»
+- **Errori:** nessuna lega attiva; la lega ha già 100 tappe; il nome è già usato nella lega; in anagrafe ci sono meno squadre ammissibili del numero richiesto (il messaggio dice quante sono: «In anagrafe ci sono solo N squadre con almeno 3 giocatori: chiedi al massimo N squadre oppure completa i roster»); una squadra di `squadre` non trovata o senza giocatori; `scelta` `"citta"` senza `citta`; `scelta`, `fino_a` o `nGironi` non validi; anagrafe che non risponde.
+- **Nota:** Le squadre si scelgono dall'anagrafe, non si registrano: il Coach non scrive nell'anagrafe condivisa. Il tabellone non ha tabellini (il modello dati non li prevede): i tabellini sono solo nelle gare dei gironi, che sono quelle che contano nelle statistiche di stagione. La tappa non è conclusa: pubblicarla è `concludi_tappa`, con la sua conferma.
+- **Esempio:** *"Creami una tappa di prova con 8 squadre"*
 
-Crea una tappa di prova: squadre scelte dall'anagrafe, gare e tabellini generati dall'app, fino alla finale.
+---
 
 ### `simula_risultati`
+- **Descrizione:** Inventa i risultati delle gare **non ancora giocate** di una tappa esistente: prima quelle dei gironi, poi (con `fase` `"tutto"` o `"finale"`) il tabellone fino alla finale. Le gare già registrate non si toccano.
+- **Parametri opzionali:** `tappa_nome` (default: ultima tappa); `fase` (`"tutto"` il default, `"gironi"`, `"finale"` solo se i gironi sono finiti); `tabellini` (default `true`); `qualificate` (default 2)
+- **Conferma:** **sì, sempre** (vedi «Conferme»): «Inventare i risultati delle N gare mancanti di "<tappa>"? Sono numeri di prova, non veri.» Anche sulla tappa di prova: un «registra i risultati» capito male non deve riempire di numeri finti una tappa vera.
+- **Azione:**
+  1. Trova la tappa (`tappaRichiesta`) e prova la simulazione: un errore (tappa conclusa, non sorteggiata, nessuna gara da giocare, finale con gironi aperti) arriva subito, senza chiedere nulla.
+  2. Conta le gare che si giocherebbero e chiede conferma.
+  3. Rigioca la simulazione sulla tappa **letta adesso** nello store, con una sola `replaceTappa`.
+  4. Risponde con il riepilogo: quante gare mancanti sono state giocate, le classifiche, il campione.
+- **Errori:** tappa non trovata; tappa conclusa; tappa non ancora sorteggiata; nessuna gara da giocare; `fase` non valida; «Annulla»: «L'utente ha annullato: azione non eseguita», e la tappa resta identica.
+- **Nota:** Se i gironi sono completi e il tabellone manca, lo genera (con `qualificate` squadre per girone) e lo gioca. Con un solo girone non c'è fase finale, e il riepilogo lo dice in una nota. Anche i tabellini delle gare già giocate restano identici.
+- **Esempio:** *"Simula i risultati mancanti della tappa Demo Roma"*
 
-Inventa i risultati delle gare mancanti di una tappa, dopo la conferma dell'utente.
+---
 
 ### `registra_risultati`
-
-Registra più risultati dettati in un colpo, con gli errori riga per riga.
+- **Descrizione:** Registra in un colpo più risultati dettati nel messaggio (es. «Alfa 21-15 Beta, Gamma 19-17 Delta»). Ogni voce vale come `registra_risultato`, anche per i nomi e per la regola della fase.
+- **Parametri obbligatori:** `risultati` (da 1 a 64 oggetti, ciascuno con `squadra_a`, `punti_a`, `squadra_b`, `punti_b` e, se serve, `fase`)
+- **Parametri opzionali:** `tappa_nome` (default: ultima tappa)
+- **Conferma:** no (come `registra_risultato`: scrive un risultato che l'utente ha dettato)
+- **Azione:**
+  1. Controlla che `risultati` sia un elenco di 1-64 oggetti: altrimenti l'errore, e non si tocca niente.
+  2. Trova la tappa e applica le righe in fila (`registraUnaRiga`, la stessa regola di `registra_risultato`), ognuna sulla tappa già aggiornata dalle precedenti.
+  3. Una riga non valida (coppia non trovata o già giocata, punteggio non valido) resta fuori e il messaggio dice il numero di riga e il motivo; le altre si registrano lo stesso.
+  4. Salva con una sola `replaceTappa`, se almeno una riga è valida. Se nessuna lo è, non salva niente e l'errore torna al modello.
+  5. Risponde: «Registrati N risultati: …» con gli eventuali «Errori: riga 2 (Gamma-Delta): …» e «Mancano: Alfa-Delta, Beta-Gamma.» (le gare dei gironi non giocate e quelle del tabellone con le squadre già note).
+- **Errori:** `risultati` mancante, non un elenco, con più di 64 voci o con una voce che non è un oggetto; nessuna riga valida (in quel caso il messaggio elenca i motivi).
+- **Nota:** Le righe sono indipendenti: un errore in una riga non blocca le altre. Il messaggio elenca le gare che mancano, così il modello può chiedere il resto.
+- **Esempio:** *"Registra Alfa 21-15 Beta, Gamma 19-17 Delta"*
 
 ## Conferme prima delle azioni distruttive (D4)
 
 Tre azioni cancellano o rendono definitivo qualcosa: il nuovo **sorteggio** su una tappa con risultati, **`annulla_risultato`** e
-**`concludi_tappa`**. Prima di eseguirle il Coach chiede conferma **nella chat** (non in una finestra a parte): sotto i messaggi
+**`concludi_tappa`**. Una quarta, **`simula_risultati`**, inventa numeri di prova su una tappa vera e chiede conferma sempre (D4).
+Prima di eseguirle il Coach chiede conferma **nella chat** (non in una finestra a parte): sotto i messaggi
 compare un riquadro con il titolo, il testo e due pulsanti, «Annulla» e «Conferma». Finché l'utente non sceglie, lo strumento
 aspetta e nel pannello non compare «Il coach sta pensando…».
 
@@ -298,6 +335,7 @@ aspetta e nel pannello non compare «Il coach sta pensando…».
 | `sorteggia_gironi` | solo se la tappa ha risultati registrati (nei gironi o nel tabellone) | `Rifare il sorteggio di "<tappa>"?` | che cosa si perde, es. «Verranno eliminati il sorteggio e 1 risultato.» (`perditaRisultati` di `tappaOps`, la stessa frase dell'interfaccia) |
 | `annulla_risultato` | sempre | `Togliere il risultato Alfa 21-15 Beta?` | «La partita di "<tappa>" torna da giocare e non conta più in classifica.» (il titolo non dice «Annullare»: accanto al pulsante «Annulla» si potrebbe premerlo volendo dire «sì, annulla il risultato») |
 | `concludi_tappa` | sempre | `Concludere "<tappa>"?` | «La tappa viene pubblicata nell'Archivio circuito e da lì non si modifica più: per cambiarla andrà riaperta.» |
+| `simula_risultati` | sempre | `Simulare i risultati di "<tappa>"?` | «Inventare i risultati delle N gare mancanti di "<tappa>"? Sono numeri di prova, non veri.» (`testoConfermaSimulazione`) |
 
 - **L'azione si prova prima di chiedere.** Se `tappaOps` la rifiuterebbe (tappa conclusa, gare ancora da giocare, fase finale già
   generata…) l'utente non vede nessuna conferma: il modello riceve l'errore e lo spiega.
@@ -329,7 +367,8 @@ tappa e nuovi tentativi dopo 2, 5 e 15 secondi). Per un utente registrato, le ch
 | `registra_squadra` | `GET /api/anagrafe/squadre`; `POST /api/anagrafe/squadre` se non c'è già |
 | `registra_giocatore` | `GET /api/anagrafe/giocatori`; `POST /api/anagrafe/giocatori` se non c'è già |
 | `aggiorna_squadra` | `GET /api/anagrafe/squadre`; `PUT /api/anagrafe/squadre/{id}` |
-| `sorteggia_gironi`, `genera_fasi_dirette`, `registra_risultato`, `annulla_risultato` | nessuna diretta: `replaceTappa` mette la tappa in coda → `PUT /api/tappe/{id}` (con la `versione` nota) |
+| `crea_tappa_simulata` | `GET /api/anagrafe/squadre` e `GET /api/anagrafe/giocatori` (insieme, in sola lettura); poi, dalla coda, una sola `POST /api/leghe/{legaId}/tappe` (tappa nuova, già giocata) |
+| `sorteggia_gironi`, `genera_fasi_dirette`, `registra_risultato`, `registra_risultati`, `simula_risultati`, `annulla_risultato` | nessuna diretta: `replaceTappa` mette la tappa in coda → `PUT /api/tappe/{id}` (con la `versione` nota) |
 | `concludi_tappa` | `replaceTappa` (tappa conclusa) → `pubblica`: prima si svuota la coda (`PUT /api/tappe/{id}` e, se c'è una rinomina in attesa, `PATCH /api/leghe/{id}`), poi `PUT /api/archivio/{tappaId}` senza corpo |
 
 Un 409 (un altro dispositivo ha salvato la tappa) o gli altri errori della coda sono gestiti dallo store come per qualunque
@@ -378,6 +417,17 @@ La chat appartiene a chi l'ha scritta: cambiando utente (accesso, registrazione,
 6. "Concludi la tappa"
    → concludi_tappa (chiede conferma, poi pubblica nell'Archivio circuito)
 ```
+
+**Percorso della tappa di prova (tappa simulata in una chiamata).** Al posto dei passi 1-5, una richiesta sola:
+
+```
+"Creami una tappa di prova con 8 squadre"
+   → crea_tappa_simulata (sceglie le squadre dall'anagrafe, sorteggia, gioca i gironi con i tabellini
+     e la fase finale: una sola tappa salvata; i punteggi sono numeri di prova)
+```
+
+Le gare che restano da giocare si completano con `simula_risultati` (con conferma), i risultati dettati con `registra_risultati`.
+Poi il passo 6 come sopra.
 
 Lo stesso flusso è indicato al modello nel prompt di sistema di `useCoachAI.ts`.
 
