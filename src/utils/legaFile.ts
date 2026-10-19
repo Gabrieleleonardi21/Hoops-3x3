@@ -121,11 +121,6 @@ const tappaCampi = z.object({
   bracket: z.array(matchTabelloneSchema).nullish().transform((b) => b ?? undefined),
 });
 
-/** Tappa di un file, con in più i limiti del server. L'id non c'è: ogni tappa importata ne riceve uno nuovo in leggiFileLega.
- *  Il tipo dichiarato fa fallire la compilazione se in src/types un campo obbligatorio cambia e lo schema no; un campo
- *  facoltativo nuovo invece va aggiunto in tappaCampi a mano, altrimenti l'import lo scarterebbe (il test dell'export
- *  completo in legaFile.test.ts lo segnala). L'unico campo che resta fuori apposta è `versione`: è uno stato del server, non
- *  entra nel file (testoFileLega) e una versione scritta nel file si scarta. */
 /** Dagli elementi con un id, quelli il cui id compare già prima: la seconda occorrenza, con il suo percorso nel file */
 function secondeOccorrenze(elementi: { id: string; percorso: (string | number)[] }[]) {
   const visti = new Set<string>();
@@ -136,6 +131,11 @@ function secondeOccorrenze(elementi: { id: string; percorso: (string | number)[]
   });
 }
 
+/** Tappa di un file, con in più i limiti del server. L'id non c'è: ogni tappa importata ne riceve uno nuovo in leggiFileLega.
+ *  Il tipo dichiarato fa fallire la compilazione se in src/types un campo obbligatorio cambia e lo schema no; un campo
+ *  facoltativo nuovo invece va aggiunto in tappaCampi a mano, altrimenti l'import lo scarterebbe (il test dell'export
+ *  completo in legaFile.test.ts lo segnala). L'unico campo che resta fuori apposta è `versione`: è uno stato del server, non
+ *  entra nel file (testoFileLega) e una versione scritta nel file si scarta. */
 const tappaSchema: z.ZodType<Omit<Tappa, "id">, z.ZodTypeDef, unknown> = tappaCampi
   .superRefine((t, ctx) => {
     // Solo i limiti dei campi del server (nome, luogo e data, in tappaOps): oltre quelli la tappa sarebbe rifiutata a ogni
