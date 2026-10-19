@@ -1,6 +1,6 @@
 HOOP 3X3 — Gestionale per circuiti di basket 3x3
 =================================================
-Documento aggiornato il 14/10/2026
+Documento aggiornato il 19/10/2026
 
 Il perché di ogni tecnologia e di ogni scelta è nel README.md, parte 1.
 
@@ -558,7 +558,7 @@ che in chat si legge come ogni altra risposta, senza badge di azioni. Il
 rifiuto conta nel limite di richieste del Coach, perché il modello viene
 chiamato comunque.
 
-Azioni che il Coach AI può eseguire nell'app tramite tool calling (10
+Azioni che il Coach AI può eseguire nell'app tramite tool calling (14
 strumenti). Il modello li usa solo se l'utente chiede un'azione
 esplicitamente:
 
@@ -575,6 +575,12 @@ esplicitamente:
                       rimasto fuori), e registra con i dati minimi quelle
                       mancanti. Se l'anagrafe non risponde non crea la tappa
                       e non registra niente.
+  crea_tappa_simulata Crea una tappa di prova: sceglie da sola le squadre
+                      dell'anagrafe che hanno almeno 3 giocatori, le iscrive,
+                      sorteggia e gioca tutte le gare dei gironi con i
+                      tabellini e la fase finale. Simulato: i punteggi e i
+                      tabellini li genera l'app, sono numeri di prova e non
+                      risultati veri. Non scrive niente nell'anagrafe.
   sorteggia_gironi    Esegue il sorteggio (casuale o per ranking) su una tappa.
                       Se la tappa ha già dei risultati chiede conferma.
   genera_fasi_dirette Genera il tabellone a eliminazione diretta dalla
@@ -584,9 +590,21 @@ esplicitamente:
                       diretta) con le stesse regole dell'inserimento manuale;
                       più risultati di seguito non si sovrascrivono. Registra
                       solo il totale: il tabellino dei giocatori non c'è.
+  registra_risultati  Registra in un colpo più risultati dettati nel messaggio
+                      (fino a 64); ognuno vale come registra_risultato. Le
+                      righe non valide si segnalano con il numero di riga, le
+                      altre si registrano lo stesso. Non chiede conferma.
+  simula_risultati    Inventa i risultati delle gare non ancora giocate di una
+                      tappa (gironi, poi tabellone fino alla finale), con i
+                      tabellini. Simulato: le gare già registrate non si
+                      toccano e i numeri sono di prova. Chiede sempre
+                      conferma, che dice quante gare saranno inventate.
   annulla_risultato   Annulla un risultato di girone già inserito (riporta la
                       partita a "non disputata", i punteggi restano come
                       bozza). Chiede sempre conferma.
+  correggi_squadra    Corregge nome e giocatori di una squadra della tappa (non
+                      dell'anagrafe), per esempio dopo l'import da una foto.
+                      Non cancella risultati.
   registra_squadra    Aggiunge una squadra all'anagrafe condivisa; se ce n'è
                       già una con lo stesso nome non ne crea un doppione.
   aggiorna_squadra    Modifica i dati di una squadra esistente in anagrafe
@@ -604,7 +622,8 @@ esplicitamente:
                       (richiede account non ospite). Chiede sempre conferma.
 
 Conferme: prima di sorteggiare su una tappa con risultati, annullare un
-risultato o concludere una tappa il Coach mostra nella chat che cosa
+risultato, concludere una tappa o inventare i risultati mancanti
+(simula_risultati) il Coach mostra nella chat che cosa
 succede, con «Annulla» e «Conferma». Senza «Conferma» non cambia niente e il
 modello lo sa (non riprova da solo). Se l'azione verrebbe comunque rifiutata
 (tappa conclusa, partite mancanti) non si chiede niente e il motivo arriva al

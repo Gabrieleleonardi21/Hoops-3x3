@@ -17,7 +17,10 @@ import { ApiError } from "../../src/services/api";
 import { DEFAULT_RULES, MAX_ROSTER } from "../../src/constants/rules";
 import { tappaModificataAltrove } from "../../src/utils/testi";
 import { askCoachWithTools, type ToolCall } from "../../src/services/aiService";
-import type { Partita, RegGiocatore, RegSquadra, SquadraTappa, Tappa, User } from "../../src/types";
+import type { Partita, RegGiocatore, RegSquadra, SquadraTappa, StatSheet, Tappa, User } from "../../src/types";
+import { creaTappa, registraRisultato, sorteggia, type Esito } from "../../src/domain/tappaOps";
+import { generaTabellino } from "../../src/domain/simulazione";
+import { squadraDi } from "../../src/utils/tappaInfo";
 
 // Rete finta per leghe, anagrafe e archivio; store, coda dei salvataggi, tappaOps, aiService e hook sono quelli veri.
 // Il modello risponde da fetch (POST /api/coach/chat): nessuna chiamata a Groq o al backend veri.
@@ -752,6 +755,46 @@ describe("Coach AI: fase finale", () => {
     expect(store().tappe[0].bracket).toHaveLength(7); // 4 gare al primo turno (2 bye), 2 semifinali, la finale
     expect(esiti(richieste)[0]).toContain(": 5 match da giocare");
     expect(esiti(richieste)[0]).toContain("2 squadre passano il primo turno senza giocare");
+  });
+});
+
+describe("Coach AI: testi degli errori e delle conferme (lega aperta, nomi di tappa)", () => {
+  it.each([
+    ["crea_tappa", { nome: "Tappa 2", squadre: ["Alfa", "Beta"] }],
+    ["crea_tappa_simulata", { nome: "Tappa 2" }],
+  ])("%s senza lega aperta: il messaggio dice di creare una lega prima, con un solo «prima»", async (strumento, args) => {
+    useAppStore.setState({ legaId: null, leghe: [], legaName: "", tappe: [] });
+    const richieste = modello(strumenti([strumento, args]), testo("Ok."));
+    await chiedi(coach(), "Crea una tappa");
+    expect(esiti(richieste)[0]).toContain("Nessuna lega attiva: crea una lega prima di aggiungere tappe.");
+  });
+
+  it("crea_tappa_simulata con un nome già usato: il nome nel messaggio passa da pulisci (< diventa ‹)", async () => {
+    useAppStore.setState({ tappe: [{ ...romaOpen(), nome: "Roma <b>Open" }] });
+    const richieste = modello(strumenti(["crea_tappa_simulata", { nome: "Roma <b>Open", nSquadre: 8 }]), testo("Scelgo un altro nome."));
+    await chiedi(coach(), "Crea una tappa di prova chiamata Roma <b>Open");
+    expect(esiti(richieste)[0]).toContain('La tappa "Roma ‹b›Open" esiste già in questa lega');
+  });
+
+  it("sorteggia_gironi: il titolo della conferma usa il nome della tappa passato da pulisci", async () => {
+    useAppStore.setState({ tappe: [{ ...romaOpen(), nome: "Roma <i>Open" }] });
+    modello(strumenti(["sorteggia_gironi", { tappa_nome: "Roma <i>Open" }]), testo("Va bene."));
+    const richiesta = await chiediEConferma(coach(), "Rifai il sorteggio di Roma Open", false);
+    expect(richiesta.titolo).toBe('Rifare il sorteggio di "Roma ‹i›Open"?');
+  });
+
+  it("annulla_risultato: il testo della conferma usa il nome della tappa passato da pulisci", async () => {
+    useAppStore.setState({ tappe: [{ ...romaOpen(), nome: "Roma <i>Open" }] });
+    modello(strumenti(["annulla_risultato", { squadra_a: "Alfa", squadra_b: "Beta" }]), testo("Il risultato resta."));
+    const richiesta = await chiediEConferma(coach(), "Annulla il risultato di Alfa-Beta", false);
+    expect(richiesta.testo).toBe('La partita di "Roma ‹i›Open" torna da giocare e non conta più in classifica.');
+  });
+
+  it("concludi_tappa: il titolo della conferma usa il nome della tappa passato da pulisci", async () => {
+    useAppStore.setState({ tappe: [{ ...romaOpenGiocata(), nome: "Roma <i>Open" }] });
+    modello(strumenti(["concludi_tappa", { tappa_nome: "Roma <i>Open" }]), testo("Non concludo."));
+    const richiesta = await chiediEConferma(coach(), "Concludi Roma Open", false);
+    expect(richiesta.titolo).toBe('Concludere "Roma ‹i›Open"?');
   });
 });
 
@@ -1650,5 +1693,262 @@ describe("Coach AI: il pannello si apre anche da fuori (apriCoach), con un messa
     expect(c.current.msgs.map((m) => m.content)).toEqual([
       "Quanto dura una gara?", MESSAGGIO, "Si è verificato un errore, riprova tra poco.",
     ]);
+  });
+});
+
+/* ── Tappa di prova e risultati simulati ── */
+
+/** Otto squadre dell'anagrafe, con 4 giocatori ciascuna: il roster pieno che una tappa accetta */
+const NOMI_OTTO = ["Team Rome", "Concrete", "Ballers", "Street Kings", "Wildcats", "Falchi", "Lupi", "Orsi"];
+/** Un generatore con seme (LCG): al posto di Math.random, così sorteggio e punteggi della prova si riproducono */
+function lcg(seme: number): () => number {
+  let stato = seme;
+  return () => {
+    stato = (stato * 1664525 + 1013904223) % 2 ** 32;
+    return stato / 2 ** 32;
+  };
+}
+/** Gli id dei 4 giocatori della squadra i-esima dell'anagrafe di prova */
+const idRoster = (i: number) => inAnagrafeGiocatori(`p${i}-`, 4).map((g) => g.id);
+/** Il roster della squadra i-esima se è tra le prime `conRoster`, altrimenti nessun giocatore */
+function rosterSe(i: number, conRoster: number): string[] {
+  if (i < conRoster) return idRoster(i);
+  return [];
+}
+/** L'anagrafe di prova: le prime `conRoster` squadre hanno 4 giocatori, le altre nessuno (non sono ammissibili) */
+function anagrafeCon(conRoster: number) {
+  vi.mocked(anagrafeApi.listSquadre).mockResolvedValue(NOMI_OTTO.map((nome, i) => inAnagrafe(nome, rosterSe(i, conRoster))));
+  vi.mocked(anagrafeApi.listGiocatori).mockResolvedValue(NOMI_OTTO.flatMap((_, i) => inAnagrafeGiocatori(`p${i}-`, 4)));
+}
+/** Una squadra della tappa con 4 giocatori, per i tabellini */
+const squadraConRoster = (id: string, nome: string): SquadraTappa => ({
+  ...squadra(id, nome), giocatori: [1, 2, 3, 4].map((n) => ({ id: `${id}-${n}`, nome: `Giocatore ${n}` })),
+});
+/** La tappa che tappaOps restituisce; se la rifiuta il test fallisce con il motivo */
+function ottieni(esito: Esito): Tappa {
+  if (!esito.ok) throw new Error(esito.errore);
+  return esito.tappa;
+}
+/** La somma dei `pt` di un tabellino: deve essere il punteggio della squadra (le voci numeriche del formato vecchio non contano) */
+function puntiDelTabellino(linee: StatSheet | undefined): number {
+  let somma = 0;
+  for (const linea of Object.values(linee ?? {})) {
+    if (typeof linea !== "number") somma += linea.pt ?? 0;
+  }
+  return somma;
+}
+/** «Vera»: 8 squadre in 2 gironi, sorteggiata, con 10 gare su 12 giocate con i tabellini. Le ultime due sono da giocare */
+function tappaQuasiFinita(): Tappa {
+  const squadre = NOMI_OTTO.map((nome, i) => squadraConRoster(`q${i}`, nome));
+  let t = ottieni(sorteggia(ottieni(creaTappa({ nome: "Vera", luogo: "", data: "", nGironi: 2, squadre })), "ranking"));
+  for (const m of t.partite.slice(0, 10)) {
+    const giocatoriDi = (id: string | null) => squadraDi(t.squadre, id)?.giocatori ?? [];
+    const punteggio = {
+      sa: 21, sb: 10,
+      pa: generaTabellino(giocatoriDi(m.a), 21, lcg(11)),
+      pb: generaTabellino(giocatoriDi(m.b), 10, lcg(12)),
+    };
+    t = ottieni(registraRisultato(t, m.id, punteggio));
+  }
+  return t;
+}
+
+describe("Coach AI: crea_tappa_simulata, una tappa di prova con squadre dall'anagrafe", () => {
+  beforeEach(() => {
+    // Il sorteggio e i punteggi dell'app usano Math.random: con un seme la prova si riproduce, e le asserzioni valgono per qualunque seme
+    vi.spyOn(Math, "random").mockImplementation(lcg(7));
+    anagrafeCon(NOMI_OTTO.length);
+  });
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  it("«creami una tappa di prova»: 8 squadre con il roster, tutte le gare con i tabellini, la finale giocata; una sola tappa salvata e nessuna scrittura in anagrafe", async () => {
+    const richieste = modello(strumenti(["crea_tappa_simulata", { nome: "Demo", nSquadre: 8 }]), testo("Tappa di prova pronta."));
+    const c = coach();
+    await chiedi(c, "Creami una tappa di prova con 8 squadre");
+    const demo = store().tappe[1];
+    expect(demo.nome).toBe("Demo");
+    expect(demo.squadre.map((s) => s.nome).sort()).toEqual([...NOMI_OTTO].sort());
+    expect(demo.squadre.every((s) => s.giocatori.length === 4 && s.regId?.startsWith("reg-"))).toBe(true);
+    // Le 12 gare dei gironi hanno un tabellino e la somma dei punti è il punteggio della squadra
+    expect(demo.partite).toHaveLength(12);
+    for (const m of demo.partite) {
+      expect(m.done).toBe(true);
+      expect(puntiDelTabellino(m.pa)).toBe(m.sa);
+      expect(puntiDelTabellino(m.pb)).toBe(m.sb);
+    }
+    // Tabellone da 4 qualificate: due semifinali e la finale, tutte giocate
+    expect(demo.bracket).toHaveLength(3);
+    expect(demo.bracket?.every((m) => m.done)).toBe(true);
+    // Una sola tappa salvata (una POST, che la coda manda dopo il suo ritardo) e nessuna scrittura nell'anagrafe
+    await vi.waitFor(() => expect(legheApi.addTappa).toHaveBeenCalledTimes(1), { timeout: 2000 });
+    expect(legheApi.putTappa).not.toHaveBeenCalled();
+    expect(anagrafeApi.createSquadra).not.toHaveBeenCalled();
+    expect(anagrafeApi.updateSquadra).not.toHaveBeenCalled();
+    // Il modello legge le gare contate come l'app le ha giocate (12 dei gironi e 3 del tabellone) e la finale
+    expect(esiti(richieste)[0]).toMatch(
+      /^Tappa "Demo" creata con 8 squadre dall'anagrafe \(.+\), 2 gironi, 15 gare giocate con i tabellini, fase finale giocata: vince .+ su .+ \d+-\d+\. Classifiche dei gironi/,
+    );
+    expect(c.current.msgs.at(-1)).toEqual({ role: "assistant", content: "Tappa di prova pronta.", tools: ["crea_tappa_simulata"] });
+    render(createElement(MemoryRouter, null, createElement(CoachPanel, { onClose: vi.fn() })));
+    expect(screen.getByTitle("Azione eseguita dal Coach AI").textContent).toContain("Tappa simulata");
+  });
+
+  it("con meno squadre ammissibili di quelle chieste: l'errore dice il conteggio, nessuna tappa e nessuna scrittura in anagrafe", async () => {
+    anagrafeCon(3);
+    const richieste = modello(strumenti(["crea_tappa_simulata", { nome: "Demo", nSquadre: 8 }]), testo("Chiedo meno squadre."));
+    await chiedi(coach(), "Creami una tappa di prova con 8 squadre");
+    expect(esiti(richieste)[0]).toContain(
+      "In anagrafe ci sono solo 3 squadre con almeno 3 giocatori: chiedi al massimo 3 squadre oppure completa i roster",
+    );
+    expect(store().tappe).toHaveLength(1);
+    expect(anagrafeApi.createSquadra).not.toHaveBeenCalled();
+  });
+
+  it("una squadra indicata per nome entra comunque, le altre si scelgono dall'anagrafe", async () => {
+    modello(strumenti(["crea_tappa_simulata", { nome: "Demo", nSquadre: 4, squadre: ["Team Rome"] }]), testo("Fatto."));
+    await chiedi(coach(), "Crea una tappa di prova con 4 squadre, includi Team Rome");
+    const demo = store().tappe[1];
+    expect(demo.squadre).toHaveLength(4);
+    expect(demo.squadre.map((s) => s.nome)).toContain("Team Rome");
+  });
+
+  it("«fino_a: gironi»: si giocano solo i gironi, senza tabellone né finale", async () => {
+    const richieste = modello(strumenti(["crea_tappa_simulata", { nome: "Demo", nSquadre: 8, fino_a: "gironi" }]), testo("Fatto."));
+    await chiedi(coach(), "Crea una tappa di prova, solo i gironi");
+    const demo = store().tappe[1];
+    expect(demo.partite.every((m) => m.done)).toBe(true);
+    expect(demo.bracket ?? []).toEqual([]);
+    expect(esiti(richieste)[0]).not.toContain("fase finale giocata");
+  });
+
+  it("un nome di tappa già usato nella lega: errore, nessuna tappa nuova", async () => {
+    const richieste = modello(strumenti(["crea_tappa_simulata", { nome: "Roma Open", nSquadre: 8 }]), testo("Scelgo un altro nome."));
+    await chiedi(coach(), "Crea una tappa di prova chiamata Roma Open");
+    expect(esiti(richieste)[0]).toContain('La tappa "Roma Open" esiste già in questa lega');
+    expect(store().tappe).toHaveLength(1);
+  });
+
+  it("una lega con già 100 tappe: niente tappa nuova e il motivo al modello", async () => {
+    useAppStore.setState({ tappe: Array.from({ length: 100 }, (_, i) => ({ ...romaOpen(), id: `t${i}`, nome: `Tappa ${i}` })) });
+    const richieste = modello(strumenti(["crea_tappa_simulata", { nome: "Demo", nSquadre: 8 }]), testo("La lega è piena."));
+    await chiedi(coach(), "Crea una tappa di prova");
+    expect(esiti(richieste)[0]).toContain("La lega ha già 100 tappe");
+    expect(store().tappe).toHaveLength(100);
+  });
+
+  it.each([
+    ["criterio sconosciuto", { scelta: "a caso" }, "Criterio di scelta non valido"],
+    ["fino_a sconosciuto", { fino_a: "semifinali" }, "Fino a dove giocare non valido"],
+    ["scelta per città senza città", { scelta: "citta" }, "Per scegliere per città indica la città."],
+  ])("%s: errore al modello e nessuna tappa", async (_caso, extra, motivo) => {
+    const richieste = modello(strumenti(["crea_tappa_simulata", { nome: "Demo", nSquadre: 8, ...extra }]), testo("Non ho creato la tappa."));
+    await chiedi(coach(), "Crea una tappa di prova");
+    expect(esiti(richieste)[0]).toContain(motivo);
+    expect(store().tappe).toHaveLength(1);
+  });
+
+  it("«tabellini: false» e «scelta: ranking»: si gioca senza tabellini, con le squadre migliori per ranking", async () => {
+    modello(strumenti(["crea_tappa_simulata", { nome: "Demo", nSquadre: 4, tabellini: false, scelta: "ranking" }]), testo("Fatto."));
+    await chiedi(coach(), "Crea una tappa di prova senza tabellini");
+    const demo = store().tappe[1];
+    expect(demo.squadre).toHaveLength(4);
+    expect(demo.partite.every((m) => m.done && m.pa === undefined && m.pb === undefined)).toBe(true);
+  });
+});
+
+describe("Coach AI: simula_risultati, i risultati mancanti di una tappa, con conferma (D4)", () => {
+  beforeEach(() => {
+    vi.spyOn(Math, "random").mockImplementation(lcg(7));
+    anagrafeCon(NOMI_OTTO.length);
+    useAppStore.setState({ tappe: [tappaQuasiFinita()] });
+  });
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  it("chiede sempre conferma con il numero di gare mancanti; «Annulla» non cambia nulla", async () => {
+    const prima = store().tappe[0];
+    const richieste = modello(strumenti(["simula_risultati", { tappa_nome: "Vera" }]), testo("Va bene, non simulo."));
+    const richiesta = await chiediEConferma(coach(), "Simula i risultati mancanti di Vera", false);
+    // Conta tutte le gare che si inventano: le 2 dei gironi e le 3 del tabellone che ne segue
+    expect(richiesta.testo).toBe('Inventare i risultati delle 5 gare mancanti di "Vera"? Sono numeri di prova, non veri.');
+    expect(store().tappe[0]).toBe(prima);
+    expect(esiti(richieste)[0]).toMatch(/L'utente ha annullato/);
+  });
+
+  it("«Conferma»: si giocano solo le 2 gare mancanti (le altre 10 restano identiche, tabellini compresi), poi tabellone e finale; una sola salvataggio", async () => {
+    const prima = store().tappe[0];
+    const c = coach();
+    modello(strumenti(["simula_risultati", { tappa_nome: "Vera" }]), testo("Simulate."));
+    await chiediEConferma(c, "Simula i risultati mancanti di Vera", true);
+    const dopo = store().tappe[0];
+    expect(dopo.partite.slice(0, 10)).toEqual(prima.partite.slice(0, 10));
+    expect(dopo.partite.slice(10).every((m) => m.done)).toBe(true);
+    expect(dopo.bracket).toHaveLength(3);
+    expect(dopo.bracket?.every((m) => m.done)).toBe(true);
+    await vi.waitFor(() => expect(legheApi.putTappa).toHaveBeenCalledTimes(1), { timeout: 2000 });
+    expect(c.current.msgs.at(-1)?.tools).toEqual(["simula_risultati"]);
+  });
+
+  it("con «fase: finale» e gironi ancora aperti: errore con il numero di partite mancanti, senza chiedere conferma", async () => {
+    const richieste = modello(strumenti(["simula_risultati", { tappa_nome: "Vera", fase: "finale" }]), testo("Simulo prima i gironi."));
+    const c = coach();
+    await chiedi(c, "Simula la finale di Vera");
+    expect(esiti(richieste)[0]).toContain("Per la finale mancano ancora");
+    expect(c.current.conferma).toBeNull();
+  });
+
+  it("una fase che non esiste: errore e nessuna conferma", async () => {
+    const richieste = modello(strumenti(["simula_risultati", { tappa_nome: "Vera", fase: "semifinali" }]), testo("Dico quali fasi esistono."));
+    const c = coach();
+    await chiedi(c, "Simula le semifinali di Vera");
+    expect(esiti(richieste)[0]).toContain("Fase non valida");
+    expect(c.current.conferma).toBeNull();
+  });
+});
+
+describe("Coach AI: registra_risultati, più risultati dettati in un colpo", () => {
+  beforeEach(() => { useAppStore.setState({ tappe: [romaOpen()] }); });
+
+  it("registra le righe valide, dice quale riga è sbagliata e che cosa manca; la tappa si salva una volta sola", async () => {
+    const richieste = modello(strumenti(["registra_risultati", { risultati: [
+      { squadra_a: "Alfa", punti_a: 21, squadra_b: "Gamma", punti_b: 18 },
+      { squadra_a: "Gamma", punti_a: 21, squadra_b: "Delta", punti_b: 10 },
+    ] }]), testo("Ho registrato il primo risultato."));
+    await chiedi(coach(), "Alfa 21-18 Gamma, Gamma 21-10 Delta");
+    expect(store().tappe[0].partite.find((m) => m.id === "m2")).toMatchObject({ sa: 21, sb: 18, done: true });
+    expect(esiti(richieste)[0]).toBe(
+      'Registrati 1 risultato: Alfa 21 — 18 Gamma. Errori: riga 2 (Gamma-Delta): Nessuna squadra della tappa "Roma Open" si chiama "Delta". Mancano: Beta-Gamma.',
+    );
+  });
+
+  it("se nessuna riga è valida: errore con il numero di riga, e la tappa non cambia", async () => {
+    const prima = store().tappe[0];
+    const richieste = modello(strumenti(["registra_risultati", { risultati: [
+      { squadra_a: "Alfa", punti_a: 21, squadra_b: "Beta", punti_b: 15 },
+    ] }]), testo("Non ho registrato nulla."));
+    await chiedi(coach(), "Alfa 21-15 Beta");
+    expect(esiti(richieste)[0]).toContain("riga 1 (Alfa-Beta)");
+    expect(store().tappe[0]).toBe(prima);
+  });
+
+  it("senza l'elenco dei risultati, o con più di 64 voci: errore e nessuna modifica", async () => {
+    const prima = store().tappe[0];
+    const richieste = modello(
+      strumenti(["registra_risultati", {}]),
+      strumenti(["registra_risultati", { risultati: Array.from({ length: 65 }, () => ({ squadra_a: "Alfa", punti_a: 21, squadra_b: "Beta", punti_b: 1 })) }]),
+      testo("Errore."),
+    );
+    const c = coach();
+    await chiedi(c, "Registra i risultati");
+    expect(esiti(richieste)[0]).toContain("Manca l'elenco dei risultati (risultati).");
+    expect(esiti(richieste)[1]).toContain("da 1 a 64");
+    expect(store().tappe[0]).toBe(prima);
+  });
+
+  it("una voce che non è un oggetto: errore e nessuna modifica", async () => {
+    const prima = store().tappe[0];
+    const richieste = modello(strumenti(["registra_risultati", { risultati: ["Alfa 21-15 Beta"] }]), testo("Errore."));
+    await chiedi(coach(), "Alfa 21-15 Beta");
+    expect(esiti(richieste)[0]).toContain("Ogni risultato è un oggetto");
+    expect(store().tappe[0]).toBe(prima);
   });
 });

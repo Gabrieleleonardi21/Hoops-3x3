@@ -23,6 +23,12 @@ describe("Coach AI: definizioni ed esecutori degli strumenti (FP-6)", () => {
     expect(Object.keys(def?.function.parameters.properties ?? {}).sort()).toEqual(["giocatori", "nuovo_nome", "squadra", "tappa_nome"]);
   });
 
+  // Tappa di prova e risultati simulati: i tre strumenti stanno nell'elenco e tra le definizioni che il modello vede
+  it.each(["crea_tappa_simulata", "simula_risultati", "registra_risultati"])("%s è tra gli strumenti e tra le definizioni", (nome) => {
+    expect(NOMI_STRUMENTI).toContain(nome);
+    expect(COACH_TOOLS.map((t) => t.function.name)).toContain(nome);
+  });
+
   // FP-7 nacque da 8 strumenti documentati su 10: uno strumento nuovo senza la sua sezione in docs/ non passa più inosservato
   it.each(NOMI_STRUMENTI)("docs/coach-ai-tool-calling.md ha la sezione di %s", (nome) => {
     expect(documentazione.split("\n")).toContain(`### \`${nome}\``);

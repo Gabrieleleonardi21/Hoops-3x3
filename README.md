@@ -48,7 +48,7 @@ Un circuito di basket 3x3 è fatto di **tappe**: tornei che si giocano in luoghi
 - Pubblica la tappa conclusa in un archivio che chiunque può leggere.
 - Tiene un'anagrafe condivisa di giocatori e squadre, con le statistiche di stagione.
 - Mostra i campetti da streetball su una mappa, con la ricerca per città o intorno a sé.
-- Offre il Coach AI, un assistente in chat che risponde sul 3x3 e agisce nell'app con undici strumenti. Con «Importa file» legge anche la foto di un foglio di tappa scritto a mano.
+- Offre il Coach AI, un assistente in chat che risponde sul 3x3 e agisce nell'app con quattordici strumenti. Con «Importa file» legge anche la foto di un foglio di tappa scritto a mano.
 - Gestisce il profilo: nome, password, email, recupero della password ed eliminazione dell'account.
 
 L'elenco completo, schermata per schermata, è in [`FUNZIONALITA.txt`](FUNZIONALITA.txt).
@@ -62,15 +62,15 @@ Il server gira sul piano gratuito di Render: dopo 15 minuti senza visite si speg
 
 ### I numeri, al 19 ottobre 2026
 
-Misurati il 19 ottobre 2026, tutti senza fallimenti. Fa eccezione il numero dei test di integrazione del backend, misurato il 14 ottobre perché richiede un database di prova. I test del frontend comprendono il test di guardia di questo README (`tests/unit/readme.test.ts`).
+Misurati il 19 ottobre 2026, tutti senza fallimenti; i test di integrazione del backend richiedono un database di prova. I test del frontend comprendono il test di guardia di questo README (`tests/unit/readme.test.ts`).
 
 | Che cosa | Quanti | Come si misura |
 |---|---|---|
-| Test unitari e di componenti del frontend | 2.013, in 111 file | `npm test` |
-| Test end-to-end del frontend, con il server finto | 80 | `npx playwright test` |
+| Test unitari e di componenti del frontend | 2.082, in 112 file | `npm test` |
+| Test end-to-end del frontend, con il server finto | 81 | `npx playwright test` |
 | Test end-to-end con il backend vero | 6 | `npm run test:e2e:backend` (nella CI, l'integrazione continua di GitHub) |
 | Test unitari del backend, compreso il test di guardia del suo README | 997 | `./mvnw test` |
-| Test di integrazione del backend, su PostgreSQL | 294 (misurati il 14 ottobre) | `./mvnw verify -Pintegrazione` |
+| Test di integrazione del backend, su PostgreSQL | 298 | `./mvnw verify -Pintegrazione` |
 | Endpoint dell'API | 42, più 2 controlli di salute | le mappature dei controller del backend |
 | Migrazioni del database | 11 (da V1 a V11), per 12 tabelle | i file di `hoop3x3-backend/src/main/resources/db/migration` |
 
@@ -279,7 +279,7 @@ Una tecnologia è uno strumento; una scelta è il modo in cui lo si usa. Ogni ri
 | Il supplementare parte con il pulsante «Avvia supplementare», non da solo | Nel 3x3 c'è una pausa prima del supplementare, e il tavolo può ancora registrare un canestro del tempo regolamentare: con l'avvio automatico diventerebbe un punto del supplementare | Un clic in più per il tavolo | `src/components/partita/MatchTimer.tsx`, `src/utils/statoGara.ts` |
 | I dati di prova del circuito (il **seed**: dati caricati al primo avvio; 32 giocatori, 8 squadre, 4 tappe) hanno persone di fantasia | Il file sta nel jar del backend anche quando il seed è spento: non deve contenere dati di persone reali. Un test lo controlla | Squadre, tappe e risultati restano quelli del circuito | `DatiDiProvaTest` del backend |
 | Nomi del codice, interfaccia e messaggi d'errore in italiano | Gli utenti e chi valuta il progetto sono italiani; i termini del gioco (tappa, girone, tabellone) sono quelli del circuito. Il server risponde in italiano qualunque lingua chieda il browser | Nessuna traduzione dell'interfaccia | `src/utils/testi.ts`; `spring.web.locale=it` in `application.properties` del backend |
-| Gli strumenti del Coach girano nel browser, con le stesse funzioni dell'interfaccia; il server fa solo da proxy | Il modello non scrive mai sul server da solo: ogni azione passa dagli stessi controlli di un clic. Sorteggiare su una tappa con risultati, annullare un risultato e concludere una tappa chiedono conferma nella chat | Il Coach risponde solo su basket e HOOP 3X3: la regola la aggiunge il server. È una regola di prodotto, non un confine di sicurezza | `src/coach/toolHandlers.ts`, [`docs/coach-ai-tool-calling.md`](docs/coach-ai-tool-calling.md); `AmbitoCoach` del backend |
+| Gli strumenti del Coach girano nel browser, con le stesse funzioni dell'interfaccia; il server fa solo da proxy | Il modello non scrive mai sul server da solo: ogni azione passa dagli stessi controlli di un clic. Sorteggiare su una tappa con risultati, annullare un risultato, concludere una tappa e inventare i risultati mancanti chiedono conferma nella chat | Il Coach risponde solo su basket e HOOP 3X3: la regola la aggiunge il server. È una regola di prodotto, non un confine di sicurezza | `src/coach/toolHandlers.ts`, [`docs/coach-ai-tool-calling.md`](docs/coach-ai-tool-calling.md); `AmbitoCoach` del backend |
 
 ### Qualità
 
@@ -363,11 +363,13 @@ Se il proprietario elimina la tappa o la lega, il database toglie anche la pubbl
 
 1. **La domanda.** Il registrato scrive nel pannello (`src/components/coach/CoachPanel.tsx`). Un Ospite riceve l'invito a creare un account, e non parte nessuna chiamata.
 2. **Il prompt.** `src/hooks/useCoachAI.ts` scrive il prompt di sistema: chi è il Coach, le regole FIBA 3x3, come usare gli strumenti. Aggiunge i dati della lega aperta, preparati da `src/utils/buildCoachContext.ts` dentro il blocco `<dati_lega>`. Insieme vanno gli ultimi 30 messaggi della chat.
-3. **Il proxy.** `src/services/aiService.ts` manda tutto a `POST /api/coach/chat`, con le definizioni degli undici strumenti (`src/coach/toolDefs.ts`). Il backend controlla i limiti (20 richieste al minuto e 300 al giorno per utente, 60 messaggi, 100.000 caratteri, solo strumenti del Coach), aggiunge la sua regola del contesto e chiama il fornitore scelto con la chiave che tiene lui.
+3. **Il proxy.** `src/services/aiService.ts` manda tutto a `POST /api/coach/chat`, con le definizioni dei quattordici strumenti (`src/coach/toolDefs.ts`). Il backend controlla i limiti (20 richieste al minuto e 300 al giorno per utente, 60 messaggi, 100.000 caratteri, solo strumenti del Coach), aggiunge la sua regola del contesto e chiama il fornitore scelto con la chiave che tiene lui.
 4. **Gli strumenti.** Se il modello chiede uno strumento, per esempio `registra_risultato`, la risposta torna al browser. `src/coach/toolHandlers.ts` lo esegue con le stesse funzioni dell'interfaccia (`src/domain/tappaOps.ts`, lo store), e il risultato torna al modello.
-5. **Le conferme.** Sorteggiare su una tappa con risultati, annullare un risultato e concludere una tappa chiedono «Conferma» o «Annulla» nella chat, prima di toccare qualcosa.
+5. **Le conferme.** Sorteggiare su una tappa con risultati, annullare un risultato, concludere una tappa e inventare i risultati mancanti (`simula_risultati`) chiedono «Conferma» o «Annulla» nella chat, prima di toccare qualcosa.
 6. **Il ciclo.** Domanda, strumento, risultato e nuova chiamata si ripetono al massimo 8 volte per domanda. Poi il Coach risponde con il testo, e i badge sotto la risposta dicono quali azioni ha fatto.
 7. **Fuori tema.** Se la domanda non riguarda il basket né l'app, il modello risponde con un marcatore e il server lo sostituisce con una frase fissa: «Sono il Coach di HOOP 3X3: posso aiutarti con il basket, le tue leghe e tappe, squadre, giocatori e regole del torneo. Chiedimi qualcosa su questo.»
+
+**Tappa di prova con il Coach.** Su richiesta («creami una tappa di prova con 8 squadre») il Coach usa un solo strumento, `crea_tappa_simulata`: sceglie le squadre dall'anagrafe, tra quelle con almeno 3 giocatori, e le porta nella lega aperta con il loro roster (al massimo 4 giocatori). Poi sorteggia i gironi, gioca tutte le gare dei gironi con i tabellini (la somma dei punti di ciascun tabellino è il punteggio della squadra) e la fase finale fino alla finale. I punteggi li genera l'app, non il modello, e sono numeri di prova, non risultati veri: il Coach lo dice nel riepilogo. La tappa non è conclusa: la pubblicazione nell'archivio resta un passo a parte, con `concludi_tappa` e la sua conferma. Le gare che restano si completano con `simula_risultati` (con conferma), i risultati dettati con `registra_risultati`.
 
 Strumenti, conferme e chiamate al server, uno per uno: [`docs/coach-ai-tool-calling.md`](docs/coach-ai-tool-calling.md).
 
@@ -456,6 +458,7 @@ Sapere che cosa manca vale quanto sapere che cosa c'è. Questi sono i limiti di 
 
 - La regola del contesto è di prodotto, non di sicurezza: un prompt costruito apposta può aggirarla, a spese della quota dell'utente.
 - `annulla_risultato` vale per i gironi, non per il tabellone.
+- Le gare del tabellone di una tappa di prova non hanno tabellini: il modello dati li prevede per i gironi, non per il tabellone (come per le statistiche di stagione).
 - La lettura delle foto dipende da un modello: un foglio scritto male o una foto storta possono dare una bozza sbagliata. La bozza si controlla prima di creare la lega, e i dubbi del modello lo segnalano. La lettura va provata con fogli scritti a mano veri.
 
 ### Video
@@ -544,8 +547,8 @@ L'elenco completo, schermata per schermata, è in [`FUNZIONALITA.txt`](FUNZIONAL
 #### Coach AI e campetti
 
 - **Coach AI.** Un assistente che conosce le regole FIBA 3x3 e i dati della lega aperta.
-  - Agisce nell'app con 11 strumenti: crea lega e tappa, sorteggia, registra e annulla risultati, genera le fasi dirette, conclude la tappa, scrive nell'anagrafe, corregge nomi e giocatori di una squadra (per esempio dopo la lettura di una foto).
-  - Chiede conferma prima di sorteggiare su una tappa con risultati, di annullare un risultato e di concludere una tappa.
+  - Agisce nell'app con 14 strumenti: crea lega e tappa, crea una tappa di prova con le squadre dell'anagrafe, sorteggia, registra e annulla risultati (anche più di uno in un colpo), inventa i risultati mancanti di una tappa, genera le fasi dirette, conclude la tappa, scrive nell'anagrafe, corregge nomi e giocatori di una squadra (per esempio dopo la lettura di una foto).
+  - Chiede conferma prima di sorteggiare su una tappa con risultati, di annullare un risultato, di concludere una tappa e di inventare i risultati mancanti.
   - Solo per i registrati, attraverso il backend: vedi [Coach AI (facoltativo)](#coach-ai-facoltativo) e [`docs/coach-ai-tool-calling.md`](docs/coach-ai-tool-calling.md).
 - **Campetti.** I campi da streetball del circuito, letti dal server senza account (vedi [Campetti](#campetti)).
   - All'apertura quelli intorno a Roma; con «Usa la mia posizione» quelli intorno a chi guarda, con le distanze e in ordine di distanza. La casella di ricerca cerca per nome o città su tutta l'Italia.

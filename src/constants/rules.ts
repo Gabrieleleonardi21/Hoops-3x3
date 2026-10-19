@@ -25,6 +25,8 @@ export const MAX_ROSTER_ANAGRAFE = 6;
 /** Squadre di una tappa: da 2 a 64, per l'interfaccia e per il Coach */
 export const MIN_SQUADRE = 2;
 export const MAX_SQUADRE = 64;
+/** Risultati che registra_risultati accetta in un colpo, da 1 a 64: un elenco più lungo di solito è un errore del modello */
+export const MAX_RISULTATI = 64;
 
 /** Limiti del server su una lega (NuovaLegaDTO, PatchLegaDTO): caratteri del nome e tappe per lega. Oltre, 400. Li usano i campi del
  *  nome (maxLength), l'import di una lega da file e la creazione di una tappa */
