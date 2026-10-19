@@ -285,6 +285,18 @@ describe("statGiocatori per id: l'anagrafe dice chi è chi", () => {
     expect(righe[0]).toMatchObject({ g: 4, pt: 26, omonimi: true });
   });
 
+  // Due Mario Rossi nel roster della tappa, squadra collegata a un'anagrafe con un solo Mario Rossi: il ripiego per nome non
+  // deve dare a entrambi l'id di quello, ma lasciare la riga per nome con ⚠
+  it("due omonimi in una squadra collegata a una voce con un solo Mario Rossi non prendono il suo id: riga per nome con ⚠", () => {
+    const anagrafe: Anagrafe = { squadre: [squadraReg("sq1", "Alfa", ["g1"])], giocatori: [giocatoreReg("g1", "Mario", "Rossi")] };
+    const t = tappaDaSquadre("t1", [{ nome: "Alfa", regId: "sq1", giocatori: ["Mario Rossi", "Mario Rossi"] }, { nome: "Avversari", giocatori: ["Altro"] }], [
+      { a: 0, b: 1, pa: { 0: { pt: 5 }, 1: { pt: 7 } } },
+    ]);
+    const righe = statGiocatori([t], anagrafe);
+    expect(righe).toHaveLength(1);
+    expect(righe[0]).toMatchObject({ regId: undefined, g: 2, pt: 12, omonimi: true });
+  });
+
   it("uno solo con cinque tabellini non è un omonimo: nessun segno ⚠", () => {
     const partite = Array.from({ length: 5 }, () => ({ a: 0, b: 1, pa: { 0: { pt: 4 } } }));
     const t = tappaDaSquadre("t1", [{ nome: "Alfa", giocatori: ["Mario Rossi"] }, { nome: "Avversari", giocatori: ["Altro"] }], partite);

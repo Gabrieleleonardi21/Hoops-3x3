@@ -6,7 +6,7 @@
 import type { Partita, RegGiocatore, RegSquadra, StatLine, Tappa } from "../types";
 import { STAT_KEYS } from "../constants/rules";
 import { toStatLine } from "./statLine";
-import { identitaSquadra, normalizza, perId, risolviGiocatore } from "./identita";
+import { doppioniDelRoster, identitaSquadra, normalizza, perId, risolviGiocatore } from "./identita";
 
 // normalizza è nata qui e si è spostata in identita.ts: la si ri-esporta perché i chiamanti di prima non cambino import
 export { normalizza } from "./identita";
@@ -64,10 +64,13 @@ export function risolviTabellini(tappa: Tappa, anagrafe?: Anagrafe): Tabellino[]
     // La squadra dell'anagrafe, se è collegata: da lei si riconoscono i suoi giocatori senza regId
     let squadraAnagrafe: RegSquadra | undefined;
     if (sq.regId) squadraAnagrafe = squadrePerId.get(sq.regId);
+    // Con due omonimi nella rosa della tappa il ripiego per nome non sa quale dei due sia quello dell'anagrafe: non si risolvono
+    const ripetuti = doppioniDelRoster(sq.giocatori || []);
     for (const p of sq.giocatori || []) {
-      // Il regId scritto nel roster vince; senza, il giocatore si riconosce per nome solo se la regola trova uno solo
+      // Il regId scritto nel roster vince; senza, il giocatore si riconosce per nome solo se la regola trova uno solo, e solo
+      // se il suo nome non si ripete nella rosa (altrimenti resta per nome, con ⚠)
       let regId = p.regId;
-      if (!regId) regId = risolviGiocatore(p.nome, squadraAnagrafe, giocatoriPerId)?.id;
+      if (!regId && !ripetuti.has(p.id)) regId = risolviGiocatore(p.nome, squadraAnagrafe, giocatoriPerId)?.id;
       roster.set(p.id, {
         nome: p.nome, squadra: sq.nome, squadraChiave, squadraRegId: sq.regId, regId, chiave: chiaveRiga(regId, p.nome, squadraChiave),
       });
