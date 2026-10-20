@@ -38,13 +38,14 @@ const rosterCompleto = (t: Tappa | null, teamId: string) => giocatoriDi(t?.squad
 
 /* Sincronizzazione con l'anagrafe: funzioni pure, che si applicano alla tappa com'è adesso nello store */
 
-/** La voce dell'anagrafe di una squadra: prima per regId; senza una voce con quel regId, per nome, ma solo se la voce è una sola.
- *  Con due omonime non si sceglie alla cieca (lo fa l'utente dalla pagina), e una squadra scollegata a mano («Scollega») non si
- *  ricollega per nome: il segno `scollegata` resta anche alla riapertura */
+/** La voce dell'anagrafe di una squadra: per regId. Una squadra con regId non si cerca mai per nome: se la cache non ha la sua voce,
+ *  è syncFromAnagrafe a chiederla al server (collegateSenzaVoce) e, se non esiste più, a scollegarla. Per nome si collegano solo le
+ *  squadre senza collegamento, e solo se l'omonima è una: con due non si sceglie alla cieca (lo fa l'utente dalla pagina), e una
+ *  squadra scollegata a mano («Scollega») non si ricollega: il segno `scollegata` resta anche alla riapertura */
 function voceAnagrafe(s: SquadraTappa, regs: RegSquadra[]): RegSquadra | undefined {
   const perRegId = regs.find((r) => r.id === s.regId);
   if (perRegId) return perRegId;
-  if (s.scollegata) return undefined;
+  if (s.regId || s.scollegata) return undefined;
   const [unica, ...altre] = regs.filter((r) => normalizza(r.nome) === normalizza(s.nome));
   if (altre.length > 0) return undefined;
   return unica;
