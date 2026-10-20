@@ -9,7 +9,7 @@ import { legheApi } from "../../src/services/legheApi";
 import { anagrafeApi } from "../../src/services/anagrafeApi";
 import { archivioApi } from "../../src/services/archivioApi";
 import { ApiError } from "../../src/services/api";
-import { AVVISO_SQUADRA_OMONIMA } from "../../src/utils/testi";
+import { AVVISO_SQUADRA_OMONIMA, AVVISO_VOCE_ELIMINATA } from "../../src/utils/testi";
 import { DEFAULT_RULES } from "../../src/constants/rules";
 import type { PubTappa, RegGiocatore, RegSquadra, Tappa, User } from "../../src/types";
 
@@ -267,6 +267,26 @@ describe("TappaPage: una squadra collegata a una voce eliminata dall'anagrafe to
     expect(campiNome()[0].value).toBe("Alfa");
     expect(screen.queryByText("Anagrafe")).toBeNull();
     expect(store().tappe[0].squadre[0].regId).toBeUndefined();
+  });
+
+  it("se la voce di una squadra collegata non esiste più, la card lo dice sotto il nome e il nome torna modificabile", async () => {
+    anagrafe.listSquadre.mockResolvedValue([]);
+    useAppStore.setState({ tappe: [collegata()] });
+    apriPagina({ squadre: [] });
+    expect(await screen.findByText(AVVISO_VOCE_ELIMINATA("Alfa"))).toBeTruthy();
+    expect(campiNome()[0].readOnly).toBe(false);
+  });
+
+  it("scritto un nome nuovo, l'avviso sparisce", async () => {
+    anagrafe.listSquadre.mockResolvedValue([]);
+    anagrafe.createSquadra.mockResolvedValue({ ...regAlfa, id: "r-nuova", nome: "Alfa Roma" });
+    useAppStore.setState({ tappe: [collegata()] });
+    apriPagina({ squadre: [] });
+    await screen.findByText(AVVISO_VOCE_ELIMINATA("Alfa"));
+    scrivi(0, "Alfa Roma");
+    fireEvent.blur(campiNome()[0]);
+    expect(screen.queryByText(AVVISO_VOCE_ELIMINATA("Alfa"))).toBeNull();
+    await act(async () => {}); // il collegamento del nome nuovo finisce qui, senza errori
   });
 
   it("riscritto il nome, la squadra si collega alla voce nuova", async () => {

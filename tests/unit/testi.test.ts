@@ -7,7 +7,8 @@ import {
 } from "../../src/utils/testi";
 import type { LegaMeta, RegGiocatore, RegSquadra } from "../../src/types";
 import {
-  AVVISO_GIOCATORE_RIPETUTO, AVVISO_NUOVA_OMONIMA, AVVISO_SQUADRA_OMONIMA, AVVISO_TAPPA_OMONIMA, AVVISO_VOCE_OMONIMA, TITOLO_SCELTA_SQUADRA,
+  AVVISO_GIOCATORE_RIPETUTO, AVVISO_NUOVA_OMONIMA, AVVISO_SQUADRA_OMONIMA, AVVISO_TAPPA_OMONIMA, AVVISO_VOCE_ELIMINATA, AVVISO_VOCE_OMONIMA,
+  TITOLO_SCELTA_SQUADRA,
 } from "../../src/utils/testi";
 
 describe("conteggio: il numero con il nome al singolare o al plurale", () => {
@@ -247,6 +248,12 @@ describe("avvisi sui doppioni: il nome c'è già, ma si può creare lo stesso", 
     );
     expect(AVVISO_VOCE_OMONIMA("Mario Rossi (senza squadra)", "giocatore")).toBe(
       "Esiste già Mario Rossi (senza squadra). Premi di nuovo Salva per registrarne un altro.",
+    );
+  });
+
+  it("voce eliminata: la squadra scollegata lo dice e dice come ricollegarla", () => {
+    expect(AVVISO_VOCE_ELIMINATA("Alfa")).toBe(
+      "La voce dell'anagrafe di «Alfa» non esiste più: squadra scollegata. Riscrivi il nome per ricollegarla.",
     );
   });
 });
