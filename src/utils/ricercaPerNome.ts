@@ -66,9 +66,14 @@ export function trovaPerNome<T>(
   if (dettaglio !== null) {
     const candidati = elementi.filter((e) => normalizza(nomeDi(e)) === normalizza(base));
     if (candidati.length > 0) {
-      // «includes»: «girone B» sta in «girone B», «26/06/2026» in una data, «Milano» in un luogo; senza maiuscole né accenti
       const cercatoDettaglio = normalizza(dettaglio);
-      const scelti = candidati.filter((e) => (dettagli?.descrittori(e) ?? []).some((d) => normalizza(d).includes(cercatoDettaglio)));
+      const descrittoriDi = (e: T) => dettagli?.descrittori(e) ?? [];
+      // Prima il descrittore uguale («B» per il girone B, «Torino» per la città): se ne corrisponde una sola è quella, anche
+      // se un'altra ha una parte uguale (la città «Bari» contiene «b»). Senza una scelta così, «includes»: «26/06/2026» in una
+      // data, «milano» in un luogo; senza maiuscole né accenti
+      const uguali = candidati.filter((e) => descrittoriDi(e).some((d) => normalizza(d) === cercatoDettaglio));
+      if (uguali.length === 1) return uguali[0];
+      const scelti = candidati.filter((e) => descrittoriDi(e).some((d) => normalizza(d).includes(cercatoDettaglio)));
       if (scelti.length === 1) return scelti[0];
       if (scelti.length === 0) throw erroreDettaglio(base, dettaglio, candidati.map(descrivi), false);
       throw erroreDettaglio(base, dettaglio, scelti.map(descrivi), true);

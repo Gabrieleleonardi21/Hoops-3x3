@@ -56,6 +56,19 @@ describe("ricercaPerNome: la regola unica con cui il Coach trova tappe e squadre
     );
   });
 
+  it("«Roma (B)» con una «Roma» del girone B e una di Bari: il descrittore uguale sceglie il girone B, senza errore", () => {
+    // «b» sta anche in «Bari» (come parte): senza la prima passata sul descrittore uguale le due corrispondono e il comando si ferma
+    const squadre = [
+      { nome: "Roma", descrittori: ["girone A", "A", "Bari"] },
+      { nome: "Roma", descrittori: ["girone B", "B", "Torino"] },
+    ];
+    const dettagliSquadre: Dettagli<(typeof squadre)[number]> = {
+      descrittori: (s) => s.descrittori,
+      descrivi: (s) => `"${s.nome}" (${s.descrittori[0]})`,
+    };
+    expect(trovaPerNome(squadre, "Roma (B)", (s) => s.nome, "squadre", dettagliSquadre)).toBe(squadre[1]);
+  });
+
   it("un elemento chiamato davvero «Roma (Torino)» si trova per intero, prima di ogni lettura del dettaglio", () => {
     const elementi = [tappa("Roma", "", "Torino"), tappa("Roma (Torino)", "", "")];
     expect(trovaPerNome(elementi, "Roma (Torino)", nomeDi, "tappe", dettagliTappa)).toBe(elementi[1]);
