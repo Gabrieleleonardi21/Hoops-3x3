@@ -2,6 +2,8 @@
  *  I nomi (di leghe, giocatori, squadre) li scrive l'utente: qui restano testo, e la finestra li mostra come testo React,
  *  mai come HTML. */
 import type { LegaMeta, RegGiocatore, RegSquadra } from "../types";
+// Data in gg/mm/aaaa per l'avviso sulle tappe; formato.ts non importa nulla, quindi non c'è un ciclo
+import { dataItaliana } from "./formato";
 
 /* Avvisi quando il browser rifiuta di scrivere i dati dell'ospite (spazio esaurito o archivio disattivato). Cominciano tutti
  * allo stesso modo. La via d'uscita è quella che l'app offre: esportare la lega ed eliminare quelle che non si usano.
@@ -277,8 +279,8 @@ export function messaggioDubbi(lega: string, tappe: { nome: string; dubbi: strin
 /* Statistiche di stagione: il segno ⚠ e la riga delle gare che nessun giocatore può prendere. */
 /** Il segno ⚠ accanto a un giocatore con due omonimi nella stessa squadra non collegata: la spiegazione, come titolo e come nome
  *  per chi legge lo schermo */
-export const TITOLO_OMONIMI = "Due giocatori con lo stesso nome nella stessa squadra, non collegati all'anagrafe: le loro gare sono "
-  + "sommate. Collega la squadra all'anagrafe e registra entrambi i giocatori.";
+export const TITOLO_OMONIMI = "Due omonimi nella stessa squadra, non registrati in anagrafe: le gare sono sommate. "
+  + "Registra entrambi e collega la squadra.";
 /** Le gare con questo nome che non vanno a nessun giocatore dell'anagrafe: più giocatori registrati si chiamano così e la squadra
  *  che le ha giocate non è collegata, quindi non si sa a quale attribuirle */
 export const GARE_NON_ATTRIBUITE = (n: number) => `${conteggio(n, "gara con questo nome non è attribuita", "gare con questo nome non sono attribuite")}: `
@@ -294,11 +296,11 @@ export const NOTA_SQUADRE_STAT = (squadre: string) => `Statistiche dalle squadre
  * campo, mai un errore che blocca: i doppioni restano permessi. */
 /** Il nome di una tappa che c'è già nella lega. Data e luogo dicono come si distinguono (o che mancano) */
 export const AVVISO_TAPPA_OMONIMA = (t: { nome: string; data: string; luogo: string }) =>
-  `Esiste già una tappa «${t.nome}» (${t.data || "senza data"}, ${t.luogo || "senza luogo"}). `
-  + "Il nome può ripetersi: le tappe si distinguono per data e luogo.";
+  `Esiste già una tappa «${t.nome}» (${dataItaliana(t.data) || "senza data"}, ${t.luogo || "senza luogo"}): `
+  + "il nome può ripetersi, contano data e luogo.";
 /** Il nome di una squadra che c'è già in questa tappa */
 export const AVVISO_SQUADRA_OMONIMA =
-  "Un'altra squadra di questa tappa si chiama così: il Coach le distingue per girone o città; nelle statistiche contano i collegamenti all'anagrafe.";
+  "Nome già usato in questa tappa: per distinguerle collega le squadre all'anagrafe; il Coach usa girone o città.";
 /* Scelta tra squadre omonime nell'anagrafe (SceltaSquadraDialog): il titolo, e il posto della squadra nuova con lo stesso nome */
 /** Il titolo della finestra che chiede quale delle squadre omonime collegare */
 export const TITOLO_SCELTA_SQUADRA = (nome: string) => `Più squadre si chiamano «${nome}»: quale collegare?`;
@@ -308,7 +310,7 @@ const ORDINALI = ["prima", "seconda", "terza", "quarta", "quinta", "sesta", "set
 export const AVVISO_NUOVA_OMONIMA = (posizione: number) => `Sarà la ${ORDINALI[posizione - 1] ?? `${posizione}ª`} squadra con questo nome.`;
 /** Due giocatori con lo stesso nome nella stessa rosa */
 export const AVVISO_GIOCATORE_RIPETUTO =
-  "Due giocatori con lo stesso nome: nelle statistiche saranno sommati, a meno che la squadra sia collegata all'anagrafe con entrambi registrati.";
+  "Due giocatori con lo stesso nome: le statistiche li sommano, a meno che siano entrambi registrati in anagrafe.";
 const REGISTRARNE: Record<"squadra" | "giocatore", string> = { squadra: "un'altra", giocatore: "un altro" };
 /** Una voce dell'anagrafe con lo stesso nome. `descrizione` la identifica (««Roma» (Torino, di Gabriele)»); il secondo Salva registra */
 export const AVVISO_VOCE_OMONIMA = (descrizione: string, cosa: "squadra" | "giocatore") =>
