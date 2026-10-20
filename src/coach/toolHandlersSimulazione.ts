@@ -3,19 +3,19 @@
  *  domain/simulazione: il modello non li vede mai. Le squadre si leggono dall'anagrafe e non vi si scrive niente.
  *  Le funzioni condivise con gli altri strumenti stanno in strumentiComuni.ts (non in toolHandlers.ts, per non creare un ciclo). */
 import { useAppStore } from "../stores/useAppStore";
-import { MAX_RISULTATI, MAX_TAPPE_LEGA } from "../constants/rules";
+import { MAX_RISULTATI, MAX_TAPPE_LEGA, nomeTappaPredefinito } from "../constants/rules";
 import { pulisci, senzaTag } from "../utils/buildCoachContext";
 import { conteggio } from "../utils/testi";
 import { squadraDi } from "../utils/tappaInfo";
-import { creaTappa, sorteggia, type ModoSorteggio } from "../domain/tappaOps";
+import { creaTappa, primoNomeLibero, sorteggia, type ModoSorteggio } from "../domain/tappaOps";
 import {
   riepilogoSimulazione, scegliSquadre, simulaTappa, type OpzioniSimulazione,
 } from "../domain/simulazione";
 import type { Tappa } from "../types";
 import {
-  applica, chiaveCreato, confermaTappaOmonima, confermata, ERRORE_NESSUNA_LEGA, erroreTappaDuplicata, etichettaTappa, fermaSeCancellata, fetchGiocatori,
+  applica, chiaveCreato, confermaTappaOmonima, confermata, ERRORE_NESSUNA_LEGA, erroreLimiteTappe, erroreTappaDuplicata, etichettaTappa, fermaSeCancellata, fetchGiocatori,
   fetchSquadre, gironiRichiesti, nomiSquadre,
-  numero, obbligatorio, presente, qualificateRichieste, registraUnaRiga, squadraTappaDaAnagrafe, str, tappaRichiesta,
+  numero, presente, qualificateRichieste, registraUnaRiga, squadraTappaDaAnagrafe, str, tappaRichiesta,
   type Argomenti, type ContestoStrumenti,
 } from "./strumentiComuni";
 
@@ -96,9 +96,10 @@ function gareMancanti(t: Tappa): string[] {
 export async function eseguiCreaTappaSimulata(args: Argomenti, ctx: ContestoStrumenti): Promise<string> {
   const { legaId, tappe } = useAppStore.getState();
   if (!legaId) throw new Error(ERRORE_NESSUNA_LEGA);
-  if (tappe.length >= MAX_TAPPE_LEGA) throw new Error(`La lega ha già ${MAX_TAPPE_LEGA} tappe: non ne creo un'altra.`);
+  if (tappe.length >= MAX_TAPPE_LEGA) throw new Error(erroreLimiteTappe());
 
-  const nome = obbligatorio(args, "nome", "il nome della tappa");
+  // Senza nome, «Tappa N» con il primo numero libero, come in crea_tappa
+  const nome = str(args, "nome") || primoNomeLibero(tappe.map((t) => t.nome), nomeTappaPredefinito);
   if (ctx.creati?.has(chiaveCreato("tappa", nome))) throw new Error(erroreTappaDuplicata(nome));
   const luogo = str(args, "luogo");
   const data = str(args, "data");

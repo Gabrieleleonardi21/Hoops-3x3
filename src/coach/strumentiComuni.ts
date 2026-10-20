@@ -6,7 +6,7 @@ import { useAnagrafeStore } from "../stores/useAnagrafeStore";
 import { anagrafeApi } from "../services/anagrafeApi";
 import { testoErrore } from "../services/api";
 import { uid } from "../utils/uid";
-import { MAX_ROSTER } from "../constants/rules";
+import { MAX_ROSTER, MAX_TAPPE_LEGA } from "../constants/rules";
 import { pulisci, senzaTag } from "../utils/buildCoachContext";
 import { registraRisultato, registraRisultatoBracket, type Esito } from "../domain/tappaOps";
 import type { Tappa, RegSquadra, RegGiocatore, SquadraTappa } from "../types";
@@ -298,6 +298,9 @@ export async function confermaTappaOmonima(nome: string, tappe: Tappa[], ctx: Co
 export function erroreTappaDuplicata(nome: string): string {
   return `La tappa "${pulisci(nome)}" esiste già in questa lega: non ne creo un'altra.`;
 }
+
+/** Il tetto di tappe per lega del server: crea_tappa e crea_tappa_simulata lo rispettano prima di toccare l'anagrafe */
+export const erroreLimiteTappe = () => `La lega ha già ${MAX_TAPPE_LEGA} tappe: non ne creo un'altra.`;
 
 /** La chiave con cui `creati` ricorda una voce creata in questa richiesta: il tipo e il nome normalizzato («squadra:roma») */
 export function chiaveCreato(tipo: "tappa" | "squadra" | "giocatore", nome: string): string {

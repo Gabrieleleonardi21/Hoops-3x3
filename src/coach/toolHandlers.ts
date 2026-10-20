@@ -10,10 +10,10 @@
 import { useAppStore, tappaCorrente } from "../stores/useAppStore";
 import { useAnagrafeStore } from "../stores/useAnagrafeStore";
 import { testoErrore } from "../services/api";
-import { MAX_ROSTER } from "../constants/rules";
+import { MAX_ROSTER, MAX_TAPPE_LEGA, nomeTappaPredefinito } from "../constants/rules";
 import { pulisci, senzaTag } from "../utils/buildCoachContext";
 import {
-  annullaRisultato, concludi, correggiSquadra, creaTappa, erroreLimitiTappa, generaFasiDirette, perditaRisultati, sorteggia,
+  annullaRisultato, concludi, correggiSquadra, creaTappa, erroreLimitiTappa, generaFasiDirette, perditaRisultati, primoNomeLibero, sorteggia,
   type CorrezioneSquadra, type Esito, type ModoSorteggio,
 } from "../domain/tappaOps";
 import type { RegSquadra, SquadraTappa, Tappa } from "../types";
@@ -24,7 +24,7 @@ import { dettagliSquadraAnagrafe, separaDettaglio } from "../utils/ricercaPerNom
 import { eseguiCreaTappaSimulata, eseguiRegistraRisultati, eseguiSimulaRisultati } from "./toolHandlersSimulazione";
 import {
   applica, chiaveCreato, confermaTappaOmonima, confermata, CONFERMA_VOCE_OMONIMA, ERRORE_NESSUNA_LEGA, erroreGiocatoreRipetuto,
-  erroreSquadraRipetuta, erroreTappaDuplicata, etichettaSquadra, etichettaTappa, fermaSeCancellata, fetchGiocatori, fetchSquadre, gironiRichiesti, nomiRoster, nomiSquadre, obbligatorio, presente,
+  erroreLimiteTappe, erroreSquadraRipetuta, erroreTappaDuplicata, etichettaSquadra, etichettaTappa, fermaSeCancellata, fetchGiocatori, fetchSquadre, gironiRichiesti, nomiRoster, nomiSquadre, obbligatorio, presente,
   prova, qualificateRichieste, registraUnaRiga, squadraDellaPartita, squadraRichiesta, squadraRipetuta, squadraTappaDaAnagrafe,
   squadreRichieste, stessaCoppia, str, tappaRichiesta, trovaPerNome, type Argomenti, type ContestoStrumenti,
 } from "./strumentiComuni";
@@ -125,8 +125,11 @@ async function eseguiCreaTappa(args: Argomenti, ctx: ContestoStrumenti): Promise
   // Lega e tappe di adesso: comprendono la lega e le tappe create dagli strumenti precedenti della richiesta
   const { legaId, tappe } = useAppStore.getState();
   if (!legaId) throw new Error(ERRORE_NESSUNA_LEGA);
+  // Il limite del server si controlla prima di toccare l'anagrafe: una tappa rifiutata non lascia squadre registrate
+  if (tappe.length >= MAX_TAPPE_LEGA) throw new Error(erroreLimiteTappe());
 
-  const nomeTappa = obbligatorio(args, "nome", "il nome della tappa");
+  // Senza nome, «Tappa N» con il primo numero libero: la stessa regola del form della lega
+  const nomeTappa = str(args, "nome") || primoNomeLibero(tappe.map((t) => t.nome), nomeTappaPredefinito);
   // Guard: evita che il modello crei duplicati chiamando il tool più volte nella stessa richiesta
   if (ctx.creati?.has(chiaveCreato("tappa", nomeTappa))) throw new Error(erroreTappaDuplicata(nomeTappa));
   const luogo = str(args, "luogo");

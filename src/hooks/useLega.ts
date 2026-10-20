@@ -3,7 +3,7 @@ import { useAppStore } from "../stores/useAppStore";
 import { uid } from "../utils/uid";
 import { creaTappa, erroreLimitiTappa, primoNomeLibero } from "../domain/tappaOps";
 import type { Esito } from "../domain/tappaOps";
-import { MAX_TAPPE_LEGA, nomeSegnaposto } from "../constants/rules";
+import { MAX_TAPPE_LEGA, nomeSegnaposto, nomeTappaPredefinito } from "../constants/rules";
 
 export interface NuovaTappaInput {
   nome: string;
@@ -25,7 +25,7 @@ export function useLega() {
     const nSquadre = Number(input.nTeams);
     const nGironi = Number(input.nGironi);
     // Senza nome: il primo «Tappa N» che non c'è già nella lega (dopo una cancellazione il numero di tappe non basta)
-    const nome = input.nome.trim() || primoNomeLibero(tappe.map((t) => t.nome), (n) => `Tappa ${n}`);
+    const nome = input.nome.trim() || primoNomeLibero(tappe.map((t) => t.nome), nomeTappaPredefinito);
     // Prima i limiti: le squadre segnaposto si preparano solo per una tappa valida
     const limiti = erroreLimitiTappa(nSquadre, nGironi, { nome, luogo: input.luogo, data: input.data });
     if (limiti) return { ok: false, errore: limiti };

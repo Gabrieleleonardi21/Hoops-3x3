@@ -44,3 +44,9 @@ export const MAX_NOTE_CAMPETTO = 2000;
 export function nomeSegnaposto(n: number): string {
   return `Squadra ${n}`;
 }
+
+/** Il nome di una tappa creata senza nome, dal form o dal Coach: primoNomeLibero (tappaOps) sceglie il numero, così una tappa
+ *  cancellata non fa riusare il nome di una ancora in lega */
+export function nomeTappaPredefinito(n: number): string {
+  return `Tappa ${n}`;
+}
