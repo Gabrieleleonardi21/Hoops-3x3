@@ -297,9 +297,9 @@ describe("Coach AI: argomenti mancanti o non validi, o azione vietata da tappaOp
     expect(store().tappe[0]).toBe(prima);
   });
 
+  // crea_tappa senza nome non è più un errore: prende «Tappa N» (vedi il describe dedicato)
   it.each<[string, Record<string, unknown>]>([
     ["crea_lega", {}],
-    ["crea_tappa", { squadre: ["Alfa", "Beta"] }],
   ])("%s senza nome non crea niente", async (strumento, args) => {
     await rifiutato(strumento, args, /Manca il nome della (lega|tappa)/);
     expect(legheApi.create).not.toHaveBeenCalled();
@@ -1592,6 +1592,36 @@ describe("Coach AI: errore a metà del ciclo e limiti del server", () => {
   });
 });
 
+describe("Coach AI: crea_tappa senza nome dà «Tappa N» e rispetta il limite di tappe della lega", () => {
+  it("crea_tappa senza nome, con «Tappa 1» e «Tappa 3» nella lega, crea «Tappa 2»: il primo numero libero", async () => {
+    useAppStore.setState({ tappe: [romaOpen(), { ...romaOpen(), id: "t2", nome: "Tappa 1" }, { ...romaOpen(), id: "t3", nome: "Tappa 3" }] });
+    modello(strumenti(["crea_tappa", { squadre: ["Alfa", "Beta"] }]), testo("Creata."));
+    await chiedi(coach(), "Crea una tappa con Alfa e Beta");
+    expect(store().tappe.map((t) => t.nome)).toEqual(["Roma Open", "Tappa 1", "Tappa 3", "Tappa 2"]);
+  });
+
+  it("due crea_tappa senza nome nella stessa richiesta: «Tappa 2» e poi «Tappa 4», senza rifiuto", async () => {
+    useAppStore.setState({ tappe: [romaOpen(), { ...romaOpen(), id: "t2", nome: "Tappa 1" }, { ...romaOpen(), id: "t3", nome: "Tappa 3" }] });
+    const richieste = modello(
+      strumenti(["crea_tappa", { squadre: ["Alfa", "Beta"] }]),
+      strumenti(["crea_tappa", { squadre: ["Gamma", "Delta"] }]),
+      testo("Create due tappe."),
+    );
+    await chiedi(coach(), "Crea due tappe con Alfa e Beta, e con Gamma e Delta");
+    expect(store().tappe.map((t) => t.nome)).toEqual(["Roma Open", "Tappa 1", "Tappa 3", "Tappa 2", "Tappa 4"]);
+    expect(esiti(richieste)[1]).toContain('Tappa "Tappa 4" creata');
+  });
+
+  it("crea_tappa con la lega già a 100 tappe non crea niente (né squadre) e dice il limite", async () => {
+    useAppStore.setState({ tappe: Array.from({ length: 100 }, (_, i) => ({ ...romaOpen(), id: `t${i}`, nome: `Tappa ${i}` })) });
+    const richieste = modello(strumenti(["crea_tappa", { nome: "Demo", squadre: ["Alfa", "Beta"] }]), testo("La lega è piena."));
+    await chiedi(coach(), "Crea la tappa Demo con Alfa e Beta");
+    expect(esiti(richieste)[0]).toContain("La lega ha già 100 tappe");
+    expect(store().tappe).toHaveLength(100);
+    expect(anagrafeApi.createSquadra).not.toHaveBeenCalled();
+  });
+});
+
 describe("Coach AI: registra_squadra e registra_giocatore non fanno doppioni nell'anagrafe condivisa", () => {
   it("una squadra con lo stesso nome (maiuscole a parte) chiede conferma: «Annulla» non la registra", async () => {
     vi.mocked(anagrafeApi.listSquadre).mockResolvedValue([inAnagrafe("Delta", [], { citta: "Roma" })]);
@@ -1932,6 +1962,12 @@ describe("Coach AI: crea_tappa_simulata, una tappa di prova con squadre dall'ana
     await chiediEConferma(coach(), "Crea una tappa di prova chiamata Roma Open", false);
     expect(esiti(richieste)[0]).toContain("L'utente ha annullato");
     expect(store().tappe).toHaveLength(1);
+  });
+
+  it("crea_tappa_simulata senza nome crea «Tappa 1» nella lega con la sola «Roma Open»", async () => {
+    modello(strumenti(["crea_tappa_simulata", { nSquadre: 8 }]), testo("Tappa di prova pronta."));
+    await chiedi(coach(), "Creami una tappa di prova senza nome");
+    expect(store().tappe.map((t) => t.nome)).toEqual(["Roma Open", "Tappa 1"]);
   });
 
   it("una lega con già 100 tappe: niente tappa nuova e il motivo al modello", async () => {
