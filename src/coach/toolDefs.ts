@@ -3,6 +3,12 @@
 import type { ToolDef } from "../services/aiService";
 import { MAX_RISULTATI, MAX_ROSTER, MAX_SQUADRE, MIN_ROSTER, MIN_SQUADRE } from "../constants/rules";
 
+/* Come scegliere tra due tappe o squadre dello stesso nome: il modello chiede all'utente quale intende e ripete la chiamata con il
+ *  dettaglio tra parentesi, come dice l'errore (ricercaPerNome). Un testo solo per tutti gli strumenti che ricevono un nome */
+const DETTAGLIO_TAPPA = `Se più tappe hanno lo stesso nome, aggiungi la data o il luogo tra parentesi: "Roma Open (12/05/2026)".`;
+const DETTAGLIO_SQUADRA = `Con due squadre omonime aggiungi il girone o un giocatore tra parentesi: "Roma (girone B)".`;
+const DETTAGLIO_SQUADRA_ANAGRAFE = `Per scegliere tra due squadre omonime dell'anagrafe aggiungi la città tra parentesi: "Roma (Torino)".`;
+
 export const COACH_TOOLS: ToolDef[] = [
   {
     type: "function",
@@ -29,7 +35,7 @@ export const COACH_TOOLS: ToolDef[] = [
           nome:    { type: "string", description: "Nome della tappa (es. 'Tappa 1 Roma')" },
           luogo:   { type: "string", description: "Luogo dove si svolge la tappa" },
           data:    { type: "string", description: "Data in formato YYYY-MM-DD" },
-          squadre: { type: "array",  description: `Array con i nomi di TUTTE le squadre partecipanti, da ${MIN_SQUADRE} a ${MAX_SQUADRE}. Esempio: ['Ballers Roma', 'Street Kings', 'Wildcats']`, items: { type: "string" } },
+          squadre: { type: "array",  description: `Array con i nomi di TUTTE le squadre partecipanti, da ${MIN_SQUADRE} a ${MAX_SQUADRE}. Esempio: ['Ballers Roma', 'Street Kings', 'Wildcats']. ${DETTAGLIO_SQUADRA_ANAGRAFE}`, items: { type: "string" } },
           nGironi: { type: "number", description: "Numero di gironi: intero da 1 a metà delle squadre (default 2, oppure 1 con meno di 4 squadre)" },
         },
         required: ["nome", "squadre"],
@@ -44,9 +50,9 @@ export const COACH_TOOLS: ToolDef[] = [
       parameters: {
         type: "object",
         properties: {
-          squadra_a:  { type: "string", description: "Nome della prima squadra (o una parte che si trova in una squadra sola)" },
-          squadra_b:  { type: "string", description: "Nome della seconda squadra (o una parte che si trova in una squadra sola)" },
-          tappa_nome: { type: "string", description: "Nome della tappa (opzionale, default: ultima tappa)" },
+          squadra_a:  { type: "string", description: `Nome della prima squadra (o una parte che si trova in una squadra sola) ${DETTAGLIO_SQUADRA}` },
+          squadra_b:  { type: "string", description: `Nome della seconda squadra (o una parte che si trova in una squadra sola) ${DETTAGLIO_SQUADRA}` },
+          tappa_nome: { type: "string", description: `Nome della tappa (opzionale, default: ultima tappa) ${DETTAGLIO_TAPPA}` },
         },
         required: ["squadra_a", "squadra_b"],
       },
@@ -82,10 +88,10 @@ export const COACH_TOOLS: ToolDef[] = [
       parameters: {
         type: "object",
         properties: {
-          squadra:    { type: "string", description: "Nome attuale della squadra nella tappa (o una parte che si trova in una squadra sola)" },
+          squadra:    { type: "string", description: `Nome attuale della squadra nella tappa (o una parte che si trova in una squadra sola) ${DETTAGLIO_SQUADRA}` },
           nuovo_nome: { type: "string", description: "Il nome corretto della squadra" },
           giocatori:  { type: "array",  description: `L'elenco completo dei giocatori della squadra, da 1 a ${MAX_ROSTER} nomi: sostituisce quello di adesso`, items: { type: "string" } },
-          tappa_nome: { type: "string", description: "Nome della tappa (opzionale, default: ultima tappa)" },
+          tappa_nome: { type: "string", description: `Nome della tappa (opzionale, default: ultima tappa) ${DETTAGLIO_TAPPA}` },
         },
         required: ["squadra"],
       },
@@ -147,7 +153,7 @@ export const COACH_TOOLS: ToolDef[] = [
       parameters: {
         type: "object",
         properties: {
-          tappa_nome: { type: "string", description: "Nome (o parte del nome) della tappa su cui sorteggiare. Ometti per usare l'ultima tappa." },
+          tappa_nome: { type: "string", description: `Nome (o parte del nome) della tappa su cui sorteggiare. Ometti per usare l'ultima tappa. ${DETTAGLIO_TAPPA}` },
           mode:       { type: "string", enum: ["casuale", "ranking"], description: "Modalità: 'casuale' (default) oppure 'ranking' (distribuzione a serpentina per ranking)" },
         },
         required: [],
@@ -162,7 +168,7 @@ export const COACH_TOOLS: ToolDef[] = [
       parameters: {
         type: "object",
         properties: {
-          tappa_nome:  { type: "string", description: "Nome (o parte del nome) della tappa. Ometti per usare l'ultima tappa." },
+          tappa_nome:  { type: "string", description: `Nome (o parte del nome) della tappa. Ometti per usare l'ultima tappa. ${DETTAGLIO_TAPPA}` },
           qualificate: { type: "number", description: "Quante squadre per girone si qualificano: un intero da 1 in su (default 2)" },
         },
         required: [],
@@ -177,11 +183,11 @@ export const COACH_TOOLS: ToolDef[] = [
       parameters: {
         type: "object",
         properties: {
-          squadra_a:  { type: "string", description: "Nome della prima squadra (o una parte che si trova in una squadra sola)" },
+          squadra_a:  { type: "string", description: `Nome della prima squadra (o una parte che si trova in una squadra sola) ${DETTAGLIO_SQUADRA}` },
           punti_a:    { type: "number", description: "Punteggio della prima squadra" },
-          squadra_b:  { type: "string", description: "Nome della seconda squadra (o una parte che si trova in una squadra sola)" },
+          squadra_b:  { type: "string", description: `Nome della seconda squadra (o una parte che si trova in una squadra sola) ${DETTAGLIO_SQUADRA}` },
           punti_b:    { type: "number", description: "Punteggio della seconda squadra" },
-          tappa_nome: { type: "string", description: "Nome della tappa (opzionale, default: ultima tappa)" },
+          tappa_nome: { type: "string", description: `Nome della tappa (opzionale, default: ultima tappa) ${DETTAGLIO_TAPPA}` },
           fase:       { type: "string", description: "Opzionale: 'girone' o 'diretta' (eliminazione diretta). Passalo SOLO se la stessa coppia di squadre si affronta in entrambe le fasi e bisogna distinguere." },
         },
         required: ["squadra_a", "punti_a", "squadra_b", "punti_b"],
@@ -196,7 +202,7 @@ export const COACH_TOOLS: ToolDef[] = [
       parameters: {
         type: "object",
         properties: {
-          tappa_nome: { type: "string", description: "Nome della tappa da concludere (opzionale, default: ultima tappa)" },
+          tappa_nome: { type: "string", description: `Nome della tappa da concludere (opzionale, default: ultima tappa) ${DETTAGLIO_TAPPA}` },
         },
         required: [],
       },
@@ -215,7 +221,7 @@ export const COACH_TOOLS: ToolDef[] = [
           nGironi:    { type: "number", description: "Numero di gironi: intero da 1 a metà delle squadre (default 2, oppure 1 con meno di 4 squadre)" },
           scelta:     { type: "string", enum: ["casuale", "ranking", "citta"], description: "Come scegliere le squadre: 'casuale' (default), 'ranking' (quelle con più punti ranking) oppure 'citta' (solo quelle della città indicata)" },
           citta:      { type: "string", description: "Città delle squadre, obbligatoria con scelta 'citta'" },
-          squadre:    { type: "array", description: `Nomi di squadre da includere comunque, se in anagrafe hanno almeno ${MIN_ROSTER} giocatori; il resto si sceglie con 'scelta'`, items: { type: "string" } },
+          squadre:    { type: "array", description: `Nomi di squadre da includere comunque, se in anagrafe hanno almeno ${MIN_ROSTER} giocatori; il resto si sceglie con 'scelta'. ${DETTAGLIO_SQUADRA_ANAGRAFE}`, items: { type: "string" } },
           luogo:      { type: "string", description: "Luogo dove si svolge la tappa" },
           data:       { type: "string", description: "Data in formato YYYY-MM-DD" },
           qualificate: { type: "number", description: "Quante squadre per girone passano alla fase finale: intero da 1 in su (default 2)" },
@@ -234,7 +240,7 @@ export const COACH_TOOLS: ToolDef[] = [
       parameters: {
         type: "object",
         properties: {
-          tappa_nome: { type: "string", description: "Nome (o parte del nome) della tappa. Ometti per usare l'ultima tappa." },
+          tappa_nome: { type: "string", description: `Nome (o parte del nome) della tappa. Ometti per usare l'ultima tappa. ${DETTAGLIO_TAPPA}` },
           fase:       { type: "string", enum: ["tutto", "gironi", "finale"], description: "Cosa giocare: 'tutto' (default), 'gironi' oppure 'finale' (solo se i gironi sono finiti)" },
           tabellini:  { type: "boolean", description: "Se generare i tabellini dei giocatori nelle gare dei gironi (default true)" },
           qualificate: { type: "number", description: "Quante squadre per girone passano alla fase finale: intero da 1 in su (default 2)" },
@@ -251,16 +257,16 @@ export const COACH_TOOLS: ToolDef[] = [
       parameters: {
         type: "object",
         properties: {
-          tappa_nome: { type: "string", description: "Nome della tappa (opzionale, default: ultima tappa)" },
+          tappa_nome: { type: "string", description: `Nome della tappa (opzionale, default: ultima tappa) ${DETTAGLIO_TAPPA}` },
           risultati: {
             type: "array",
             description: `I risultati, da 1 a ${MAX_RISULTATI}: una voce per partita`,
             items: {
               type: "object",
               properties: {
-                squadra_a: { type: "string", description: "Nome della prima squadra (o una parte che si trova in una squadra sola)" },
+                squadra_a: { type: "string", description: `Nome della prima squadra (o una parte che si trova in una squadra sola) ${DETTAGLIO_SQUADRA}` },
                 punti_a:   { type: "number", description: "Punteggio della prima squadra" },
-                squadra_b: { type: "string", description: "Nome della seconda squadra (o una parte che si trova in una squadra sola)" },
+                squadra_b: { type: "string", description: `Nome della seconda squadra (o una parte che si trova in una squadra sola) ${DETTAGLIO_SQUADRA}` },
                 punti_b:   { type: "number", description: "Punteggio della seconda squadra" },
                 fase:      { type: "string", description: "Opzionale: 'girone' o 'diretta'. Passalo SOLO se la stessa coppia si affronta in entrambe le fasi" },
               },
