@@ -10,7 +10,7 @@ import { standings } from "../utils/standings";
 import { nomeSquadra, squadraDi } from "../utils/tappaInfo";
 import { pulisci } from "../utils/buildCoachContext";
 import { conteggio } from "../utils/testi";
-import { trovaPerNome, type Dettagli } from "../utils/ricercaPerNome";
+import { dettagliSquadraAnagrafe, trovaPerNome } from "../utils/ricercaPerNome";
 
 /** Numeri in [0, 1). In produzione è Math.random; nei test si passa un generatore con seme */
 export type Rng = () => number;
@@ -104,13 +104,6 @@ export interface CriteriScelta {
   obbligatorie?: string[];
 }
 
-/** Come si distinguono due squadre omonime nell'anagrafe: la città e l'autore, che il dettaglio tra parentesi accetta
- *  («Roma (Torino)», «Roma (di Anna)»). È la regola del Coach (trovaPerNome, utils/ricercaPerNome) */
-const dettagliSquadra: Dettagli<RegSquadra> = {
-  descrittori: (s) => [s.citta, `di ${s.autore}`, s.autore].filter((d) => d.trim()),
-  descrivi: (s) => `"${pulisci(s.nome)}" (${pulisci(s.citta) || "città non indicata"}, di ${pulisci(s.autore)})`,
-};
-
 /** Il messaggio di un errore lanciato da trovaPerNome, o il testo se non è un Error */
 function messaggioDi(e: unknown): string {
   if (e instanceof Error) return e.message;
@@ -166,7 +159,7 @@ export function scegliSquadre(
     // Con più squadre omonime che il nome non distingue trovaPerNome lancia l'errore che le elenca: qui è la risposta di scegliSquadre
     let squadra: RegSquadra | null;
     try {
-      squadra = trovaPerNome(squadre, nome, (s) => s.nome, "squadre in anagrafe", dettagliSquadra);
+      squadra = trovaPerNome(squadre, nome, (s) => s.nome, "squadre in anagrafe", dettagliSquadraAnagrafe);
     } catch (e) {
       return { ok: false, errore: messaggioDi(e) };
     }
