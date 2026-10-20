@@ -193,8 +193,11 @@ Profilo dell'utente (/profilo)
   della tappa (tiene nome, logo e ranking che ha) e il suo nome torna
   modificabile. Lo scollegamento si decide sulla lista fresca del server,
   non sulla cache (che non vede le voci create da altri dopo il suo
-  caricamento): se il server non risponde non si scollega niente. Le tappe
-  concluse non vengono toccate.
+  caricamento): se il server non risponde non si scollega niente. Una squadra
+  collegata resta collegata alla sua voce, anche se la cache non la conosce
+  ancora: la chiede al server, e non si ricollega a un'omonima per nome. Per
+  nome si collegano solo le squadre senza collegamento. Le tappe concluse non
+  vengono toccate.
 - Regole di gara personalizzabili per tappa:
     • Punteggio target (default 21)
     • Durata massima in minuti (default 10)
