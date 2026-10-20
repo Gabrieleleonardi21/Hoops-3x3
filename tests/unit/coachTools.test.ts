@@ -581,6 +581,28 @@ describe("Coach AI: due squadre dell'anagrafe con lo stesso nome esatto", () => 
     await creaTappaCon(["Ballers (U18)", "Beta"]);
     expect(anagrafeApi.createSquadra).toHaveBeenCalledWith(expect.objectContaining({ nome: "Ballers (U18)" }));
   });
+
+  it("crea_tappa con «Roma (Bari)» tra una Roma di Bari e una di Bari Vecchia, di altri: collega quella di Bari", async () => {
+    // «bari» sta anche in «Bari Vecchia»: il dettaglio uguale alla città la sceglie, senza passare dalla parte
+    anagrafe(inAnagrafe("Roma", [], { id: "r-ba", citta: "Bari" }), inAnagrafe("Roma", [], { id: "r-bv", citta: "Bari Vecchia" }));
+    expect(await creaTappaCon(["Roma (Bari)", "Beta"])).not.toMatch(/^Errore/);
+    expect(store().tappe[1].squadre[0]).toMatchObject({ nome: "Roma", regId: "r-ba" });
+  });
+
+  it("crea_tappa con «Roma (di Anna)» tra le Roma di Anna e di Annalisa, nessuna dell'utente: collega quella di Anna", async () => {
+    // Autori diversi dall'utente (u1): con «Anna» e «Annalisa» dell'utente la scelta la farebbe traLeMie
+    anagrafe(romaDi("anna5", "Anna", "u5", "Milano"), romaDi("annalisa", "Annalisa", "u6", "Torino"));
+    expect(await creaTappaCon(["Roma (di Anna)", "Beta"])).not.toMatch(/^Errore/);
+    expect(store().tappe[1].squadre[0]).toMatchObject({ nome: "Roma", regId: "reg-Roma-anna5" });
+  });
+
+  // Copertura del ramo: due «Roma» dell'utente, una per città; il dettaglio sceglie quella di Torino senza chiedere
+  it("aggiorna_squadra con «Roma (Torino)» tra due Roma dell'utente aggiorna quella di Torino", async () => {
+    anagrafe(anna, annaBis);
+    modello(strumenti(["aggiorna_squadra", { nome: "Roma (Torino)", citta: "Lazio" }]), testo("Fatto."));
+    await chiedi(coach(), "Roma di Torino è del Lazio");
+    expect(anagrafeApi.updateSquadra).toHaveBeenCalledExactlyOnceWith("reg-Roma-anna2", expect.objectContaining({ citta: "Lazio" }));
+  });
 });
 
 describe("Coach AI: il roster delle squadre dell'anagrafe nella tappa", () => {
