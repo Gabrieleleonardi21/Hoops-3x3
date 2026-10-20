@@ -171,11 +171,24 @@ Profilo dell'utente (/profilo)
   nome, con «Riprova». La risposta collega la squadra solo se ha ancora il
   nome per cui è partita la ricerca (se intanto si è continuato a scrivere,
   o una seconda uscita dal campo ha già collegato, non cambia niente).
+  Con due o più squadre omonime in anagrafe (città o autore diversi) il
+  collegamento non sceglie la prima: si apre la finestra «Più squadre si
+  chiamano «Roma»: quale collegare?», con una riga per voce (logo, nome, città
+  e autore). «Collega» collega la voce scelta; «Registra una nuova squadra con
+  questo nome» ne crea un'altra con lo stesso nome (la finestra dice che posto
+  avrebbe); «Annulla», Esc e un clic sullo sfondo non scrivono niente, né nella
+  tappa né in anagrafe. Con una voce sola il collegamento resta automatico.
   «Scollega», sotto il badge «Anagrafe», toglie il collegamento e rende di
-  nuovo modificabile il nome: serve a cambiarlo, perché con lo stesso nome
-  alla prossima apertura della tappa la squadra si ricollega per nome (la
-  voce dell'anagrafe resta: si elimina dalla pagina Anagrafe). All'apertura della tappa le squadre collegate si
-  riallineano ai dati dell'anagrafe (nome, logo, ranking, sito). Una squadra
+  nuovo modificabile il nome; nome, logo, ranking e sito restano quelli che la
+  squadra ha. Lo scollegamento resta anche alla riapertura della tappa: una
+  squadra scollegata a mano non si ricollega da sola per nome. Per ricollegarla
+  si scrive di nuovo il nome (o si sceglie la voce). La voce dell'anagrafe
+  resta: si elimina dalla pagina Anagrafe. All'apertura della tappa le squadre
+  collegate si riallineano ai dati dell'anagrafe (nome, logo, ranking, sito),
+  e i giocatori scritti a mano ricevono il collegamento alla persona
+  dell'anagrafe quando il nome è riconoscibile senza ambiguità: solo se la
+  squadra è collegata e nel suo roster c'è un solo giocatore con quel nome. Con
+  due omonimi nel roster, o senza collegamento, la riga resta com'è, per nome. Una squadra
   collegata a una voce poi eliminata dall'anagrafe si scollega all'apertura
   della tappa (tiene nome, logo e ranking che ha) e il suo nome torna
   modificabile. Lo scollegamento si decide sulla lista fresca del server,
@@ -601,11 +614,13 @@ esplicitamente:
                       corrispondono più d'una si ferma e chiede il nome
                       completo; con due squadre dallo stesso nome esatto
                       collega quella creata dall'utente se è una sola,
-                      altrimenti si ferma), ne porta con sé i giocatori del
-                      roster, al massimo 4 per squadra (il modello sa chi è
-                      rimasto fuori), e registra con i dati minimi quelle
-                      mancanti. Se l'anagrafe non risponde non crea la tappa
-                      e non registra niente.
+                      altrimenti si ferma; «Roma (Torino)» sceglie per città),
+                      ne porta con sé i giocatori del roster, al massimo 4 per
+                      squadra (il modello sa chi è rimasto fuori), e registra
+                      con i dati minimi quelle mancanti. Se la lega ha già una
+                      tappa con lo stesso nome chiede conferma; due nomi uguali
+                      nell'elenco delle squadre sono un errore. Se l'anagrafe
+                      non risponde non crea la tappa e non registra niente.
   crea_tappa_simulata Crea una tappa di prova: sceglie da sola le squadre
                       dell'anagrafe che hanno almeno 3 giocatori, le iscrive,
                       sorteggia e gioca tutte le gare dei gironi con i
@@ -637,7 +652,8 @@ esplicitamente:
                       dell'anagrafe), per esempio dopo l'import da una foto.
                       Non cancella risultati.
   registra_squadra    Aggiunge una squadra all'anagrafe condivisa; se ce n'è
-                      già una con lo stesso nome non ne crea un doppione.
+                      già una con lo stesso nome chiede conferma prima di
+                      registrarne un'altra (città e autore nella domanda).
   aggiorna_squadra    Modifica i dati di una squadra esistente in anagrafe
                       (logo, città, referente, rank, ecc.); la squadra si
                       sceglie come per crea_tappa, e con due squadre dallo
@@ -647,10 +663,20 @@ esplicitamente:
                       gli altri restano invariati. Se l'anagrafe non risponde
                       lo dice, senza modificare niente.
   registra_giocatore  Aggiunge un giocatore all'anagrafe condivisa; se ce n'è
-                      già uno con lo stesso nome e cognome non ne crea un
-                      doppione (un omonimo si registra dalla pagina Anagrafe).
+                      già uno con lo stesso nome e cognome chiede conferma
+                      prima di registrarne un altro.
   concludi_tappa      Conclude e pubblica la tappa nell'Archivio circuito
                       (richiede account non ospite). Chiede sempre conferma.
+
+Tappe e squadre omonime: il Coach non prende mai la prima. Se due tappe della
+lega hanno lo stesso nome elenca le opzioni con data e luogo e chiede quale
+intende; se due squadre di una tappa hanno lo stesso nome, elenca i gironi.
+Il dettaglio tra parentesi si può scrivere nel messaggio e il Coach lo accetta
+come scelta: «Prova (26/06/2026)» o «Prova (Torino)» per una tappa, «Roma
+(girone B)» per una squadra di tappa, «Roma (Torino)» per una squadra
+dell'anagrafe. Il nome esatto, con le parentesi, vince sempre: una squadra che
+si chiama davvero «Roma (Torino)» si trova per intero. Una parte del nome che
+corrisponde a più elementi lo ferma con l'elenco.
 
 Conferme: prima di sorteggiare su una tappa con risultati, annullare un
 risultato, concludere una tappa o inventare i risultati mancanti
