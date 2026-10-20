@@ -1,6 +1,6 @@
 HOOP 3X3 — Gestionale per circuiti di basket 3x3
 =================================================
-Documento aggiornato il 19/10/2026
+Documento aggiornato il 20/10/2026
 
 Il perché di ogni tecnologia e di ogni scelta è nel README.md, parte 1.
 
@@ -148,11 +148,15 @@ Profilo dell'utente (/profilo)
 3. GESTIONE TAPPE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-- Creazione tappa con: nome (fino a 120 caratteri), luogo (fino a 160), data
-  (vuota o aaaa-mm-gg), numero di squadre (da 2 a 64) e di gironi (un intero
-  da 1 a metà delle squadre, al massimo 32). I limiti sono gli stessi per
-  l'interfaccia e per il Coach AI e si controllano prima di salvare.
-- Aggiunta e rimozione squadre iscritte. Il roster di ogni squadra ha da 3 a 4
+- Creazione tappa con: nome (fino a 120 caratteri; se è vuoto la tappa si
+  chiama «Tappa N», con il primo numero libero nella lega, anche dal Coach),
+  luogo (fino a 160), data (vuota o aaaa-mm-gg), numero di squadre (da 2 a 64)
+  e di gironi (un intero da 1 a metà delle squadre, al massimo 32). I limiti
+  sono gli stessi per l'interfaccia e per il Coach AI e si controllano prima di
+  salvare.
+- Aggiunta e rimozione squadre iscritte. Una squadra nuova ha il nome
+  segnaposto «Squadra N», con il primo numero libero nella tappa: i numeri
+  liberati da una cancellazione si riusano. Il roster di ogni squadra ha da 3 a 4
   giocatori: almeno 3, con il nome, per poter sorteggiare (controllo
   disattivato in modalità Ospite), al massimo 4 (al quarto sparisce il
   pulsante «Aggiungi giocatore»).
@@ -190,8 +194,11 @@ Profilo dell'utente (/profilo)
   squadra è collegata e nel suo roster c'è un solo giocatore con quel nome. Con
   due omonimi nel roster, o senza collegamento, la riga resta com'è, per nome. Una squadra
   collegata a una voce poi eliminata dall'anagrafe si scollega all'apertura
-  della tappa (tiene nome, logo e ranking che ha) e il suo nome torna
-  modificabile. Lo scollegamento si decide sulla lista fresca del server,
+  della tappa (tiene nome, logo e ranking che ha), il suo nome torna
+  modificabile e la card lo dice sotto il nome, finché non si scrive un nome
+  nuovo. Se in anagrafe resta una sola squadra con quel nome, la squadra si
+  ricollega a quella nello stesso giro, senza avviso; altrimenti resta
+  scollegata. Lo scollegamento si decide sulla lista fresca del server,
   non sulla cache (che non vede le voci create da altri dopo il suo
   caricamento): se il server non risponde non si scollega niente. Una squadra
   collegata resta collegata alla sua voce, anche se la cache non la conosce
@@ -501,12 +508,10 @@ Statistiche stagione (tab dedicato)
     sommate in quella riga. Il segno ha il suo testo al passaggio del mouse e
     per lo schermo parlato: collegare la squadra e registrare entrambi
     separa le due persone.
-  - Nomi predefiniti: «Tappa N» e «Squadra N» prendono il primo numero libero
-    nella lega o nella tappa, quindi dopo una cancellazione non si ripetono.
   - Doppioni permessi, con avviso che non blocca mai:
     - una tappa con un nome già usato nella lega: il form lo dice con data e
-      luogo, e «Crea» crea lo stesso (le tappe si distinguono per data e
-      luogo);
+      luogo, e «Crea la tappa» crea lo stesso (le tappe si distinguono per data
+      e luogo); lo stesso avviso sta nel pannello di modifica della tappa;
     - due squadre con lo stesso nome nella stessa tappa, o due giocatori con
       lo stesso nome nella stessa rosa: l'avviso sta sotto il nome. Per due
       giocatori registrati con id diversi non avvisa;
@@ -611,8 +616,11 @@ esplicitamente:
 
   crea_lega           Crea una nuova lega e la imposta come attiva.
   crea_tappa          Crea una tappa con tutte le squadre in un'unica chiamata
-                      (da 2 a 64, con gli stessi limiti dell'interfaccia);
-                      cerca le squadre in anagrafe (nome esatto, oppure una
+                      (da 2 a 64, con gli stessi limiti dell'interfaccia). Il
+                      nome è facoltativo: senza, la tappa si chiama «Tappa N»
+                      con il primo numero libero nella lega. Con la lega già a
+                      100 tappe (il tetto del server) non crea niente e lo
+                      dice; cerca le squadre in anagrafe (nome esatto, oppure una
                       parte che corrisponde a una squadra sola: se ne
                       corrispondono più d'una si ferma e chiede il nome
                       completo; con due squadre dallo stesso nome esatto
@@ -629,8 +637,10 @@ esplicitamente:
                       sorteggia e gioca tutte le gare dei gironi con i
                       tabellini e la fase finale. Simulato: i punteggi e i
                       tabellini li genera l'app, sono numeri di prova e non
-                      risultati veri. Non scrive niente nell'anagrafe.
-  sorteggia_gironi    Esegue il sorteggio (casuale o per ranking) su una tappa.
+                      risultati veri. Non scrive niente nell'anagrafe. Il nome
+                      è facoltativo, come in crea_tappa; chiede conferma solo
+                      se la lega ha già una tappa con lo stesso nome.
+  sorteggia_gironi   Esegue il sorteggio (casuale o per ranking) su una tappa.
                       Se la tappa ha già dei risultati chiede conferma.
   genera_fasi_dirette Genera il tabellone a eliminazione diretta dalla
                       classifica dei gironi (le prime N di ogni girone, di
@@ -656,7 +666,9 @@ esplicitamente:
                       Non cancella risultati.
   registra_squadra    Aggiunge una squadra all'anagrafe condivisa; se ce n'è
                       già una con lo stesso nome chiede conferma prima di
-                      registrarne un'altra (città e autore nella domanda).
+                      registrarne un'altra (città e autore nella domanda). Una
+                      seconda registrazione dello stesso nome nella stessa
+                      richiesta è un errore, senza conferma.
   aggiorna_squadra    Modifica i dati di una squadra esistente in anagrafe
                       (logo, città, referente, rank, ecc.); la squadra si
                       sceglie come per crea_tappa, e con due squadre dallo
@@ -667,7 +679,9 @@ esplicitamente:
                       lo dice, senza modificare niente.
   registra_giocatore  Aggiunge un giocatore all'anagrafe condivisa; se ce n'è
                       già uno con lo stesso nome e cognome chiede conferma
-                      prima di registrarne un altro.
+                      prima di registrarne un altro (autore nella domanda). Una
+                      seconda registrazione dello stesso nome nella stessa
+                      richiesta è un errore, senza conferma.
   concludi_tappa      Conclude e pubblica la tappa nell'Archivio circuito
                       (richiede account non ospite). Chiede sempre conferma.
 
@@ -677,7 +691,9 @@ intende; se due squadre di una tappa hanno lo stesso nome, elenca i gironi.
 Il dettaglio tra parentesi si può scrivere nel messaggio e il Coach lo accetta
 come scelta: «Prova (26/06/2026)» o «Prova (Torino)» per una tappa, «Roma
 (girone B)» per una squadra di tappa, «Roma (Torino)» per una squadra
-dell'anagrafe. Il nome esatto, con le parentesi, vince sempre: una squadra che
+dell'anagrafe. Per le squadre dell'anagrafe vale prima il dettaglio uguale
+(città o autore), poi la parte: «Roma (Bari)» prende la Roma di Bari e non
+«Bari Vecchia». Il nome esatto, con le parentesi, vince sempre: una squadra che
 si chiama davvero «Roma (Torino)» si trova per intero. Una parte del nome che
 corrisponde a più elementi lo ferma con l'elenco. Un dettaglio che non sceglie
 tra due o più squadre omonime lo ferma con l'elenco, e non registra una squadra
@@ -690,10 +706,14 @@ risultato, concludere una tappa o inventare i risultati mancanti
 succede, con «Annulla» e «Conferma». Senza «Conferma» non cambia niente e il
 modello lo sa (non riprova da solo). Se l'azione verrebbe comunque rifiutata
 (tappa conclusa, partite mancanti) non si chiede niente e il motivo arriva al
-modello. Gli altri strumenti non chiedono conferma.
+modello. `crea_tappa`, `crea_tappa_simulata`, `registra_squadra` e
+`registra_giocatore` chiedono conferma solo davanti a un omonimo; gli altri
+strumenti non chiedono conferma.
 
 Limiti del ciclo: in una richiesta il Coach concatena al massimo 8 giri di
 strumenti, poi risponde; una chiamata identica a una già fatta non si ripete.
+Una tappa, una squadra o un giocatore creati in questa richiesta non si creano
+due volte: la seconda volta è un errore, senza conferma.
 Uno strumento che fallisce non ferma gli altri: il motivo arriva al modello e
 l'azione non compare tra i badge sotto la risposta.
 
