@@ -101,8 +101,6 @@ export async function eseguiCreaTappaSimulata(args: Argomenti, ctx: ContestoStru
 
   const nome = obbligatorio(args, "nome", "il nome della tappa");
   if (ctx.creati?.has(normalizza(nome))) throw new Error(erroreTappaDuplicata(nome));
-  // Una tappa con lo stesso nome di una della lega: si crea solo se l'utente conferma (D3)
-  await confermaTappaOmonima(nome, tappe, ctx);
   const luogo = str(args, "luogo");
   const data = str(args, "data");
   let nSquadre = SQUADRE_DI_DEFAULT;
@@ -113,6 +111,9 @@ export async function eseguiCreaTappaSimulata(args: Argomenti, ctx: ContestoStru
   if (presente(args, "squadre")) obbligatorie.push(...nomiSquadre(args));
   const fase = faseFinoA(args);
   const opzioni: OpzioniSimulazione = { fase, tabellini: interruttore(args, "tabellini"), qualificate: qualificateRichieste(args) };
+  // Una tappa con lo stesso nome di una della lega: si crea solo se l'utente conferma (D3). La conferma viene dopo gli argomenti
+  // (come in crea_tappa): con un argomento sbagliato l'errore arriva al modello, senza chiedere niente all'utente
+  await confermaTappaOmonima(nome, tappe, ctx);
 
   // Squadre e giocatori dall'anagrafe, in sola lettura: se la lettura fallisce o la chat si cancella, non si crea niente
   const [tutteSquadre, tuttiGiocatori] = await Promise.all([fetchSquadre(), fetchGiocatori()]);

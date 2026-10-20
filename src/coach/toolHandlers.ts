@@ -92,11 +92,16 @@ function findSquadra(squadre: RegSquadra[], nome: string, traLeOmonime: (omonime
   const literale = squadre.some((s) => normalizza(s.nome) === normalizza(nome));
   if (dettaglio !== null && !literale) {
     const cercato = normalizza(dettaglio);
-    const scelte = squadre.filter((s) => normalizza(s.nome) === normalizza(base)
-      && [s.citta, `di ${s.autore}`, s.autore].some((d) => normalizza(d).includes(cercato)));
+    const omonimeDiBase = squadre.filter((s) => normalizza(s.nome) === normalizza(base));
+    const scelte = omonimeDiBase.filter((s) => [s.citta, `di ${s.autore}`, s.autore].some((d) => normalizza(d).includes(cercato)));
     if (scelte.length === 1) return scelte[0];
     if (scelte.length > 1) return traLeOmonime(scelte);
-    // Nessuna squadra con quel nome e quel dettaglio: è un nome nuovo, come lo era prima del dettaglio (crea_tappa la registra)
+    // Ci sono omonime ma il dettaglio non ne sceglie nessuna: non si registra una squadra nuova con lo stesso nome, si elencano le opzioni
+    if (omonimeDiBase.length > 0) {
+      const opzioni = omonimeDiBase.map(descrizione).join("; ");
+      throw new Error(`Nessuna "${pulisci(base)}" corrisponde a "(${pulisci(dettaglio)})": le opzioni sono ${opzioni}.`);
+    }
+    // Nessuna squadra con quel nome: un nome nuovo, come lo era prima del dettaglio (crea_tappa la registra)
     return null;
   }
   const omonime = squadre.filter((s) => s.nome.toLowerCase() === nome.toLowerCase());

@@ -566,6 +566,21 @@ describe("Coach AI: due squadre dell'anagrafe con lo stesso nome esatto", () => 
       + "Il Coach non sa quale collegare alla tappa: sistema i doppioni dalla pagina Anagrafe e riprova.",
     );
   });
+
+  it("crea_tappa con «Roma (Torino)» e due «Roma» di altre città: non registra il dettaglio come nome nuovo, elenca le opzioni", async () => {
+    anagrafe(inAnagrafe("Roma", [], { id: "r-mi", citta: "Milano" }), inAnagrafe("Roma", [], { id: "r-na", citta: "Napoli" }));
+    expect(await creaTappaCon(["Roma (Torino)", "Beta"])).toBe(
+      'Errore: Nessuna "Roma" corrisponde a "(Torino)": le opzioni sono "Roma" (Milano, di Bruno); "Roma" (Napoli, di Bruno).',
+    );
+    expect(anagrafeApi.createSquadra).not.toHaveBeenCalled();
+    expect(store().tappe.map((t) => t.nome)).toEqual(["Roma Open"]);
+  });
+
+  it("crea_tappa con «Ballers (U18)», un nome nuovo senza omonime: la squadra si registra con il nome intero", async () => {
+    anagrafe(bruno);
+    await creaTappaCon(["Ballers (U18)", "Beta"]);
+    expect(anagrafeApi.createSquadra).toHaveBeenCalledWith(expect.objectContaining({ nome: "Ballers (U18)" }));
+  });
 });
 
 describe("Coach AI: il roster delle squadre dell'anagrafe nella tappa", () => {
@@ -1807,6 +1822,18 @@ describe("Coach AI: crea_tappa_simulata, una tappa di prova con squadre dall'ana
     expect(c.current.msgs.at(-1)).toEqual({ role: "assistant", content: "Tappa di prova pronta.", tools: ["crea_tappa_simulata"] });
     render(createElement(MemoryRouter, null, createElement(CoachPanel, { onClose: vi.fn() })));
     expect(screen.getByTitle("Azione eseguita dal Coach AI").textContent).toContain("Tappa simulata");
+  });
+
+  it("una tappa omonima e un fino_a non valido: l'errore arriva prima della conferma, nessuna conferma e nessuna tappa", async () => {
+    useAppStore.setState({ tappe: [{ ...romaOpen(), nome: "Demo" }] });
+    const richieste = modello(strumenti(["crea_tappa_simulata", { nome: "demo", fino_a: "boh" }]), testo("Errore."));
+    const c = coach();
+    const invio = inviaSenzaAspettare(c, "Creami una tappa di prova Demo");
+    // Il modello riceve l'errore senza che l'utente veda una conferma per una tappa che non si può creare
+    await waitFor(() => expect(esiti(richieste)).toHaveLength(1));
+    expect(c.current.conferma).toBeNull();
+    await act(async () => { await invio; });
+    expect(store().tappe.map((t) => t.nome)).toEqual(["Demo"]);
   });
 
   it("con meno squadre ammissibili di quelle chieste: l'errore dice il conteggio, nessuna tappa e nessuna scrittura in anagrafe", async () => {
