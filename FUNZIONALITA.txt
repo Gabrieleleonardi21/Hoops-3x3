@@ -676,7 +676,10 @@ come scelta: «Prova (26/06/2026)» o «Prova (Torino)» per una tappa, «Roma
 (girone B)» per una squadra di tappa, «Roma (Torino)» per una squadra
 dell'anagrafe. Il nome esatto, con le parentesi, vince sempre: una squadra che
 si chiama davvero «Roma (Torino)» si trova per intero. Una parte del nome che
-corrisponde a più elementi lo ferma con l'elenco.
+corrisponde a più elementi lo ferma con l'elenco. Un dettaglio che non sceglie
+tra due o più squadre omonime lo ferma con l'elenco, e non registra una squadra
+nuova con lo stesso nome: un nome con parentesi senza omonime («Ballers (U18)»)
+invece è una squadra nuova.
 
 Conferme: prima di sorteggiare su una tappa con risultati, annullare un
 risultato, concludere una tappa o inventare i risultati mancanti

@@ -101,7 +101,9 @@ Tutti gli strumenti di tappa accettano `tappa_nome` (facoltativo):
      luogo e chiede il dettaglio, per esempio «Più tappe si chiamano "Prova": "Prova" (12/05/2026, Torino); "Prova" (26/06/2026,
      Milano). Scrivi il nome con un dettaglio tra parentesi, per esempio "Prova (26/06/2026)".»;
   2. il nome **con un dettaglio tra parentesi** in fondo, che sceglie tra le tappe con quel nome: la data («Roma Open (12/05/2026)»)
-     o il luogo («Roma Open (Torino)»), senza distinguere maiuscole e accenti. Se il dettaglio non ne sceglie una sola, l'errore
+     o il luogo («Roma Open (Torino)»), senza distinguere maiuscole e accenti. Prima vale il dettaglio uguale a un dato
+     dell'elemento (la lettera del girone «B», la città «Torino»): se ne corrisponde uno solo è quello, anche se un'altra ha una
+     parte uguale (una città «Bari» contiene «b»). Se il dettaglio non ne sceglie una sola, l'errore
      elenca le opzioni («Nessuna "Roma Open" corrisponde a "(oggi)": le opzioni sono …»; o «Più …» se ne corrispondono più d'una).
      Se nessuna tappa ha quel nome, il passo salta e il nome intero passa al punto 3;
   3. una **parte** del nome, purché corrisponda a **una sola** tappa. Se la parte corrisponde a più tappe è un errore che chiede il
@@ -120,8 +122,10 @@ prima guarda il dettaglio tra parentesi e poi gli omonimi esatti):
 
 - vince il nome **esatto** (maiuscole a parte): con «Roma Kings» elencata prima di «Roma», chiedere «Roma» sceglie «Roma»;
 - con un **dettaglio tra parentesi** la città o l'autore scelgono tra le squadre con quel nome: «Roma (Torino)», «Roma (di Gabriele)».
-  Il nome intero ha la precedenza, così «Roma (Torino)» è la squadra che si chiama così. Se il dettaglio non corrisponde a nessuna
-  squadra con quel nome, è un nome nuovo: `crea_tappa` registra la squadra, `aggiorna_squadra` risponde «non trovata in anagrafe»;
+  Il nome intero ha la precedenza, così «Roma (Torino)» è la squadra che si chiama così. Se ci sono squadre con quel nome (anche
+  una sola) ma il dettaglio non ne sceglie nessuna, è un errore che le elenca («Nessuna "Roma" corrisponde a "(Napoli)": le opzioni
+  sono …»): non si registra una squadra nuova con lo stesso nome. Solo se il nome base non ha omonime, il nome intero è una squadra
+  nuova: `crea_tappa` la registra («Ballers (U18)»), `aggiorna_squadra` risponde «non trovata in anagrafe»;
 - se **due o più squadre** hanno lo stesso nome esatto (né il server né la pagina Anagrafe impediscono i doppioni) non vince la
   prima: la scelta dipende dallo strumento e dall'utente di adesso (`useAppStore.getState().user`):
   - `aggiorna_squadra` tiene tra gli omonimi quelle che l'utente può modificare (`puoModificare` in `utils/permessi.ts`: le sue, o
@@ -168,7 +172,7 @@ tappa, «Roma (Torino)» per una squadra dell'anagrafe. Le descrizioni degli str
 - **Azione:**
   1. Controlla i limiti (`erroreLimitiTappa` di `tappaOps`: numero di squadre e di gironi, nome fino a 120 caratteri, luogo fino a 160, data vuota o aaaa-mm-gg) **prima** di toccare l'anagrafe: una tappa rifiutata non lascia squadre registrate
   2. Carica in parallelo squadre e giocatori dell'anagrafe condivisa dal server (`anagrafeApi`: lettura sempre fresca, per non registrare doppioni). Se una delle due letture non riesce lo strumento si ferma con l'errore «L'anagrafe condivisa non risponde (<motivo>): non ho registrato né modificato niente, riprova tra poco.»: non registra niente, perché con un elenco vuoto passerebbero per nuove squadre che esistono già
-  3. Abbina **tutti** i nomi richiesti alle squadre dell'anagrafe con la regola di «Come si sceglie la squadra dell'anagrafe» (nome esatto, con il dettaglio tra parentesi «Roma (Torino)», o una parte che corrisponde a una squadra sola); un dettaglio che non corrisponde a nessuna squadra con quel nome è un nome nuovo (la squadra si registra); un nome che ne corrisponde a più (anche due dallo stesso nome esatto, se l'utente non ne ha una sola) ferma lo strumento con un errore, prima di registrare qualsiasi squadra
+  3. Abbina **tutti** i nomi richiesti alle squadre dell'anagrafe con la regola di «Come si sceglie la squadra dell'anagrafe» (nome esatto, con il dettaglio tra parentesi «Roma (Torino)», o una parte che corrisponde a una squadra sola); un dettaglio che non corrisponde a nessuna squadra con quel nome è un nome nuovo (la squadra si registra) solo se il nome base non ha omonime, altrimenti è un errore che elenca le opzioni; un nome che ne corrisponde a più (anche due dallo stesso nome esatto, se l'utente non ne ha una sola) ferma lo strumento con un errore, prima di registrare qualsiasi squadra
   4. Per le squadre trovate: popola `giocatori` con il roster dell'anagrafe, al massimo `MAX_ROSTER` (4, il tetto che l'interfaccia impone alle squadre di una tappa): i primi del roster. Gli altri restano fuori e il testo per il modello lo dice con le squadre e i **nomi** dei giocatori esclusi («Giocatori oltre il massimo di 4 per squadra, rimasti fuori dal roster (tenuti i primi dell'anagrafe): Roma Open 2: Anna, Bea; Alfa: Carlo. Nella pagina della tappa il roster si cambia a mano: l'utente toglie un giocatore e scrive il nome di chi vuole al suo posto.»; nomi di squadre e di giocatori passano da `pulisci`, e il formato «squadra: giocatori» non si confonde con un conteggio se il nome della squadra finisce con un numero); le altre squadre non compaiono. Nella pagina della tappa il roster è fatto di campi di testo (`RosterEditor`): non c'è una scelta dall'anagrafe. Copia inoltre `regId`, `logo`, `rank`, `website`, `instagram`
   5. Per le squadre non trovate: le registra in anagrafe con i dati minimi (`saveSquadra` di `useAnagrafeStore`, così si aggiorna anche la cache letta dalle pagine); il roster resta vuoto, da completare a mano
   6. Se intanto la chat è stata cancellata o si è aperta un'altra lega non crea la tappa (le squadre già registrate restano in anagrafe, e con un'altra lega aperta l'errore le elenca); altrimenti `creaTappa` di `tappaOps` + `addTappa` sullo store, poi apre `/lega/tappa/:id`
