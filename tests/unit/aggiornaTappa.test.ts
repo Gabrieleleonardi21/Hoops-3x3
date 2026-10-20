@@ -367,7 +367,7 @@ describe("useTappa: le modifiche partono dalla tappa com'è adesso, non da quell
         anagrafe.listSquadre.mockReturnValue(risposta.p);
         useAnagrafeStore.setState({ giocatori: [], squadre: [], caricata: true });
         const { result } = renderHook(() => useTappa("t1"));
-        let sincronizzazione = Promise.resolve();
+        let sincronizzazione: Promise<SquadraTappa[]> = Promise.resolve([]);
         act(() => { sincronizzazione = result.current.syncFromAnagrafe([]); });
         // La richiesta è partita prima che qualcuno registrasse la voce (ricerca, creazione o Coach): la cache la riceve nell'attesa
         act(() => { useAnagrafeStore.setState({ squadre: [voceNuova] }); });
@@ -391,7 +391,7 @@ describe("useTappa: le modifiche partono dalla tappa com'è adesso, non da quell
           anagrafe.listSquadre.mockReturnValue(risposta.p);
           useAnagrafeStore.setState({ giocatori: [], squadre: [], caricata: true });
           const { result } = renderHook(() => useTappa("t1"));
-          let sincronizzazione = Promise.resolve();
+          let sincronizzazione: Promise<SquadraTappa[]> = Promise.resolve([]);
           act(() => { sincronizzazione = result.current.syncFromAnagrafe([]); });
           // L'utente accede: la cache si svuota e il caricamento con il token la riempie con i dati completi
           act(() => {
@@ -411,7 +411,7 @@ describe("useTappa: le modifiche partono dalla tappa com'è adesso, non da quell
           anagrafe.listSquadre.mockReturnValue(risposta.p);
           useAnagrafeStore.setState({ giocatori: [], squadre: [completa], caricata: true });
           const { result } = renderHook(() => useTappa("t1"));
-          let sincronizzazione = Promise.resolve();
+          let sincronizzazione: Promise<SquadraTappa[]> = Promise.resolve([]);
           act(() => { sincronizzazione = result.current.syncFromAnagrafe([]); });
           // L'utente esce: la cache si svuota e una nuova lettura, senza token, la riempie con la forma pubblica
           act(() => {
@@ -443,12 +443,31 @@ describe("useTappa: le modifiche partono dalla tappa com'è adesso, non da quell
         await nienteSalvato(prima);
       });
 
-      it("eliminata ma sostituita da una voce con lo stesso nome sul server: la squadra si scollega e non si ricollega per nome", async () => {
+      it("eliminata ma sostituita da una voce con lo stesso nome sul server: dopo la verifica la squadra si collega a quella", async () => {
         conSquadraCollegata();
         anagrafe.listSquadre.mockResolvedValue([regAlfa]); // id r1: stesso nome, un'altra voce
         await sincronizza([]);
-        expect(squadre()[0]).toMatchObject({ nome: "Alfa" });
+        expect(squadre()[0]).toMatchObject({ nome: "Alfa", regId: "r1" });
+      });
+
+      it("una voce eliminata senza omonime: la squadra si scollega e la sincronizzazione la restituisce", async () => {
+        conSquadraCollegata();
+        anagrafe.listSquadre.mockResolvedValue([]);
+        const { result } = renderHook(() => useTappa("t1"));
+        let scollegate: SquadraTappa[] | undefined;
+        await act(async () => { scollegate = await result.current.syncFromAnagrafe([]); });
+        expect(scollegate).toEqual([expect.objectContaining({ id: "s1", nome: "Alfa" })]);
         expect(squadre()[0].regId).toBeUndefined();
+      });
+
+      it("con la voce ancora sul server la sincronizzazione non restituisce squadre scollegate", async () => {
+        conSquadraCollegata();
+        anagrafe.listSquadre.mockResolvedValue([voceNuova]);
+        const { result } = renderHook(() => useTappa("t1"));
+        let scollegate: SquadraTappa[] | undefined;
+        await act(async () => { scollegate = await result.current.syncFromAnagrafe([]); });
+        expect(scollegate).toEqual([]);
+        expect(squadre()[0].regId).toBe("r-nuova");
       });
 
       it("le voci trovate sul server entrano nella cache, senza toccare scritture e caricamento", async () => {
@@ -478,15 +497,16 @@ describe("useTappa: le modifiche partono dalla tappa com'è adesso, non da quell
       });
     });
 
-    it("una voce eliminata ma un'altra con lo stesso nome nella cache: la squadra non si ricollega per nome, chiede il server e si scollega", async () => {
+    it("una voce eliminata ma un'altra con lo stesso nome nella cache: chiede il server e si collega all'unica omonima conosciuta", async () => {
       const collegata = { ...squadra("s1", "Alfa"), regId: "r-eliminata" };
       useAppStore.setState({ tappe: [{ ...tappa(), squadre: [collegata, squadra("s2", "Squadra 2")] }] });
+      // La pagina passa la cache come `regs`: l'omonima sta lì, e il server non la ha più
+      useAnagrafeStore.setState({ squadre: [regAlfa], caricata: true });
       anagrafe.listSquadre.mockResolvedValue([]);
       const { result } = renderHook(() => useTappa("t1"));
       await act(async () => { await result.current.syncFromAnagrafe([regAlfa]); });
       expect(anagrafe.listSquadre).toHaveBeenCalledTimes(1);
-      expect(squadre()[0]).toMatchObject({ nome: "Alfa" });
-      expect(squadre()[0].regId).toBeUndefined();
+      expect(squadre()[0]).toMatchObject({ nome: "Alfa", regId: "r1" });
     });
 
     it("una squadra mai collegata e senza una voce con il suo nome resta com'è: non parte nessun salvataggio", async () => {
