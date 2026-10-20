@@ -26,7 +26,8 @@ export interface ContestoStrumenti {
   segnale: AbortSignal;
   /** Mostra nel pannello la richiesta di conferma di un'azione distruttiva (D4); true = «Conferma» */
   chiediConferma: (titolo: string, testo: string) => Promise<boolean>;
-  /** I nomi (normalizzati) delle tappe create in questa richiesta: il modello non ne crea due con lo stesso nome nella stessa richiesta.
+  /** Le chiavi (`chiaveCreato`) delle tappe, squadre e giocatori creati in questa richiesta: il modello non ne crea due con lo stesso
+   *  nome nella stessa richiesta.
    *  Facoltativo: chi non lo passa non ha il controllo, e le tappe della lega restano coperte dalla conferma (D3) */
   creati?: Set<string>;
 }
@@ -297,6 +298,17 @@ export async function confermaTappaOmonima(nome: string, tappe: Tappa[], ctx: Co
 export function erroreTappaDuplicata(nome: string): string {
   return `La tappa "${pulisci(nome)}" esiste già in questa lega: non ne creo un'altra.`;
 }
+
+/** La chiave con cui `creati` ricorda una voce creata in questa richiesta: il tipo e il nome normalizzato («squadra:roma») */
+export function chiaveCreato(tipo: "tappa" | "squadra" | "giocatore", nome: string): string {
+  return `${tipo}:${normalizza(nome)}`;
+}
+
+/** La squadra o il giocatore registrati due volte nella stessa richiesta: è il modello che ripete lo strumento, non l'utente */
+export const erroreSquadraRipetuta = (nome: string) =>
+  `La squadra "${pulisci(nome)}" è già stata registrata in questa richiesta: non ne registro un'altra.`;
+export const erroreGiocatoreRipetuto = (nome: string, cognome: string) =>
+  `Il giocatore "${pulisci(nome)} ${pulisci(cognome)}" è già stato registrato in questa richiesta: non ne registro un altro.`;
 
 /** I giocatori del roster di una squadra dell'anagrafe, nell'ordine del roster. Un id che non è più tra i giocatori dell'anagrafe si salta */
 function giocatoriDelRoster(reg: RegSquadra, giocatori: RegGiocatore[]): RegGiocatore[] {

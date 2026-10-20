@@ -5,7 +5,6 @@
 import { useAppStore } from "../stores/useAppStore";
 import { MAX_RISULTATI, MAX_TAPPE_LEGA } from "../constants/rules";
 import { pulisci, senzaTag } from "../utils/buildCoachContext";
-import { normalizza } from "../utils/identita";
 import { conteggio } from "../utils/testi";
 import { squadraDi } from "../utils/tappaInfo";
 import { creaTappa, sorteggia, type ModoSorteggio } from "../domain/tappaOps";
@@ -14,7 +13,7 @@ import {
 } from "../domain/simulazione";
 import type { Tappa } from "../types";
 import {
-  applica, confermaTappaOmonima, confermata, ERRORE_NESSUNA_LEGA, erroreTappaDuplicata, etichettaTappa, fermaSeCancellata, fetchGiocatori,
+  applica, chiaveCreato, confermaTappaOmonima, confermata, ERRORE_NESSUNA_LEGA, erroreTappaDuplicata, etichettaTappa, fermaSeCancellata, fetchGiocatori,
   fetchSquadre, gironiRichiesti, nomiSquadre,
   numero, obbligatorio, presente, qualificateRichieste, registraUnaRiga, squadraTappaDaAnagrafe, str, tappaRichiesta,
   type Argomenti, type ContestoStrumenti,
@@ -100,7 +99,7 @@ export async function eseguiCreaTappaSimulata(args: Argomenti, ctx: ContestoStru
   if (tappe.length >= MAX_TAPPE_LEGA) throw new Error(`La lega ha già ${MAX_TAPPE_LEGA} tappe: non ne creo un'altra.`);
 
   const nome = obbligatorio(args, "nome", "il nome della tappa");
-  if (ctx.creati?.has(normalizza(nome))) throw new Error(erroreTappaDuplicata(nome));
+  if (ctx.creati?.has(chiaveCreato("tappa", nome))) throw new Error(erroreTappaDuplicata(nome));
   const luogo = str(args, "luogo");
   const data = str(args, "data");
   let nSquadre = SQUADRE_DI_DEFAULT;
@@ -139,7 +138,7 @@ export async function eseguiCreaTappaSimulata(args: Argomenti, ctx: ContestoStru
     throw new Error("La lega aperta è cambiata mentre la tappa veniva preparata: tappa non creata.");
   }
   useAppStore.getState().addTappa(simulata.tappa);
-  ctx.creati?.add(normalizza(nome));
+  ctx.creati?.add(chiaveCreato("tappa", nome));
   ctx.vai(`/lega/tappa/${simulata.tappa.id}`);
 
   // I nomi delle squadre vengono dall'anagrafe condivisa (scritti da altri): senzaTag su tutto il testo, che è lungo

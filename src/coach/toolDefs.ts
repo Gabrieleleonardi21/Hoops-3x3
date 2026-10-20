@@ -101,7 +101,7 @@ export const COACH_TOOLS: ToolDef[] = [
     type: "function",
     function: {
       name: "registra_squadra",
-      description: "Registra una nuova squadra nell'anagrafe condivisa del circuito. Usalo solo se l'utente chiede esplicitamente di aggiungere o registrare una squadra.",
+      description: "Registra una nuova squadra nell'anagrafe condivisa del circuito. Usalo solo se l'utente chiede esplicitamente di aggiungere o registrare una squadra. Chiamalo una sola volta per ogni squadra: la stessa squadra registrata due volte nella stessa richiesta è un errore.",
       parameters: {
         type: "object",
         properties: {
@@ -123,7 +123,7 @@ export const COACH_TOOLS: ToolDef[] = [
     type: "function",
     function: {
       name: "registra_giocatore",
-      description: "Registra un nuovo giocatore nell'anagrafe condivisa del circuito. Usalo solo se l'utente chiede esplicitamente di aggiungere o registrare un giocatore.",
+      description: "Registra un nuovo giocatore nell'anagrafe condivisa del circuito. Usalo solo se l'utente chiede esplicitamente di aggiungere o registrare un giocatore. Chiamalo una sola volta per ogni giocatore: lo stesso giocatore registrato due volte nella stessa richiesta è un errore.",
       parameters: {
         type: "object",
         properties: {

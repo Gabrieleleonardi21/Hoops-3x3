@@ -1601,6 +1601,47 @@ describe("Coach AI: registra_squadra e registra_giocatore non fanno doppioni nel
     expect(anagrafeApi.createGiocatore).toHaveBeenCalledTimes(1);
     expect(anagrafeApi.createGiocatore).toHaveBeenCalledWith(expect.objectContaining({ cognome: "Bianchi" }));
   });
+
+  // Nella stessa richiesta il modello non registra due volte la stessa squadra o lo stesso giocatore (come crea_tappa, D3):
+  // la seconda chiamata è un errore, senza lettura dell'anagrafe e senza conferma
+  it("registra_squadra due volte nella stessa richiesta registra una volta sola: la seconda è un errore, senza conferma", async () => {
+    vi.mocked(anagrafeApi.createSquadra).mockImplementation(async (s) => ({ ...s, id: "nuova", autore: "Anna", autoreId: "u1", ts: 1 }));
+    const richieste = modello(
+      strumenti(["registra_squadra", { nome: "Delta" }]),
+      strumenti(["registra_squadra", { nome: "delta", citta: "Roma" }]),
+      testo("Ho registrato Delta una volta sola."),
+    );
+    const c = coach();
+    await chiedi(c, "Registra la squadra Delta");
+    expect(anagrafeApi.createSquadra).toHaveBeenCalledTimes(1);
+    expect(esiti(richieste)[1]).toContain("già stata registrata in questa richiesta");
+    expect(c.current.conferma).toBeNull();
+  });
+
+  it("registra_giocatore due volte nella stessa richiesta: la seconda è un errore", async () => {
+    vi.mocked(anagrafeApi.createGiocatore).mockImplementation(async (g) => ({ ...g, id: "nuovo", autore: "Anna", autoreId: "u1", ts: 1 }));
+    const richieste = modello(
+      strumenti(["registra_giocatore", { nome: "Mario", cognome: "Rossi" }]),
+      strumenti(["registra_giocatore", { nome: "mario", cognome: "ROSSI", squadra: "Delta" }]),
+      testo("Mario Rossi è registrato una volta sola."),
+    );
+    await chiedi(coach(), "Registra il giocatore Mario Rossi");
+    expect(anagrafeApi.createGiocatore).toHaveBeenCalledTimes(1);
+    expect(esiti(richieste)[1]).toContain("già stato registrato in questa richiesta");
+  });
+
+  it("la squadra registrata da crea_tappa non si registra di nuovo con registra_squadra nella stessa richiesta", async () => {
+    vi.mocked(anagrafeApi.createSquadra).mockImplementation(async (s) => ({ ...s, id: "nuova", autore: "Anna", autoreId: "u1", ts: 1 }));
+    const richieste = modello(
+      strumenti(["crea_tappa", { nome: "Tappa 2", squadre: ["Alfa", "Beta"] }]),
+      strumenti(["registra_squadra", { nome: "Alfa" }]),
+      testo("Alfa c'era già."),
+    );
+    await chiedi(coach(), "Crea la Tappa 2 con Alfa e Beta, poi registra Alfa");
+    // crea_tappa registra Alfa e Beta, una volta ciascuna: la registrazione ripetuta di Alfa non parte
+    expect(vi.mocked(anagrafeApi.createSquadra).mock.calls.filter(([s]) => s.nome === "Alfa")).toHaveLength(1);
+    expect(esiti(richieste)[1]).toContain("già stata registrata in questa richiesta");
+  });
 });
 
 describe("Coach AI: correggi_squadra, nome e giocatori di una squadra della tappa", () => {
