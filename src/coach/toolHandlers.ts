@@ -20,7 +20,7 @@ import type { RegSquadra, SquadraTappa, Tappa } from "../types";
 import { squadraDi } from "../utils/tappaInfo";
 import { puoModificare } from "../utils/permessi";
 import { normalizza } from "../utils/identita";
-import { separaDettaglio } from "../utils/ricercaPerNome";
+import { dettagliSquadraAnagrafe, separaDettaglio } from "../utils/ricercaPerNome";
 import { eseguiCreaTappaSimulata, eseguiRegistraRisultati, eseguiSimulaRisultati } from "./toolHandlersSimulazione";
 import {
   applica, chiaveCreato, confermaTappaOmonima, confermata, CONFERMA_VOCE_OMONIMA, ERRORE_NESSUNA_LEGA, erroreGiocatoreRipetuto,
@@ -49,11 +49,8 @@ function modoSorteggio(args: Argomenti): ModoSorteggio {
 
 
 
-/** Come si distingue una squadra da un'omonima: città e autore (scritti da altri utenti: passano da pulisci) */
-function descrizione(s: RegSquadra): string {
-  const citta = pulisci(s.citta) || "città non indicata";
-  return `"${pulisci(s.nome)}" (${citta}, di ${pulisci(s.autore)})`;
-}
+/** Come si distingue una squadra da un'omonima: città e autore. È la stessa frase della simulazione (dettagliSquadraAnagrafe) */
+const descrizione = dettagliSquadraAnagrafe.descrivi;
 
 /** L'errore per più squadre dallo stesso nome esatto: le elenca per città e autore e dice che fare */
 function erroreOmonime(omonime: RegSquadra[], cosaFare: string): Error {
@@ -93,7 +90,11 @@ function findSquadra(squadre: RegSquadra[], nome: string, traLeOmonime: (omonime
   if (dettaglio !== null && !literale) {
     const cercato = normalizza(dettaglio);
     const omonimeDiBase = squadre.filter((s) => normalizza(s.nome) === normalizza(base));
-    const scelte = omonimeDiBase.filter((s) => [s.citta, `di ${s.autore}`, s.autore].some((d) => normalizza(d).includes(cercato)));
+    const conDettaglio = (corrisponde: (d: string) => boolean) =>
+      omonimeDiBase.filter((s) => dettagliSquadraAnagrafe.descrittori(s).some((d) => corrisponde(normalizza(d))));
+    // Prima il descrittore uguale al dettaglio («Bari» non prende «Bari Vecchia», «di Anna» non prende «di Annalisa»), poi la parte
+    let scelte = conDettaglio((d) => d === cercato);
+    if (scelte.length === 0) scelte = conDettaglio((d) => d.includes(cercato));
     if (scelte.length === 1) return scelte[0];
     if (scelte.length > 1) return traLeOmonime(scelte);
     // Ci sono omonime ma il dettaglio non ne sceglie nessuna: non si registra una squadra nuova con lo stesso nome, si elencano le opzioni
@@ -104,7 +105,7 @@ function findSquadra(squadre: RegSquadra[], nome: string, traLeOmonime: (omonime
     // Nessuna squadra con quel nome: un nome nuovo, come lo era prima del dettaglio (crea_tappa la registra)
     return null;
   }
-  const omonime = squadre.filter((s) => s.nome.toLowerCase() === nome.toLowerCase());
+  const omonime = squadre.filter((s) => normalizza(s.nome) === normalizza(nome));
   if (omonime.length > 1) return traLeOmonime(omonime);
   return trovaPerNome(squadre, nome, (s) => s.nome, "squadre in anagrafe");
 }
