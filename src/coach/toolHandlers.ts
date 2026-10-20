@@ -23,10 +23,10 @@ import { normalizza } from "../utils/identita";
 import { separaDettaglio } from "../utils/ricercaPerNome";
 import { eseguiCreaTappaSimulata, eseguiRegistraRisultati, eseguiSimulaRisultati } from "./toolHandlersSimulazione";
 import {
-  applica, confermata, ERRORE_NESSUNA_LEGA, erroreTappaDuplicata, etichettaSquadra, etichettaTappa, fermaSeCancellata, fetchGiocatori,
-  fetchSquadre, gironiRichiesti, nomiRoster, nomiSquadre, obbligatorio, presente, prova, qualificateRichieste, registraUnaRiga,
-  squadraDellaPartita, squadraRichiesta, squadraTappaDaAnagrafe, squadreRichieste, stessaCoppia, str, tappaRichiesta, trovaPerNome,
-  type Argomenti, type ContestoStrumenti,
+  applica, confermaTappaOmonima, confermata, CONFERMA_VOCE_OMONIMA, ERRORE_NESSUNA_LEGA, erroreTappaDuplicata, etichettaSquadra,
+  etichettaTappa, fermaSeCancellata, fetchGiocatori, fetchSquadre, gironiRichiesti, nomiRoster, nomiSquadre, obbligatorio, presente,
+  prova, qualificateRichieste, registraUnaRiga, squadraDellaPartita, squadraRichiesta, squadraRipetuta, squadraTappaDaAnagrafe,
+  squadreRichieste, stessaCoppia, str, tappaRichiesta, trovaPerNome, type Argomenti, type ContestoStrumenti,
 } from "./strumentiComuni";
 
 // ContestoStrumenti sta in strumentiComuni.ts, dove lo usano anche gli strumenti in altri file: qui si ri-esporta perché chi lo importa da toolHandlers non cambi
@@ -121,16 +121,20 @@ async function eseguiCreaTappa(args: Argomenti, ctx: ContestoStrumenti): Promise
   if (!legaId) throw new Error(ERRORE_NESSUNA_LEGA);
 
   const nomeTappa = obbligatorio(args, "nome", "il nome della tappa");
-  // Guard: evita che il modello crei duplicati chiamando il tool più volte
-  if (tappe.some((t) => t.nome === nomeTappa)) throw new Error(erroreTappaDuplicata(nomeTappa));
+  // Guard: evita che il modello crei duplicati chiamando il tool più volte nella stessa richiesta
+  if (ctx.creati?.has(normalizza(nomeTappa))) throw new Error(erroreTappaDuplicata(nomeTappa));
   const luogo = str(args, "luogo");
   const data  = str(args, "data");
   // Squadre e gironi con i limiti dell'interfaccia (tappaOps), controllati prima di toccare l'anagrafe: una tappa
   // rifiutata non deve lasciare squadre registrate
   const nomiRichiesti = nomiSquadre(args);
+  const ripetuta = squadraRipetuta(nomiRichiesti);
+  if (ripetuta) throw new Error(`"${pulisci(ripetuta)}" compare due volte nell'elenco delle squadre.`);
   const nGironi = gironiRichiesti(args, nomiRichiesti.length);
   const limiti = erroreLimitiTappa(nomiRichiesti.length, nGironi, { nome: nomeTappa, luogo, data });
   if (limiti) throw new Error(limiti);
+  // Una tappa con lo stesso nome di una della lega: si crea solo se l'utente conferma (D3)
+  await confermaTappaOmonima(nomeTappa, tappe, ctx);
 
   // Carica anagrafe in parallelo
   const [tutteSquadre, tuttiGiocatori] = await Promise.all([fetchSquadre(), fetchGiocatori()]);
@@ -181,6 +185,7 @@ async function eseguiCreaTappa(args: Argomenti, ctx: ContestoStrumenti): Promise
   const esito = creaTappa({ nome: nomeTappa, luogo, data, nGironi, squadre: squadreTappa });
   if (!esito.ok) throw new Error(esito.errore);
   useAppStore.getState().addTappa(esito.tappa);
+  ctx.creati?.add(normalizza(nomeTappa));
   ctx.vai(`/lega/tappa/${esito.tappa.id}`);
 
   const trovate = squadreTappa.length - autoRegistrate.length;
@@ -208,9 +213,10 @@ async function eseguiRegistraSquadra(args: Argomenti, ctx: ContestoStrumenti): P
   // Un modello che ripete la chiamata, o una squadra già registrata da altri, farebbe un doppione visibile a tutti: non si registra
   const omonime = (await fetchSquadre()).filter((s) => stessoNome(s.nome, nome));
   fermaSeCancellata(ctx.segnale);
+  // Due squadre con lo stesso nome sono permesse (D3): se ce n'è già una si registra solo con la conferma dell'utente
   if (omonime.length) {
-    throw new Error(`In anagrafe c'è già la squadra ${omonime.map(descrizione).join("; ")}: non ne registro un'altra. `
-      + "Per cambiarne i dati usa aggiorna_squadra.");
+    const elenco = omonime.map((s) => `la squadra ${descrizione(s)}`).join("; ");
+    await confermata(ctx, "Nome già registrato", CONFERMA_VOCE_OMONIMA(elenco, "un'altra"));
   }
   // Le scritture in anagrafe passano dallo store: aggiornano il server e la cache usata dalle pagine
   await useAnagrafeStore.getState().saveSquadra({
@@ -234,10 +240,10 @@ async function eseguiRegistraGiocatore(args: Argomenti, ctx: ContestoStrumenti):
   // Come per le squadre: niente doppioni nell'anagrafe condivisa. Un omonimo vero (un'altra persona) si registra dalla pagina Anagrafe
   const omonimi = (await fetchGiocatori()).filter((g) => stessoNome(g.nome, nome) && stessoNome(g.cognome, cognome));
   fermaSeCancellata(ctx.segnale);
+  // Come per le squadre: un omonimo si registra solo se l'utente lo conferma (un'altra persona con lo stesso nome è possibile)
   if (omonimi.length) {
-    const chi = `"${pulisci(omonimi[0].nome)} ${pulisci(omonimi[0].cognome)}"`;
-    throw new Error(`In anagrafe c'è già il giocatore ${chi} (di ${pulisci(omonimi[0].autore)}): non ne registro un altro. `
-      + "Se è un'altra persona con lo stesso nome, l'utente può registrarla dalla pagina Anagrafe.");
+    const elenco = omonimi.map((g) => `il giocatore "${pulisci(g.nome)} ${pulisci(g.cognome)}" (di ${pulisci(g.autore)})`).join("; ");
+    await confermata(ctx, "Nome già registrato", CONFERMA_VOCE_OMONIMA(elenco, "un altro"));
   }
   await useAnagrafeStore.getState().saveGiocatore({
     nome, cognome,

@@ -2074,3 +2074,12 @@ describe("Coach AI: con due tappe o due squadre dallo stesso nome il Coach non a
     expect(store().tappe.at(-1)?.squadre[0]).toMatchObject({ nome: "Roma", regId: idAtteso });
   });
 });
+
+describe("Coach AI: il modello sa come chiedere una tappa o una squadra omonima", () => {
+  it("il preambolo dice di chiedere quale intende e di ripetere con il dettaglio tra parentesi", async () => {
+    const richieste = modello(testo("Ciao."));
+    await chiedi(coach(), "Ciao");
+    const preambolo = richieste[0].find((m) => m.role === "system")?.content ?? "";
+    expect(preambolo).toContain("più tappe o squadre hanno lo stesso nome, chiedi all'utente quale intende");
+  });
+});

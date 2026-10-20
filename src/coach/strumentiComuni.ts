@@ -12,7 +12,7 @@ import { registraRisultato, registraRisultatoBracket, type Esito } from "../doma
 import type { Tappa, RegSquadra, RegGiocatore, SquadraTappa } from "../types";
 import { letteraGironeDi, postoSquadra, squadraDi } from "../utils/tappaInfo";
 import { dataItaliana } from "../utils/formato";
-import { haOmonimi } from "../utils/identita";
+import { haOmonimi, normalizza } from "../utils/identita";
 import { trovaPerNome, type Dettagli } from "../utils/ricercaPerNome";
 
 // trovaPerNome vive in utils/ricercaPerNome (la usa anche il dominio): qui si ri-esporta perché chi la importa da strumentiComuni non cambi
@@ -26,6 +26,9 @@ export interface ContestoStrumenti {
   segnale: AbortSignal;
   /** Mostra nel pannello la richiesta di conferma di un'azione distruttiva (D4); true = «Conferma» */
   chiediConferma: (titolo: string, testo: string) => Promise<boolean>;
+  /** I nomi (normalizzati) delle tappe create in questa richiesta: il modello non ne crea due con lo stesso nome nella stessa richiesta.
+   *  Facoltativo: chi non lo passa non ha il controllo, e le tappe della lega restano coperte dalla conferma (D3) */
+  creati?: Set<string>;
 }
 
 export type Argomenti = Record<string, unknown>;
@@ -70,6 +73,19 @@ export function nomiSquadre(args: Argomenti): string[] {
   });
   if (nomi.some((n) => !n)) throw new Error("Nell'elenco delle squadre c'è un nome vuoto: serve il nome di ogni squadra.");
   return nomi;
+}
+
+/** Il primo nome di squadra che compare due volte nell'elenco (maiuscole, accenti e spazi a parte), come è stato scritto la prima volta.
+ *  Due volte la stessa squadra in crea_tappa darebbe due squadre con lo stesso nome nella tappa: non si crea */
+export function squadraRipetuta(nomi: string[]): string | null {
+  const prime = new Map<string, string>();
+  for (const nome of nomi) {
+    const chiave = normalizza(nome);
+    const prima = prime.get(chiave);
+    if (prima !== undefined) return prima;
+    prime.set(chiave, nome);
+  }
+  return null;
 }
 
 /** Numero di gironi di crea_tappa: quello indicato (erroreLimitiTappa vuole un intero), altrimenti 2, oppure 1 con meno
@@ -258,6 +274,23 @@ export async function fetchGiocatori(): Promise<RegGiocatore[]> {
 
 /** Il messaggio quando non c'è una lega aperta: lo stesso per crea_tappa e crea_tappa_simulata */
 export const ERRORE_NESSUNA_LEGA = "Nessuna lega attiva: crea una lega prima di aggiungere tappe.";
+
+/** Il testo della conferma per una tappa che ha già lo stesso nome nella lega (D3): dice quali sono, con data e luogo */
+export const CONFERMA_TAPPA_OMONIMA = (elenco: string) => `Esiste già una tappa con questo nome: ${elenco}. Crearne un'altra con lo stesso nome?`;
+
+/** Il testo della conferma per una squadra o un giocatore già registrato con lo stesso nome (D3). `elenco` descrive chi c'è già,
+ *  `nuova` completa la frase («un'altra» per una squadra, «un altro» per un giocatore) */
+export const CONFERMA_VOCE_OMONIMA = (elenco: string, nuova: "un'altra" | "un altro") =>
+  `Esiste già ${elenco}. Registrarne ${nuova}?`;
+
+/** D3: una tappa con lo stesso nome di una della lega si crea solo se l'utente conferma, perché i doppioni restano permessi. Le
+ *  tappe create in questa stessa richiesta non passano di qui: sono un errore (erroreTappaDuplicata, in creati) */
+export async function confermaTappaOmonima(nome: string, tappe: Tappa[], ctx: ContestoStrumenti) {
+  const omonime = tappe.filter((t) => normalizza(t.nome) === normalizza(nome));
+  if (omonime.length === 0) return;
+  const elenco = omonime.map((t) => dettagliTappa.descrivi(t)).join("; ");
+  await confermata(ctx, "Tappa con lo stesso nome", CONFERMA_TAPPA_OMONIMA(elenco));
+}
 
 /** Il nome di una tappa nuova non può esistere già nella lega aperta: il messaggio è lo stesso per crea_tappa e per le tappe simulate.
  *  Il nome lo ha scritto il modello (o l'utente), e passa da pulisci come gli altri nomi nei testi */
