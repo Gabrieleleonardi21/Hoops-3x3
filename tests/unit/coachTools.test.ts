@@ -774,11 +774,11 @@ describe("Coach AI: testi degli errori e delle conferme (lega aperta, nomi di ta
     expect(esiti(richieste)[0]).toContain("Nessuna lega attiva: crea una lega prima di aggiungere tappe.");
   });
 
-  it("crea_tappa_simulata con un nome già usato: il nome nel messaggio passa da pulisci (< diventa ‹)", async () => {
+  it("crea_tappa_simulata con un nome già usato: chiede conferma, e il nome nel messaggio passa da pulisci (< diventa ‹)", async () => {
     useAppStore.setState({ tappe: [{ ...romaOpen(), nome: "Roma <b>Open" }] });
-    const richieste = modello(strumenti(["crea_tappa_simulata", { nome: "Roma <b>Open", nSquadre: 8 }]), testo("Scelgo un altro nome."));
-    await chiedi(coach(), "Crea una tappa di prova chiamata Roma <b>Open");
-    expect(esiti(richieste)[0]).toContain('La tappa "Roma ‹b›Open" esiste già in questa lega');
+    modello(strumenti(["crea_tappa_simulata", { nome: "Roma <b>Open", nSquadre: 8 }]), testo("Va bene."));
+    const richiesta = await chiediEConferma(coach(), "Crea una tappa di prova chiamata Roma <b>Open", false);
+    expect(richiesta.testo).toBe('Esiste già una tappa con questo nome: "Roma ‹b›Open" (03/10/2026, Roma). Crearne un\'altra con lo stesso nome?');
   });
 
   it("sorteggia_gironi: il titolo della conferma usa il nome della tappa passato da pulisci", async () => {
@@ -1556,25 +1556,33 @@ describe("Coach AI: errore a metà del ciclo e limiti del server", () => {
 });
 
 describe("Coach AI: registra_squadra e registra_giocatore non fanno doppioni nell'anagrafe condivisa", () => {
-  it("una squadra con lo stesso nome (maiuscole a parte) non si registra di nuovo", async () => {
+  it("una squadra con lo stesso nome (maiuscole a parte) chiede conferma: «Annulla» non la registra", async () => {
     vi.mocked(anagrafeApi.listSquadre).mockResolvedValue([inAnagrafe("Delta", [], { citta: "Roma" })]);
-    const richieste = modello(strumenti(["registra_squadra", { nome: " delta " }]), testo("Delta c'è già."));
-    await chiedi(coach(), "Registra la squadra Delta");
+    modello(strumenti(["registra_squadra", { nome: " delta " }]), testo("Annullato."));
+    const richiesta = await chiediEConferma(coach(), "Registra la squadra Delta", false);
+    expect(richiesta.titolo).toBe("Nome già registrato");
+    expect(richiesta.testo).toBe('Esiste già la squadra "Delta" (Roma, di Bruno). Registrarne un\'altra?');
     expect(anagrafeApi.createSquadra).not.toHaveBeenCalled();
-    expect(esiti(richieste)[0]).toBe(
-      "Errore: In anagrafe c'è già la squadra \"Delta\" (Roma, di Bruno): non ne registro un'altra. Per cambiarne i dati usa aggiorna_squadra.",
-    );
   });
 
-  it("un giocatore con lo stesso nome e cognome non si registra di nuovo; uno con un altro cognome sì", async () => {
+  it("una squadra con lo stesso nome si registra solo se l'utente conferma", async () => {
+    vi.mocked(anagrafeApi.listSquadre).mockResolvedValue([inAnagrafe("Delta", [], { citta: "Roma" })]);
+    vi.mocked(anagrafeApi.createSquadra).mockImplementation(async (s) => ({ ...s, id: "nuova", autore: "Anna", autoreId: "u1", ts: 1 }));
+    modello(strumenti(["registra_squadra", { nome: "Delta" }]), testo("Registrata."));
+    await chiediEConferma(coach(), "Registra un'altra Delta", true);
+    expect(anagrafeApi.createSquadra).toHaveBeenCalledWith(expect.objectContaining({ nome: "Delta" }));
+  });
+
+  it("un giocatore con lo stesso nome e cognome chiede conferma (Annulla non lo registra); uno con un altro cognome no", async () => {
     vi.mocked(anagrafeApi.listGiocatori).mockResolvedValue(inAnagrafeGiocatori("g", 1)); // «Nome1 Cognome1»
     vi.mocked(anagrafeApi.createGiocatore).mockImplementation(async (g) => ({ ...g, id: "nuovo", autore: "Anna", autoreId: "u1", ts: 1 }));
     const richieste = modello(
       strumenti(["registra_giocatore", { nome: "nome1", cognome: "COGNOME1" }], ["registra_giocatore", { nome: "Nome1", cognome: "Bianchi" }]),
       testo("Fatto."),
     );
-    await chiedi(coach(), "Registra i giocatori");
-    expect(esiti(richieste)[0]).toMatch(/^Errore: In anagrafe c'è già il giocatore "Nome1 Cognome1" \(di Bruno\)/);
+    const richiesta = await chiediEConferma(coach(), "Registra i giocatori", false);
+    expect(richiesta.testo).toBe('Esiste già il giocatore "Nome1 Cognome1" (di Bruno). Registrarne un altro?');
+    expect(esiti(richieste)[0]).toContain("L'utente ha annullato");
     expect(anagrafeApi.createGiocatore).toHaveBeenCalledTimes(1);
     expect(anagrafeApi.createGiocatore).toHaveBeenCalledWith(expect.objectContaining({ cognome: "Bianchi" }));
   });
@@ -1829,10 +1837,10 @@ describe("Coach AI: crea_tappa_simulata, una tappa di prova con squadre dall'ana
     expect(esiti(richieste)[0]).not.toContain("fase finale giocata");
   });
 
-  it("un nome di tappa già usato nella lega: errore, nessuna tappa nuova", async () => {
-    const richieste = modello(strumenti(["crea_tappa_simulata", { nome: "Roma Open", nSquadre: 8 }]), testo("Scelgo un altro nome."));
-    await chiedi(coach(), "Crea una tappa di prova chiamata Roma Open");
-    expect(esiti(richieste)[0]).toContain('La tappa "Roma Open" esiste già in questa lega');
+  it("un nome di tappa già usato nella lega: si chiede conferma, e «Annulla» non crea niente", async () => {
+    const richieste = modello(strumenti(["crea_tappa_simulata", { nome: "Roma Open", nSquadre: 8 }]), testo("Va bene, annullato."));
+    await chiediEConferma(coach(), "Crea una tappa di prova chiamata Roma Open", false);
+    expect(esiti(richieste)[0]).toContain("L'utente ha annullato");
     expect(store().tappe).toHaveLength(1);
   });
 
@@ -1958,5 +1966,111 @@ describe("Coach AI: registra_risultati, più risultati dettati in un colpo", () 
     await chiedi(coach(), "Alfa 21-15 Beta");
     expect(esiti(richieste)[0]).toContain("Ogni risultato è un oggetto");
     expect(store().tappe[0]).toBe(prima);
+  });
+});
+
+describe("Coach AI: con due tappe o due squadre dallo stesso nome il Coach non agisce mai sulla prima", () => {
+  /** Una tappa con le squadre Alfa, Beta e Gamma, ancora da sorteggiare */
+  const daSorteggiare = (id: string, nome: string, data: string, luogo: string): Tappa => ({
+    ...romaOpen(), id, nome, data, luogo, gironi: null, partite: [],
+  });
+  /** Due squadre «Roma» nella stessa tappa, in due gironi: la prima nel girone A con Milano, la seconda nel girone B con Napoli */
+  const tappaDueRoma = (): Tappa => ({
+    ...romaOpen(),
+    squadre: [squadra("s1", "Roma"), squadra("s2", "Roma"), squadra("s3", "Milano"), squadra("s4", "Napoli")],
+    gironi: [["s1", "s3"], ["s2", "s4"]],
+    partite: [daGiocare("m1", "s1", "s3"), daGiocare("m2", "s2", "s4")],
+  });
+
+  it("due tappe «Prova»: sorteggia_gironi senza dettaglio elenca le due e non ne tocca nessuna", async () => {
+    useAppStore.setState({ tappe: [daSorteggiare("p1", "Prova", "2026-05-12", "Torino"), daSorteggiare("p2", "Prova", "2026-06-26", "Milano")] });
+    const richieste = modello(strumenti(["sorteggia_gironi", { tappa_nome: "Prova" }]), testo("Quale delle due?"));
+    await chiedi(coach(), "Sorteggia la tappa Prova");
+    expect(esiti(richieste)[0]).toBe(
+      'Errore: Più tappe si chiamano "Prova": "Prova" (12/05/2026, Torino); "Prova" (26/06/2026, Milano). '
+      + 'Scrivi il nome con un dettaglio tra parentesi, per esempio "Prova (12/05/2026)".',
+    );
+    expect(store().tappe.map((t) => t.gironi)).toEqual([null, null]);
+  });
+
+  it("«Prova (26/06/2026)» sorteggia solo quella", async () => {
+    useAppStore.setState({ tappe: [daSorteggiare("p1", "Prova", "2026-05-12", "Torino"), daSorteggiare("p2", "Prova", "2026-06-26", "Milano")] });
+    modello(strumenti(["sorteggia_gironi", { tappa_nome: "Prova (26/06/2026)" }]), testo("Fatto."));
+    await chiedi(coach(), "Sorteggia la Prova del 26 giugno");
+    expect(store().tappe[0].gironi).toBeNull();
+    expect(store().tappe[1].gironi).not.toBeNull();
+  });
+
+  it("due squadre «Roma» nella tappa: registra_risultato senza dettaglio elenca i gironi e non scrive niente", async () => {
+    useAppStore.setState({ tappe: [tappaDueRoma()] });
+    const richieste = modello(
+      strumenti(["registra_risultato", { squadra_a: "Roma", punti_a: 21, squadra_b: "Milano", punti_b: 15 }]),
+      testo("Quale Roma?"),
+    );
+    await chiedi(coach(), "Roma batte Milano 21-15");
+    expect(esiti(richieste)[0]).toBe(
+      'Errore: Più squadre della tappa si chiamano "Roma": "Roma" (girone A); "Roma" (girone B). '
+      + 'Scrivi il nome con un dettaglio tra parentesi, per esempio "Roma (girone A)".',
+    );
+    expect(store().tappe[0].partite.some((m) => m.done)).toBe(false);
+  });
+
+  it("«Roma (girone B)» registra la partita di quella squadra, non dell'altra Roma", async () => {
+    useAppStore.setState({ tappe: [tappaDueRoma()] });
+    modello(strumenti(["registra_risultato", { squadra_a: "Roma (girone B)", punti_a: 21, squadra_b: "Napoli", punti_b: 15 }]), testo("Registrato."));
+    await chiedi(coach(), "Roma (girone B) batte Napoli 21-15");
+    expect(store().tappe[0].partite.find((m) => m.id === "m2")).toMatchObject({ done: true, sa: 21, sb: 15 });
+    expect(store().tappe[0].partite.find((m) => m.id === "m1")?.done).toBe(false);
+  });
+
+  it("annulla_risultato tra omonime: la conferma dice quale Roma, con il girone", async () => {
+    useAppStore.setState({ tappe: [{ ...tappaDueRoma(), partite: [giocata("m1", "s1", "s3", 21, 10), daGiocare("m2", "s2", "s4")] }] });
+    modello(strumenti(["annulla_risultato", { squadra_a: "Roma (girone A)", squadra_b: "Milano" }]), testo("Va bene."));
+    const richiesta = await chiediEConferma(coach(), "Annulla il risultato di Roma contro Milano", false);
+    expect(richiesta.titolo).toBe("Togliere il risultato Roma (girone A) 21-10 Milano?");
+  });
+
+  it("simula_risultati con due tappe «Coppa»: la conferma dice quale, con data e luogo", async () => {
+    useAppStore.setState({ tappe: [daSorteggiare("c1", "Coppa", "2026-05-12", "Torino"), { ...tappaDueRoma(), id: "c2", nome: "Coppa", data: "2026-06-26", luogo: "Milano" }] });
+    modello(strumenti(["simula_risultati", { tappa_nome: "Coppa (26/06/2026)" }]), testo("Annullato."));
+    const richiesta = await chiediEConferma(coach(), "Simula la Coppa del 26 giugno", false);
+    expect(richiesta.titolo).toBe('Simulare i risultati di "Coppa" (26/06/2026, Milano)?');
+  });
+
+  it("crea_tappa con una tappa omonima di prima: chiede conferma con la sua data; «Annulla» non crea niente", async () => {
+    useAppStore.setState({ tappe: [{ ...romaOpen(), nome: "Prova", data: "2026-06-26", luogo: "Milano" }] });
+    modello(strumenti(["crea_tappa", { nome: "prova", squadre: ["Alfa", "Beta"] }]), testo("Annullato."));
+    const richiesta = await chiediEConferma(coach(), "Crea la tappa prova con Alfa e Beta", false);
+    expect(richiesta.titolo).toBe("Tappa con lo stesso nome");
+    expect(richiesta.testo).toBe('Esiste già una tappa con questo nome: "Prova" (26/06/2026, Milano). Crearne un\'altra con lo stesso nome?');
+    expect(store().tappe.map((t) => t.nome)).toEqual(["Prova"]);
+  });
+
+  it("crea_tappa con una tappa omonima di prima: «Conferma» la crea", async () => {
+    useAppStore.setState({ tappe: [{ ...romaOpen(), nome: "Prova", data: "2026-06-26", luogo: "Milano" }] });
+    modello(strumenti(["crea_tappa", { nome: "prova", squadre: ["Alfa", "Beta"] }]), testo("Creata."));
+    await chiediEConferma(coach(), "Crea la tappa prova con Alfa e Beta", true);
+    expect(store().tappe.map((t) => t.nome)).toEqual(["Prova", "prova"]);
+  });
+
+  it("crea_tappa con due squadre che si chiamano uguali (maiuscole a parte): errore prima di toccare l'anagrafe", async () => {
+    const richieste = modello(strumenti(["crea_tappa", { nome: "Tappa 2", squadre: ["Alfa", "alfa"] }]), testo("Quale?"));
+    await chiedi(coach(), "Crea la Tappa 2 con Alfa e alfa");
+    expect(esiti(richieste)[0]).toBe('Errore: "Alfa" compare due volte nell\'elenco delle squadre.');
+    expect(anagrafeApi.createSquadra).not.toHaveBeenCalled();
+    expect(store().tappe).toHaveLength(1);
+  });
+
+  it.each([
+    ["Roma (Torino)", "r-to"],
+    ["Roma (di Anna)", "r-mi"],
+  ])("crea_tappa con «%s» collega la squadra omonima giusta dell'anagrafe", async (nomeSquadra, idAtteso) => {
+    vi.mocked(anagrafeApi.listSquadre).mockResolvedValue([
+      inAnagrafe("Roma", [], { id: "r-to", citta: "Torino" }),
+      inAnagrafe("Roma", [], { id: "r-mi", citta: "Milano", autore: "Anna", autoreId: "u1" }),
+    ]);
+    modello(strumenti(["crea_tappa", { nome: "Tappa 2", squadre: [nomeSquadra, "Alfa"] }]), testo("Fatto."));
+    await chiedi(coach(), "Crea la Tappa 2");
+    expect(store().tappe.at(-1)?.squadre[0]).toMatchObject({ nome: "Roma", regId: idAtteso });
   });
 });

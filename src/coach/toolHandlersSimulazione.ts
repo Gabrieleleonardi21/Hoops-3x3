@@ -13,7 +13,7 @@ import {
 } from "../domain/simulazione";
 import type { Tappa } from "../types";
 import {
-  applica, confermata, ERRORE_NESSUNA_LEGA, erroreTappaDuplicata, fermaSeCancellata, fetchGiocatori, fetchSquadre, gironiRichiesti, nomiSquadre,
+  applica, confermata, ERRORE_NESSUNA_LEGA, erroreTappaDuplicata, etichettaTappa, fermaSeCancellata, fetchGiocatori, fetchSquadre, gironiRichiesti, nomiSquadre,
   numero, obbligatorio, presente, qualificateRichieste, registraUnaRiga, squadraTappaDaAnagrafe, str, tappaRichiesta,
   type Argomenti, type ContestoStrumenti,
 } from "./strumentiComuni";
@@ -57,11 +57,12 @@ function criterioScelta(args: Argomenti): "casuale" | "ranking" | "citta" {
   throw new Error(`Criterio di scelta non valido («${pulisci(valore)}»): usa «casuale», «ranking» oppure «citta».`);
 }
 
-/** Il testo della conferma di simula_risultati (D4): dice quante gare si inventano e che i numeri sono di prova, non veri */
-function testoConfermaSimulazione(nome: string, gare: number): string {
+/** Il testo della conferma di simula_risultati (D4): dice quante gare si inventano e che i numeri sono di prova, non veri.
+ *  `etichetta` è la tappa nominata come in etichettaTappa (tra virgolette, con data e luogo se è omonima) */
+function testoConfermaSimulazione(etichetta: string, gare: number): string {
   let cosa = `delle ${gare} gare mancanti`;
   if (gare === 1) cosa = "della gara mancante";
-  return `Inventare i risultati ${cosa} di "${nome}"? Sono numeri di prova, non veri.`;
+  return `Inventare i risultati ${cosa} di ${etichetta}? Sono numeri di prova, non veri.`;
 }
 
 /** Le righe di registra_risultati: un elenco da 1 a MAX_RISULTATI oggetti, come gli argomenti di registra_risultato */
@@ -154,7 +155,8 @@ export async function eseguiSimulaRisultati(args: Argomenti, ctx: ContestoStrume
   const provata = simulaTappa(tappa, opzioni);
   if (!provata.ok) throw new Error(provata.errore);
   const gare = provata.rapporto.gareGironi + provata.rapporto.gareTabellone;
-  await confermata(ctx, `Simulare i risultati di "${pulisci(tappa.nome)}"?`, testoConfermaSimulazione(pulisci(tappa.nome), gare));
+  const etichetta = etichettaTappa(tappa, useAppStore.getState().tappe);
+  await confermata(ctx, `Simulare i risultati di ${etichetta}?`, testoConfermaSimulazione(etichetta, gare));
 
   let testo = "";
   applica(tappa, (t) => {

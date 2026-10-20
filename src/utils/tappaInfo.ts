@@ -1,6 +1,7 @@
 /** Squadre e giocatori di una tappa letti per id, in un posto solo (FP-5). Un id che non si trova (dati importati incoerenti, una
  *  squadra eliminata) dà sempre lo stesso ripiego, mai l'id stesso, che per chi legge è un codice senza senso. */
-import type { GiocatoreRoster, SquadraTappa } from "../types";
+import type { GiocatoreRoster, SquadraTappa, Tappa } from "../types";
+import { letteraGirone } from "./formato";
 
 /** Il nome mostrato per una squadra o un giocatore che non si trova, o che non ha nome */
 export const SCONOSCIUTO = "?";
@@ -34,4 +35,18 @@ export function nomeGiocatore(squadre: readonly SquadraTappa[] | undefined, pid:
     if (p) return p.nome || SCONOSCIUTO;
   }
   return SCONOSCIUTO;
+}
+
+/** Il girone di una squadra della tappa, come lettera (A, B…); null se la tappa non è sorteggiata o la squadra non è in un girone */
+export function letteraGironeDi(tappa: Pick<Tappa, "gironi">, id: string): string | null {
+  const indice = tappa.gironi?.findIndex((g) => g.includes(id)) ?? -1;
+  if (indice < 0) return null;
+  return letteraGirone(indice);
+}
+
+/** Dove sta una squadra nella tappa, per distinguerla da un'omonima: «girone B», o «non sorteggiata» */
+export function postoSquadra(tappa: Pick<Tappa, "gironi">, id: string): string {
+  const lettera = letteraGironeDi(tappa, id);
+  if (lettera === null) return "non sorteggiata";
+  return `girone ${lettera}`;
 }

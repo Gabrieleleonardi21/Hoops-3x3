@@ -19,11 +19,14 @@ import {
 import type { RegSquadra, SquadraTappa, Tappa } from "../types";
 import { squadraDi } from "../utils/tappaInfo";
 import { puoModificare } from "../utils/permessi";
+import { normalizza } from "../utils/identita";
+import { separaDettaglio } from "../utils/ricercaPerNome";
 import { eseguiCreaTappaSimulata, eseguiRegistraRisultati, eseguiSimulaRisultati } from "./toolHandlersSimulazione";
 import {
-  applica, confermata, ERRORE_NESSUNA_LEGA, erroreTappaDuplicata, fermaSeCancellata, fetchGiocatori, fetchSquadre, gironiRichiesti, nomiRoster,
-  nomiSquadre, obbligatorio, presente, prova, qualificateRichieste, registraUnaRiga, squadraDellaPartita, squadraRichiesta,
-  squadraTappaDaAnagrafe, squadreRichieste, stessaCoppia, str, tappaRichiesta, trovaPerNome, type Argomenti, type ContestoStrumenti,
+  applica, confermata, ERRORE_NESSUNA_LEGA, erroreTappaDuplicata, etichettaSquadra, etichettaTappa, fermaSeCancellata, fetchGiocatori,
+  fetchSquadre, gironiRichiesti, nomiRoster, nomiSquadre, obbligatorio, presente, prova, qualificateRichieste, registraUnaRiga,
+  squadraDellaPartita, squadraRichiesta, squadraTappaDaAnagrafe, squadreRichieste, stessaCoppia, str, tappaRichiesta, trovaPerNome,
+  type Argomenti, type ContestoStrumenti,
 } from "./strumentiComuni";
 
 // ContestoStrumenti sta in strumentiComuni.ts, dove lo usano anche gli strumenti in altri file: qui si ri-esporta perché chi lo importa da toolHandlers non cambi
@@ -82,8 +85,20 @@ function traLeMie(omonime: RegSquadra[]): RegSquadra {
 
 /** Trova una squadra dell'anagrafe condivisa per nome, con la stessa regola delle tappe: con «Roma Kings» elencata prima di
  *  «Roma», chiedere «Roma» sceglie «Roma». In più, l'anagrafe può avere due squadre dallo stesso nome esatto (nessuno lo impedisce):
- *  tra quelle sceglie `traLeOmonime` (traLeModificabili o traLeMie), che restituisce la squadra o lancia l'errore */
+ *  tra quelle sceglie `traLeOmonime` (traLeModificabili o traLeMie), che restituisce la squadra o lancia l'errore. Con un dettaglio
+ *  tra parentesi («Roma (Torino)», «Roma (di Gabriele)») sceglie tra le omonime per città o autore, se il nome intero non è una squadra */
 function findSquadra(squadre: RegSquadra[], nome: string, traLeOmonime: (omonime: RegSquadra[]) => RegSquadra): RegSquadra | null {
+  const { base, dettaglio } = separaDettaglio(nome);
+  const literale = squadre.some((s) => normalizza(s.nome) === normalizza(nome));
+  if (dettaglio !== null && !literale) {
+    const cercato = normalizza(dettaglio);
+    const scelte = squadre.filter((s) => normalizza(s.nome) === normalizza(base)
+      && [s.citta, `di ${s.autore}`, s.autore].some((d) => normalizza(d).includes(cercato)));
+    if (scelte.length === 1) return scelte[0];
+    if (scelte.length > 1) return traLeOmonime(scelte);
+    // Nessuna squadra con quel nome e quel dettaglio: è un nome nuovo, come lo era prima del dettaglio (crea_tappa la registra)
+    return null;
+  }
   const omonime = squadre.filter((s) => s.nome.toLowerCase() === nome.toLowerCase());
   if (omonime.length > 1) return traLeOmonime(omonime);
   return trovaPerNome(squadre, nome, (s) => s.nome, "squadre in anagrafe");
@@ -250,7 +265,7 @@ async function eseguiSorteggiaGironi(args: Argomenti, ctx: ContestoStrumenti): P
   const perdita = perditaRisultati(tappa);
   if (perdita) {
     prova(tappa, sorteggio);
-    await confermata(ctx, `Rifare il sorteggio di "${pulisci(tappa.nome)}"?`, perdita);
+    await confermata(ctx, `Rifare il sorteggio di ${etichettaTappa(tappa, useAppStore.getState().tappe)}?`, perdita);
   }
   const nuova = applica(tappa, sorteggio);
   ctx.vai(`/lega/tappa/${tappa.id}`);
@@ -298,10 +313,16 @@ async function eseguiAnnullaRisultato(args: Argomenti, ctx: ContestoStrumenti): 
   // D4: si prova prima di chiedere, poi decide l'utente. Il titolo non dice «Annullare»: accanto al pulsante
   // «Annulla» si potrebbe premerlo volendo dire «sì, annulla il risultato»
   prova(tappa, annulla);
+  // Le squadre e la tappa si nominano con il dettaglio quando sono omonime: la conferma dice quale
+  const etichettaDi = (id: string) => {
+    const squadra = squadraDi(tappa.squadre, id);
+    if (!squadra) return "";
+    return etichettaSquadra(tappa, squadra);
+  };
   await confermata(
     ctx,
-    `Togliere il risultato ${nomeOf(partita.a)} ${partita.sa}-${partita.sb} ${nomeOf(partita.b)}?`,
-    `La partita di "${pulisci(tappa.nome)}" torna da giocare e non conta più in classifica.`,
+    `Togliere il risultato ${etichettaDi(partita.a)} ${partita.sa}-${partita.sb} ${etichettaDi(partita.b)}?`,
+    `La partita di ${etichettaTappa(tappa, useAppStore.getState().tappe)} torna da giocare e non conta più in classifica.`,
   );
   applica(tappa, annulla);
   return `Risultato di "${pulisci(nomeOf(partita.a))}" vs "${pulisci(nomeOf(partita.b))}" annullato: la partita è tornata a non disputata.`;
@@ -377,7 +398,7 @@ async function eseguiConcludiTappa(args: Argomenti, ctx: ContestoStrumenti): Pro
   prova(tappa, concludi);
   await confermata(
     ctx,
-    `Concludere "${pulisci(tappa.nome)}"?`,
+    `Concludere ${etichettaTappa(tappa, useAppStore.getState().tappe)}?`,
     "La tappa viene pubblicata nell'Archivio circuito e da lì non si modifica più: per cambiarla andrà riaperta.",
   );
   const conclusa = applica(tappa, concludi);
