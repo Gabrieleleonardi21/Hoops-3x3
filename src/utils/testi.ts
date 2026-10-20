@@ -298,7 +298,14 @@ export const AVVISO_TAPPA_OMONIMA = (t: { nome: string; data: string; luogo: str
   + "Il nome può ripetersi: le tappe si distinguono per data e luogo.";
 /** Il nome di una squadra che c'è già in questa tappa */
 export const AVVISO_SQUADRA_OMONIMA =
-  "Un'altra squadra di questa tappa si chiama così: nelle statistiche contano i collegamenti all'anagrafe.";
+  "Un'altra squadra di questa tappa si chiama così: il Coach le distingue per girone o città; nelle statistiche contano i collegamenti all'anagrafe.";
+/* Scelta tra squadre omonime nell'anagrafe (SceltaSquadraDialog): il titolo, e il posto della squadra nuova con lo stesso nome */
+/** Il titolo della finestra che chiede quale delle squadre omonime collegare */
+export const TITOLO_SCELTA_SQUADRA = (nome: string) => `Più squadre si chiamano «${nome}»: quale collegare?`;
+const ORDINALI = ["prima", "seconda", "terza", "quarta", "quinta", "sesta", "settima", "ottava", "nona", "decima"];
+/** Sotto il pulsante «Registra una nuova squadra con questo nome»: `posizione` è il posto che la squadra avrebbe (la terza, con due
+ *  squadre già registrate con quel nome). Dopo la decima il numero, con «ª» */
+export const AVVISO_NUOVA_OMONIMA = (posizione: number) => `Sarà la ${ORDINALI[posizione - 1] ?? `${posizione}ª`} squadra con questo nome.`;
 /** Due giocatori con lo stesso nome nella stessa rosa */
 export const AVVISO_GIOCATORE_RIPETUTO =
   "Due giocatori con lo stesso nome: nelle statistiche saranno sommati, a meno che la squadra sia collegata all'anagrafe con entrambi registrati.";

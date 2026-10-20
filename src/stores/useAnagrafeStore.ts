@@ -4,6 +4,7 @@ import {
   type GiocatoreInput, type SquadraInput,
 } from "../services/anagrafeApi";
 import { ApiError, testoErrore } from "../services/api";
+import { normalizza } from "../utils/identita";
 import { replaceById } from "../utils/replaceById";
 import { voceAnagrafeModificataAltrove } from "../utils/testi";
 import type { RegGiocatore, RegSquadra } from "../types";
@@ -49,9 +50,11 @@ interface AnagrafeState {
    *  riscarica con il token di adesso. Un caricamento già in corso non conta più: la sua risposta, partita con il token di prima,
    *  si scarta quando arriva e non riempie la cache con la forma sbagliata. */
   svuota: () => void;
-  /** Cerca una squadra per nome (case-insensitive): prima in cache, poi sul server. Se la lista del server non arriva rifiuta la
-   *  promessa: «non trovata» farebbe creare un doppione di una squadra che sul server c'è */
-  trovaSquadra: (nome: string) => Promise<RegSquadra | undefined>;
+  /** Cerca le squadre con questo nome (senza contare maiuscole, accenti e spazi ai lati; due squadre omonime sono due voci). Prima in
+   *  cache: se ce n'è almeno una si restituiscono tutte, senza chiedere al server. Altrimenti si ricontrolla sul server, perché un altro
+   *  utente può averla registrata dopo il caricamento. Se la lista del server non arriva rifiuta la promessa: «nessuna» farebbe creare
+   *  un doppione di una squadra che sul server c'è */
+  trovaSquadre: (nome: string) => Promise<RegSquadra[]>;
   /** Mette in cache voci lette dal server fuori dal caricamento (la ricerca per nome, la verifica di una tappa): in testa quelle nuove,
    *  aggiornate quelle già presenti con lo stesso id. Non conta come scrittura e non invalida la cache (`scritture` e `caricata`
    *  restano com'erano): non cambia ciò che il server ha, solo ciò che la cache sapeva. Con la cache non caricata non fa niente:
@@ -123,22 +126,21 @@ export const useAnagrafeStore = create<AnagrafeState>((set, get) => {
       set({ giocatori: null, squadre: null, errore: null, caricata: false, epoca: get().epoca + 1 });
     },
 
-    trovaSquadra: async (nome) => {
-      const cercato = nome.trim().toLowerCase();
-      const stessoNome = (s: RegSquadra) => s.nome.toLowerCase() === cercato;
-      const inCache = (get().squadre ?? []).find(stessoNome);
-      if (inCache) return inCache;
+    trovaSquadre: async (nome) => {
+      const stessoNome = (s: RegSquadra) => normalizza(s.nome) === normalizza(nome);
+      const inCache = (get().squadre ?? []).filter(stessoNome);
+      if (inCache.length > 0) return inCache;
       // Non in cache: un altro utente può averla registrata dopo il caricamento, quindi prima di farne un doppione si ricontrolla
-      // sul server. Un errore della lista arriva a chi chiama: a server spento rispondere «non trovata» farebbe creare la squadra
+      // sul server. Un errore della lista arriva a chi chiama: a server spento rispondere «nessuna» farebbe creare la squadra
       // una seconda volta nell'anagrafe condivisa
       const epocaAllInizio = get().epoca;
       const fresche = await anagrafeApi.listSquadre();
-      const trovata = fresche.find(stessoNome);
-      // La voce entra in cache: chi la vedrà collegata a una squadra (la pagina della tappa, che scollega le squadre senza voce)
-      // la ritrova, e non la crede eliminata. Non se nel frattempo la cache è stata svuotata: la voce ha la forma del token di prima
-      // e sostituirebbe quella completa di una cache nuova (a chi la cercava la squadra si restituisce lo stesso)
-      if (trovata && get().epoca === epocaAllInizio) get().registraInCache([trovata]);
-      return trovata;
+      const trovate = fresche.filter(stessoNome);
+      // Le voci entrano in cache: chi le vedrà collegate a una squadra (la pagina della tappa, che scollega le squadre senza voce)
+      // le ritrova, e non le crede eliminate. Non se nel frattempo la cache è stata svuotata: le voci hanno la forma del token di prima
+      // e sostituirebbero quelle complete di una cache nuova (a chi le cercava si restituiscono lo stesso)
+      if (trovate.length > 0 && get().epoca === epocaAllInizio) get().registraInCache(trovate);
+      return trovate;
     },
 
     registraInCache: (nuove) => set((s) => {

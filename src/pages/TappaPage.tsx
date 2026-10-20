@@ -16,6 +16,7 @@ import { TappaEditPanel } from "../components/tappa/TappaEditPanel";
 import { TappaRules } from "../components/tappa/TappaRules";
 import { TappaConclusion } from "../components/tappa/TappaConclusion";
 import { SquadraCard } from "../components/squadra/SquadraCard";
+import { SceltaSquadraDialog } from "../components/squadra/SceltaSquadraDialog";
 import { SorteggioControls } from "../components/gironi/SorteggioControls";
 import { GironeSection } from "../components/gironi/GironeSection";
 import { BracketSection } from "../components/gironi/BracketSection";
@@ -31,6 +32,7 @@ import { Section } from "../components/ui/Section";
 import { Badge } from "../components/ui/Badge";
 import { useUtente } from "../hooks/useUtente";
 import { MAX_ROSTER, MIN_ROSTER } from "../constants/rules";
+import type { RegSquadra } from "../types";
 
 /** Riga d'errore sopra il contenuto della tappa: role="alert", così il lettore di schermo la annuncia appena compare */
 function Avviso({ children }: { children: ReactNode }) {
@@ -51,19 +53,22 @@ export function TappaPage() {
   // Squadre che non si sono potute collegare all'anagrafe: id della squadra → perché (null = nessun problema). Il motivo compare
   // nella card, sotto il nome: la squadra resta com'è e si usa lo stesso nella tappa
   const [erroriAnagrafe, setErroriAnagrafe] = useState<Record<string, string | null>>({});
+  // Più squadre dell'anagrafe si chiamano come la squadra scritta: la finestra chiede quale collegare. Il nome è quello per cui è partita
+  // la ricerca (senza spazi ai lati), e `candidate` le voci trovate
+  const [scelta, setScelta] = useState<{ teamId: string; nome: string; candidate: RegSquadra[] } | null>(null);
 
   // useAnagrafe deve stare prima degli early return (regole degli hook)
-  const { squadre: squadreAnagrafe, errore: erroreCaricamento, saveSquadra, trovaSquadra } = useAnagrafe();
+  const { squadre: squadreAnagrafe, giocatori: giocatoriAnagrafe, errore: erroreCaricamento, saveSquadra, trovaSquadre } = useAnagrafe();
   // «Elimina» e «Riapri» chiedono conferma: ognuno ha la sua finestra, mostrata nella vista in cui il pulsante compare
   const elimina = useConfermaPerdita(h.perditaTappa);
   const riapri = useConfermaPerdita(h.perditaRiapertura);
   // «Riapri» toglie la pubblicazione dal server: finché aspetta il pulsante è disattivato e, se non riesce, l'errore compare qui
   const riapertura = useInvio();
 
-  // Quando l'anagrafe carica, sincronizza le squadre della tappa (per nome o regId)
+  // Quando l'anagrafe carica, sincronizza le squadre della tappa (per nome o regId) e riconosce i giocatori scritti a mano
   useEffect(() => {
     if (!squadreAnagrafe) return;
-    void h.syncFromAnagrafe(squadreAnagrafe);
+    void h.syncFromAnagrafe(squadreAnagrafe, giocatoriAnagrafe ?? []);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [squadreAnagrafe]);
 
@@ -81,9 +86,26 @@ export function TappaPage() {
 
   const segnaErroreAnagrafe = (teamId: string, motivo: string | null) =>
     setErroriAnagrafe((errori) => ({ ...errori, [teamId]: motivo }));
+  const segnaFallimento = (teamId: string, nome: string, e: unknown) =>
+    segnaErroreAnagrafe(teamId, `Squadra «${nome}» non collegata all'anagrafe: ${testoErrore(e)}`);
+
+  /** Crea nell'anagrafe la squadra con questo nome e la collega alla squadra di tappa. Il ricontrollo della squadra di adesso viene
+   *  prima della scrittura: se intanto il nome è cambiato o un'uscita dal campo l'ha già collegata, applyReg rifiuterebbe e la voce
+   *  resterebbe orfana nell'anagrafe */
+  const creaECollega = async (teamId: string, nome: string) => {
+    const adesso = tappaCorrente(h.tappa?.id)?.squadre.find((x) => x.id === teamId);
+    if (!adesso || adesso.regId || adesso.nome.trim() !== nome) return;
+    const newReg = await saveSquadra({
+      nome, citta: "", anno: "", rank: String(adesso.rank || ""),
+      referente: "", roster: [], logo: adesso.logo || "", website: adesso.website || "",
+      instagram: "", note: "",
+    });
+    h.applyReg(teamId, newReg, nome, giocatoriAnagrafe ?? []);
+  };
 
   /** Chiamato dall'input nome della squadra onBlur.
-   *  Se il nome è reale (non placeholder), cerca o crea la RegSquadra nell'anagrafe e collega. */
+   *  Se il nome è reale (non placeholder), cerca o crea la RegSquadra nell'anagrafe e collega. Con più squadre omonime non ne collega
+   *  una alla cieca: apre la finestra di scelta. */
   const handleTeamNameCommit = async (teamId: string, nome: string) => {
     // Il messaggio di un tentativo precedente si toglie subito, anche se questo non parte (nome vuoto o segnaposto, squadra già
     // collegata): resterebbe un «Riprova» che non può fare niente, su un nome che non c'è più
@@ -99,27 +121,37 @@ export function TappaPage() {
     try {
       // Prima in cache, poi sul server: un altro utente può averla registrata dopo il caricamento
       // della cache e non va creato un doppione nell'anagrafe condivisa
-      const existing = await trovaSquadra(trimmed);
-      // applyReg collega solo se la squadra ha ancora `trimmed` come nome e non è stata collegata nel frattempo
-      if (existing) {
-        h.applyReg(teamId, existing, trimmed);
+      const trovate = await trovaSquadre(trimmed);
+      if (trovate.length === 0) {
+        await creaECollega(teamId, trimmed);
+      } else if (trovate.length === 1) {
+        // applyReg collega solo se la squadra ha ancora `trimmed` come nome e non è stata collegata nel frattempo
+        h.applyReg(teamId, trovate[0], trimmed, giocatoriAnagrafe ?? []);
       } else {
-        // Prima di creare una voce condivisa si ricontrolla la squadra di adesso: se intanto il nome è cambiato o un'altra uscita dal
-        // campo l'ha già collegata, applyReg rifiuterebbe e la voce resterebbe orfana nell'anagrafe
-        const adesso = tappaCorrente(h.tappa?.id)?.squadre.find((x) => x.id === teamId);
-        if (!adesso || adesso.regId || adesso.nome.trim() !== trimmed) return;
-        // Crea una nuova RegSquadra nell'anagrafe e collega subito
-        const newReg = await saveSquadra({
-          nome: trimmed, citta: "", anno: "", rank: String(s.rank || ""),
-          referente: "", roster: [], logo: s.logo || "", website: s.website || "",
-          instagram: "", note: "",
-        });
-        h.applyReg(teamId, newReg, trimmed);
+        setScelta({ teamId, nome: trimmed, candidate: trovate });
       }
     } catch (e) {
       // Chiamata dal campo del nome (onBlur), dove nessuno aspetta la promessa: se non si prende qui l'errore va perso, e l'utente
       // non sa che la squadra non è collegata all'anagrafe
-      segnaErroreAnagrafe(teamId, `Squadra «${trimmed}» non collegata all'anagrafe: ${testoErrore(e)}`);
+      segnaFallimento(teamId, trimmed, e);
+    }
+  };
+
+  /* La finestra di scelta: «Collega» collega la voce selezionata; «Registra una nuova…» ne crea una con lo stesso nome; «Annulla» (anche
+     Esc o lo sfondo) non scrive niente, e la squadra resta modificabile */
+  const scegliVoce = (reg: RegSquadra) => {
+    if (!scelta) return;
+    h.applyReg(scelta.teamId, reg, scelta.nome, giocatoriAnagrafe ?? []);
+    setScelta(null);
+  };
+  const scegliNuova = async () => {
+    if (!scelta) return;
+    const { teamId, nome } = scelta;
+    setScelta(null);
+    try {
+      await creaECollega(teamId, nome);
+    } catch (e) {
+      segnaFallimento(teamId, nome, e);
     }
   };
 
@@ -247,6 +279,10 @@ export function TappaPage() {
 
       {timerOpen && <MatchTimer regole={t.regole} onClose={() => setTimerOpen(false)} />}
       {elimina.finestra}
+      {scelta && (
+        <SceltaSquadraDialog nome={scelta.nome} candidate={scelta.candidate} onScegli={scegliVoce}
+          onNuova={() => { void scegliNuova(); }} onAnnulla={() => setScelta(null)} />
+      )}
     </div>
   );
 }

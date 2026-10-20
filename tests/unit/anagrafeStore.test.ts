@@ -250,41 +250,41 @@ describe("useAnagrafeStore (cache dell'anagrafe)", () => {
     expect(store.getState().squadre!.map((s) => s.id)).toEqual(["s2", "s1"]);
   });
 
-  it("trovaSquadra trova in cache senza richiamare il server", async () => {
+  it("trovaSquadre trova in cache senza richiamare il server", async () => {
     const { api, store } = await nuovoStore();
     await store.getState().load();
-    expect(await store.getState().trovaSquadra(" ballers ")).toEqual(squadra("s1", "Ballers", ["g1"]));
+    expect(await store.getState().trovaSquadre(" ballers ")).toEqual([squadra("s1", "Ballers", ["g1"])]);
     expect(api.listSquadre).toHaveBeenCalledTimes(1);
   });
 
-  it("trovaSquadra ricontrolla sul server un nome assente in cache (registrato da un altro utente)", async () => {
+  it("trovaSquadre ricontrolla sul server un nome assente in cache (registrato da un altro utente)", async () => {
     const { api, store } = await nuovoStore();
     await store.getState().load();
     api.listSquadre.mockResolvedValue([squadra("s2", "Wildcats"), squadra("s1", "Ballers", ["g1"])]);
-    expect(await store.getState().trovaSquadra("Wildcats")).toEqual(squadra("s2", "Wildcats"));
+    expect(await store.getState().trovaSquadre("Wildcats")).toEqual([squadra("s2", "Wildcats")]);
     expect(api.listSquadre).toHaveBeenCalledTimes(2);
   });
 
-  it("trovaSquadra mette nella cache la voce trovata sul server: la pagina che si riapre la ritrova e non la crede eliminata", async () => {
+  it("trovaSquadre mette nella cache la voce trovata sul server: la pagina che si riapre la ritrova e non la crede eliminata", async () => {
     const { api, store } = await nuovoStore();
     await store.getState().load();
     api.listSquadre.mockResolvedValue([squadra("s2", "Wildcats"), squadra("s1", "Ballers", ["g1"])]);
-    await store.getState().trovaSquadra("Wildcats");
+    await store.getState().trovaSquadre("Wildcats");
     expect(store.getState().squadre!.map((s) => s.id)).toEqual(["s2", "s1"]);
     // Un nuovo load non richiama il server: la cache resta valida
     await store.getState().load();
     expect(api.listSquadre).toHaveBeenCalledTimes(2);
   });
 
-  it("trovaSquadra non mette niente in cache se la voce c'era già, e non crea una cache parziale se non è caricata", async () => {
+  it("trovaSquadre non mette niente in cache se la voce c'era già, e non crea una cache parziale se non è caricata", async () => {
     const { api, store } = await nuovoStore();
     await store.getState().load();
-    await store.getState().trovaSquadra("Ballers"); // già in cache
+    await store.getState().trovaSquadre("Ballers"); // già in cache
     expect(store.getState().squadre!.map((s) => s.id)).toEqual(["s1"]);
 
     const altro = await nuovoStore(); // cache non caricata
     altro.api.listSquadre.mockResolvedValue([squadra("s2", "Wildcats")]);
-    expect(await altro.store.getState().trovaSquadra("Wildcats")).toEqual(squadra("s2", "Wildcats"));
+    expect(await altro.store.getState().trovaSquadre("Wildcats")).toEqual([squadra("s2", "Wildcats")]);
     expect(altro.store.getState().squadre).toBeNull();
     expect(api.listSquadre).toHaveBeenCalledTimes(1);
   });
@@ -335,29 +335,45 @@ describe("useAnagrafeStore (cache dell'anagrafe)", () => {
     expect(store.getState().squadre).toBeNull();
   });
 
-  it("trovaSquadra con una voce già in cache con un altro nome (rinominata dopo il caricamento) la aggiorna, non la raddoppia", async () => {
+  it("trovaSquadre con una voce già in cache con un altro nome (rinominata dopo il caricamento) la aggiorna, non la raddoppia", async () => {
     const { api, store } = await nuovoStore();
     await store.getState().load(); // in cache: s1 «Ballers»
     api.listSquadre.mockResolvedValue([squadra("s1", "Ballers Roma", ["g1"])]);
-    await store.getState().trovaSquadra("Ballers Roma");
+    await store.getState().trovaSquadre("Ballers Roma");
     expect(store.getState().squadre!.map((s) => [s.id, s.nome])).toEqual([["s1", "Ballers Roma"]]);
   });
 
-  it("trovaSquadra restituisce undefined se la squadra non esiste nemmeno sul server", async () => {
+  it("trovaSquadre restituisce una lista vuota se la squadra non esiste nemmeno sul server", async () => {
     const { api, store } = await nuovoStore();
     await store.getState().load();
-    expect(await store.getState().trovaSquadra("Sconosciuti")).toBeUndefined();
+    expect(await store.getState().trovaSquadre("Sconosciuti")).toEqual([]);
     expect(api.listSquadre).toHaveBeenCalledTimes(2);
   });
 
-  it("trovaSquadra non risponde «non trovata» se la lista del server fallisce: l'errore arriva a chi chiama (niente doppioni)", async () => {
+  it("trovaSquadre non risponde «non trovata» se la lista del server fallisce: l'errore arriva a chi chiama (niente doppioni)", async () => {
     const { api, store, ApiError } = await nuovoStore();
     await store.getState().load();
     api.listSquadre.mockRejectedValueOnce(new ApiError(0, "Server non raggiungibile"));
-    await expect(store.getState().trovaSquadra("Sconosciuti")).rejects.toMatchObject({ status: 0, message: "Server non raggiungibile" });
+    await expect(store.getState().trovaSquadre("Sconosciuti")).rejects.toMatchObject({ status: 0, message: "Server non raggiungibile" });
     // Una squadra in cache si trova anche a server spento: il server non si interroga
     api.listSquadre.mockRejectedValueOnce(new ApiError(0, "Server non raggiungibile"));
-    expect(await store.getState().trovaSquadra("Ballers")).toEqual(squadra("s1", "Ballers", ["g1"]));
+    expect(await store.getState().trovaSquadre("Ballers")).toEqual([squadra("s1", "Ballers", ["g1"])]);
+  });
+
+  it("trovaSquadre con due omonime in cache le restituisce entrambe, senza chiedere al server", async () => {
+    const { api, store } = await nuovoStore();
+    api.listSquadre.mockResolvedValue([squadra("s1", "Roma"), { ...squadra("s2", "Roma"), citta: "Milano" }]);
+    await store.getState().load();
+    expect((await store.getState().trovaSquadre(" roma ")).map((s) => s.id)).toEqual(["s1", "s2"]);
+    expect(api.listSquadre).toHaveBeenCalledTimes(1);
+  });
+
+  it("trovaSquadre senza omonime in cache le cerca sul server e mette in cache tutte quelle trovate, senza doppioni", async () => {
+    const { api, store } = await nuovoStore();
+    await store.getState().load(); // in cache: s1 «Ballers»
+    api.listSquadre.mockResolvedValue([squadra("s2", "Roma"), { ...squadra("s3", "Roma"), citta: "Milano" }, squadra("s1", "Ballers", ["g1"])]);
+    expect((await store.getState().trovaSquadre("Roma")).map((s) => s.id)).toEqual(["s2", "s3"]);
+    expect((store.getState().squadre ?? []).map((s) => s.id).sort()).toEqual(["s1", "s2", "s3"]);
   });
 
   it("una scrittura arrivata durante il caricamento non convalida la cache: il load successivo riscarica", async () => {
@@ -511,18 +527,18 @@ describe("useAnagrafeStore: svuota (T2.15, la forma dell'anagrafe dipende dal to
     expect(store.getState().caricata).toBe(true);
   });
 
-  it("trovaSquadra: la voce letta prima dello svuotamento (forma pubblica) non entra nella cache nuova", async () => {
+  it("trovaSquadre: la voce letta prima dello svuotamento (forma pubblica) non entra nella cache nuova", async () => {
     const { api, store } = await nuovoStore();
     await store.getState().load();
     // La lettura sul server parte prima dell'accesso e risponde dopo
     const lenta = differita<RegSquadra[]>();
     api.listSquadre.mockReturnValueOnce(lenta.promessa);
-    const ricerca = store.getState().trovaSquadra("Wildcats");
+    const ricerca = store.getState().trovaSquadre("Wildcats");
     store.getState().svuota();
     await store.getState().load(); // cache nuova, completa
     lenta.risolvi([squadraPubblica("s2", "Wildcats")]);
     // La squadra si trova lo stesso (serve a chi la cercava), ma non entra in una cache che non è la sua
-    expect(await ricerca).toEqual(squadraPubblica("s2", "Wildcats"));
+    expect(await ricerca).toEqual([squadraPubblica("s2", "Wildcats")]);
     expect(store.getState().squadre!.map((s) => s.id)).toEqual(["s1"]);
   });
 });
