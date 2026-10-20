@@ -640,7 +640,7 @@ esplicitamente:
                       risultati veri. Non scrive niente nell'anagrafe. Il nome
                       è facoltativo, come in crea_tappa; chiede conferma solo
                       se la lega ha già una tappa con lo stesso nome.
-  sorteggia_gironi   Esegue il sorteggio (casuale o per ranking) su una tappa.
+  sorteggia_gironi    Esegue il sorteggio (casuale o per ranking) su una tappa.
                       Se la tappa ha già dei risultati chiede conferma.
   genera_fasi_dirette Genera il tabellone a eliminazione diretta dalla
                       classifica dei gironi (le prime N di ogni girone, di
@@ -706,8 +706,8 @@ risultato, concludere una tappa o inventare i risultati mancanti
 succede, con «Annulla» e «Conferma». Senza «Conferma» non cambia niente e il
 modello lo sa (non riprova da solo). Se l'azione verrebbe comunque rifiutata
 (tappa conclusa, partite mancanti) non si chiede niente e il motivo arriva al
-modello. `crea_tappa`, `crea_tappa_simulata`, `registra_squadra` e
-`registra_giocatore` chiedono conferma solo davanti a un omonimo; gli altri
+modello. crea_tappa, crea_tappa_simulata, registra_squadra e
+registra_giocatore chiedono conferma solo davanti a un omonimo; gli altri
 strumenti non chiedono conferma.
 
 Limiti del ciclo: in una richiesta il Coach concatena al massimo 8 giri di
