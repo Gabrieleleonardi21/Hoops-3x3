@@ -267,6 +267,21 @@ describe("scegliSquadre", () => {
     expect(ko8.errore).toContain("solo 5 squadre");
   });
 
+  it("due squadre «Roma» in anagrafe: «Roma (Torino)» tra le obbligatorie prende quella di Torino; «Roma» da sola chiede di scegliere", () => {
+    const { squadre, giocatori } = anagrafeFinta(8, 8);
+    // Due Roma con roster, di città e autore diversi: la prima di Torino, la seconda di Milano
+    squadre[0] = { ...squadre[0], nome: "Roma", citta: "Torino", autore: "Anna" };
+    squadre[1] = { ...squadre[1], nome: "Roma", citta: "Milano", autore: "Anna" };
+    const scelta = scegliSquadre(squadre, giocatori, { n: 3, modo: "ranking", obbligatorie: ["Roma (Torino)"] }, lcg(1));
+    if (!scelta.ok) throw new Error(scelta.errore);
+    expect(scelta.squadre[0]).toBe(squadre[0]);
+    const ambigua = scegliSquadre(squadre, giocatori, { n: 3, modo: "ranking", obbligatorie: ["Roma"] }, lcg(1));
+    expect(ambigua.ok).toBe(false);
+    if (ambigua.ok) throw new Error("doveva fallire");
+    expect(ambigua.errore).toContain('Più squadre in anagrafe si chiamano "Roma"');
+    expect(ambigua.errore).toContain('per esempio "Roma (Torino)"');
+  });
+
   it("un'obbligatoria senza roster o non trovata: errore che la nomina", () => {
     const { squadre, giocatori } = anagrafeFinta(5, 8);
     const senzaRoster = scegliSquadre(squadre, giocatori, { n: 5, modo: "ranking", obbligatorie: ["Squadra 8"] }, lcg(1));

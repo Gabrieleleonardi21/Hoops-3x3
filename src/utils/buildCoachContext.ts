@@ -1,9 +1,9 @@
 import type { Tappa } from "../types";
 import { giocateConVincitore, standings, vincitore } from "./standings";
 import { tappaLeaders } from "./tappaLeaders";
-import { nomeSquadra } from "./tappaInfo";
+import { nomeSquadra, postoSquadra } from "./tappaInfo";
 import { letteraGirone } from "./formato";
-import { identitaSquadra } from "./identita";
+import { identitaSquadra, normalizza } from "./identita";
 
 /** Lunghezza massima di un nome nel contesto */
 const MAX_NOME = 80;
@@ -89,7 +89,14 @@ export function buildCoachContext(legaName: string, tappe: Tappa[]): string {
   const nameOf = (id: string) => pulisci(nomeSquadra(attiva.squadre, id));
 
   if (attiva.squadre.length) {
-    lines.push(`Squadre (${attiva.squadre.length}): ${attiva.squadre.map((s) => pulisci(s.nome)).join(", ")}`);
+    // Due squadre omonime nella tappa portano il girone (o «non sorteggiata»): il Coach le distingue così, come chiede l'errore
+    const elenco = attiva.squadre.map((s) => {
+      const nome = pulisci(s.nome);
+      const omonime = attiva.squadre.filter((o) => normalizza(o.nome) === normalizza(s.nome)).length > 1;
+      if (!omonime) return nome;
+      return `${nome} (${postoSquadra(attiva, s.id)})`;
+    });
+    lines.push(`Squadre (${attiva.squadre.length}): ${elenco.join(", ")}`);
   }
 
   // Classifiche per girone
