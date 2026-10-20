@@ -334,6 +334,18 @@ describe("TappaPage: una squadra collegata a una voce eliminata dall'anagrafe to
     expect(campiNome()[0].readOnly).toBe(true);
     expect(screen.getByText("Anagrafe")).toBeTruthy();
   });
+
+  it("dopo il ricollegamento per nome l'avviso della voce eliminata non torna con «Scollega»", async () => {
+    anagrafe.listSquadre.mockResolvedValue([]);
+    useAppStore.setState({ tappe: [collegata()] });
+    apriPagina({ squadre: [] });
+    await screen.findByText(AVVISO_VOCE_ELIMINATA("Alfa"));
+    // «Alfa» entra in cache: la sincronizzazione ricollega la squadra per nome, e l'avviso resta nello stato anche se nascosto
+    act(() => useAnagrafeStore.setState({ squadre: [regAlfa] }));
+    await waitFor(() => expect(store().tappe[0].squadre[0].regId).toBe("r1"));
+    fireEvent.click(screen.getByRole("button", { name: "Scollega" }));
+    expect(screen.queryByText(AVVISO_VOCE_ELIMINATA("Alfa"))).toBeNull();
+  });
 });
 
 describe("TappaPage: il collegamento all'anagrafe che fallisce si vede (FS-4)", () => {
