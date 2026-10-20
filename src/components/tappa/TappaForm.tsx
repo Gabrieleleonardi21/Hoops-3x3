@@ -4,9 +4,11 @@ import { useState } from "react";
 import { Input } from "../ui/Input";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
-import { MAX_LUOGO, MAX_NOME_TAPPA } from "../../domain/tappaOps";
+import { MAX_LUOGO, MAX_NOME_TAPPA, tappaOmonima } from "../../domain/tappaOps";
 import type { NuovaTappaInput } from "../../hooks/useLega";
 import { MAX_SQUADRE, MIN_SQUADRE } from "../../constants/rules";
+import { useAppStore } from "../../stores/useAppStore";
+import { AVVISO_TAPPA_OMONIMA } from "../../utils/testi";
 
 const EMPTY: NuovaTappaInput = { nome: "", luogo: "", data: "", nTeams: 8, nGironi: 2 };
 
@@ -14,6 +16,9 @@ const EMPTY: NuovaTappaInput = { nome: "", luogo: "", data: "", nTeams: 8, nGiro
 export function TappaForm({ onCreate }: { onCreate: (input: NuovaTappaInput) => string | null }) {
   const [draft, setDraft] = useState<NuovaTappaInput>(EMPTY);
   const [errore, setErrore] = useState<string | null>(null);
+  const tappe = useAppStore((s) => s.tappe);
+  // Un nome già usato in lega si segnala, ma la tappa si crea lo stesso: le tappe si distinguono per data e luogo
+  const omonima = tappaOmonima(tappe, draft.nome);
   const set = (k: keyof NuovaTappaInput) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setDraft({ ...draft, [k]: e.target.value });
 
@@ -34,6 +39,7 @@ export function TappaForm({ onCreate }: { onCreate: (input: NuovaTappaInput) => 
         <Input label="Numero squadre" type="number" min={MIN_SQUADRE} max={MAX_SQUADRE} value={draft.nTeams} onChange={set("nTeams")} />
         <Input label="Numero gironi" type="number" min={1} value={draft.nGironi} onChange={set("nGironi")} />
       </div>
+      {omonima && <p className="mt-2 text-[13px] text-court" role="status">{AVVISO_TAPPA_OMONIMA(omonima)}</p>}
       <Button className="mt-4" onClick={crea}>Crea la tappa</Button>
       {errore && <p className="mt-2 text-[13px] font-semibold text-loss" role="alert">{errore}</p>}
     </Card>

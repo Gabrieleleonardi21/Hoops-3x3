@@ -9,6 +9,7 @@ import { useAnagrafe } from "../hooks/useAnagrafe";
 import { useConfermaPerdita } from "../hooks/useConfermaPerdita";
 import { useInvio } from "../hooks/useInvio";
 import { eSegnaposto } from "../domain/tappaOps";
+import { normalizza } from "../utils/identita";
 import { testoErrore } from "../services/api";
 import { COPIA_LINK_NON_RIUSCITA, copiaPubblicaNonAggiornata, tappaNonPubblicata } from "../utils/testi";
 import { TappaEditPanel } from "../components/tappa/TappaEditPanel";
@@ -68,6 +69,15 @@ export function TappaPage() {
 
   if (!h.tappa) return <Navigate to="/lega" replace />;
   const t = h.tappa;
+  // Quante squadre della tappa portano ciascun nome (senza contare maiuscole e spazi; i segnaposto «Squadra N» e i nomi vuoti non contano):
+  // da due in su, ogni squadra con quel nome ha l'avviso sotto il nome
+  const conteggioNomi = new Map<string, number>();
+  for (const s of t.squadre) {
+    const chiave = normalizza(s.nome);
+    // Un nome cancellato (vuoto) non è un nome: due campi vuoti non sono omonimi
+    if (eSegnaposto(s.nome) || !chiave) continue;
+    conteggioNomi.set(chiave, (conteggioNomi.get(chiave) ?? 0) + 1);
+  }
 
   const segnaErroreAnagrafe = (teamId: string, motivo: string | null) =>
     setErroriAnagrafe((errori) => ({ ...errori, [teamId]: motivo }));
@@ -215,7 +225,7 @@ export function TappaPage() {
         <div className="mb-4 grid gap-3 grid-cols-[repeat(auto-fill,minmax(240px,1fr))]">
           {t.squadre.map((s, i) => (
             <SquadraCard key={s.id} s={s} index={i} h={h} erroreAnagrafe={erroriAnagrafe[s.id]}
-              onNameCommit={(nome) => handleTeamNameCommit(s.id, nome)} />
+              onNameCommit={(nome) => handleTeamNameCommit(s.id, nome)} omonima={(conteggioNomi.get(normalizza(s.nome)) ?? 0) > 1} />
           ))}
         </div>
         <SorteggioControls hasGironi={!!t.gironi} onSorteggia={h.sorteggia} perdita={h.perditaRisultati} />

@@ -29,7 +29,7 @@ const stringa = z.string();
 const numero = z.number();
 const statistica = numero.optional();
 
-const giocatoreSchema = z.object({ id: stringa, nome: stringa });
+const giocatoreSchema = z.object({ id: stringa, nome: stringa, regId: stringa.optional() });
 
 const squadraSchema = z.object({
   id: stringa,
@@ -37,6 +37,7 @@ const squadraSchema = z.object({
   giocatori: z.array(giocatoreSchema).default([]),
   rank: z.union([stringa, numero]).default(""),
   regId: stringa.optional(),
+  scollegata: z.boolean().optional(),
   logo: stringa.optional(),
   website: stringa.optional(),
   instagram: stringa.optional(),
@@ -120,6 +121,16 @@ const tappaCampi = z.object({
   bracket: z.array(matchTabelloneSchema).nullish().transform((b) => b ?? undefined),
 });
 
+/** Dagli elementi con un id, quelli il cui id compare già prima: la seconda occorrenza, con il suo percorso nel file */
+function secondeOccorrenze(elementi: { id: string; percorso: (string | number)[] }[]) {
+  const visti = new Set<string>();
+  return elementi.filter(({ id }) => {
+    const doppio = visti.has(id);
+    visti.add(id);
+    return doppio;
+  });
+}
+
 /** Tappa di un file, con in più i limiti del server. L'id non c'è: ogni tappa importata ne riceve uno nuovo in leggiFileLega.
  *  Il tipo dichiarato fa fallire la compilazione se in src/types un campo obbligatorio cambia e lo schema no; un campo
  *  facoltativo nuovo invece va aggiunto in tappaCampi a mano, altrimenti l'import lo scarterebbe (il test dell'export
@@ -132,6 +143,17 @@ const tappaSchema: z.ZodType<Omit<Tappa, "id">, z.ZodTypeDef, unknown> = tappaCa
     // un ripristino e deve accettare ciò che accetta il server, anche una tappa fatta con le regole delle versioni precedenti
     const motivo = erroreTestiTappa(t);
     if (motivo) ctx.addIssue({ code: z.ZodIssueCode.custom, message: motivo });
+
+    // Gli id di squadre e giocatori di una tappa sono unici: gironi, partite e schede si riferiscono a loro per id, e con un id
+    // ripetuto non si saprebbe a chi attribuire un punteggio. Il problema punta alla seconda occorrenza
+    const squadre = t.squadre.map((s, i) => ({ id: s.id, percorso: ["squadre", i, "id"] }));
+    const giocatori = t.squadre.flatMap((s, i) => s.giocatori.map((g, j) => ({ id: g.id, percorso: ["squadre", i, "giocatori", j, "id"] })));
+    for (const { id, percorso } of secondeOccorrenze(squadre)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `l'id "${id}" è usato da due squadre`, path: percorso });
+    }
+    for (const { id, percorso } of secondeOccorrenze(giocatori)) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: `l'id "${id}" è usato da due giocatori`, path: percorso });
+    }
   });
 
 /** Tappa nel browser dell'ospite: gli stessi campi, con il loro id e senza i limiti del server. L'ospite non ha un server che

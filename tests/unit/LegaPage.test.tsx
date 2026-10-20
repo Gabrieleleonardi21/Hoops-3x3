@@ -57,12 +57,41 @@ describe("LegaPage: la classifica del circuito", () => {
     expect(screen.queryByText("Classifica circuito")).toBeNull();
   });
 
-  it("per ogni squadra vale il rank più alto tra le tappe e si contano le tappe giocate", () => {
+  it("per ogni squadra vale il rank più alto tra le tappe e si contano le tappe giocate, con il nome dell'ultima tappa", () => {
     const t2 = { ...tappaCon([["alfa", "40"], ["Beta", "10"]]), id: "t2" };
     useAppStore.setState({ tappe: [tappaCon([["Alfa", "25"], ["Beta", "30"]]), t2] });
     apriLega();
     const tabella = screen.getByRole("table", { name: "Classifica circuito" });
-    expect(within(tabella).getAllByRole("row").slice(1).map((r) => r.textContent)).toEqual(["1Alfa402", "2Beta302"]);
+    expect(within(tabella).getAllByRole("row").slice(1).map((r) => r.textContent)).toEqual(["1alfa402", "2Beta302"]);
+  });
+
+  /** Una tappa con queste squadre (nome, rank e regId dell'anagrafe, se collegate): id della tappa e delle squadre distinti */
+  const tappaConRegId = (id: string, squadre: [string, string, string | undefined][]): Tappa => ({
+    ...tappaCon([]), id, squadre: squadre.map(([nome, rank, regId], i) => ({ id: `${id}:s${i}`, nome, rank, regId, giocatori: [] })),
+  });
+
+  it("due squadre omonime collegate a voci diverse dell'anagrafe sono due righe della classifica", () => {
+    useAppStore.setState({ tappe: [tappaConRegId("t1", [["Roma", "30", "rs1"], ["Roma", "20", "rs2"]])] });
+    apriLega();
+    const tabella = screen.getByRole("table", { name: "Classifica circuito" });
+    expect(within(tabella).getAllByRole("row").slice(1).map((r) => r.textContent)).toEqual(["1Roma301", "2Roma201"]);
+  });
+
+  it("una squadra collegata e rinominata tra due tappe è una riga sola, con il rank più alto e il nome più recente", () => {
+    useAppStore.setState({ tappe: [
+      tappaConRegId("t1", [["Roma", "30", "rs1"]]),
+      tappaConRegId("t2", [["Roma Nuova", "25", "rs1"]]),
+    ] });
+    apriLega();
+    const tabella = screen.getByRole("table", { name: "Classifica circuito" });
+    expect(within(tabella).getAllByRole("row").slice(1).map((r) => r.textContent)).toEqual(["1Roma Nuova302"]);
+  });
+
+  it("due squadre omonime non collegate nella stessa tappa sono una sola squadra, contata una volta per tappa", () => {
+    useAppStore.setState({ tappe: [tappaConRegId("t1", [["Roma", "30", undefined], ["Roma", "20", undefined]])] });
+    apriLega();
+    const tabella = screen.getByRole("table", { name: "Classifica circuito" });
+    expect(within(tabella).getAllByRole("row").slice(1).map((r) => r.textContent)).toEqual(["1Roma301"]);
   });
 });
 

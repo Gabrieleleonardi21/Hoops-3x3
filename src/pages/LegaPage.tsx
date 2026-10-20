@@ -13,6 +13,7 @@ import { Section } from "../components/ui/Section";
 import { ApiError } from "../services/api";
 import { useAppStore } from "../stores/useAppStore";
 import { eSegnaposto } from "../domain/tappaOps";
+import { identitaSquadra } from "../utils/identita";
 import { MAX_NOME_LEGA } from "../constants/rules";
 import { leggiFileLega, testoFileLega } from "../utils/legaFile";
 import { tipoFile, type TipoFile } from "../utils/tipoFile";
@@ -209,34 +210,41 @@ export function LegaPage() {
     }
   };
 
-  // Classifica circuito: aggrega tutte le squadre da tutte le tappe, prende il rank massimo per squadra (nome case-insensitive) e
-  // ordina in modo decrescente. Le squadre con il nome segnaposto («Squadra 3», mai scritto da nessuno) restano fuori, e lo stesso
-  // chi non ha punti ranking in nessuna tappa: una riga a «—» non classifica niente.
+  // Classifica circuito: aggrega tutte le squadre da tutte le tappe per identità (identitaSquadra: due «Roma» collegate a voci
+  // diverse dell'anagrafe sono due squadre, la stessa squadra rinominata è una sola), prende il rank massimo e conta le tappe
+  // distinte in cui ha giocato, così una squadra omonima non conta due volte nella stessa tappa. Ordina in modo decrescente. Le
+  // squadre con il nome segnaposto («Squadra 3», mai scritto da nessuno) restano fuori, e lo stesso chi non ha punti ranking in
+  // nessuna tappa: una riga a «—» non classifica niente.
   // Deve stare prima degli early return per rispettare le rules-of-hooks
   const circuitRanking = useMemo(() => {
-    const map = new Map<string, { nome: string; rank: number; nTappe: number }>();
+    const map = new Map<string, { nome: string; rank: number; tappe: Set<string> }>();
     for (const tappa of tappe) {
       for (const s of tappa.squadre) {
         if (eSegnaposto(s.nome)) continue;
-        const key = s.nome.trim().toLowerCase();
+        const key = identitaSquadra(s);
         const r = Number(s.rank) || 0;
         const cur = map.get(key);
         if (cur) {
           cur.rank = Math.max(cur.rank, r);
-          cur.nTappe += 1;
+          cur.tappe.add(tappa.id);
+          // Il nome è quello dell'ultima tappa in cui la squadra compare
+          cur.nome = s.nome.trim();
         } else {
-          map.set(key, { nome: s.nome.trim(), rank: r, nTappe: 1 });
+          map.set(key, { nome: s.nome.trim(), rank: r, tappe: new Set([tappa.id]) });
         }
       }
     }
-    return [...map.values()].filter((r) => r.rank > 0).sort((a, b) => b.rank - a.rank);
+    return [...map.entries()]
+      .map(([key, r]) => ({ key, nome: r.nome, rank: r.rank, nTappe: r.tappe.size }))
+      .filter((r) => r.rank > 0)
+      .sort((a, b) => b.rank - a.rank);
   }, [tappe]);
 
   // Se nessuna lega è attiva, manda alla lista per selezionarne una
   if (!legaId) return <Navigate to="/leghe" replace />;
 
   // La classifica circuito riusa StandingsTable: rank = punti circuito, "gare" = tappe giocate
-  const circuitRows = circuitRanking.map((r) => ({ id: r.nome, nome: r.nome, g: r.nTappe, v: r.rank, p: 0, pf: 0, ps: 0 }));
+  const circuitRows = circuitRanking.map((r) => ({ id: r.key, nome: r.nome, g: r.nTappe, v: r.rank, p: 0, pf: 0, ps: 0 }));
 
   return (
     <>

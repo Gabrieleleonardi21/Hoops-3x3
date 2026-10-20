@@ -169,3 +169,17 @@ describe("TappaEditPanel: conferma prima di cancellare i risultati (R2)", () => 
     expect(nelloStore().partite).toEqual([]);
   });
 });
+
+describe("TappaEditPanel: avviso se un'altra tappa della lega ha lo stesso nome", () => {
+  it("compare per la tappa che ha un omonimo, non per la tappa stessa", () => {
+    const altra: Tappa = { id: "t2", nome: "roma open", luogo: "", data: "", nGironi: 1, regole: { ...DEFAULT_RULES }, squadre: [], gironi: null, partite: [], video: [] };
+    useAppStore.setState({ user: registrato, legaId: "l1", leghe: [{ id: "l1", nome: "Lega", ts: 1, nTappe: 2 }], tappe: [tappa(false), altra] });
+    render(<Pannello />);
+    expect(screen.getByRole("status").textContent).toContain("Esiste già una tappa «roma open»");
+  });
+
+  it("senza un'altra tappa con lo stesso nome non avvisa", () => {
+    apri(tappa(false));
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+});

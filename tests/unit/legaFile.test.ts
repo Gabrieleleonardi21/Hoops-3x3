@@ -137,6 +137,37 @@ describe("leggiFileLega: file validi", () => {
   });
 });
 
+describe("leggiFileLega: identità dei giocatori e delle squadre (fase 11a)", () => {
+  it("il regId del giocatore (la voce dell'anagrafe) e lo stato scollegata della squadra si leggono e si conservano", () => {
+    const squadre = [
+      { id: "s1", nome: "Uno", giocatori: [{ id: "p1", nome: "Mario", regId: "g1" }], rank: "", regId: "r1", scollegata: true },
+      { id: "s2", nome: "Due", giocatori: [{ id: "p2", nome: "Luca" }], rank: "" },
+    ];
+    const letta = lega(leggi({ nome: "L", tappe: [{ ...tappaMinima(), squadre }] }));
+    expect(letta.tappe[0].squadre[0].giocatori[0].regId).toBe("g1");
+    expect(letta.tappe[0].squadre[0].scollegata).toBe(true);
+    // Un giocatore scritto a mano non ha regId, e non compare il campo
+    expect(letta.tappe[0].squadre[1].giocatori[0]).not.toHaveProperty("regId");
+  });
+
+  it("due squadre con lo stesso id nella stessa tappa sono rifiutate, e il messaggio dice quale id", () => {
+    const squadre = [{ id: "s1", nome: "Uno" }, { id: "s1", nome: "Due" }];
+    const messaggio = errore(leggi({ nome: "L", tappe: [{ ...tappaMinima(), squadre }] }));
+    expect(messaggio).toContain('"s1"');
+    expect(messaggio).toContain("due squadre");
+  });
+
+  it("due giocatori con lo stesso id, anche in squadre diverse della stessa tappa, sono rifiutati", () => {
+    const squadre = [
+      { id: "s1", nome: "Uno", giocatori: [{ id: "p1", nome: "Mario" }] },
+      { id: "s2", nome: "Due", giocatori: [{ id: "p1", nome: "Luca" }] },
+    ];
+    const messaggio = errore(leggi({ nome: "L", tappe: [{ ...tappaMinima(), squadre }] }));
+    expect(messaggio).toContain('"p1"');
+    expect(messaggio).toContain("due giocatori");
+  });
+});
+
 describe("leggiFileLega: nome della lega", () => {
   it.each([[undefined], [null], [""], ["   "]])("se nel file non c'è un nome (%j) si usa quello del file, senza .json", (nome) => {
     expect(lega(leggi({ nome, tappe: [] }, "Circuito Roma 2025.JSON")).nome).toBe("Circuito Roma 2025");

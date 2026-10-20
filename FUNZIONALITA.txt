@@ -465,19 +465,50 @@ Statistiche stagione (tab dedicato)
     nella versione locale. I dati si chiedono al server solo quando la
     scheda è aperta; se l'archivio non risponde compare l'errore con
     «Riprova», mai una tabella vuota.
-  - Lo stesso giocatore in più tappe è una sola riga con i totali: si
-    riconosce dal nome e dalla squadra (maiuscole, spazi in più, accenti e
-    tipo di apostrofo non contano: «De Rossi» e «DeRossi» sono diversi).
-    Due giocatori con lo stesso nome in squadre diverse sono due righe.
-    Limite: chi cambia squadra compare su due righe, perché i giocatori di
-    tappa non sono collegati all'anagrafe.
+  - Lo stesso giocatore in più tappe è una sola riga con i totali. Si
+    riconosce così, nell'ordine:
+    1. per l'id dell'anagrafe (regId), quando il giocatore di tappa lo ha
+       (viene dall'anagrafe o è stato riconosciuto);
+    2. altrimenti, se la squadra della tappa è collegata all'anagrafe e nel
+       roster della voce c'è un solo giocatore con quel nome, quel giocatore
+       (le tappe vecchie, senza id);
+    3. altrimenti per nome e squadra, normalizzati: maiuscole, spazi in più,
+       accenti e tipo di apostrofo non contano, ma «De Rossi» e «DeRossi»
+       restano diversi.
+    Due giocatori con lo stesso nome in squadre non collegate sono due righe.
+    Chi cambia squadra resta una riga se è collegato all'anagrafe (la
+    squadra nuova ha lo stesso giocatore nel roster); se non è collegato,
+    compare su due righe.
+  - Il segno ⚠ accanto al nome indica una riga con due omonimi della stessa
+    squadra, nella stessa tappa, che non si sono potuti distinguere (squadra
+    non collegata, o collegata con due omonimi nel roster). Le loro gare sono
+    sommate in quella riga. Il segno ha il suo testo al passaggio del mouse e
+    per lo schermo parlato: collegare la squadra e registrare entrambi
+    separa le due persone.
+  - Nomi predefiniti: «Tappa N» e «Squadra N» prendono il primo numero libero
+    nella lega o nella tappa, quindi dopo una cancellazione non si ripetono.
+  - Doppioni permessi, con avviso che non blocca mai:
+    - una tappa con un nome già usato nella lega: il form lo dice con data e
+      luogo, e «Crea» crea lo stesso (le tappe si distinguono per data e
+      luogo);
+    - due squadre con lo stesso nome nella stessa tappa, o due giocatori con
+      lo stesso nome nella stessa rosa: l'avviso sta sotto il nome. Per due
+      giocatori registrati con id diversi non avvisa;
+    - una squadra o un giocatore già registrati in anagrafe: il primo Salva
+      avvisa senza registrare, il secondo registra.
   - Colonne: posizione, giocatore, squadra, partite giocate, punti totali,
     media punti/partita, rimbalzi totali, media rimbalzi, assist, palle
     rubate, stoppate.
   - Ordinata per media punti decrescente.
-  - La scheda del giocatore (dall'anagrafe) somma le sue statistiche per
-    nome, anche di squadre diverse, ed elenca le squadre da cui vengono; i
-    numeri sono quelli della tabella (stesse tappe).
+  - La scheda del giocatore (dall'anagrafe) conta solo le gare di quella
+    persona: quelle con il suo id, oppure quelle con il suo nome quando in
+    anagrafe nessun altro si chiama così. Due omonimi registrati hanno
+    ciascuno la propria scheda e la scheda non somma mai l'uno con l'altro.
+    Le gare con quel nome che non si possono attribuire compaiono sotto i
+    totali come riga «non attribuite», con il motivo. Il piazzamento è quello
+    della squadra in cui il giocatore ha giocato, anche se nella tappa ci
+    sono due squadre con lo stesso nome. Le squadre da cui vengono, i numeri
+    e le tappe sono quelli della tabella.
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

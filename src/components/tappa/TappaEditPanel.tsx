@@ -8,17 +8,22 @@ import { CampoConfermato } from "../ui/CampoConfermato";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import { Icon } from "../ui/Icon";
-import { impostaNumeroGironi, MAX_LUOGO, MAX_NOME_TAPPA } from "../../domain/tappaOps";
+import { impostaNumeroGironi, MAX_LUOGO, MAX_NOME_TAPPA, tappaOmonima } from "../../domain/tappaOps";
 import { useConfermaPerdita } from "../../hooks/useConfermaPerdita";
 import type { useTappa } from "../../hooks/useTappa";
+import { useAppStore } from "../../stores/useAppStore";
+import { AVVISO_TAPPA_OMONIMA } from "../../utils/testi";
 
 export function TappaEditPanel({ h }: { h: ReturnType<typeof useTappa> }) {
   // Il motivo dell'ultima modifica rifiutata (numero di gironi non valido, troppe squadre)
   const [errore, setErrore] = useState<string | null>(null);
   const { chiedi, finestra } = useConfermaPerdita(h.perditaRisultati);
+  const tappe = useAppStore((s) => s.tappe);
   // La pagina apre il pannello solo con la tappa caricata; il controllo sta dopo gli hook, che vanno chiamati sempre
   const t = h.tappa;
   if (!t) return null;
+  // Il nome di un'altra tappa della lega: si segnala, senza bloccare
+  const omonima = tappaOmonima(tappe, t.nome, t.id);
 
   /** Nuovo numero di gironi: prima si controlla (funzione pura, non salva niente), così un numero non valido dà
    *  subito il messaggio e lo stesso numero non fa niente; la conferma si chiede solo per un cambio vero */
@@ -42,6 +47,7 @@ export function TappaEditPanel({ h }: { h: ReturnType<typeof useTappa> }) {
         <Input label="Data" type="date" value={t.data} onChange={(e) => h.setInfo("data", e.target.value)} />
         <CampoConfermato label="Numero gironi" type="number" min={1} valore={String(t.nGironi)} onConferma={cambiaGironi} />
       </div>
+      {omonima && <p className="mt-2 text-[13px] text-court" role="status">{AVVISO_TAPPA_OMONIMA(omonima)}</p>}
       <div className="mt-3 flex flex-wrap items-center gap-2.5">
         <Button variant="outline" size="sm" onClick={() => chiedi("Aggiungere una squadra?", () => setErrore(h.addTeam()))}>
           <Icon name="plus" size={14} /> Aggiungi squadra

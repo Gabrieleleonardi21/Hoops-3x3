@@ -9,6 +9,8 @@ export interface SquadraTappa {
   rank: string | number;
   /** ID della RegSquadra nell'anagrafe condivisa (se collegata) */
   regId?: string;
+  /** L'utente ha premuto Scollega: l'allineamento con l'anagrafe non la ricollega per nome */
+  scollegata?: boolean;
   /** URL o path del logo squadra (opzionale) */
   logo?: string;
   /** URL sito web ufficiale della squadra (opzionale) */

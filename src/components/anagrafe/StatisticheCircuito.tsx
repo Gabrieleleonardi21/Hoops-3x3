@@ -4,12 +4,14 @@ import { useStatisticheCircuito } from "../../hooks/useStatisticheCircuito";
 import { ErroreCaricamento } from "../ui/ErroreCaricamento";
 import { Loading } from "../ui/Loading";
 import { StatsCircuito } from "./StatsCircuito";
+import type { Anagrafe } from "../../utils/statGiocatori";
 
-export function StatisticheCircuito() {
+/** `anagrafe` viene dalla pagina dell'anagrafe: con lei le statistiche riconoscono i giocatori per id */
+export function StatisticheCircuito({ anagrafe }: { anagrafe?: Anagrafe }) {
   const { tappe, errore, reload } = useStatisticheCircuito();
   if (errore) {
     return <ErroreCaricamento cosa="Non è stato possibile caricare le statistiche." motivo={errore} onRiprova={reload} />;
   }
   if (tappe === null) return <Loading>Sto calcolando le statistiche…</Loading>;
-  return <StatsCircuito tappe={tappe} />;
+  return <StatsCircuito tappe={tappe} anagrafe={anagrafe} />;
 }

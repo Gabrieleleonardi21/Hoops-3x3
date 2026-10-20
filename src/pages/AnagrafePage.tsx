@@ -1,6 +1,6 @@
 /** Pagina dell'anagrafe condivisa del circuito: due tab (giocatori / squadre) con
  *  ricerca testuale, form di registrazione e modale di dettaglio squadra. */
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useAnagrafe } from "../hooks/useAnagrafe";
 import { useInvio } from "../hooks/useInvio";
 import { ApiError } from "../services/api";
@@ -34,6 +34,11 @@ export function AnagrafePage() {
   const { giocatori, squadre, errore, load, saveGiocatore, saveSquadra, removeGiocatore, removeSquadra, updateSquadra, updateGiocatore } = anagrafe;
   const selSquadra = squadre?.find((s) => s.id === selSquadraId) ?? null;
   const selGiocatore = giocatori?.find((g) => g.id === selGiocatoreId) ?? null;
+  // Le statistiche riconoscono i giocatori per id con l'anagrafe: finché le squadre non sono arrivate si conta per nome, poi si ricalcola
+  const anagrafeStat = useMemo(() => {
+    if (!giocatori || !squadre) return undefined;
+    return { giocatori, squadre };
+  }, [giocatori, squadre]);
 
   // Filtra un array su più campi testuali con la query di ricerca
   const filtered = <T,>(arr: T[] | null, fields: (keyof T)[]): T[] => {
@@ -114,8 +119,8 @@ export function AnagrafePage() {
 
       {eliminazione.errore && <p className="mb-2.5 text-[13px] font-semibold text-loss" role="alert">{eliminazione.errore}</p>}
 
-      {showForm && tab === "g" && <GiocatoreForm squadre={squadre || []} onSave={(d) => guard(() => saveGiocatore(d))} />}
-      {showForm && tab === "s" && <SquadraAnagrafeForm giocatori={giocatori || []} onSave={(d) => guard(() => saveSquadra(d))} />}
+      {showForm && tab === "g" && <GiocatoreForm squadre={squadre || []} giocatori={giocatori || []} onSave={(d) => guard(() => saveGiocatore(d))} />}
+      {showForm && tab === "s" && <SquadraAnagrafeForm giocatori={giocatori || []} squadre={squadre || []} onSave={(d) => guard(() => saveSquadra(d))} />}
 
       {tab === "g" && contenuto(giocatori, gList,
         { vuoto: "Nessun giocatore registrato: aggiungi il primo.", nessuno: "Nessun giocatore trovato con questa ricerca." },
@@ -136,10 +141,9 @@ export function AnagrafePage() {
         <>
           <p className="mb-1 text-xs text-chalk-muted">
             Totali e medie per partita su tutte le tappe pubblicate nell'Archivio circuito, più quelle della tua lega aperta.
-            Ordinate per media punti. Lo stesso giocatore è una sola riga se nome e squadra coincidono (maiuscole, spazi in più, accenti e tipo di apostrofo non contano): chi
-            cambia squadra compare su due righe.
+            Ordinate per media punti. Lo stesso giocatore è una sola riga se nome e squadra coincidono (maiuscole, spazi in più, accenti e tipo di apostrofo non contano), o se è registrato nell'anagrafe e la sua squadra è collegata. Con una squadra non collegata, chi cambia squadra compare su due righe.
           </p>
-          <StatisticheCircuito />
+          <StatisticheCircuito anagrafe={anagrafeStat} />
         </>
       )}
 

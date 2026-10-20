@@ -6,6 +6,7 @@ import {
   JSON_TROPPO_GRANDE, LETTURA_FALLITA, LETTURA_IN_CORSO, NESSUN_DUBBIO, SCELTA_FILE, TROPPE_FOTO, messaggioDubbi,
 } from "../../src/utils/testi";
 import type { LegaMeta, RegGiocatore, RegSquadra } from "../../src/types";
+import { AVVISO_GIOCATORE_RIPETUTO, AVVISO_SQUADRA_OMONIMA, AVVISO_TAPPA_OMONIMA, AVVISO_VOCE_OMONIMA } from "../../src/utils/testi";
 
 describe("conteggio: il numero con il nome al singolare o al plurale", () => {
   it("uno è singolare; zero e gli altri sono plurali", () => {
@@ -209,6 +210,35 @@ describe("messaggioDubbi: il messaggio con cui il Coach si apre dopo l'import da
   it("senza dubbi lo dice; con più tappe le nomina tutte", () => {
     expect(messaggioDubbi("Lega", [{ nome: "A", dubbi: [] }, { nome: "B", dubbi: [] }])).toBe(
       `Ho importato dai fogli le tappe «A», «B» nella lega «Lega». ${NESSUN_DUBBIO} ${CHIUSURA}`,
+    );
+  });
+});
+
+describe("avvisi sui doppioni: il nome c'è già, ma si può creare lo stesso", () => {
+  it("tappa: dice quale tappa è, con data e luogo, o che mancano", () => {
+    expect(AVVISO_TAPPA_OMONIMA({ nome: "Roma Open", data: "2026-06-01", luogo: "Roma" })).toBe(
+      "Esiste già una tappa «Roma Open» (2026-06-01, Roma). Il nome può ripetersi: le tappe si distinguono per data e luogo.",
+    );
+    expect(AVVISO_TAPPA_OMONIMA({ nome: "Finale", data: "", luogo: "" })).toBe(
+      "Esiste già una tappa «Finale» (senza data, senza luogo). Il nome può ripetersi: le tappe si distinguono per data e luogo.",
+    );
+  });
+
+  it("squadra e giocatori di una rosa: dicono che cosa cambia nelle statistiche", () => {
+    expect(AVVISO_SQUADRA_OMONIMA).toBe(
+      "Un'altra squadra di questa tappa si chiama così: nelle statistiche contano i collegamenti all'anagrafe.",
+    );
+    expect(AVVISO_GIOCATORE_RIPETUTO).toBe(
+      "Due giocatori con lo stesso nome: nelle statistiche saranno sommati, a meno che la squadra sia collegata all'anagrafe con entrambi registrati.",
+    );
+  });
+
+  it("voce dell'anagrafe: «un'altra» per la squadra, «un altro» per il giocatore", () => {
+    expect(AVVISO_VOCE_OMONIMA("«Roma» (Torino, di Gabriele)", "squadra")).toBe(
+      "Esiste già «Roma» (Torino, di Gabriele). Premi di nuovo Salva per registrarne un'altra.",
+    );
+    expect(AVVISO_VOCE_OMONIMA("Mario Rossi (senza squadra)", "giocatore")).toBe(
+      "Esiste già Mario Rossi (senza squadra). Premi di nuovo Salva per registrarne un altro.",
     );
   });
 });

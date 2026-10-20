@@ -193,6 +193,16 @@ describe("useTappa: le modifiche partono dalla tappa com'è adesso, non da quell
     expect(squadre()[0].giocatori.map((p) => p.nome)).toEqual(["Luca"]);
   });
 
+  it("rinominare un giocatore collegato all'anagrafe con un altro nome gli toglie il regId; cambiare solo maiuscole lo conserva", () => {
+    const collegato = { id: "p1", nome: "Mario Rossi", regId: "reg-mario" };
+    useAppStore.setState({ tappe: [{ ...tappa(), squadre: [{ ...squadra("s1", "Squadra 1"), giocatori: [collegato] }, squadra("s2", "Squadra 2")] }] });
+    const { result } = renderHook(() => useTappa("t1"));
+    fai(() => result.current.renamePlayer("s1", "p1", "mario rossi"));
+    expect(squadre()[0].giocatori[0]).toMatchObject({ id: "p1", nome: "mario rossi", regId: "reg-mario" });
+    fai(() => result.current.renamePlayer("s1", "p1", "Luigi Verdi"));
+    expect(squadre()[0].giocatori[0]).toEqual({ id: "p1", nome: "Luigi Verdi" });
+  });
+
   it("un roster non supera i 4 giocatori", () => {
     const { result } = renderHook(() => useTappa("t1"));
     for (let i = 0; i < 5; i++) fai(() => result.current.addPlayer("s1"));

@@ -346,3 +346,20 @@ describe("AnagrafePage: l'avviso sulla riservatezza dei dati", () => {
   });
 });
 
+
+describe("il logo del giocatore è quello della squadra in cui gioca (fase 11a)", () => {
+  // Due «Roma» in anagrafe, con loghi diversi: il giocatore è nel roster della seconda
+  const romaA: RegSquadra = { ...squadra, id: "sa", nome: "Roma", roster: ["g9"], logo: "/logos/roma-a.svg" };
+  const romaB: RegSquadra = { ...squadra, id: "sb", nome: "Roma", roster: ["g1"], logo: "/logos/roma-b.svg" };
+  const conSquadra: RegGiocatore = { ...giocatore, squadra: "Roma" };
+
+  it("la card mostra il logo della squadra che ha il giocatore nel roster, non quello della prima omonima", () => {
+    render(<MemoryRouter><GiocatoreCard g={conSquadra} user={autore} squadre={[romaA, romaB]} onRemove={nulla} onOpen={nulla} /></MemoryRouter>);
+    expect(document.querySelector("img")?.getAttribute("src")).toBe("/logos/roma-b.svg");
+  });
+
+  it("la modale mostra lo stesso logo", () => {
+    render(<MemoryRouter><GiocatoreModal g={conSquadra} user={autore} squadre={[romaA, romaB]} onClose={nulla} onRemove={riuscita} onUpdate={riuscita} /></MemoryRouter>);
+    expect(document.querySelector("img")?.getAttribute("src")).toBe("/logos/roma-b.svg");
+  });
+});

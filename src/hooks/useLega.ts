@@ -1,7 +1,7 @@
 /** Hook per la gestione della lega: crea nuove tappe con squadre e gironi pre-configurati. */
 import { useAppStore } from "../stores/useAppStore";
 import { uid } from "../utils/uid";
-import { creaTappa, erroreLimitiTappa } from "../domain/tappaOps";
+import { creaTappa, erroreLimitiTappa, primoNomeLibero } from "../domain/tappaOps";
 import type { Esito } from "../domain/tappaOps";
 import { MAX_TAPPE_LEGA, nomeSegnaposto } from "../constants/rules";
 
@@ -24,7 +24,8 @@ export function useLega() {
     if (tappe.length >= MAX_TAPPE_LEGA) return { ok: false, errore: `Una lega può avere al massimo ${MAX_TAPPE_LEGA} tappe.` };
     const nSquadre = Number(input.nTeams);
     const nGironi = Number(input.nGironi);
-    const nome = input.nome.trim() || `Tappa ${tappe.length + 1}`;
+    // Senza nome: il primo «Tappa N» che non c'è già nella lega (dopo una cancellazione il numero di tappe non basta)
+    const nome = input.nome.trim() || primoNomeLibero(tappe.map((t) => t.nome), (n) => `Tappa ${n}`);
     // Prima i limiti: le squadre segnaposto si preparano solo per una tappa valida
     const limiti = erroreLimitiTappa(nSquadre, nGironi, { nome, luogo: input.luogo, data: input.data });
     if (limiti) return { ok: false, errore: limiti };

@@ -9,8 +9,9 @@ import { useAppStore } from "../../src/stores/useAppStore";
 import { useAnagrafeStore } from "../../src/stores/useAnagrafeStore";
 import { archivioApi } from "../../src/services/archivioApi";
 import { ApiError } from "../../src/services/api";
-import { tappaDiProva, unaGara } from "./tappeDiProva";
-import type { PubTappa, RegGiocatore, Tappa, User } from "../../src/types";
+import { tappaDaSquadre, tappaDiProva, unaGara } from "./tappeDiProva";
+import { GARE_NON_ATTRIBUITE, TITOLO_OMONIMI } from "../../src/utils/testi";
+import type { PubTappa, RegGiocatore, RegSquadra, Tappa, User } from "../../src/types";
 
 // Le statistiche vengono dall'archivio pubblico più la lega aperta: di base l'archivio è vuoto, i test che lo riempiono lo dicono
 beforeEach(() => { vi.spyOn(archivioApi, "tappe").mockResolvedValue([]); });
@@ -174,7 +175,7 @@ describe("Profilo del giocatore: le statistiche di stagione", () => {
     expect(sottoRiquadro("Gare")).toBe("2V · 0P");
     expect(screen.getByText("2 partite · max 12")).toBeTruthy();
     expect(righeTabella()).toEqual([["Tappa t1", "—", "2", "19", "3", "0"]]);
-    expect(screen.getByText(/sommate per nome sulle squadre di tappa: Alfa, Beta\./)).toBeTruthy();
+    expect(screen.getByText(/Statistiche dalle squadre di tappa: Alfa, Beta\. Con la squadra collegata .* id del giocatore/)).toBeTruthy();
   });
 
   it("le partite singole seguono l'ordine in cui le partite sono state inserite, anche con due squadre dello stesso nome", async () => {
@@ -233,20 +234,20 @@ describe("Profilo del giocatore: le statistiche di stagione", () => {
 
   it("elenca le squadre da cui vengono le statistiche", async () => {
     await apriProfilo(mario, dueSquadre());
-    expect(screen.getByText(/sommate per nome sulle squadre di tappa: Alfa, Beta\./)).toBeTruthy();
+    expect(screen.getByText(/Statistiche dalle squadre di tappa: Alfa, Beta\. Con la squadra collegata .* id del giocatore/)).toBeTruthy();
   });
 
   it("una squadra in più tappe compare una volta sola, con la grafia dell'ultima", async () => {
     await apriProfilo(mario, [unaGara("t1", "alfa", "Mario Rossi", { pt: 12 }), unaGara("t2", "ALFA", "Mario Rossi", { pt: 10 })]);
     expect(riquadro("Punti")).toBe("22");
-    expect(screen.getByText(/sommate per nome sulle squadre di tappa: ALFA\./)).toBeTruthy();
+    expect(screen.getByText(/Statistiche dalle squadre di tappa: ALFA\. Con la squadra collegata .* id del giocatore/)).toBeTruthy();
   });
 
   it("una squadra compare una volta sola nell'elenco anche se il nome è scritto nei due ordini: «Mario Rossi» e «Rossi Mario»", async () => {
     // Per la tabella sono due nomi, quindi due righe di stagione, ma la squadra è la stessa anche se scritta «Alfa» e «ALFA»
     await apriProfilo(mario, [unaGara("t1", "Alfa", "Mario Rossi", { pt: 12 }), unaGara("t2", "ALFA", "Rossi Mario", { pt: 10 })]);
     expect(riquadro("Punti")).toBe("22");
-    expect(screen.getByText(/sommate per nome sulle squadre di tappa: ALFA\./)).toBeTruthy();
+    expect(screen.getByText(/Statistiche dalle squadre di tappa: ALFA\. Con la squadra collegata .* id del giocatore/)).toBeTruthy();
   });
 
   it("il nome si riconosce come nella tabella: maiuscole, spazi in più e accenti non contano", async () => {
@@ -432,5 +433,87 @@ describe("Statistiche stagione: uguali per tutti, dalle tappe pubblicate più la
     vi.mocked(archivioApi.tappe).mockResolvedValue([pubblicata(unaGara("t1", "Alfa", "Mario Rossi", { pt: 22 }))]);
     await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Riprova" })); });
     expect(riquadro("Punti")).toBe("22");
+  });
+});
+
+/** Una squadra dell'anagrafe con il suo roster (id dei giocatori registrati) */
+const squadraReg = (id: string, nome: string, roster: string[]): RegSquadra => ({
+  id, nome, citta: "", anno: "", rank: "", referente: "", roster, logo: "", website: "", instagram: "", note: "", autore: "Anna",
+  autoreId: "u1", ts: 1,
+});
+
+/** Apre il profilo di `id` con tutta l'anagrafe (giocatori e squadre registrati) e queste tappe; aspetta l'archivio (vuoto) */
+async function apriProfiloConAnagrafe(id: string, tappe: Tappa[], giocatori: RegGiocatore[], squadre: RegSquadra[]) {
+  useAppStore.setState({ user: registrato, tappe });
+  useAnagrafeStore.setState({ giocatori, squadre, errore: null, caricata: true });
+  await act(async () => {
+    render(
+      <MemoryRouter initialEntries={[`/giocatore/${id}`]}>
+        <Routes><Route path="/giocatore/:id" element={<GiocatorePage />} /></Routes>
+      </MemoryRouter>,
+    );
+  });
+}
+
+describe("Profilo del giocatore: due omonimi registrati restano due persone", () => {
+  // Due Mario Rossi registrati, ognuno nella sua squadra collegata: le tappe li scrivono entrambi «Mario Rossi»
+  const giocatori = [registrazione("g1", "Mario", "Rossi"), registrazione("g2", "Mario", "Rossi")];
+  const squadre = [squadraReg("sq1", "Alfa", ["g1"]), squadraReg("sq2", "Beta", ["g2"])];
+  const tappe = () => [
+    tappaDaSquadre("t1", [{ nome: "Alfa", regId: "sq1", giocatori: ["Mario Rossi"] }, { nome: "Avversari", giocatori: ["Anna Verdi"] }], [
+      { a: 0, b: 1, pa: { 0: { pt: 12 } } },
+    ]),
+    tappaDaSquadre("t2", [{ nome: "Beta", regId: "sq2", giocatori: ["Mario Rossi"] }, { nome: "Avversari", giocatori: ["Anna Verdi"] }], [
+      { a: 0, b: 1, pa: { 0: { pt: 30 } } },
+    ]),
+  ];
+
+  it("la scheda del primo ha solo i suoi numeri e la sua tappa", async () => {
+    await apriProfiloConAnagrafe("g1", tappe(), giocatori, squadre);
+    expect(riquadro("Punti")).toBe("12");
+    expect(righeTabella()).toEqual([["Tappa t1", "—", "1", "12", "0", "0"]]);
+  });
+
+  it("la scheda del secondo ha solo i suoi numeri e la sua tappa", async () => {
+    await apriProfiloConAnagrafe("g2", tappe(), giocatori, squadre);
+    expect(riquadro("Punti")).toBe("30");
+    expect(righeTabella()).toEqual([["Tappa t2", "—", "1", "30", "0", "0"]]);
+  });
+
+  it("una gara di una squadra non collegata con lo stesso nome non va a nessuno dei due, e lo dice", async () => {
+    const con = [...tappe(), tappaDaSquadre("t3", [{ nome: "Gamma", giocatori: ["Mario Rossi"] }, { nome: "Avversari", giocatori: ["Anna Verdi"] }], [
+      { a: 0, b: 1, pa: { 0: { pt: 50 } } },
+    ])];
+    await apriProfiloConAnagrafe("g1", con, giocatori, squadre);
+    expect(riquadro("Punti")).toBe("12");
+    expect(riquadro("Gare")).toBe("1");
+    expect(screen.getByText(GARE_NON_ATTRIBUITE(1))).toBeTruthy();
+  });
+});
+
+describe("Statistiche stagione: omonimi e piazzamento", () => {
+  it("la riga di due omonimi della stessa squadra non collegata ha il segno ⚠ con la sua spiegazione, le altre no", () => {
+    const t = tappaDaSquadre("t1", [{ nome: "Alfa", giocatori: ["Mario Rossi", "Mario Rossi"] }, { nome: "Beta", giocatori: ["Luca Bianchi"] }], [
+      { a: 0, b: 1, pa: { 0: { pt: 5 }, 1: { pt: 7 } }, pb: { 0: { pt: 9 } } },
+    ]);
+    render(<StatsCircuito tappe={[t]} />);
+    const segnalate = screen.getAllByRole("img", { name: TITOLO_OMONIMI });
+    expect(segnalate).toHaveLength(1);
+    expect(segnalate[0].closest("tr")?.textContent).toContain("Mario Rossi");
+  });
+
+  it("il piazzamento è della squadra che ha giocato, anche con un'altra squadra omonima prima in elenco", async () => {
+    // Due squadre «Alfa»: la prima non ha giocatori in campo, la seconda ha Mario e vince la finale (21-15)
+    const t: Tappa = {
+      ...tappaDaSquadre("t1", [
+        { nome: "Alfa", giocatori: ["Piero Neri"] },
+        { nome: "Alfa", giocatori: ["Mario Rossi"] },
+        { nome: "Gamma", giocatori: ["Luca Bianchi"] },
+        { nome: "Delta", giocatori: ["Anna Verdi"] },
+      ], [{ a: 1, b: 2, pa: { 0: { pt: 12 } } }]),
+      bracket: [{ id: "t1:f", label: "Finale", squadraA: "t1:s1", squadraB: "t1:s3", pA: 21, pB: 15, done: true }],
+    };
+    await apriProfilo(registrazione("g1", "Mario", "Rossi"), [t]);
+    expect(righeTabella()).toEqual([["Tappa t1", "1°", "1", "12", "0", "0"]]);
   });
 });

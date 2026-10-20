@@ -9,6 +9,7 @@ import { legheApi } from "../../src/services/legheApi";
 import { anagrafeApi } from "../../src/services/anagrafeApi";
 import { archivioApi } from "../../src/services/archivioApi";
 import { ApiError } from "../../src/services/api";
+import { AVVISO_SQUADRA_OMONIMA } from "../../src/utils/testi";
 import { DEFAULT_RULES } from "../../src/constants/rules";
 import type { PubTappa, RegGiocatore, RegSquadra, Tappa, User } from "../../src/types";
 
@@ -115,6 +116,17 @@ function montaPagina() {
 /** I campi «Nome squadra» di adesso (ogni volta da capo: dopo il collegamento il campo può essere un altro nodo) */
 const campiNome = () => screen.getAllByLabelText("Nome squadra") as HTMLInputElement[];
 const scrivi = (n: number, testo: string) => fireEvent.change(campiNome()[n], { target: { value: testo } });
+
+// Due squadre con il nome cancellato non sono omonime: l'avviso è per i nomi scritti, non per i campi vuoti
+describe("TappaPage: l'avviso di squadra omonima salta i nomi vuoti", () => {
+  it("due squadre con il nome cancellato non ricevono l'avviso «omonima»", () => {
+    useAppStore.setState({ tappe: [{ ...tappa(), squadre: [
+      { id: "s1", nome: "", giocatori: [], rank: "" }, { id: "s2", nome: "", giocatori: [], rank: "" },
+    ] }] });
+    apriPagina({});
+    expect(screen.queryByText(AVVISO_SQUADRA_OMONIMA)).toBeNull();
+  });
+});
 
 describe("TappaPage: collegare una squadra all'anagrafe", () => {
   it("sonda A: i nomi scritti di seguito restano mentre il server risponde", async () => {

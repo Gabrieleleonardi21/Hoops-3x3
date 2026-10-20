@@ -9,8 +9,10 @@ import type { useTappa } from "../../hooks/useTappa";
 import { TeamLogo } from "../ui/TeamLogo";
 import { MIN_ROSTER } from "../../constants/rules";
 import { erroreUrl } from "../../utils/safeUrl";
+import { doppioniDelRoster } from "../../utils/identita";
+import { AVVISO_SQUADRA_OMONIMA } from "../../utils/testi";
 
-export function SquadraCard({ s, index, h, erroreAnagrafe, onNameCommit }: {
+export function SquadraCard({ s, index, h, erroreAnagrafe, onNameCommit, omonima }: {
   s: SquadraTappa;
   index: number;
   h: ReturnType<typeof useTappa>;
@@ -18,9 +20,13 @@ export function SquadraCard({ s, index, h, erroreAnagrafe, onNameCommit }: {
   erroreAnagrafe?: string | null;
   /** Chiamato onBlur del nome (e da «Riprova»): collega o crea la squadra nell'anagrafe */
   onNameCommit?: (nome: string) => void;
+  /** Un'altra squadra della tappa ha lo stesso nome: l'avviso compare sotto il nome, senza bloccare nulla. Facoltativo */
+  omonima?: boolean;
 }) {
   const ok = h.teamComplete(s.id);
   const linked = !!s.regId; // collegata all'anagrafe
+  // Giocatori della rosa che si ripetono, per l'avviso sotto ciascuno di loro
+  const doppioni = doppioniDelRoster(s.giocatori || []);
   const small = "h-8 py-0 text-[13px]";
   // Togliere una squadra cancella ciò che vi è stato scritto (nome, giocatori) e azzera il sorteggio: si chiede prima conferma,
   // tranne per una squadra appena aggiunta e vuota, che si toglie subito.
@@ -53,6 +59,7 @@ export function SquadraCard({ s, index, h, erroreAnagrafe, onNameCommit }: {
           onChange={linked ? undefined : (e) => h.renameTeam(s.id, e.target.value)}
           onBlur={linked ? undefined : () => onNameCommit?.(s.nome)} />
       </label>
+      {omonima && <p className="mt-1 text-[12px] text-court" role="status">{AVVISO_SQUADRA_OMONIMA}</p>}
       {erroreAnagrafe && !linked && (
         <div className="mt-1.5" role="alert">
           <p className="m-0 text-[12px] font-semibold text-loss">{erroreAnagrafe}</p>
@@ -79,7 +86,7 @@ export function SquadraCard({ s, index, h, erroreAnagrafe, onNameCommit }: {
       <div className={`kicker mt-3 mb-1.5 ${ok ? "text-win" : "text-loss"}`}>
         {ok ? "Roster completo" : `Giocatori obbligatori (min. ${MIN_ROSTER})`}
       </div>
-      <RosterEditor giocatori={s.giocatori || []}
+      <RosterEditor giocatori={s.giocatori || []} doppioni={doppioni}
         onAdd={() => h.addPlayer(s.id)}
         onRename={(pid, nome) => h.renamePlayer(s.id, pid, nome)}
         onRemove={(pid) => chiedi("Rimuovere il giocatore?", () => h.removePlayer(s.id, pid), () => h.perditaGiocatore(s.id, pid))} />

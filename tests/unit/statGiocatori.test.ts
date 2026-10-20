@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { normalizza, statGiocatori, unisciTappe } from "../../src/utils/statGiocatori";
+import { normalizza, risolviTabellini, statGiocatori, tabellini, unisciTappe, type Anagrafe } from "../../src/utils/statGiocatori";
 import { tappaLeaders } from "../../src/utils/tappaLeaders";
-import { tappaDiProva, unaGara } from "./tappeDiProva";
+import type { RegGiocatore, RegSquadra } from "../../src/types";
+import { tappaDaSquadre, tappaDiProva, unaGara } from "./tappeDiProva";
 
 /** Una riga con nome, squadra e le statistiche: sia quella di stagione sia quella dei leader di tappa */
 type RigaConStat = Record<"nome" | "squadra", string> & Record<"g" | "pt" | "rb" | "as" | "ru" | "st" | "pe" | "fa", number>;
@@ -185,6 +186,170 @@ describe("statGiocatori e tappaLeaders", () => {
     // Le righe dei leader hanno anche l'id del giocatore, quelle di stagione la chiave: si confrontano le sole statistiche
     const statistiche = ({ nome, squadra, g, pt, rb, as, ru, st, pe, fa }: RigaConStat) => ({ nome, squadra, g, pt, rb, as, ru, st, pe, fa });
     expect(statGiocatori([t]).map(statistiche)).toEqual(tappaLeaders(t).map(statistiche));
+  });
+});
+
+/** Un giocatore dell'anagrafe, con i campi che le statistiche non leggono vuoti */
+const giocatoreReg = (id: string, nome: string, cognome: string): RegGiocatore => ({
+  id, nome, cognome, soprannome: "", nascita: "", citta: "", nazionalita: "", altezza: "", peso: "", ruolo: "", numero: "",
+  squadra: "", esperienza: "", note: "", autore: "", autoreId: null, ts: 1,
+});
+
+/** Una squadra dell'anagrafe con il suo roster (id dei giocatori) */
+const squadraReg = (id: string, nome: string, roster: string[]): RegSquadra => ({
+  id, nome, citta: "", anno: "", rank: "", referente: "", roster, logo: "", website: "", instagram: "", note: "", autore: "",
+  autoreId: null, ts: 1,
+});
+
+describe("statGiocatori per id: l'anagrafe dice chi è chi", () => {
+  // Lo stesso giocatore registrato (g1) in due tappe con squadre di nome diverso: il regId lo tiene in una riga sola
+  it("con lo stesso regId in due tappe è una riga sola, anche se la squadra cambia nome", () => {
+    const t1 = tappaDaSquadre("t1", [{ nome: "Alfa", giocatori: [{ nome: "Mario Rossi", regId: "g1" }] }, { nome: "Avversari", giocatori: ["Altro"] }], [
+      { a: 0, b: 1, pa: { 0: { pt: 12 } } },
+    ]);
+    const t2 = tappaDaSquadre("t2", [{ nome: "Beta", giocatori: [{ nome: "Mario Rossi", regId: "g1" }] }, { nome: "Avversari", giocatori: ["Altro"] }], [
+      { a: 0, b: 1, pa: { 0: { pt: 10 } } },
+    ]);
+    const righe = statGiocatori([t1, t2]);
+    expect(righe).toHaveLength(1);
+    expect(righe[0]).toMatchObject({ regId: "g1", g: 2, pt: 22 });
+  });
+
+  // La tappa vecchia non ha regId, ma la sua squadra è collegata: con l'anagrafe il solo Mario del roster è g1
+  it("una tappa vecchia senza regId si attribuisce al giocatore del roster della squadra collegata: una riga sola", () => {
+    const anagrafe: Anagrafe = { squadre: [squadraReg("sq1", "Alfa", ["g1"])], giocatori: [giocatoreReg("g1", "Mario", "Rossi")] };
+    const vecchia = tappaDaSquadre("t1", [{ nome: "Alfa", regId: "sq1", giocatori: ["Mario Rossi"] }, { nome: "Avversari", giocatori: ["Altro"] }], [
+      { a: 0, b: 1, pa: { 0: { pt: 12 } } },
+    ]);
+    const nuova = tappaDaSquadre("t2", [{ nome: "Alfa", regId: "sq1", giocatori: [{ nome: "Mario Rossi", regId: "g1" }] }, { nome: "Avversari", giocatori: ["Altro"] }], [
+      { a: 0, b: 1, pa: { 0: { pt: 10 } } },
+    ]);
+    const righe = statGiocatori([vecchia, nuova], anagrafe);
+    expect(righe).toHaveLength(1);
+    expect(righe[0]).toMatchObject({ regId: "g1", g: 2, pt: 22 });
+  });
+
+  it("senza anagrafe la stessa tappa vecchia resta una riga a parte: è il ripiego per nome", () => {
+    const vecchia = tappaDaSquadre("t1", [{ nome: "Alfa", regId: "sq1", giocatori: ["Mario Rossi"] }, { nome: "Avversari", giocatori: ["Altro"] }], [
+      { a: 0, b: 1, pa: { 0: { pt: 12 } } },
+    ]);
+    const nuova = tappaDaSquadre("t2", [{ nome: "Alfa", regId: "sq1", giocatori: [{ nome: "Mario Rossi", regId: "g1" }] }, { nome: "Avversari", giocatori: ["Altro"] }], [
+      { a: 0, b: 1, pa: { 0: { pt: 10 } } },
+    ]);
+    const righe = statGiocatori([vecchia, nuova]);
+    expect(righe.map((r) => [r.regId, r.g, r.pt])).toEqual([[undefined, 1, 12], ["g1", 1, 10]]);
+  });
+
+  it("due Mario Rossi registrati ma in squadre non collegate restano due righe, anche con l'anagrafe", () => {
+    const anagrafe: Anagrafe = {
+      squadre: [squadraReg("sq1", "Alfa", ["g1"]), squadraReg("sq2", "Beta", ["g2"])],
+      giocatori: [giocatoreReg("g1", "Mario", "Rossi"), giocatoreReg("g2", "Mario", "Rossi")],
+    };
+    const t = tappaDaSquadre("t1", [{ nome: "Alfa", giocatori: ["Mario Rossi"] }, { nome: "Beta", giocatori: ["Mario Rossi"] }], [
+      { a: 0, b: 1, pa: { 0: { pt: 12 } }, pb: { 0: { pt: 7 } } },
+    ]);
+    expect(statGiocatori([t], anagrafe).map((r) => [r.squadra, r.regId])).toEqual([["Alfa", undefined], ["Beta", undefined]]);
+  });
+
+  // Due Mario Rossi collegati a due squadre diverse: ognuno con i suoi numeri, nessuno dei due si mischia con l'altro
+  it("due Mario Rossi registrati in due squadre collegate sono due righe con i numeri di ciascuno", () => {
+    const anagrafe: Anagrafe = {
+      squadre: [squadraReg("sq1", "Alfa", ["g1"]), squadraReg("sq2", "Beta", ["g2"])],
+      giocatori: [giocatoreReg("g1", "Mario", "Rossi"), giocatoreReg("g2", "Mario", "Rossi")],
+    };
+    const t = tappaDaSquadre("t1", [
+      { nome: "Alfa", regId: "sq1", giocatori: ["Mario Rossi"] },
+      { nome: "Beta", regId: "sq2", giocatori: ["Mario Rossi"] },
+    ], [{ a: 0, b: 1, pa: { 0: { pt: 12 } }, pb: { 0: { pt: 7 } } }]);
+    const righe = statGiocatori([t], anagrafe);
+    expect(righe.map((r) => [r.regId, r.pt])).toEqual([["g1", 12], ["g2", 7]]);
+  });
+
+  it("un roster dell'anagrafe con due omonimi non risolve nessuno: la riga resta per nome", () => {
+    const anagrafe: Anagrafe = { squadre: [squadraReg("sq1", "Alfa", ["g1", "g2"])], giocatori: [giocatoreReg("g1", "Mario", "Rossi"), giocatoreReg("g2", "Mario", "Rossi")] };
+    const t = tappaDaSquadre("t1", [{ nome: "Alfa", regId: "sq1", giocatori: ["Mario Rossi"] }, { nome: "Avversari", giocatori: ["Altro"] }], [
+      { a: 0, b: 1, pa: { 0: { pt: 12 } } },
+    ]);
+    const righe = statGiocatori([t], anagrafe);
+    expect(righe).toHaveLength(1);
+    expect(righe[0].regId).toBeUndefined();
+  });
+
+  it("due omonimi nella stessa squadra non collegata: una riga, con il segno ⚠ e g uguale ai tabellini", () => {
+    const t1 = tappaDaSquadre("t1", [{ nome: "Alfa", giocatori: ["Mario Rossi", "Mario Rossi"] }, { nome: "Avversari", giocatori: ["Altro"] }], [
+      { a: 0, b: 1, pa: { 0: { pt: 5 }, 1: { pt: 7 } } },
+      { a: 0, b: 1, pa: { 0: { pt: 6 }, 1: { pt: 8 } } },
+    ]);
+    const righe = statGiocatori([t1]);
+    expect(righe).toHaveLength(1);
+    expect(righe[0]).toMatchObject({ g: 4, pt: 26, omonimi: true });
+  });
+
+  // Due Mario Rossi nel roster della tappa, squadra collegata a un'anagrafe con un solo Mario Rossi: il ripiego per nome non
+  // deve dare a entrambi l'id di quello, ma lasciare la riga per nome con ⚠
+  it("due omonimi in una squadra collegata a una voce con un solo Mario Rossi non prendono il suo id: riga per nome con ⚠", () => {
+    const anagrafe: Anagrafe = { squadre: [squadraReg("sq1", "Alfa", ["g1"])], giocatori: [giocatoreReg("g1", "Mario", "Rossi")] };
+    const t = tappaDaSquadre("t1", [{ nome: "Alfa", regId: "sq1", giocatori: ["Mario Rossi", "Mario Rossi"] }, { nome: "Avversari", giocatori: ["Altro"] }], [
+      { a: 0, b: 1, pa: { 0: { pt: 5 }, 1: { pt: 7 } } },
+    ]);
+    const righe = statGiocatori([t], anagrafe);
+    expect(righe).toHaveLength(1);
+    expect(righe[0]).toMatchObject({ regId: undefined, g: 2, pt: 12, omonimi: true });
+  });
+
+  it("uno solo con cinque tabellini non è un omonimo: nessun segno ⚠", () => {
+    const partite = Array.from({ length: 5 }, () => ({ a: 0, b: 1, pa: { 0: { pt: 4 } } }));
+    const t = tappaDaSquadre("t1", [{ nome: "Alfa", giocatori: ["Mario Rossi"] }, { nome: "Avversari", giocatori: ["Altro"] }], partite);
+    expect(statGiocatori([t])).toMatchObject([{ g: 5, omonimi: false }]);
+  });
+
+  // La tappa vecchia (senza regId) si attribuisce a g1 dalla squadra collegata A; la nuova ha il regId nella squadra B: una riga
+  it("una tappa vecchia senza regId in una squadra collegata e una nuova con regId in un'altra: una riga sola", () => {
+    const anagrafe: Anagrafe = {
+      squadre: [squadraReg("sq1", "Alfa", ["g1"]), squadraReg("sq2", "Beta", [])],
+      giocatori: [giocatoreReg("g1", "Mario", "Rossi")],
+    };
+    const vecchia = tappaDaSquadre("t1", [{ nome: "Alfa", regId: "sq1", giocatori: ["Mario Rossi"] }, { nome: "Avversari", giocatori: ["Altro"] }], [
+      { a: 0, b: 1, pa: { 0: { pt: 12 } } },
+    ]);
+    const nuova = tappaDaSquadre("t2", [{ nome: "Beta", regId: "sq2", giocatori: [{ nome: "Mario Rossi", regId: "g1" }] }, { nome: "Avversari", giocatori: ["Altro"] }], [
+      { a: 0, b: 1, pa: { 0: { pt: 10 } } },
+    ]);
+    const righe = statGiocatori([vecchia, nuova], anagrafe);
+    expect(righe).toHaveLength(1);
+    expect(righe[0]).toMatchObject({ regId: "g1", g: 2, pt: 22 });
+  });
+
+  // Due squadre «Roma» collegate a voci diverse dell'anagrafe: un giocatore omonimo in ciascuna resta distinto
+  it("due squadre omonime collegate a voci diverse non si fondono", () => {
+    const t = tappaDaSquadre("t1", [
+      { nome: "Roma", regId: "rs1", giocatori: ["Luca Bianchi"] },
+      { nome: "Roma", regId: "rs2", giocatori: ["Luca Bianchi"] },
+    ], [{ a: 0, b: 1, pa: { 0: { pt: 10 } }, pb: { 0: { pt: 20 } } }]);
+    expect(statGiocatori([t]).map(colonne)).toEqual([
+      { nome: "Luca Bianchi", squadra: "Roma", g: 1, pt: 10 },
+      { nome: "Luca Bianchi", squadra: "Roma", g: 1, pt: 20 },
+    ]);
+  });
+
+  it("la squadra collegata si legge nella chiave della riga: la stessa squadra rinominata resta una", () => {
+    const t1 = tappaDaSquadre("t1", [{ nome: "Roma", regId: "rs1", giocatori: ["Luca Bianchi"] }, { nome: "Avversari", giocatori: ["Altro"] }], [
+      { a: 0, b: 1, pa: { 0: { pt: 10 } } },
+    ]);
+    const t2 = tappaDaSquadre("t2", [{ nome: "Roma Nuova", regId: "rs1", giocatori: ["Luca Bianchi"] }, { nome: "Avversari", giocatori: ["Altro"] }], [
+      { a: 0, b: 1, pa: { 0: { pt: 4 } } },
+    ]);
+    const righe = statGiocatori([t1, t2]);
+    expect(righe).toHaveLength(1);
+    expect(righe[0]).toMatchObject({ squadraChiave: "reg:rs1", g: 2, pt: 14 });
+  });
+
+  it("tabellini restituisce la squadra della scheda e la stessa lettura di risolviTabellini", () => {
+    const t = tappaDaSquadre("t1", [{ nome: "Alfa", giocatori: ["Mario Rossi"] }, { nome: "Beta", giocatori: ["Anna Verdi"] }], [
+      { a: 0, b: 1, pa: { 0: { pt: 12 } }, pb: { 0: { pt: 9 } } },
+    ]);
+    expect(tabellini(t)).toEqual(risolviTabellini(t));
+    expect(tabellini(t).map((x) => [x.squadraId, x.lato])).toEqual([["t1:s0", "a"], ["t1:s1", "b"]]);
   });
 });
 

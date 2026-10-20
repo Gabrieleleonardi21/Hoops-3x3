@@ -249,11 +249,31 @@ export function perditaGiocatore(tappa: Tappa, squadraId: string, pid: string): 
     + "della tappa.";
 }
 
-/** Aggiunge una squadra con il nome provvisorio «Squadra N». Il sorteggio fatto non vale più. */
+/** Il primo nome libero della forma `candidato(n)`, con n da 1: non è uguale (maiuscole, accenti e spazi a parte) a nessuno dei
+ *  `nomi` in uso. Così, tolta la «Squadra 1», la squadra nuova non rifà il nome di una squadra rimasta. */
+export function primoNomeLibero(nomi: string[], candidato: (n: number) => string): string {
+  const presi = new Set(nomi.map(normalizza));
+  let n = 1;
+  while (presi.has(normalizza(candidato(n)))) {
+    n++;
+  }
+  return candidato(n);
+}
+
+/** La tappa della lega con lo stesso nome (senza contare maiuscole, accenti e spazi), esclusa `daEscludere` (quella che si
+ *  modifica). Serve solo a segnalarlo: i nomi delle tappe possono ripetersi. Un nome vuoto non ne ha. */
+export function tappaOmonima(tappe: Tappa[], nome: string, daEscludere?: string): Tappa | undefined {
+  const chiave = normalizza(nome);
+  if (!chiave) return undefined;
+  return tappe.find((t) => t.id !== daEscludere && normalizza(t.nome) === chiave);
+}
+
+/** Aggiunge una squadra con il nome provvisorio «Squadra N», il primo libero. Il sorteggio fatto non vale più. */
 export function aggiungiSquadra(tappa: Tappa): Esito {
   if (tappa.conclusa) return ko(CONCLUSA);
   if (tappa.squadre.length >= MAX_SQUADRE) return ko(LIMITE_SQUADRE);
-  const squadra: SquadraTappa = { id: uid(), nome: nomeSegnaposto(tappa.squadre.length + 1), giocatori: [], rank: "" };
+  const nome = primoNomeLibero(tappa.squadre.map((s) => s.nome), nomeSegnaposto);
+  const squadra: SquadraTappa = { id: uid(), nome, giocatori: [], rank: "" };
   return ok(senzaSorteggio({ ...tappa, squadre: [...tappa.squadre, squadra] }));
 }
 
@@ -302,7 +322,10 @@ function rosterCorretto(tappa: Tappa, squadra: SquadraTappa, nomi: string[]): { 
     if (visti.has(chiave)) return { ok: false, errore: `Il giocatore «${nome}» è ripetuto.` };
     visti.add(chiave);
     const attuale = squadra.giocatori.find((g) => normalizza(g.nome) === chiave);
-    giocatori.push({ id: attuale?.id ?? uid(), nome });
+    const nuovo: GiocatoreRoster = { id: attuale?.id ?? uid(), nome };
+    // Il regId dice quale voce dell'anagrafe è la persona: chi è riconosciuto per nome lo conserva, altrimenti le statistiche si perdono
+    if (attuale?.regId) nuovo.regId = attuale.regId;
+    giocatori.push(nuovo);
   }
   const tolti = squadra.giocatori.filter((g) => !giocatori.some((n) => n.id === g.id));
   const conStatistiche = tolti.find((g) => tappa.partite.some((m) => m.done && (g.id in (m.pa ?? {}) || g.id in (m.pb ?? {}))));

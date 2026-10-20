@@ -7,19 +7,36 @@ import { Card } from "../ui/Card";
 import { Icon } from "../ui/Icon";
 import { CampiSquadra } from "./CampiAnagrafe";
 import type { SquadraInput } from "../../services/anagrafeApi";
-import type { RegGiocatore } from "../../types";
+import type { RegGiocatore, RegSquadra } from "../../types";
 import { MAX_ROSTER_ANAGRAFE } from "../../constants/rules";
 import { erroreUrlSquadra } from "../../utils/safeUrl";
+import { normalizza } from "../../utils/identita";
+import { AVVISO_VOCE_OMONIMA } from "../../utils/testi";
 
 /** I campi che il server fa scrivere (senza id, autore, autoreId e ts) */
 type Draft = SquadraInput;
 const EMPTY: Draft = { nome: "", citta: "", anno: "", rank: "", referente: "", roster: [], logo: "", website: "", instagram: "", note: "" };
 
-export function SquadraAnagrafeForm({ giocatori, onSave }: { giocatori: RegGiocatore[]; onSave: (d: Draft) => Promise<void> }) {
+/** `squadre`: le voci già registrate, per avvisare di un nome uguale (facoltativo) */
+export function SquadraAnagrafeForm({ giocatori, squadre = [], onSave }: {
+  giocatori: RegGiocatore[];
+  squadre?: RegSquadra[];
+  onSave: (d: Draft) => Promise<void>;
+}) {
   const [d, setD] = useState<Draft>(EMPTY);
   const [pick, setPick] = useState("");
+  // Un nome già registrato si avvisa al primo Salva; il secondo registra lo stesso
+  const [avviso, setAvviso] = useState<string | null>(null);
+  const [confermato, setConfermato] = useState(false);
   const { invio, errore, setErrore, esegui } = useInvio();
-  const set = (k: keyof Draft) => (e: React.ChangeEvent<HTMLInputElement>) => setD({ ...d, [k]: e.target.value });
+  const set = (k: keyof Draft) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    setD({ ...d, [k]: e.target.value });
+    // Cambiare il nome annulla l'avviso: il nome nuovo va controllato da capo
+    if (k === "nome") {
+      setAvviso(null);
+      setConfermato(false);
+    }
+  };
   const gName = (id: string) => {
     const g = giocatori.find((x) => x.id === id);
     return g ? `${g.nome} ${g.cognome}` : "?";
@@ -38,8 +55,18 @@ export function SquadraAnagrafeForm({ giocatori, onSave }: { giocatori: RegGioca
     // Gli indirizzi si controllano qui con il criterio del server (B10): un 400 dopo l'invio direbbe la stessa cosa, più tardi
     const urlNonValido = erroreUrlSquadra(d);
     if (urlNonValido) { setErrore(urlNonValido); return; }
+    const omonima = squadre.find((s) => normalizza(s.nome) === normalizza(d.nome));
+    if (omonima && !confermato) {
+      setAvviso(AVVISO_VOCE_OMONIMA(`«${omonima.nome}» (${omonima.citta || "senza città"}, di ${omonima.autore || "autore sconosciuto"})`, "squadra"));
+      setConfermato(true);
+      return;
+    }
     // Si svuota solo se il server ha accettato: altrimenti chi scrive ritrova ciò che aveva scritto
-    if (await esegui(() => onSave(d), "Salvataggio non riuscito")) setD(EMPTY);
+    if (await esegui(() => onSave(d), "Salvataggio non riuscito")) {
+      setD(EMPTY);
+      setAvviso(null);
+      setConfermato(false);
+    }
   };
 
   return (
@@ -69,6 +96,7 @@ export function SquadraAnagrafeForm({ giocatori, onSave }: { giocatori: RegGioca
         </div>
       </CampiSquadra>
       {errore && <p className="mt-2 text-[13px] font-semibold text-loss" role="alert">{errore}</p>}
+      {avviso && <p className="mt-2 text-[13px] text-court" role="status">{avviso}</p>}
       <Button className="mt-3" onClick={save} disabled={invio}>Salva nell'anagrafe</Button>
     </Card>
   );

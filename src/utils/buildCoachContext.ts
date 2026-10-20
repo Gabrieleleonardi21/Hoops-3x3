@@ -1,8 +1,9 @@
-import type { SquadraTappa, Tappa } from "../types";
+import type { Tappa } from "../types";
 import { giocateConVincitore, standings, vincitore } from "./standings";
 import { tappaLeaders } from "./tappaLeaders";
 import { nomeSquadra } from "./tappaInfo";
 import { letteraGirone } from "./formato";
+import { identitaSquadra } from "./identita";
 
 /** Lunghezza massima di un nome nel contesto */
 const MAX_NOME = 80;
@@ -20,13 +21,6 @@ export function pulisci(valore: string): string {
  *  (un conflitto riporta il nome della tappa salvato sul server) */
 export function senzaTag(valore: string): string {
   return String(valore).replace(/</g, "‹").replace(/>/g, "›");
-}
-
-/** La stessa squadra in tappe diverse: l'id di una squadra cambia a ogni tappa, quindi conta la voce dell'anagrafe a cui è
- *  collegata (regId) e, se non è collegata, il nome (maiuscole e spazi ai lati a parte) */
-function identitaSquadra(sq: SquadraTappa): string {
-  if (sq.regId) return `reg:${sq.regId}`;
-  return `nome:${sq.nome.trim().toLowerCase()}`;
 }
 
 /** Classifica cumulativa del circuito: aggrega vittorie e sconfitte su tutte le tappe, una riga per squadra (identitaSquadra).
