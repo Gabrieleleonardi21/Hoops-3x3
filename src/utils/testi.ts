@@ -313,3 +313,6 @@ const REGISTRARNE: Record<"squadra" | "giocatore", string> = { squadra: "un'altr
 /** Una voce dell'anagrafe con lo stesso nome. `descrizione` la identifica (««Roma» (Torino, di Gabriele)»); il secondo Salva registra */
 export const AVVISO_VOCE_OMONIMA = (descrizione: string, cosa: "squadra" | "giocatore") =>
   `Esiste già ${descrizione}. Premi di nuovo Salva per registrarne ${REGISTRARNE[cosa]}.`;
+/** Una squadra collegata la cui voce dell'anagrafe è stata eliminata: la squadra si scollega, e il nome la ricollega se si riscrive */
+export const AVVISO_VOCE_ELIMINATA = (nome: string) =>
+  `La voce dell'anagrafe di «${nome}» non esiste più: squadra scollegata. Riscrivi il nome per ricollegarla.`;

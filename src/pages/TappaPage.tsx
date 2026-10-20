@@ -11,7 +11,7 @@ import { useInvio } from "../hooks/useInvio";
 import { eSegnaposto } from "../domain/tappaOps";
 import { normalizza } from "../utils/identita";
 import { testoErrore } from "../services/api";
-import { COPIA_LINK_NON_RIUSCITA, copiaPubblicaNonAggiornata, tappaNonPubblicata } from "../utils/testi";
+import { AVVISO_VOCE_ELIMINATA, COPIA_LINK_NON_RIUSCITA, copiaPubblicaNonAggiornata, tappaNonPubblicata } from "../utils/testi";
 import { TappaEditPanel } from "../components/tappa/TappaEditPanel";
 import { TappaRules } from "../components/tappa/TappaRules";
 import { TappaConclusion } from "../components/tappa/TappaConclusion";
@@ -53,6 +53,8 @@ export function TappaPage() {
   // Squadre che non si sono potute collegare all'anagrafe: id della squadra → perché (null = nessun problema). Il motivo compare
   // nella card, sotto il nome: la squadra resta com'è e si usa lo stesso nella tappa
   const [erroriAnagrafe, setErroriAnagrafe] = useState<Record<string, string | null>>({});
+  // Squadre che la verifica con l'anagrafe ha scollegate perché la loro voce non c'è più: id della squadra → l'avviso sotto il nome
+  const [avvisiAnagrafe, setAvvisiAnagrafe] = useState<Record<string, string | null>>({});
   // Più squadre dell'anagrafe si chiamano come la squadra scritta: la finestra chiede quale collegare. Il nome è quello per cui è partita
   // la ricerca (senza spazi ai lati), e `candidate` le voci trovate
   const [scelta, setScelta] = useState<{ teamId: string; nome: string; candidate: RegSquadra[] } | null>(null);
@@ -68,7 +70,15 @@ export function TappaPage() {
   // Quando l'anagrafe carica, sincronizza le squadre della tappa (per nome o regId) e riconosce i giocatori scritti a mano
   useEffect(() => {
     if (!squadreAnagrafe) return;
-    void h.syncFromAnagrafe(squadreAnagrafe, giocatoriAnagrafe ?? []);
+    void h.syncFromAnagrafe(squadreAnagrafe, giocatoriAnagrafe ?? []).then((scollegate) => {
+      if (scollegate.length === 0) return;
+      // Le squadre scollegate dalla verifica dicono perché, sotto il nome
+      setAvvisiAnagrafe((avvisi) => {
+        const nuovi = { ...avvisi };
+        for (const s of scollegate) nuovi[s.id] = AVVISO_VOCE_ELIMINATA(s.nome);
+        return nuovi;
+      });
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [squadreAnagrafe]);
 
@@ -110,6 +120,8 @@ export function TappaPage() {
     // Il messaggio di un tentativo precedente si toglie subito, anche se questo non parte (nome vuoto o segnaposto, squadra già
     // collegata): resterebbe un «Riprova» che non può fare niente, su un nome che non c'è più
     segnaErroreAnagrafe(teamId, null);
+    // Anche l'avviso della voce eliminata: il nome scritto è il tentativo di ricollegarla
+    setAvvisiAnagrafe((avvisi) => ({ ...avvisi, [teamId]: null }));
     const trimmed = nome.trim();
     if (!h.user || h.user.guest || !trimmed || eSegnaposto(trimmed)) return;
     // Si aspetta solo mentre l'anagrafe si sta caricando. Se il caricamento è fallito (liste ancora null, `erroreCaricamento` pieno)
@@ -256,7 +268,7 @@ export function TappaPage() {
         </p>
         <div className="mb-4 grid gap-3 grid-cols-[repeat(auto-fill,minmax(240px,1fr))]">
           {t.squadre.map((s, i) => (
-            <SquadraCard key={s.id} s={s} index={i} h={h} erroreAnagrafe={erroriAnagrafe[s.id]}
+            <SquadraCard key={s.id} s={s} index={i} h={h} erroreAnagrafe={erroriAnagrafe[s.id]} avviso={avvisiAnagrafe[s.id]}
               onNameCommit={(nome) => handleTeamNameCommit(s.id, nome)} omonima={(conteggioNomi.get(normalizza(s.nome)) ?? 0) > 1} />
           ))}
         </div>
