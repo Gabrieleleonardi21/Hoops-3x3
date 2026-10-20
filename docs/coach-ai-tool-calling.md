@@ -95,18 +95,37 @@ rifiuto conta nella quota del Coach (il modello viene chiamato comunque). È una
 Tutti gli strumenti di tappa accettano `tappa_nome` (facoltativo):
 
 - assente → l'**ultima** tappa della lega aperta;
-- presente → il nome esatto (maiuscole a parte) oppure una parte del nome, purché si trovi in **una sola** tappa. Se la parte
-  corrisponde a più tappe è un errore che chiede il nome completo (con «Roma Open» e «Roma Open 2», «Roma» non sceglie la prima);
+- presente → la regola di `trovaPerNome` (`src/utils/ricercaPerNome.ts`), in tre passi, la stessa per tappe e squadre:
+  1. il nome **esatto** (maiuscole, accenti e spazi ai lati a parte), per intero, anche se contiene parentesi («Roma (Torino)» è il
+     nome di una squadra e si trova così). Con due o più tappe dallo stesso nome non ne sceglie una: l'errore le elenca con data e
+     luogo e chiede il dettaglio, per esempio «Più tappe si chiamano "Prova": "Prova" (12/05/2026, Torino); "Prova" (26/06/2026,
+     Milano). Scrivi il nome con un dettaglio tra parentesi, per esempio "Prova (26/06/2026)".»;
+  2. il nome **con un dettaglio tra parentesi** in fondo, che sceglie tra le tappe con quel nome: la data («Roma Open (12/05/2026)»)
+     o il luogo («Roma Open (Torino)»), senza distinguere maiuscole e accenti. Prima vale il dettaglio uguale a un dato
+     dell'elemento (la lettera del girone «B», la città «Torino»): se ne corrisponde uno solo è quello, anche se un'altra ha una
+     parte uguale (una città «Bari» contiene «b»). Se il dettaglio non ne sceglie una sola, l'errore
+     elenca le opzioni («Nessuna "Roma Open" corrisponde a "(oggi)": le opzioni sono …»; o «Più …» se ne corrispondono più d'una).
+     Se nessuna tappa ha quel nome, il passo salta e il nome intero passa al punto 3;
+  3. una **parte** del nome, purché corrisponda a **una sola** tappa. Se la parte corrisponde a più tappe è un errore che chiede il
+     nome completo (con «Roma Open» e «Roma Open 2», «Roma» non sceglie la prima);
 - un `tappa_nome` non valido (un numero, un testo vuoto) è un errore, non diventa «l'ultima tappa»;
 - nessuna tappa nella lega → errore «Nessuna tappa trovata».
+
+Il Coach non prende mai «il primo» di due omonime: o chiede il dettaglio, o si ferma. Con una tappa sola il nome basta, e le conferme
+la nominano con data e luogo solo quando un'altra della lega ha lo stesso nome (`etichettaTappa`).
 
 ### Come si sceglie la squadra dell'anagrafe
 
 `crea_tappa` (per ogni nome in `squadre`) e `aggiorna_squadra` (per `nome`) trovano la squadra con la stessa regola delle tappe
-(`trovaPerNome` in `toolHandlers.ts`, usata anche da `findTappa`; per le squadre la chiama `findSquadra`, che prima guarda gli
-omonimi esatti):
+(`trovaPerNome` in `src/utils/ricercaPerNome.ts`; per le squadre dell'anagrafe la chiama `findSquadra` in `toolHandlers.ts`, che
+prima guarda il dettaglio tra parentesi e poi gli omonimi esatti):
 
 - vince il nome **esatto** (maiuscole a parte): con «Roma Kings» elencata prima di «Roma», chiedere «Roma» sceglie «Roma»;
+- con un **dettaglio tra parentesi** la città o l'autore scelgono tra le squadre con quel nome: «Roma (Torino)», «Roma (di Gabriele)».
+  Il nome intero ha la precedenza, così «Roma (Torino)» è la squadra che si chiama così. Se ci sono squadre con quel nome (anche
+  una sola) ma il dettaglio non ne sceglie nessuna, è un errore che le elenca («Nessuna "Roma" corrisponde a "(Napoli)": le opzioni
+  sono …»): non si registra una squadra nuova con lo stesso nome. Solo se il nome base non ha omonime, il nome intero è una squadra
+  nuova: `crea_tappa` la registra («Ballers (U18)»), `aggiorna_squadra` risponde «non trovata in anagrafe»;
 - se **due o più squadre** hanno lo stesso nome esatto (né il server né la pagina Anagrafe impediscono i doppioni) non vince la
   prima: la scelta dipende dallo strumento e dall'utente di adesso (`useAppStore.getState().user`):
   - `aggiorna_squadra` tiene tra gli omonimi quelle che l'utente può modificare (`puoModificare` in `utils/permessi.ts`: le sue, o
@@ -125,6 +144,14 @@ omonimi esatti):
   `Più squadre in anagrafe corrispondono a "Roma": "Roma Kings", "Roma Stars". Indica il nome completo.` Per `crea_tappa` il
   controllo riguarda **tutti** i nomi richiesti ed è fatto prima di registrare qualsiasi squadra;
 - nessuna corrispondenza: `aggiorna_squadra` risponde «non trovata in anagrafe», `crea_tappa` registra la squadra.
+
+Le squadre **dentro una tappa** (le due di `registra_risultato` e `registra_risultati`, la squadra di `correggi_squadra`) passano dalla
+stessa funzione, con `dettagliSquadra`: il dettaglio è il girone («Roma (girone B)», anche solo «Roma (B)»), la città dell'anagrafe
+o un giocatore. Con due «Roma» nella tappa e senza dettaglio l'errore elenca i gironi; con «Roma (girone B)» scrive sulla squadra
+del girone B.
+
+Esempi di dettaglio, con i nomi che il Coach accetta: «Roma Open (12/05/2026)» per una tappa, «Roma (girone B)» per una squadra di
+tappa, «Roma (Torino)» per una squadra dell'anagrafe. Le descrizioni degli strumenti (`toolDefs.ts`) dicono la stessa cosa al modello.
 
 ---
 
@@ -145,11 +172,13 @@ omonimi esatti):
 - **Azione:**
   1. Controlla i limiti (`erroreLimitiTappa` di `tappaOps`: numero di squadre e di gironi, nome fino a 120 caratteri, luogo fino a 160, data vuota o aaaa-mm-gg) **prima** di toccare l'anagrafe: una tappa rifiutata non lascia squadre registrate
   2. Carica in parallelo squadre e giocatori dell'anagrafe condivisa dal server (`anagrafeApi`: lettura sempre fresca, per non registrare doppioni). Se una delle due letture non riesce lo strumento si ferma con l'errore «L'anagrafe condivisa non risponde (<motivo>): non ho registrato né modificato niente, riprova tra poco.»: non registra niente, perché con un elenco vuoto passerebbero per nuove squadre che esistono già
-  3. Abbina **tutti** i nomi richiesti alle squadre dell'anagrafe con la regola di «Come si sceglie la squadra dell'anagrafe» (nome esatto, altrimenti una parte che corrisponde a una squadra sola); un nome che ne corrisponde a più (anche due dallo stesso nome esatto, se l'utente non ne ha una sola) ferma lo strumento con un errore, prima di registrare qualsiasi squadra
+  3. Abbina **tutti** i nomi richiesti alle squadre dell'anagrafe con la regola di «Come si sceglie la squadra dell'anagrafe» (nome esatto, con il dettaglio tra parentesi «Roma (Torino)», o una parte che corrisponde a una squadra sola); un dettaglio che non corrisponde a nessuna squadra con quel nome è un nome nuovo (la squadra si registra) solo se il nome base non ha omonime, altrimenti è un errore che elenca le opzioni; un nome che ne corrisponde a più (anche due dallo stesso nome esatto, se l'utente non ne ha una sola) ferma lo strumento con un errore, prima di registrare qualsiasi squadra
   4. Per le squadre trovate: popola `giocatori` con il roster dell'anagrafe, al massimo `MAX_ROSTER` (4, il tetto che l'interfaccia impone alle squadre di una tappa): i primi del roster. Gli altri restano fuori e il testo per il modello lo dice con le squadre e i **nomi** dei giocatori esclusi («Giocatori oltre il massimo di 4 per squadra, rimasti fuori dal roster (tenuti i primi dell'anagrafe): Roma Open 2: Anna, Bea; Alfa: Carlo. Nella pagina della tappa il roster si cambia a mano: l'utente toglie un giocatore e scrive il nome di chi vuole al suo posto.»; nomi di squadre e di giocatori passano da `pulisci`, e il formato «squadra: giocatori» non si confonde con un conteggio se il nome della squadra finisce con un numero); le altre squadre non compaiono. Nella pagina della tappa il roster è fatto di campi di testo (`RosterEditor`): non c'è una scelta dall'anagrafe. Copia inoltre `regId`, `logo`, `rank`, `website`, `instagram`
   5. Per le squadre non trovate: le registra in anagrafe con i dati minimi (`saveSquadra` di `useAnagrafeStore`, così si aggiorna anche la cache letta dalle pagine); il roster resta vuoto, da completare a mano
   6. Se intanto la chat è stata cancellata o si è aperta un'altra lega non crea la tappa (le squadre già registrate restano in anagrafe, e con un'altra lega aperta l'errore le elenca); altrimenti `creaTappa` di `tappaOps` + `addTappa` sullo store, poi apre `/lega/tappa/:id`
-- **Errori:** nessuna lega attiva; esiste già una tappa con lo stesso nome nella lega (il modello che lo richiama non crea doppioni); elenco squadre mancante o con un nome vuoto; un nome che corrisponde a più squadre dell'anagrafe; anagrafe che non risponde
+- **Tappe omonime (D3):** se la lega ha già una tappa con lo stesso nome (maiuscole e accenti a parte), il Coach chiede conferma con data e luogo: «Esiste già una tappa con questo nome: "Roma Open" (12/05/2026, Torino). Crearne un'altra con lo stesso nome?». «Annulla» non crea niente e non tocca l'anagrafe; «Conferma» la crea. La conferma viene prima della lettura dell'anagrafe.
+- **Nella stessa richiesta:** una tappa creata in questa richiesta non si ricrea. Il set `creati` del contesto (`useCoachAI.ts` ne fa uno per ogni richiesta) ricorda i nomi creati: una seconda `crea_tappa` con lo stesso nome è un errore («esiste già in questa lega»), senza domande. Due nomi uguali in `squadre` (dopo maiuscole e spazi) sono un errore prima di toccare l'anagrafe.
+- **Errori:** nessuna lega attiva; una tappa con lo stesso nome creata nella stessa richiesta; due nomi uguali in `squadre`; elenco squadre mancante o con un nome vuoto; un nome che corrisponde a più squadre dell'anagrafe; anagrafe che non risponde
 - **Nota:** Deve essere chiamato **UNA SOLA VOLTA** con tutte le squadre nell'array `squadre`.
 - **Esempio:** *"Crea la tappa Roma Open con le squadre Ballers Roma, Street Kings e Wildcats"*
 
@@ -249,7 +278,7 @@ omonimi esatti):
 - **Descrizione:** Registra una nuova squadra nell'anagrafe condivisa del circuito.
 - **Parametri obbligatori:** `nome`
 - **Parametri opzionali:** `citta`, `anno`, `rank`, `referente`, `logo`, `website`, `instagram`, `note`
-- **Azione:** legge l'anagrafe (`GET /api/anagrafe/squadre`): se c'è già una squadra con lo stesso nome (maiuscole e spazi ai lati a parte) non registra niente e l'errore la descrive (città, autore) e rimanda ad `aggiorna_squadra`. Altrimenti `saveSquadra` di `useAnagrafeStore`: `POST /api/anagrafe/squadre` sul backend e aggiornamento della cache dell'anagrafe. Il roster parte vuoto
+- **Azione:** legge l'anagrafe (`GET /api/anagrafe/squadre`): se c'è già una squadra con lo stesso nome (maiuscole e spazi ai lati a parte) chiede conferma, con città e autore: «Esiste già la squadra "Roma" (Torino, di Gabriele). Registrarne un'altra?». «Annulla» non registra niente; «Conferma» la registra come doppione, che resta permesso (per cambiare una squadra esistente c'è `aggiorna_squadra`). Altrimenti `saveSquadra` di `useAnagrafeStore`: `POST /api/anagrafe/squadre` sul backend e aggiornamento della cache dell'anagrafe. Il roster parte vuoto
 - **Esempio:** *"Registra la squadra Ballers Roma, città Roma"*
 
 ---
@@ -258,7 +287,7 @@ omonimi esatti):
 - **Descrizione:** Registra un nuovo giocatore nell'anagrafe condivisa del circuito.
 - **Parametri obbligatori:** `nome`, `cognome`
 - **Parametri opzionali:** `squadra`, `ruolo`, `nascita`, `citta`, `nazionalita`, `altezza`, `peso`, `numero`, `soprannome`, `esperienza`, `note`
-- **Azione:** legge l'anagrafe (`GET /api/anagrafe/giocatori`): se c'è già un giocatore con lo stesso nome e cognome non registra niente (un omonimo vero si registra dalla pagina Anagrafe). Altrimenti `saveGiocatore` di `useAnagrafeStore`: `POST /api/anagrafe/giocatori` sul backend e aggiornamento della cache dell'anagrafe
+- **Azione:** legge l'anagrafe (`GET /api/anagrafe/giocatori`): se c'è già un giocatore con lo stesso nome e cognome chiede conferma («Esiste già il giocatore "Mario Rossi" (di Anna). Registrarne un altro?»): «Annulla» non registra niente, «Conferma» registra il doppione (un omonimo vero si può anche registrare dalla pagina Anagrafe). Altrimenti `saveGiocatore` di `useAnagrafeStore`: `POST /api/anagrafe/giocatori` sul backend e aggiornamento della cache dell'anagrafe
 - **Esempio:** *"Aggiungi il giocatore Marco Rossi, ruolo Playmaker, squadra Ballers Roma"*
 
 ---
@@ -497,7 +526,7 @@ const ESECUTORI = new Map<string, Esecutore>([
 >
 > Gli aiuti interni di `toolHandlers.ts`:
 > `str(args, key)` legge una stringa con ripiego a `""`; `obbligatorio(args, key, cosa)` la vuole non vuota, altrimenti l'errore dice che cosa manca; `numero(args, key)` legge un numero (o un testo che lo contiene).
-> `tappaRichiesta(args)` trova la tappa di `tappa_nome` (nome esatto, o una parte che corrisponde a una tappa sola) oppure l'ultima; `findSquadra(squadre, nome, traLeOmonime)` fa lo stesso con le squadre dell'anagrafe, e con due squadre dallo stesso nome esatto lascia scegliere a `traLeModificabili` (aggiorna_squadra) o `traLeMie` (crea_tappa). Tutte e due usano `trovaPerNome`: una regola sola per scegliere per nome.
+> `tappaRichiesta(args)` trova la tappa di `tappa_nome` (nome esatto, dettaglio tra parentesi, o una parte che corrisponde a una tappa sola) oppure l'ultima; `findSquadra(squadre, nome, traLeOmonime)` fa lo stesso con le squadre dell'anagrafe, e con due squadre dallo stesso nome esatto lascia scegliere a `traLeModificabili` (aggiorna_squadra) o `traLeMie` (crea_tappa). Tutte e due usano `trovaPerNome` (in `src/utils/ricercaPerNome.ts`, che usa anche il dominio di `simulazione.ts`): una regola sola per scegliere per nome.
 > `prova(tappa, operazione)` / `applica(tappa, operazione)` eseguono una funzione di `tappaOps` senza salvare / salvando sulla tappa di adesso.
 > `fetchSquadre()` / `fetchGiocatori()` leggono l'anagrafe condivisa dal server; se non risponde lanciano l'errore di `anagrafeNonRisponde` (non una lista vuota, che farebbe registrare doppioni).
 > Un nome scritto dagli utenti che entra nel testo restituito al modello passa da `pulisci` (o `senzaTag` per un testo lungo).
@@ -524,7 +553,7 @@ Una sezione `` ### `nome_tool` `` in «Tool disponibili», come le altre: `coach
 - La chat in UI mostra messaggi user/assistant; i messaggi tool restano interni all'API, ma sotto ogni risposta dell'assistant compaiono **badge** con le azioni eseguite (campo `tools` di `ChatMsg`, etichette in `CoachPanel`; `annulla_risultato` è in rosso).
 - La chat vive nello store (non nel pannello): chiudendo il pannello durante l'attesa la risposta arriva lo stesso. Se ne tengono gli ultimi **30 messaggi**, che sono anche quelli mandati al modello (il server rifiuta oltre 60 messaggi o 100.000 caratteri). La cronologia è in `sessionStorage` (si azzera alla chiusura della scheda e a ogni cambio di utente).
 - `crea_tappa` richiede una lega attiva (`legaId !== null`); se manca, restituisce un errore descrittivo.
-- `crea_tappa` deve essere chiamato **una sola volta** con tutte le squadre nell'array. Il prompt e la descrizione del tool lo specificano esplicitamente. Se il modello lo chiama più volte con lo stesso nome, il guard `tappe.some(t => t.nome === nomeTappa)` blocca i duplicati (e la guardia anti-stallo blocca una chiamata identica).
+- `crea_tappa` deve essere chiamato **una sola volta** con tutte le squadre nell'array. Il prompt e la descrizione del tool lo specificano esplicitamente. Se il modello lo chiama più volte con lo stesso nome, il set `creati` del contesto (nomi normalizzati delle tappe create in questa richiesta, creato in `useCoachAI.ts` prima del ciclo) blocca la seconda chiamata con un errore, senza domande (e la guardia anti-stallo blocca una chiamata identica). Una tappa omonima di una richiesta precedente, invece, passa da `confermaTappaOmonima`: chiede conferma e non si crea senza. Il controllo è per nome normalizzato, quindi «roma open» e «Roma Open» sono la stessa tappa.
 - `sorteggia_gironi`, `genera_fasi_dirette`, `registra_risultato`, `annulla_risultato`, `concludi_tappa` leggono la tappa con `useAppStore.getState().tappe`: combinato con l'esecuzione **in sequenza** dei tool dello stesso turno, ogni tool vede sempre gli effetti dei precedenti. La tappa letta passa a `tappaOps` e il risultato viene salvato subito con `replaceTappa`, senza `await` in mezzo: due risultati ravvicinati non si sovrascrivono.
 - Le regole di questi strumenti (validazioni comprese) stanno in `src/domain/tappaOps.ts` e sono **le stesse funzioni chiamate dalla UI** (`useTappa`, `BracketSection`): una modifica al salvataggio di un risultato si fa in un posto solo. I controlli sui roster e sul tabellino dei giocatori restano invece nella sola interfaccia (`useTappa`). L'avanzamento del vincitore nel bracket è dentro `registraRisultatoBracket`, che usa `nextBracketSlot(bracket, matchId, vincitoreId)` di `utils/buildBracket.ts`.
 - Con la lega aperta che cambia mentre uno strumento aspetta (un'altra lega, la tappa eliminata) la modifica non si salva e il modello riceve un errore: `applica` rilegge la tappa per id e non scrive su una tappa che non c'è più.

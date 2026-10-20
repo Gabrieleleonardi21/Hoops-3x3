@@ -2,6 +2,7 @@
  *  in toolHandlers.ts perché li usano sia toolHandlers.ts sia toolHandlersSimulazione.ts: se fossero in toolHandlers.ts, quel file
  *  importerebbe l'altro e l'altro importerebbe lui (un ciclo di import). */
 import { useAppStore, tappaCorrente } from "../stores/useAppStore";
+import { useAnagrafeStore } from "../stores/useAnagrafeStore";
 import { anagrafeApi } from "../services/anagrafeApi";
 import { testoErrore } from "../services/api";
 import { uid } from "../utils/uid";
@@ -9,7 +10,13 @@ import { MAX_ROSTER } from "../constants/rules";
 import { pulisci, senzaTag } from "../utils/buildCoachContext";
 import { registraRisultato, registraRisultatoBracket, type Esito } from "../domain/tappaOps";
 import type { Tappa, RegSquadra, RegGiocatore, SquadraTappa } from "../types";
-import { squadraDi } from "../utils/tappaInfo";
+import { letteraGironeDi, postoSquadra, squadraDi } from "../utils/tappaInfo";
+import { dataItaliana } from "../utils/formato";
+import { haOmonimi, normalizza } from "../utils/identita";
+import { trovaPerNome, type Dettagli } from "../utils/ricercaPerNome";
+
+// trovaPerNome vive in utils/ricercaPerNome (la usa anche il dominio): qui si ri-esporta perché chi la importa da strumentiComuni non cambi
+export { trovaPerNome };
 
 /** Ciò che l'hook dà agli strumenti */
 export interface ContestoStrumenti {
@@ -19,6 +26,9 @@ export interface ContestoStrumenti {
   segnale: AbortSignal;
   /** Mostra nel pannello la richiesta di conferma di un'azione distruttiva (D4); true = «Conferma» */
   chiediConferma: (titolo: string, testo: string) => Promise<boolean>;
+  /** I nomi (normalizzati) delle tappe create in questa richiesta: il modello non ne crea due con lo stesso nome nella stessa richiesta.
+   *  Facoltativo: chi non lo passa non ha il controllo, e le tappe della lega restano coperte dalla conferma (D3) */
+  creati?: Set<string>;
 }
 
 export type Argomenti = Record<string, unknown>;
@@ -65,6 +75,19 @@ export function nomiSquadre(args: Argomenti): string[] {
   return nomi;
 }
 
+/** Il primo nome di squadra che compare due volte nell'elenco (maiuscole, accenti e spazi a parte), come è stato scritto la prima volta.
+ *  Due volte la stessa squadra in crea_tappa darebbe due squadre con lo stesso nome nella tappa: non si crea */
+export function squadraRipetuta(nomi: string[]): string | null {
+  const prime = new Map<string, string>();
+  for (const nome of nomi) {
+    const chiave = normalizza(nome);
+    const prima = prime.get(chiave);
+    if (prima !== undefined) return prima;
+    prime.set(chiave, nome);
+  }
+  return null;
+}
+
 /** Numero di gironi di crea_tappa: quello indicato (erroreLimitiTappa vuole un intero), altrimenti 2, oppure 1 con meno
  *  di 4 squadre (ogni girone ne vuole almeno 2) */
 export function gironiRichiesti(args: Argomenti, nSquadre: number): number {
@@ -104,21 +127,57 @@ export async function confermata(ctx: ContestoStrumenti, titolo: string, testo: 
   throw new Error("L'utente ha annullato: azione non eseguita. Non riprovarla se non te lo chiede di nuovo.");
 }
 
-/** La regola con cui un nome dato dal modello sceglie una tappa o una squadra, maiuscole a parte: vince il nome esatto,
- *  altrimenti basta una parte del nome purché corrisponda a un elemento solo. Se ne corrispondono più d'uno è un errore che
- *  li elenca (nomi scritti dagli utenti: passano da pulisci) e chiede il nome completo: scegliere il primo della lista
- *  metterebbe un risultato sulla tappa sbagliata, o una modifica sulla squadra sbagliata dell'anagrafe condivisa, senza che
- *  nessuno se ne accorga. `plurale` completa la frase dell'errore («Più tappe corrispondono a…») */
-export function trovaPerNome<T>(elementi: T[], nome: string, nomeDi: (e: T) => string, plurale: string): T | null {
-  const nl = nome.toLowerCase();
-  const esatto = elementi.find((e) => nomeDi(e).toLowerCase() === nl);
-  if (esatto) return esatto;
-  const simili = elementi.filter((e) => nomeDi(e).toLowerCase().includes(nl));
-  if (simili.length > 1) {
-    const nomi = simili.map((e) => `"${pulisci(nomeDi(e))}"`).join(", ");
-    throw new Error(`Più ${plurale} corrispondono a "${nome}": ${nomi}. Indica il nome completo.`);
-  }
-  return simili[0] ?? null;
+/* ── Come si distinguono tappe e squadre omonime, e come si nominano nelle conferme ── */
+
+// Una tappa salvata da una versione vecchia può non avere data o luogo: come in buildCoachContext, vale il testo vuoto
+const dataDi = (t: Tappa) => String(t.data ?? "");
+const luogoDi = (t: Tappa) => String(t.luogo ?? "");
+/** Come si distinguono due tappe dello stesso nome: data e luogo, che il dettaglio tra parentesi accetta («Roma Open (26/06/2026)») */
+export const dettagliTappa: Dettagli<Tappa> = {
+  descrittori: (t) => [dataItaliana(dataDi(t)), dataDi(t), luogoDi(t)].filter((d) => d.trim()),
+  descrivi: (t) => `"${pulisci(t.nome)}" (${pulisci(dataItaliana(dataDi(t))) || "senza data"}, ${pulisci(luogoDi(t)) || "senza luogo"})`,
+};
+
+/** La città dell'anagrafe della squadra collegata, dalla cache se è caricata: la squadra della tappa non la porta con sé */
+function cittaDi(s: SquadraTappa): string {
+  if (!s.regId) return "";
+  const reg = (useAnagrafeStore.getState().squadre ?? []).find((r) => r.id === s.regId);
+  return reg?.citta ?? "";
+}
+
+/** Come si distinguono due squadre dello stesso nome in una tappa: il girone, la città dell'anagrafe e i giocatori. Il dettaglio
+ *  «Roma (girone B)» o «Roma (Torino)» o il nome di un giocatore sceglie tra le omonime */
+export function dettagliSquadra(tappa: Tappa): Dettagli<SquadraTappa> {
+  return {
+    descrittori: (s) => {
+      // «girone B» e «B» (la lettera da sola), così il dettaglio «B» e «girone B» scelgono la stessa squadra
+      const parti: string[] = [];
+      const lettera = letteraGironeDi(tappa, s.id);
+      if (lettera) parti.push(`girone ${lettera}`, lettera);
+      parti.push(cittaDi(s), ...(s.giocatori ?? []).map((g) => g.nome));
+      return parti.filter((p) => p.trim());
+    },
+    descrivi: (s) => {
+      const testa = [cittaDi(s), postoSquadra(tappa, s.id)].filter((p) => p.trim()).map((p) => pulisci(p)).join(", ");
+      const nomi = (s.giocatori ?? []).map((g) => pulisci(g.nome)).filter((n) => n.trim());
+      let coda = "";
+      if (nomi.length) coda = `: ${nomi.join(", ")}`;
+      return `"${pulisci(s.nome)}" (${testa}${coda})`;
+    },
+  };
+}
+
+/** Come si nomina una tappa nei testi delle conferme: il nome tra virgolette, e con data e luogo solo se un'altra tappa della
+ *  lega ha lo stesso nome. Così la conferma dice quale delle due */
+export function etichettaTappa(tappa: Tappa, tappe: Tappa[]): string {
+  if (haOmonimi(tappe, tappa, (t) => t.nome)) return dettagliTappa.descrivi(tappa);
+  return `"${pulisci(tappa.nome)}"`;
+}
+
+/** Come si nomina una squadra nei testi delle conferme: il nome, e il girone solo se la tappa ha un'omonima */
+export function etichettaSquadra(tappa: Tappa, squadra: SquadraTappa): string {
+  if (haOmonimi(tappa.squadre, squadra, (s) => s.nome)) return `${pulisci(squadra.nome)} (${postoSquadra(tappa, squadra.id)})`;
+  return pulisci(squadra.nome);
 }
 
 /** Trova una tappa per nome (trovaPerNome); se il nome manca restituisce l'ultima. Con «Roma Open» e «Roma Open 2» aperte
@@ -128,7 +187,7 @@ function findTappa(tappe: Tappa[], nomeTappa?: string): Tappa | null {
     if (tappe.length === 0) return null;
     return tappe[tappe.length - 1];
   }
-  return trovaPerNome(tappe, nomeTappa, (t) => t.nome, "tappe");
+  return trovaPerNome(tappe, nomeTappa, (t) => t.nome, "tappe", dettagliTappa);
 }
 
 /** La tappa indicata da `tappa_nome` (o l'ultima, se manca) com'è adesso nello store. Un tappa_nome passato ma non
@@ -170,7 +229,7 @@ export function applica(tappa: Tappa, operazione: (t: Tappa) => Esito): Tappa {
 /** La squadra della tappa indicata dal modello, per nome con la regola di trovaPerNome (esatto, poi una parte del nome solo se
  *  corrisponde a una squadra sola) */
 export function squadraRichiesta(tappa: Tappa, nome: string): SquadraTappa {
-  const squadra = trovaPerNome(tappa.squadre, nome, (s) => s.nome, "squadre della tappa");
+  const squadra = trovaPerNome(tappa.squadre, nome, (s) => s.nome, "squadre della tappa", dettagliSquadra(tappa));
   if (!squadra) throw new Error(`Nessuna squadra della tappa "${pulisci(tappa.nome)}" si chiama "${nome}".`);
   return squadra;
 }
@@ -215,6 +274,23 @@ export async function fetchGiocatori(): Promise<RegGiocatore[]> {
 
 /** Il messaggio quando non c'è una lega aperta: lo stesso per crea_tappa e crea_tappa_simulata */
 export const ERRORE_NESSUNA_LEGA = "Nessuna lega attiva: crea una lega prima di aggiungere tappe.";
+
+/** Il testo della conferma per una tappa che ha già lo stesso nome nella lega (D3): dice quali sono, con data e luogo */
+export const CONFERMA_TAPPA_OMONIMA = (elenco: string) => `Esiste già una tappa con questo nome: ${elenco}. Crearne un'altra con lo stesso nome?`;
+
+/** Il testo della conferma per una squadra o un giocatore già registrato con lo stesso nome (D3). `elenco` descrive chi c'è già,
+ *  `nuova` completa la frase («un'altra» per una squadra, «un altro» per un giocatore) */
+export const CONFERMA_VOCE_OMONIMA = (elenco: string, nuova: "un'altra" | "un altro") =>
+  `Esiste già ${elenco}. Registrarne ${nuova}?`;
+
+/** D3: una tappa con lo stesso nome di una della lega si crea solo se l'utente conferma, perché i doppioni restano permessi. Le
+ *  tappe create in questa stessa richiesta non passano di qui: sono un errore (erroreTappaDuplicata, in creati) */
+export async function confermaTappaOmonima(nome: string, tappe: Tappa[], ctx: ContestoStrumenti) {
+  const omonime = tappe.filter((t) => normalizza(t.nome) === normalizza(nome));
+  if (omonime.length === 0) return;
+  const elenco = omonime.map((t) => dettagliTappa.descrivi(t)).join("; ");
+  await confermata(ctx, "Tappa con lo stesso nome", CONFERMA_TAPPA_OMONIMA(elenco));
+}
 
 /** Il nome di una tappa nuova non può esistere già nella lega aperta: il messaggio è lo stesso per crea_tappa e per le tappe simulate.
  *  Il nome lo ha scritto il modello (o l'utente), e passa da pulisci come gli altri nomi nei testi */

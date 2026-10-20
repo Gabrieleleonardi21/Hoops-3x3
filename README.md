@@ -533,8 +533,8 @@ L'elenco completo, schermata per schermata, è in [`FUNZIONALITA.txt`](FUNZIONAL
 - **Anagrafe.** Un archivio condiviso di giocatori e squadre che le tappe riutilizzano.
   - Una squadra ha logo e sito web cliccabile, e un roster fino a 6 giocatori (`MAX_ROSTER_ANAGRAFE`), diverso dai 4 di una squadra di tappa (`MAX_ROSTER`).
   - Logo, sito, Instagram e link dei video sono vuoti oppure indirizzi `http(s)://` o percorsi del sito come `/logos/nome.svg`, fino a 2048 caratteri, come vuole il server. I moduli lo controllano prima dell'invio (`erroreUrl` in `src/utils/safeUrl.ts`).
-  - Scrivendo il nome di una squadra di tappa, questa si collega alla voce dell'anagrafe (nome, logo, ranking e sito; il roster non si copia) o ne crea una, solo se all'arrivo della risposta la squadra ha ancora quel nome.
-  - «Scollega» toglie il collegamento e rende di nuovo modificabile il nome. Serve a cambiarlo: con lo stesso nome, alla prossima apertura della tappa la squadra si ricollega.
+  - Scrivendo il nome di una squadra di tappa, questa si collega alla voce dell'anagrafe (nome, logo, ranking e sito; il roster non si copia) o ne crea una, solo se all'arrivo della risposta la squadra ha ancora quel nome. Una squadra già collegata resta collegata alla sua voce, anche se la cache non la conosce ancora: non si ricollega mai per nome. Per nome si collegano solo le squadre senza collegamento. Con due squadre omonime in anagrafe la pagina non sceglie la prima: chiede quale collegare (`src/components/squadra/SceltaSquadraDialog.tsx`).
+  - «Scollega» toglie il collegamento e rende di nuovo modificabile il nome. Serve a cambiarlo, e resta anche alla riapertura della tappa: per ricollegarla si scrive di nuovo il nome.
   - Modifica ed eliminazione solo per l'autore o un ADMIN.
   - I dati personali li vede solo chi ha un account: del giocatore data di nascita, città, nazionalità, altezza, peso, esperienza, note e autore; della squadra referente e autore.
 - **Archivio.** Le tappe concluse e pubblicate (pubblicano solo i registrati), consultabili senza account in `/archivio` e `/tappa/:id`.
@@ -964,6 +964,7 @@ Dal profilo, con la password.
   - Se un altro dispositivo ha salvato la voce nel frattempo, il server risponde 409: lo store rilegge la voce, la mette in cache, e la scheda esce dalla modifica mostrandola con l'avviso «modificata da un altro dispositivo».
   - Ciò che era scritto non si salva sopra e si riscrive con «Modifica».
 - **La ricerca di una squadra per nome** (`trovaSquadra`) che non trova la lista del server rifiuta, invece di dire «non trovata»: altrimenti la pagina della tappa creerebbe un doppione.
+- **Omonimi.** Due squadre con lo stesso nome restano permesse. Il collegamento di una squadra di tappa chiede quale delle due (`src/components/squadra/SceltaSquadraDialog.tsx`), e il Coach chiede quale tappa o squadra intende invece di prendere la prima: la regola del nome esatto, poi del dettaglio tra parentesi, poi della parte unica è in `src/utils/ricercaPerNome.ts`.
 - **Gli errori di caricamento** si vedono, con «Riprova»: un'anagrafe, un archivio o una tappa pubblica che non si sono potuti caricare non si mostrano come vuoti o «non trovati». Una pagina che non si riesce a disegnare mostra un messaggio con «Ricarica» (`ErrorBoundary`), e il resto dell'app resta usabile.
 
 #### Lo schema e le migrazioni

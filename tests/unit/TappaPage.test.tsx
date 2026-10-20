@@ -72,8 +72,8 @@ const regAlfa: RegSquadra = {
 };
 
 // Le azioni vere dello store dell'anagrafe: alcuni test le sostituiscono con finte, e senza ripristino la finta passerebbe al test dopo
-const { load, trovaSquadra, saveSquadra } = useAnagrafeStore.getState();
-const azioniVere = { load, trovaSquadra, saveSquadra };
+const { load, trovaSquadre, saveSquadra } = useAnagrafeStore.getState();
+const azioniVere = { load, trovaSquadre, saveSquadra };
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -128,10 +128,57 @@ describe("TappaPage: l'avviso di squadra omonima salta i nomi vuoti", () => {
   });
 });
 
+describe("TappaPage: due squadre omonime in anagrafe, la pagina chiede quale collegare (T11b.1)", () => {
+  const torinese: RegSquadra = { ...regAlfa, citta: "Torino" };
+  const altraAlfa: RegSquadra = { ...regAlfa, id: "r2", citta: "Milano", logo: "/logos/alfa-milano.svg" };
+  /** La finestra di scelta, dopo che il campo «Nome squadra» della prima squadra ha perso il fuoco con «Alfa» */
+  async function apriScelta() {
+    apriPagina({ squadre: [torinese, altraAlfa] });
+    scrivi(0, "Alfa");
+    fireEvent.blur(campiNome()[0]);
+    return screen.findByRole("alertdialog", { name: "Più squadre si chiamano «Alfa»: quale collegare?" });
+  }
+
+  it("uscita dal campo con due omonime: la finestra le elenca con la città; scegliere la seconda e «Collega» la collega", async () => {
+    const finestra = await apriScelta();
+    expect(within(finestra).getByLabelText(/Torino · di Anna/)).toBeTruthy();
+    fireEvent.click(within(finestra).getByLabelText(/Milano/));
+    fireEvent.click(within(finestra).getByRole("button", { name: "Collega" }));
+    await waitFor(() => expect(store().tappe[0].squadre[0].regId).toBe("r2"));
+    expect(store().tappe[0].squadre[0]).toMatchObject({ nome: "Alfa", logo: "/logos/alfa-milano.svg" });
+    expect(screen.getByRole("button", { name: "Scollega" })).toBeTruthy();
+    expect(screen.getByAltText("Logo Alfa").getAttribute("src")).toContain("alfa-milano");
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
+  it("«Registra una nuova squadra con questo nome» crea la voce nell'anagrafe e la collega a quella", async () => {
+    const nuova: RegSquadra = { ...regAlfa, id: "r3", citta: "", logo: "" };
+    anagrafe.createSquadra.mockResolvedValue(nuova);
+    const finestra = await apriScelta();
+    expect(within(finestra).getByText(/Sarà la terza squadra con questo nome/)).toBeTruthy();
+    fireEvent.click(within(finestra).getByRole("button", { name: "Registra una nuova squadra con questo nome" }));
+    await waitFor(() => expect(store().tappe[0].squadre[0].regId).toBe("r3"));
+    expect(anagrafe.createSquadra).toHaveBeenCalledTimes(1);
+    expect(anagrafe.createSquadra).toHaveBeenCalledWith(expect.objectContaining({ nome: "Alfa" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
+  it("«Annulla» non scrive niente: né anagrafe né collegamento, e il nome resta modificabile senza errori", async () => {
+    const finestra = await apriScelta();
+    fireEvent.click(within(finestra).getByRole("button", { name: "Annulla" }));
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(store().tappe[0].squadre[0].regId).toBeUndefined();
+    expect(campiNome()[0]).toMatchObject({ readOnly: false, value: "Alfa" });
+    expect(anagrafe.createSquadra).not.toHaveBeenCalled();
+    expect(anagrafe.updateSquadra).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+});
+
 describe("TappaPage: collegare una squadra all'anagrafe", () => {
   it("sonda A: i nomi scritti di seguito restano mentre il server risponde", async () => {
     const ricerca = differita<RegSquadra>();
-    apriPagina({ trovaSquadra: vi.fn(() => ricerca.p) });
+    apriPagina({ trovaSquadre: vi.fn(async () => [await ricerca.p]) });
 
     scrivi(0, "Alfa");
     fireEvent.blur(campiNome()[0]); // esce dal campo: parte il collegamento, in attesa del server
@@ -144,7 +191,7 @@ describe("TappaPage: collegare una squadra all'anagrafe", () => {
 
   it("vale anche quando la squadra non è in anagrafe e viene creata, con la seconda attesa", async () => {
     const creazione = differita<RegSquadra>();
-    apriPagina({ trovaSquadra: vi.fn(async () => undefined), saveSquadra: vi.fn(() => creazione.p) });
+    apriPagina({ trovaSquadre: vi.fn(async () => []), saveSquadra: vi.fn(() => creazione.p) });
 
     scrivi(0, "Alfa");
     fireEvent.blur(campiNome()[0]);
@@ -162,7 +209,7 @@ describe("TappaPage: il collegamento all'anagrafe vale solo per il nome per cui 
 
   it("se intanto il nome è cambiato (l'utente ha continuato a scrivere), la risposta non collega niente", async () => {
     const ricerca = differita<RegSquadra>();
-    apriPagina({ trovaSquadra: vi.fn(() => ricerca.p) });
+    apriPagina({ trovaSquadre: vi.fn(async () => [await ricerca.p]) });
     scrivi(0, "Falc");
     fireEvent.blur(campiNome()[0]);  // esce dal campo con il nome a metà
     scrivi(0, "Falchi");             // e torna a scrivere prima della risposta
@@ -174,8 +221,9 @@ describe("TappaPage: il collegamento all'anagrafe vale solo per il nome per cui 
   it("con due uscite ravvicinate vince l'ultima, anche se la sua risposta arriva prima", async () => {
     const prima = differita<RegSquadra>();
     const seconda = differita<RegSquadra>();
-    const risposte = [prima.p, seconda.p];
-    apriPagina({ trovaSquadra: vi.fn(() => risposte.shift()!) });
+    const attese = [prima.p, seconda.p];
+    let chiamate = 0;
+    apriPagina({ trovaSquadre: vi.fn(async () => [await attese[chiamate++]]) });
     scrivi(0, "Alfa");
     fireEvent.blur(campiNome()[0]);
     scrivi(0, "Alfa B");
@@ -223,14 +271,14 @@ describe("TappaPage: una squadra collegata a una voce eliminata dall'anagrafe to
 
   it("riscritto il nome, la squadra si collega alla voce nuova", async () => {
     anagrafe.listSquadre.mockResolvedValue([]);
-    const trovaSquadra = vi.fn(async () => regAlfa);
+    const trovaSquadre = vi.fn(async () => [regAlfa]);
     useAppStore.setState({ tappe: [collegata()] });
-    apriPagina({ squadre: [], trovaSquadra });
+    apriPagina({ squadre: [], trovaSquadre });
     await waitFor(() => expect(campiNome()[0].readOnly).toBe(false));
     scrivi(0, "Alfa Roma");
     fireEvent.blur(campiNome()[0]); // la ricerca trova la voce nuova «Alfa» e la squadra prende i suoi dati
     await act(async () => {});
-    expect(trovaSquadra).toHaveBeenCalledWith("Alfa Roma");
+    expect(trovaSquadre).toHaveBeenCalledWith("Alfa Roma");
     expect(store().tappe[0].squadre[0]).toMatchObject({ nome: "Alfa", regId: "r1" });
     expect(campiNome()[0].readOnly).toBe(true);
   });
@@ -270,7 +318,7 @@ describe("TappaPage: il collegamento all'anagrafe che fallisce si vede (FS-4)", 
   const MESSAGGIO = "Squadra «Alfa» non collegata all'anagrafe: Il server non risponde: controlla la connessione e riprova.";
 
   it("la creazione in anagrafe fallisce: il motivo compare sotto il nome, la squadra resta com'è e nessuna promessa resta senza gestore", async () => {
-    apriPagina({ trovaSquadra: vi.fn(async () => undefined), saveSquadra: vi.fn().mockRejectedValue(nonRisponde()) });
+    apriPagina({ trovaSquadre: vi.fn(async () => []), saveSquadra: vi.fn().mockRejectedValue(nonRisponde()) });
     scrivi(0, "Alfa");
     fireEvent.blur(campiNome()[0]);
     expect((await screen.findByRole("alert")).textContent).toContain(MESSAGGIO);
@@ -327,7 +375,7 @@ describe("TappaPage: il collegamento all'anagrafe che fallisce si vede (FS-4)", 
   it.each([["un segnaposto", "Squadra 3"], ["vuoto", ""]])(
     "se dopo l'errore il nome diventa %s il messaggio di prima sparisce: niente «Riprova» che non può fare niente",
     async (_caso, nuovoNome) => {
-      apriPagina({ trovaSquadra: vi.fn(async () => undefined), saveSquadra: vi.fn().mockRejectedValue(nonRisponde()) });
+      apriPagina({ trovaSquadre: vi.fn(async () => []), saveSquadra: vi.fn().mockRejectedValue(nonRisponde()) });
       scrivi(0, "Alfa");
       fireEvent.blur(campiNome()[0]);
       await screen.findByRole("alert");
@@ -340,7 +388,7 @@ describe("TappaPage: il collegamento all'anagrafe che fallisce si vede (FS-4)", 
 
   it("«Riprova» ritenta: riuscito, il messaggio sparisce e la squadra si collega", async () => {
     const saveSquadra = vi.fn().mockRejectedValueOnce(nonRisponde()).mockResolvedValueOnce(regAlfa);
-    apriPagina({ trovaSquadra: vi.fn(async () => undefined), saveSquadra });
+    apriPagina({ trovaSquadre: vi.fn(async () => []), saveSquadra });
     scrivi(0, "Alfa");
     fireEvent.blur(campiNome()[0]);
     await screen.findByRole("alert");
@@ -355,7 +403,7 @@ describe("TappaPage: il collegamento all'anagrafe che fallisce si vede (FS-4)", 
     const saveSquadra = vi.fn()
       .mockRejectedValueOnce(nonRisponde())
       .mockRejectedValueOnce(new ApiError(403, "Non puoi creare squadre"));
-    apriPagina({ trovaSquadra: vi.fn(async () => undefined), saveSquadra });
+    apriPagina({ trovaSquadre: vi.fn(async () => []), saveSquadra });
     scrivi(0, "Alfa");
     fireEvent.blur(campiNome()[0]);
     await screen.findByText(/Il server non risponde/);

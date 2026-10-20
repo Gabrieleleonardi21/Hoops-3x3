@@ -41,3 +41,21 @@ describe("Coach AI: definizioni ed esecutori degli strumenti (FP-6)", () => {
     },
   );
 });
+
+describe("Coach AI: le descrizioni degli argomenti dicono come scegliere tra tappe e squadre omonime", () => {
+  // Il modello legge queste descrizioni: senza l'esempio con il dettaglio tra parentesi non saprebbe che cosa ripetere
+  const descrizione = (strumento: string, argomento: string) => {
+    const proprieta = COACH_TOOLS.find((t) => t.function.name === strumento)?.function.parameters.properties;
+    return (proprieta?.[argomento] as { description?: string } | undefined)?.description ?? "";
+  };
+
+  it.each([
+    ["registra_risultato", "tappa_nome", '"Roma Open (12/05/2026)"'],
+    ["registra_risultato", "squadra_a", '"Roma (girone B)"'],
+    ["correggi_squadra", "squadra", '"Roma (girone B)"'],
+    ["crea_tappa", "squadre", '"Roma (Torino)"'],
+    ["crea_tappa_simulata", "squadre", '"Roma (Torino)"'],
+  ])("%s, %s: l'esempio con il dettaglio %s", (strumento, argomento, esempio) => {
+    expect(descrizione(strumento, argomento)).toContain(esempio);
+  });
+});

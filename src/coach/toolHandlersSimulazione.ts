@@ -5,6 +5,7 @@
 import { useAppStore } from "../stores/useAppStore";
 import { MAX_RISULTATI, MAX_TAPPE_LEGA } from "../constants/rules";
 import { pulisci, senzaTag } from "../utils/buildCoachContext";
+import { normalizza } from "../utils/identita";
 import { conteggio } from "../utils/testi";
 import { squadraDi } from "../utils/tappaInfo";
 import { creaTappa, sorteggia, type ModoSorteggio } from "../domain/tappaOps";
@@ -13,7 +14,8 @@ import {
 } from "../domain/simulazione";
 import type { Tappa } from "../types";
 import {
-  applica, confermata, ERRORE_NESSUNA_LEGA, erroreTappaDuplicata, fermaSeCancellata, fetchGiocatori, fetchSquadre, gironiRichiesti, nomiSquadre,
+  applica, confermaTappaOmonima, confermata, ERRORE_NESSUNA_LEGA, erroreTappaDuplicata, etichettaTappa, fermaSeCancellata, fetchGiocatori,
+  fetchSquadre, gironiRichiesti, nomiSquadre,
   numero, obbligatorio, presente, qualificateRichieste, registraUnaRiga, squadraTappaDaAnagrafe, str, tappaRichiesta,
   type Argomenti, type ContestoStrumenti,
 } from "./strumentiComuni";
@@ -57,11 +59,12 @@ function criterioScelta(args: Argomenti): "casuale" | "ranking" | "citta" {
   throw new Error(`Criterio di scelta non valido («${pulisci(valore)}»): usa «casuale», «ranking» oppure «citta».`);
 }
 
-/** Il testo della conferma di simula_risultati (D4): dice quante gare si inventano e che i numeri sono di prova, non veri */
-function testoConfermaSimulazione(nome: string, gare: number): string {
+/** Il testo della conferma di simula_risultati (D4): dice quante gare si inventano e che i numeri sono di prova, non veri.
+ *  `etichetta` è la tappa nominata come in etichettaTappa (tra virgolette, con data e luogo se è omonima) */
+function testoConfermaSimulazione(etichetta: string, gare: number): string {
   let cosa = `delle ${gare} gare mancanti`;
   if (gare === 1) cosa = "della gara mancante";
-  return `Inventare i risultati ${cosa} di "${nome}"? Sono numeri di prova, non veri.`;
+  return `Inventare i risultati ${cosa} di ${etichetta}? Sono numeri di prova, non veri.`;
 }
 
 /** Le righe di registra_risultati: un elenco da 1 a MAX_RISULTATI oggetti, come gli argomenti di registra_risultato */
@@ -97,7 +100,7 @@ export async function eseguiCreaTappaSimulata(args: Argomenti, ctx: ContestoStru
   if (tappe.length >= MAX_TAPPE_LEGA) throw new Error(`La lega ha già ${MAX_TAPPE_LEGA} tappe: non ne creo un'altra.`);
 
   const nome = obbligatorio(args, "nome", "il nome della tappa");
-  if (tappe.some((t) => t.nome === nome)) throw new Error(erroreTappaDuplicata(nome));
+  if (ctx.creati?.has(normalizza(nome))) throw new Error(erroreTappaDuplicata(nome));
   const luogo = str(args, "luogo");
   const data = str(args, "data");
   let nSquadre = SQUADRE_DI_DEFAULT;
@@ -108,6 +111,9 @@ export async function eseguiCreaTappaSimulata(args: Argomenti, ctx: ContestoStru
   if (presente(args, "squadre")) obbligatorie.push(...nomiSquadre(args));
   const fase = faseFinoA(args);
   const opzioni: OpzioniSimulazione = { fase, tabellini: interruttore(args, "tabellini"), qualificate: qualificateRichieste(args) };
+  // Una tappa con lo stesso nome di una della lega: si crea solo se l'utente conferma (D3). La conferma viene dopo gli argomenti
+  // (come in crea_tappa): con un argomento sbagliato l'errore arriva al modello, senza chiedere niente all'utente
+  await confermaTappaOmonima(nome, tappe, ctx);
 
   // Squadre e giocatori dall'anagrafe, in sola lettura: se la lettura fallisce o la chat si cancella, non si crea niente
   const [tutteSquadre, tuttiGiocatori] = await Promise.all([fetchSquadre(), fetchGiocatori()]);
@@ -133,6 +139,7 @@ export async function eseguiCreaTappaSimulata(args: Argomenti, ctx: ContestoStru
     throw new Error("La lega aperta è cambiata mentre la tappa veniva preparata: tappa non creata.");
   }
   useAppStore.getState().addTappa(simulata.tappa);
+  ctx.creati?.add(normalizza(nome));
   ctx.vai(`/lega/tappa/${simulata.tappa.id}`);
 
   // I nomi delle squadre vengono dall'anagrafe condivisa (scritti da altri): senzaTag su tutto il testo, che è lungo
@@ -154,7 +161,8 @@ export async function eseguiSimulaRisultati(args: Argomenti, ctx: ContestoStrume
   const provata = simulaTappa(tappa, opzioni);
   if (!provata.ok) throw new Error(provata.errore);
   const gare = provata.rapporto.gareGironi + provata.rapporto.gareTabellone;
-  await confermata(ctx, `Simulare i risultati di "${pulisci(tappa.nome)}"?`, testoConfermaSimulazione(pulisci(tappa.nome), gare));
+  const etichetta = etichettaTappa(tappa, useAppStore.getState().tappe);
+  await confermata(ctx, `Simulare i risultati di ${etichetta}?`, testoConfermaSimulazione(etichetta, gare));
 
   let testo = "";
   applica(tappa, (t) => {

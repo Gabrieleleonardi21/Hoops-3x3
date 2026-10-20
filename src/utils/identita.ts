@@ -15,6 +15,13 @@ export function normalizza(testo: string): string {
     .trim();
 }
 
+/** Vero se un elemento ha un'omonima nella lista (stesso nome, maiuscole e accenti a parte). `e` deve essere nella lista: conta
+ *  da sé, e omonimo è quando il suo nome compare più di una volta */
+export function haOmonimi<T>(elementi: T[], e: T, nomeDi: (x: T) => string): boolean {
+  const chiave = normalizza(nomeDi(e));
+  return elementi.filter((x) => normalizza(nomeDi(x)) === chiave).length > 1;
+}
+
 /** Chiave di una squadra di tappa, uguale in tutte le tappe. Se è collegata all'anagrafe conta la voce (regId): due squadre
  *  omonime collegate a voci diverse restano distinte, e la stessa squadra rinominata resta una sola. Se non è collegata conta
  *  il nome normalizzato */

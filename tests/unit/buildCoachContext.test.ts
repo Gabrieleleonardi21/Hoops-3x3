@@ -123,3 +123,28 @@ describe("buildCoachContext: la classifica del circuito", () => {
     expect(riga.startsWith("Classifica circuito: 1. Alfa (1V 0P totali); 2. Gamma (1V 0P totali); 3. Beta (1V 1P totali)")).toBe(true);
   });
 });
+
+describe("buildCoachContext: due squadre omonime nella tappa in primo piano portano il girone", () => {
+  it("«Roma» due volte: nell'elenco delle squadre ciascuna ha il suo girone; le altre squadre restano com'erano", () => {
+    const t: Tappa = {
+      ...tappaCon(["Roma", "Roma", "Milano"], []),
+      id: "t1", squadre: [
+        { id: "s1", nome: "Roma", giocatori: [], rank: "" },
+        { id: "s2", nome: "Roma", giocatori: [], rank: "" },
+        { id: "s3", nome: "Milano", giocatori: [], rank: "" },
+      ],
+      gironi: [["s1", "s3"], ["s2"]],
+    };
+    expect(buildCoachContext("Circuito", [t])).toContain("Squadre (3): Roma (girone A), Roma (girone B), Milano\n");
+  });
+
+  it("una squadra senza girone con un'omonima dice «non sorteggiata»; senza omonime il testo è quello di sempre", () => {
+    const t: Tappa = {
+      ...tappaCon(["Roma", "Roma"], []),
+      squadre: [{ id: "s1", nome: "Roma", giocatori: [], rank: "" }, { id: "s2", nome: "Roma", giocatori: [], rank: "" }],
+      gironi: [["s1"]],
+    };
+    expect(buildCoachContext("", [t])).toContain("Squadre (2): Roma (girone A), Roma (non sorteggiata)");
+    expect(buildCoachContext("", [tappa("Solo")])).toContain("Squadre (2): Solo, Beta\n");
+  });
+});

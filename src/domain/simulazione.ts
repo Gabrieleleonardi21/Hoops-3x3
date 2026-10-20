@@ -10,6 +10,7 @@ import { standings } from "../utils/standings";
 import { nomeSquadra, squadraDi } from "../utils/tappaInfo";
 import { pulisci } from "../utils/buildCoachContext";
 import { conteggio } from "../utils/testi";
+import { trovaPerNome, type Dettagli } from "../utils/ricercaPerNome";
 
 /** Numeri in [0, 1). In produzione è Math.random; nei test si passa un generatore con seme */
 export type Rng = () => number;
@@ -103,15 +104,17 @@ export interface CriteriScelta {
   obbligatorie?: string[];
 }
 
-/** Le squadre che un nome indicato dal modello corrisponde: il nome esatto, altrimenti una parte del nome. È la regola di
- *  trovaPerNome (coach/strumentiComuni), copiata qui perché strumentiComuni importa lo store e le API: il dominio non deve
- *  dipendere da loro (né portarseli nei test). La differenza: l'ambiguità non lancia un'eccezione ma torna come elenco,
- *  perché qui la risposta è un Esito. */
-function cercaSquadra(squadre: RegSquadra[], nome: string): RegSquadra[] {
-  const nl = nome.trim().toLowerCase();
-  const esatte = squadre.filter((s) => s.nome.toLowerCase() === nl);
-  if (esatte.length > 0) return esatte;
-  return squadre.filter((s) => s.nome.toLowerCase().includes(nl));
+/** Come si distinguono due squadre omonime nell'anagrafe: la città e l'autore, che il dettaglio tra parentesi accetta
+ *  («Roma (Torino)», «Roma (di Anna)»). È la regola del Coach (trovaPerNome, utils/ricercaPerNome) */
+const dettagliSquadra: Dettagli<RegSquadra> = {
+  descrittori: (s) => [s.citta, `di ${s.autore}`, s.autore].filter((d) => d.trim()),
+  descrivi: (s) => `"${pulisci(s.nome)}" (${pulisci(s.citta) || "città non indicata"}, di ${pulisci(s.autore)})`,
+};
+
+/** Il messaggio di un errore lanciato da trovaPerNome, o il testo se non è un Error */
+function messaggioDi(e: unknown): string {
+  if (e instanceof Error) return e.message;
+  return String(e);
 }
 
 /** Punti ranking come numero; null se il campo è vuoto o non è un numero */
@@ -160,13 +163,14 @@ export function scegliSquadre(
 
   const scelte: RegSquadra[] = [];
   for (const nome of criteri.obbligatorie ?? []) {
-    const trovate = cercaSquadra(squadre, nome);
-    if (trovate.length === 0) return { ok: false, errore: `La squadra «${pulisci(nome)}» non è in anagrafe.` };
-    if (trovate.length > 1) {
-      const elenco = trovate.map((s) => `«${pulisci(s.nome)}»`).join(", ");
-      return { ok: false, errore: `Più squadre corrispondono a «${pulisci(nome)}»: ${elenco}. Indica il nome completo.` };
+    // Con più squadre omonime che il nome non distingue trovaPerNome lancia l'errore che le elenca: qui è la risposta di scegliSquadre
+    let squadra: RegSquadra | null;
+    try {
+      squadra = trovaPerNome(squadre, nome, (s) => s.nome, "squadre in anagrafe", dettagliSquadra);
+    } catch (e) {
+      return { ok: false, errore: messaggioDi(e) };
     }
-    const [squadra] = trovate;
+    if (!squadra) return { ok: false, errore: `La squadra «${pulisci(nome)}» non è in anagrafe.` };
     if (!ammissibili.includes(squadra)) {
       return { ok: false, errore: `La squadra «${pulisci(squadra.nome)}» non ha almeno ${MIN_ROSTER} giocatori in anagrafe.` };
     }

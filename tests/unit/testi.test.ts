@@ -6,7 +6,9 @@ import {
   JSON_TROPPO_GRANDE, LETTURA_FALLITA, LETTURA_IN_CORSO, NESSUN_DUBBIO, SCELTA_FILE, TROPPE_FOTO, messaggioDubbi,
 } from "../../src/utils/testi";
 import type { LegaMeta, RegGiocatore, RegSquadra } from "../../src/types";
-import { AVVISO_GIOCATORE_RIPETUTO, AVVISO_SQUADRA_OMONIMA, AVVISO_TAPPA_OMONIMA, AVVISO_VOCE_OMONIMA } from "../../src/utils/testi";
+import {
+  AVVISO_GIOCATORE_RIPETUTO, AVVISO_NUOVA_OMONIMA, AVVISO_SQUADRA_OMONIMA, AVVISO_TAPPA_OMONIMA, AVVISO_VOCE_OMONIMA, TITOLO_SCELTA_SQUADRA,
+} from "../../src/utils/testi";
 
 describe("conteggio: il numero con il nome al singolare o al plurale", () => {
   it("uno è singolare; zero e gli altri sono plurali", () => {
@@ -226,11 +228,17 @@ describe("avvisi sui doppioni: il nome c'è già, ma si può creare lo stesso", 
 
   it("squadra e giocatori di una rosa: dicono che cosa cambia nelle statistiche", () => {
     expect(AVVISO_SQUADRA_OMONIMA).toBe(
-      "Un'altra squadra di questa tappa si chiama così: nelle statistiche contano i collegamenti all'anagrafe.",
+      "Un'altra squadra di questa tappa si chiama così: il Coach le distingue per girone o città; nelle statistiche contano i collegamenti all'anagrafe.",
     );
     expect(AVVISO_GIOCATORE_RIPETUTO).toBe(
       "Due giocatori con lo stesso nome: nelle statistiche saranno sommati, a meno che la squadra sia collegata all'anagrafe con entrambi registrati.",
     );
+  });
+
+  it("scelta tra squadre omonime: il titolo fa il nome, e la squadra nuova dice quale posto prenderà", () => {
+    expect(TITOLO_SCELTA_SQUADRA("Roma")).toBe("Più squadre si chiamano «Roma»: quale collegare?");
+    expect(AVVISO_NUOVA_OMONIMA(3)).toBe("Sarà la terza squadra con questo nome.");
+    expect(AVVISO_NUOVA_OMONIMA(12)).toBe("Sarà la 12ª squadra con questo nome.");
   });
 
   it("voce dell'anagrafe: «un'altra» per la squadra, «un altro» per il giocatore", () => {
