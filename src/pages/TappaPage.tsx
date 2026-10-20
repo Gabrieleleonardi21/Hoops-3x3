@@ -71,10 +71,13 @@ export function TappaPage() {
   useEffect(() => {
     if (!squadreAnagrafe) return;
     void h.syncFromAnagrafe(squadreAnagrafe, giocatoriAnagrafe ?? []).then((scollegate) => {
-      if (scollegate.length === 0) return;
+      // Le squadre collegate adesso (anche per nome, nella stessa sincronizzazione) non devono più avere l'avviso: resterebbe nello stato
+      // e riapparirebbe quando «Scollega» le rende di nuovo senza voce
+      const collegate = (tappaCorrente(id)?.squadre ?? []).filter((s) => s.regId);
       // Le squadre scollegate dalla verifica dicono perché, sotto il nome
       setAvvisiAnagrafe((avvisi) => {
         const nuovi = { ...avvisi };
+        for (const s of collegate) nuovi[s.id] = null;
         for (const s of scollegate) nuovi[s.id] = AVVISO_VOCE_ELIMINATA(s.nome);
         return nuovi;
       });
