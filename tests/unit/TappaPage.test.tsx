@@ -165,8 +165,11 @@ describe("TappaPage: due squadre omonime in anagrafe, la pagina chiede quale col
 
   it("«Annulla» non scrive niente: né anagrafe né collegamento, e il nome resta modificabile senza errori", async () => {
     const finestra = await apriScelta();
+    // La tappa com'è prima del clic: «Annulla» non deve riscriverla, né con il collegamento né con la rinomina
+    const prima = store().tappe[0];
     fireEvent.click(within(finestra).getByRole("button", { name: "Annulla" }));
     expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(store().tappe[0]).toBe(prima);
     expect(store().tappe[0].squadre[0].regId).toBeUndefined();
     expect(campiNome()[0]).toMatchObject({ readOnly: false, value: "Alfa" });
     expect(anagrafe.createSquadra).not.toHaveBeenCalled();
