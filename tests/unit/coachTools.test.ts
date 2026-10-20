@@ -2061,6 +2061,17 @@ describe("Coach AI: con due tappe o due squadre dallo stesso nome il Coach non a
     expect(store().tappe).toHaveLength(1);
   });
 
+  it("crea_tappa con «Roma (Torino)» prende la squadra che si chiama così per intero, prima del dettaglio", async () => {
+    // Guardia: una squadra chiamata davvero «Roma (Torino)» vince sulla «Roma» di Torino, che il dettaglio indicherebbe
+    vi.mocked(anagrafeApi.listSquadre).mockResolvedValue([
+      inAnagrafe("Roma", [], { id: "r-to", citta: "Torino" }),
+      inAnagrafe("Roma (Torino)", [], { id: "r-lit" }),
+    ]);
+    modello(strumenti(["crea_tappa", { nome: "Tappa 2", squadre: ["Roma (Torino)", "Alfa"] }]), testo("Fatto."));
+    await chiedi(coach(), "Crea la Tappa 2");
+    expect(store().tappe.at(-1)?.squadre[0]).toMatchObject({ nome: "Roma (Torino)", regId: "r-lit" });
+  });
+
   it.each([
     ["Roma (Torino)", "r-to"],
     ["Roma (di Anna)", "r-mi"],

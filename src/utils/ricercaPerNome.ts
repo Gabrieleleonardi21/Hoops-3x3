@@ -43,7 +43,11 @@ function erroreDettaglio(base: string, dettaglio: string, elenco: string[], piu:
 export function trovaPerNome<T>(
   elementi: T[], nome: string, nomeDi: (e: T) => string, plurale: string, dettagli?: Dettagli<T>,
 ): T | null {
-  const descrivi = dettagli ? dettagli.descrivi : (e: T) => `"${pulisci(nomeDi(e))}"`;
+  // Senza dettagli si elencano i soli nomi, tra virgolette
+  const descrivi = (e: T) => {
+    if (dettagli) return dettagli.descrivi(e);
+    return `"${pulisci(nomeDi(e))}"`;
+  };
   const cercato = normalizza(nome);
 
   // 1) Il nome esatto, per intero: vince anche se il nome contiene parentesi («Roma (Torino)»)
