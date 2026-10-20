@@ -11,7 +11,7 @@ import { useAnagrafeStore } from "../../src/stores/useAnagrafeStore";
 import { ApiError } from "../../src/services/api";
 import { PERDITA_RIAPERTURA } from "../../src/utils/testi";
 import { DEFAULT_RULES } from "../../src/constants/rules";
-import type { Partita, PubTappa, RegSquadra, SquadraTappa, Tappa, User } from "../../src/types";
+import type { Partita, PubTappa, RegGiocatore, RegSquadra, SquadraTappa, Tappa, User } from "../../src/types";
 
 // Si sostituisce solo la rete delle leghe: store, coda dei salvataggi e hook sono quelli veri
 vi.mock("../../src/services/legheApi", () => ({
@@ -475,6 +475,108 @@ describe("useTappa: le modifiche partono dalla tappa com'è adesso, non da quell
       const { result } = renderHook(() => useTappa("t1"));
       fai(() => result.current.syncFromAnagrafe([regAlfa]));
       await nienteSalvato(prima);
+    });
+
+    describe("collegamento con scelta, «Scollega» e giocatori riconosciuti (T11b.1)", () => {
+      /** Un giocatore dell'anagrafe: i campi che qui non servono restano vuoti */
+      const giocatoreReg = (id: string, nome: string, cognome: string): RegGiocatore => ({
+        id, nome, cognome, soprannome: "", nascita: "", citta: "", nazionalita: "", altezza: "", peso: "", ruolo: "", numero: "",
+        squadra: "", esperienza: "", note: "", autore: "Anna", autoreId: "u1", ts: 1,
+      });
+      const altraAlfa: RegSquadra = { ...regAlfa, id: "r2", citta: "Milano", logo: "/logos/alfa-milano.svg" };
+      /** La tappa di base con la prima squadra sostituita (la seconda resta quella di tappa()) */
+      const conPrimaSquadra = (prima: SquadraTappa) => useAppStore.setState({ tappe: [{ ...tappa(), squadre: [prima, squadra("s2", "Squadra 2")] }] });
+
+      it("due squadre omonime in anagrafe: la squadra non si collega a nessuna e non parte nessun salvataggio", async () => {
+        conPrimaSquadra(squadra("s1", "Alfa"));
+        const prima = store().tappe[0];
+        const { result } = renderHook(() => useTappa("t1"));
+        fai(() => result.current.syncFromAnagrafe([regAlfa, altraAlfa]));
+        await nienteSalvato(prima);
+        expect(squadre()[0].regId).toBeUndefined();
+      });
+
+      it("«Scollega» segna la squadra come scollegata, e alla riapertura non si ricollega per nome", () => {
+        conPrimaSquadra({ ...squadra("s1", "Alfa"), regId: "r1", rank: "40" });
+        const { result } = renderHook(() => useTappa("t1"));
+        fai(() => result.current.unlinkReg("s1"));
+        expect(squadre()[0]).toMatchObject({ nome: "Alfa", rank: "40", scollegata: true });
+        expect(squadre()[0].regId).toBeUndefined();
+        // Riapertura della pagina: l'allineamento riparte con la stessa anagrafe, e la squadra resta scollegata
+        fai(() => result.current.syncFromAnagrafe([regAlfa]));
+        expect(squadre()[0].regId).toBeUndefined();
+      });
+
+      it("collegare di nuovo la squadra con applyReg toglie il segno di scollegata", () => {
+        conPrimaSquadra({ ...squadra("s1", "Alfa"), scollegata: true });
+        const { result } = renderHook(() => useTappa("t1"));
+        fai(() => result.current.applyReg("s1", regAlfa, "Alfa"));
+        expect(squadre()[0]).toMatchObject({ regId: "r1" });
+        expect(squadre()[0].scollegata).toBeUndefined();
+      });
+
+      it("i giocatori scritti a mano ricevono il regId della voce, e alla seconda apertura la tappa è la stessa", () => {
+        const reg = { ...regAlfa, roster: ["g1", "g2"] };
+        const giocatori = [giocatoreReg("g1", "Mario", "Rossi"), giocatoreReg("g2", "Luca", "Bianchi")];
+        conPrimaSquadra({
+          ...squadra("s1", "Alfa"), regId: "r1", giocatori: [{ id: "p1", nome: "Mario Rossi" }, { id: "p2", nome: "Luca Bianchi" }],
+        });
+        const { result } = renderHook(() => useTappa("t1"));
+        fai(() => result.current.syncFromAnagrafe([reg], giocatori));
+        expect(squadre()[0].giocatori).toMatchObject([{ id: "p1", regId: "g1" }, { id: "p2", regId: "g2" }]);
+        const dopo = store().tappe[0];
+        fai(() => result.current.syncFromAnagrafe([reg], giocatori));
+        expect(store().tappe[0]).toBe(dopo);
+      });
+
+      it("con due giocatori della voce che si chiamano allo stesso modo nessuno riceve il regId", () => {
+        const reg = { ...regAlfa, roster: ["g1", "g3"] };
+        const giocatori = [giocatoreReg("g1", "Mario", "Rossi"), giocatoreReg("g3", "Mario", "Rossi")];
+        conPrimaSquadra({ ...squadra("s1", "Alfa"), regId: "r1", giocatori: [{ id: "p1", nome: "Mario Rossi" }] });
+        const { result } = renderHook(() => useTappa("t1"));
+        fai(() => result.current.syncFromAnagrafe([reg], giocatori));
+        expect(squadre()[0].giocatori[0].regId).toBeUndefined();
+      });
+
+      it("due giocatori della squadra con lo stesso nome non ricevono lo stesso regId", () => {
+        const reg = { ...regAlfa, roster: ["g1"] };
+        const giocatori = [giocatoreReg("g1", "Mario", "Rossi")];
+        conPrimaSquadra({
+          ...squadra("s1", "Alfa"), regId: "r1", giocatori: [{ id: "p1", nome: "Mario Rossi" }, { id: "p2", nome: "mario rossi" }],
+        });
+        const { result } = renderHook(() => useTappa("t1"));
+        fai(() => result.current.syncFromAnagrafe([reg], giocatori));
+        expect(squadre()[0].giocatori.map((p) => p.regId)).toEqual(["g1", undefined]);
+      });
+
+      it("una tappa conclusa resta intatta anche con giocatori riconoscibili", async () => {
+        const reg = { ...regAlfa, roster: ["g1"] };
+        const giocatori = [giocatoreReg("g1", "Mario", "Rossi")];
+        useAppStore.setState({ tappe: [{ ...tappa(), conclusa: true, squadre: [{ ...squadra("s1", "Alfa"), regId: "r1", giocatori: [{ id: "p1", nome: "Mario Rossi" }] }, squadra("s2", "Squadra 2")] }] });
+        const prima = store().tappe[0];
+        const { result } = renderHook(() => useTappa("t1"));
+        fai(() => result.current.syncFromAnagrafe([reg], giocatori));
+        await nienteSalvato(prima);
+      });
+
+      it("applyReg su una squadra con il roster vuoto copia i giocatori della voce, al massimo quattro", () => {
+        const voci = [1, 2, 3, 4, 5, 6].map((n) => giocatoreReg(`g${n}`, `Nome${n}`, `Cognome${n}`));
+        const reg = { ...regAlfa, roster: voci.map((g) => g.id) };
+        conPrimaSquadra(squadra("s1", "Alfa"));
+        const { result } = renderHook(() => useTappa("t1"));
+        fai(() => result.current.applyReg("s1", reg, "Alfa", voci));
+        expect(squadre()[0].giocatori.map((p) => [p.nome, p.regId])).toEqual([
+          ["Nome1 Cognome1", "g1"], ["Nome2 Cognome2", "g2"], ["Nome3 Cognome3", "g3"], ["Nome4 Cognome4", "g4"],
+        ]);
+      });
+
+      it("applyReg non copia i giocatori se il roster ha già un nome scritto", () => {
+        const reg = { ...regAlfa, roster: ["g1"] };
+        conPrimaSquadra({ ...squadra("s1", "Alfa"), giocatori: [{ id: "p1", nome: "Luca" }] });
+        const { result } = renderHook(() => useTappa("t1"));
+        fai(() => result.current.applyReg("s1", reg, "Alfa", [giocatoreReg("g1", "Mario", "Rossi")]));
+        expect(squadre()[0].giocatori).toEqual([{ id: "p1", nome: "Luca" }]);
+      });
     });
   });
 });
