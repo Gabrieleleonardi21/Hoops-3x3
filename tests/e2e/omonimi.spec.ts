@@ -80,3 +80,39 @@ test("due Mario Rossi registrati in squadre collegate diverse: la stagione ha du
   await expect(storico2.getByRole("cell", { name: "2", exact: true })).toBeVisible();
   await expect(storico2.getByRole("cell", { name: "11", exact: true })).toBeVisible();
 });
+
+test("due Mario Rossi registrati nella stessa squadra collegata: due righe in stagione, nessun ⚠, ogni scheda con le sue gare", async ({ page }) => {
+  const giocatori = [giocatoreDiAnna("g1", "Mario", "Rossi"), giocatoreDiAnna("g2", "Mario", "Rossi")];
+  const squadre = [{ ...squadraDiAnna("s1", "Ballers"), roster: ["g1", "g2"] }];
+  await utenteRegistrato(page, { giocatori, squadre });
+  // Una tappa conclusa dall'archivio: Ballers è la squadra collegata con i due Mario. Mario (g1) fa 12 punti nella sua gara, Mario
+  // (g2) ne fa 9 nella stessa. Alfa è una squadra senza anagrafe, con il suo giocatore
+  const tappa = {
+    id: ID, nome: "Roma Open", luogo: "Roma", data: "2026-06-14", nGironi: 1, regole: { target: 21, durata: 10, ot: 2, shot: 12 },
+    squadre: [
+      { id: "sa", nome: "Ballers", regId: "s1", rank: "", giocatori: [{ id: "p1", nome: "Mario Rossi", regId: "g1" }, { id: "p2", nome: "Mario Rossi", regId: "g2" }] },
+      { id: "sc", nome: "Alfa", rank: "", giocatori: [{ id: "p3", nome: "Carlo Bianchi" }] },
+    ],
+    gironi: [["sa", "sc"]],
+    partite: [
+      { id: "m1", g: 0, a: "sa", b: "sc", sa: 21, sb: 15, done: true, pa: { p1: { pt: 12 }, p2: { pt: 9 } }, pb: { p3: { pt: 15 } } },
+    ],
+    video: [], conclusa: true, bracket: null,
+  };
+  await page.route("**/api/archivio/tappe", (route) => route.fulfill(json([{ tappa, lega: "Circuito", autore: "Anna", autoreId: "u1", ts: 1 }])));
+
+  // La tabella di stagione: due righe «Mario Rossi» e nessun segno di avviso
+  await page.goto("/anagrafe");
+  await page.getByRole("tab", { name: "Statistiche stagione" }).click();
+  await expect(page.getByRole("row", { name: /Mario Rossi/ })).toHaveCount(2);
+  await expect(page.getByText("⚠")).toHaveCount(0);
+
+  // La scheda di ciascuno: nello storico della tappa ha solo la sua gara e i suoi punti
+  await page.goto("/giocatore/g1");
+  const storico1 = page.getByRole("table", { name: /Storico tappe di Mario Rossi/ });
+  await expect(storico1.getByRole("cell", { name: "12", exact: true })).toBeVisible();
+
+  await page.goto("/giocatore/g2");
+  const storico2 = page.getByRole("table", { name: /Storico tappe di Mario Rossi/ });
+  await expect(storico2.getByRole("cell", { name: "9", exact: true })).toBeVisible();
+});
