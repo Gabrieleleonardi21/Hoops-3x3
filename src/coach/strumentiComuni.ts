@@ -129,14 +129,14 @@ export async function confermata(ctx: ContestoStrumenti, titolo: string, testo: 
 
 /* ── Come si distinguono tappe e squadre omonime, e come si nominano nelle conferme ── */
 
+// Una tappa salvata da una versione vecchia può non avere data o luogo: come in buildCoachContext, vale il testo vuoto
+const dataDi = (t: Tappa) => String(t.data ?? "");
+const luogoDi = (t: Tappa) => String(t.luogo ?? "");
 /** Come si distinguono due tappe dello stesso nome: data e luogo, che il dettaglio tra parentesi accetta («Roma Open (26/06/2026)») */
 export const dettagliTappa: Dettagli<Tappa> = {
   descrittori: (t) => [dataItaliana(dataDi(t)), dataDi(t), luogoDi(t)].filter((d) => d.trim()),
   descrivi: (t) => `"${pulisci(t.nome)}" (${pulisci(dataItaliana(dataDi(t))) || "senza data"}, ${pulisci(luogoDi(t)) || "senza luogo"})`,
 };
-// Una tappa salvata da una versione vecchia può non avere data o luogo: come in buildCoachContext, vale il testo vuoto
-const dataDi = (t: Tappa) => String(t.data ?? "");
-const luogoDi = (t: Tappa) => String(t.luogo ?? "");
 
 /** La città dell'anagrafe della squadra collegata, dalla cache se è caricata: la squadra della tappa non la porta con sé */
 function cittaDi(s: SquadraTappa): string {
