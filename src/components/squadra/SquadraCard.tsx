@@ -12,7 +12,7 @@ import { erroreUrl } from "../../utils/safeUrl";
 import { doppioniDelRoster } from "../../utils/identita";
 import { AVVISO_SQUADRA_OMONIMA } from "../../utils/testi";
 
-export function SquadraCard({ s, index, h, erroreAnagrafe, onNameCommit, omonima }: {
+export function SquadraCard({ s, index, h, erroreAnagrafe, onNameCommit, omonima, avviso }: {
   s: SquadraTappa;
   index: number;
   h: ReturnType<typeof useTappa>;
@@ -22,6 +22,8 @@ export function SquadraCard({ s, index, h, erroreAnagrafe, onNameCommit, omonima
   onNameCommit?: (nome: string) => void;
   /** Un'altra squadra della tappa ha lo stesso nome: l'avviso compare sotto il nome, senza bloccare nulla. Facoltativo */
   omonima?: boolean;
+  /** Un avviso della pagina sotto il nome, per esempio la voce dell'anagrafe eliminata. Compare solo finché la squadra non è collegata */
+  avviso?: string | null;
 }) {
   const ok = h.teamComplete(s.id);
   const linked = !!s.regId; // collegata all'anagrafe
@@ -60,6 +62,7 @@ export function SquadraCard({ s, index, h, erroreAnagrafe, onNameCommit, omonima
           onBlur={linked ? undefined : () => onNameCommit?.(s.nome)} />
       </label>
       {omonima && <p className="mt-1 text-[12px] text-court" role="status">{AVVISO_SQUADRA_OMONIMA}</p>}
+      {avviso && !linked && <p className="mt-1 text-[12px] text-court" role="status">{avviso}</p>}
       {erroreAnagrafe && !linked && (
         <div className="mt-1.5" role="alert">
           <p className="m-0 text-[12px] font-semibold text-loss">{erroreAnagrafe}</p>

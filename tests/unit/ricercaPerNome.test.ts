@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { separaDettaglio, trovaPerNome, type Dettagli } from "../../src/utils/ricercaPerNome";
+import { dettagliSquadraAnagrafe, separaDettaglio, trovaPerNome, type Dettagli } from "../../src/utils/ricercaPerNome";
+import type { RegSquadra } from "../../src/types";
 
 /** Una tappa ridotta ai campi che servono alla ricerca: nome, data (gg/mm/aaaa o vuota) e luogo */
 interface Tappa { nome: string; data: string; luogo: string }
@@ -97,6 +98,27 @@ describe("ricercaPerNome: la regola unica con cui il Coach trova tappe e squadre
   it("i nomi nell'errore passano da pulisci: un «<» diventa «‹»", () => {
     const elementi = [tappa("Roma <i>", "", ""), tappa("Roma <i>", "", "")];
     expect(() => trovaPerNome(elementi, "Roma <i>", nomeDi, "tappe")).toThrow('Più tappe si chiamano "Roma ‹i›"');
+  });
+});
+
+describe("dettagliSquadraAnagrafe: come si distinguono le squadre omonime dell'anagrafe (Coach e simulazione)", () => {
+  // Una squadra dell'anagrafe con i soli campi che servono: città e autore
+  const squadra = (citta: string, autore: string): RegSquadra => ({
+    id: "r1", nome: "Roma", citta, anno: "", rank: "", referente: "", roster: [], logo: "", website: "", instagram: "",
+    note: "", autore, autoreId: "u1", ts: 1,
+  });
+
+  it("i descrittori sono la città, «di» l'autore e l'autore, senza i vuoti", () => {
+    expect(dettagliSquadraAnagrafe.descrittori(squadra("Torino", "Anna"))).toEqual(["Torino", "di Anna", "Anna"]);
+    expect(dettagliSquadraAnagrafe.descrittori(squadra("", "Anna"))).toEqual(["di Anna", "Anna"]);
+  });
+
+  it("la descrizione è il nome tra virgolette, la città e l'autore", () => {
+    expect(dettagliSquadraAnagrafe.descrivi(squadra("Torino", "Anna"))).toBe('"Roma" (Torino, di Anna)');
+  });
+
+  it("senza città la descrizione dice «città non indicata»", () => {
+    expect(dettagliSquadraAnagrafe.descrivi(squadra("", "Anna"))).toBe('"Roma" (città non indicata, di Anna)');
   });
 });
 

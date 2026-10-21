@@ -259,29 +259,31 @@ export function useTappa(id: string | undefined) {
    *  altri dopo il suo caricamento. Si chiede al server la lista fresca (una richiesta, solo in questo caso) e si scollega solo
    *  ciò che manca sia lì sia nella cache di adesso (nell'attesa una voce può esservi entrata, e la lista, partita prima, non
    *  contenerla); se il server non risponde non si scollega niente. Le voci trovate sul server entrano in cache: così la
-   *  verifica non si ripete a ogni apertura della pagina. */
-  const syncFromAnagrafe = async (regs: RegSquadra[], giocatori: RegGiocatore[] = []) => {
-    if (!tappa) return;
+   *  verifica non si ripete a ogni apertura della pagina.
+   *  Restituisce le squadre che questo giro ha scollegato perché la voce non c'è più e che nessuna omonima sola ha ripreso: la pagina
+   *  lo dice sotto il nome. `[]` in ogni altra uscita. */
+  const syncFromAnagrafe = async (regs: RegSquadra[], giocatori: RegGiocatore[] = []): Promise<SquadraTappa[]> => {
+    if (!tappa) return [];
     // Se alla tappa vista non manca niente non si salva: altrimenti ne partirebbe uno a ogni apertura della pagina
     if (allineaConAnagrafe(tappa, regs, giocatori) !== tappa) aggiorna((t) => allineaConAnagrafe(t, regs, giocatori));
     const prima = tappaCorrente(id);
-    if (!prima) return;
+    if (!prima) return [];
     const senzaVoce = collegateSenzaVoce(prima, regs);
-    if (senzaVoce.length === 0) return;
+    if (senzaVoce.length === 0) return [];
     // La lista parte con il token di adesso: se un accesso o un'uscita svuota la cache durante l'attesa, ha la forma del token di prima
     const epocaAllInizio = useAnagrafeStore.getState().epoca;
     let fresche: RegSquadra[];
     try {
       fresche = await anagrafeApi.listSquadre();
     } catch {
-      return;
+      return [];
     }
     // Dopo l'attesa si riparte dalla tappa di adesso (nel frattempo può essere cambiata, o conclusa) e dalla cache di adesso: la
     // lista del server, partita prima, può non avere una voce che nell'attesa è entrata (ricerca, creazione, Coach). Per i dati
     // vale la lista fresca; una voce solo in cache conta come presente.
     const anagrafe = useAnagrafeStore.getState();
     const dopo = tappaCorrente(id);
-    if (!dopo) return;
+    if (!dopo) return [];
     const soloInCache = (anagrafe.squadre ?? []).filter((c) => !fresche.some((f) => f.id === c.id));
     const conosciute = [...fresche, ...soloInCache];
     // Le voci a cui le squadre sono collegate e che il server ha entrano in cache (senza invalidarla). Non se la cache è stata svuotata
@@ -291,9 +293,15 @@ export function useTappa(id: string | undefined) {
     if (anagrafe.epoca === epocaAllInizio) {
       anagrafe.registraInCache(fresche.filter((voce) => senzaVoce.some((s) => s.regId === voce.id)));
     }
-    const sincronizzata = (t: Tappa) => scollegaSenzaVoce(allineaConAnagrafe(t, conosciute, giocatori), conosciute);
-    if (sincronizzata(dopo) === dopo) return;
+    // Prima si scollegano le squadre le cui voci non ci sono più, poi l'allineamento con la lista appena verificata: una squadra rimasta
+    // senza voce si ricollega per nome se tra le voci conosciute l'omonima è una sola (non è una scelta alla cieca: il server ha appena
+    // detto che la vecchia voce non c'è più)
+    const sincronizzata = (t: Tappa) => allineaConAnagrafe(scollegaSenzaVoce(t, conosciute), conosciute, giocatori);
+    const nuova = sincronizzata(dopo);
+    if (nuova === dopo) return [];
     updateTappa(dopo.id, sincronizzata);
+    // Le squadre che avevano una voce e sono rimaste senza: la pagina lo dice all'utente
+    return collegateSenzaVoce(dopo, conosciute).filter((s) => !nuova.squadre.find((n) => n.id === s.id)?.regId);
   };
 
   /* ── roster ── */

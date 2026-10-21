@@ -9,7 +9,7 @@ import { legheApi } from "../../src/services/legheApi";
 import { anagrafeApi } from "../../src/services/anagrafeApi";
 import { archivioApi } from "../../src/services/archivioApi";
 import { ApiError } from "../../src/services/api";
-import { AVVISO_SQUADRA_OMONIMA } from "../../src/utils/testi";
+import { AVVISO_SQUADRA_OMONIMA, AVVISO_VOCE_ELIMINATA } from "../../src/utils/testi";
 import { DEFAULT_RULES } from "../../src/constants/rules";
 import type { PubTappa, RegGiocatore, RegSquadra, Tappa, User } from "../../src/types";
 
@@ -165,8 +165,11 @@ describe("TappaPage: due squadre omonime in anagrafe, la pagina chiede quale col
 
   it("«Annulla» non scrive niente: né anagrafe né collegamento, e il nome resta modificabile senza errori", async () => {
     const finestra = await apriScelta();
+    // La tappa com'è prima del clic: «Annulla» non deve riscriverla, né con il collegamento né con la rinomina
+    const prima = store().tappe[0];
     fireEvent.click(within(finestra).getByRole("button", { name: "Annulla" }));
     expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(store().tappe[0]).toBe(prima);
     expect(store().tappe[0].squadre[0].regId).toBeUndefined();
     expect(campiNome()[0]).toMatchObject({ readOnly: false, value: "Alfa" });
     expect(anagrafe.createSquadra).not.toHaveBeenCalled();
@@ -269,6 +272,26 @@ describe("TappaPage: una squadra collegata a una voce eliminata dall'anagrafe to
     expect(store().tappe[0].squadre[0].regId).toBeUndefined();
   });
 
+  it("se la voce di una squadra collegata non esiste più, la card lo dice sotto il nome e il nome torna modificabile", async () => {
+    anagrafe.listSquadre.mockResolvedValue([]);
+    useAppStore.setState({ tappe: [collegata()] });
+    apriPagina({ squadre: [] });
+    expect(await screen.findByText(AVVISO_VOCE_ELIMINATA("Alfa"))).toBeTruthy();
+    expect(campiNome()[0].readOnly).toBe(false);
+  });
+
+  it("scritto un nome nuovo, l'avviso sparisce", async () => {
+    anagrafe.listSquadre.mockResolvedValue([]);
+    anagrafe.createSquadra.mockResolvedValue({ ...regAlfa, id: "r-nuova", nome: "Alfa Roma" });
+    useAppStore.setState({ tappe: [collegata()] });
+    apriPagina({ squadre: [] });
+    await screen.findByText(AVVISO_VOCE_ELIMINATA("Alfa"));
+    scrivi(0, "Alfa Roma");
+    fireEvent.blur(campiNome()[0]);
+    expect(screen.queryByText(AVVISO_VOCE_ELIMINATA("Alfa"))).toBeNull();
+    await act(async () => {}); // il collegamento del nome nuovo finisce qui, senza errori
+  });
+
   it("riscritto il nome, la squadra si collega alla voce nuova", async () => {
     anagrafe.listSquadre.mockResolvedValue([]);
     const trovaSquadre = vi.fn(async () => [regAlfa]);
@@ -310,6 +333,18 @@ describe("TappaPage: una squadra collegata a una voce eliminata dall'anagrafe to
     expect(store().tappe[0].squadre[0]).toMatchObject({ nome: "Alfa", regId: "r1" });
     expect(campiNome()[0].readOnly).toBe(true);
     expect(screen.getByText("Anagrafe")).toBeTruthy();
+  });
+
+  it("dopo il ricollegamento per nome l'avviso della voce eliminata non torna con «Scollega»", async () => {
+    anagrafe.listSquadre.mockResolvedValue([]);
+    useAppStore.setState({ tappe: [collegata()] });
+    apriPagina({ squadre: [] });
+    await screen.findByText(AVVISO_VOCE_ELIMINATA("Alfa"));
+    // «Alfa» entra in cache: la sincronizzazione ricollega la squadra per nome, e l'avviso resta nello stato anche se nascosto
+    act(() => useAnagrafeStore.setState({ squadre: [regAlfa] }));
+    await waitFor(() => expect(store().tappe[0].squadre[0].regId).toBe("r1"));
+    fireEvent.click(screen.getByRole("button", { name: "Scollega" }));
+    expect(screen.queryByText(AVVISO_VOCE_ELIMINATA("Alfa"))).toBeNull();
   });
 });
 

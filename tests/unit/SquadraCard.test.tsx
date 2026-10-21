@@ -5,7 +5,7 @@ import { SquadraCard } from "../../src/components/squadra/SquadraCard";
 import { useTappa } from "../../src/hooks/useTappa";
 import { useAppStore } from "../../src/stores/useAppStore";
 import { DEFAULT_RULES } from "../../src/constants/rules";
-import { AVVISO_GIOCATORE_RIPETUTO, AVVISO_SQUADRA_OMONIMA } from "../../src/utils/testi";
+import { AVVISO_GIOCATORE_RIPETUTO, AVVISO_SQUADRA_OMONIMA, AVVISO_VOCE_ELIMINATA } from "../../src/utils/testi";
 import type { GiocatoreRoster, SquadraTappa, Tappa, User } from "../../src/types";
 
 // Si sostituisce solo la rete delle leghe: la card e l'hook della tappa sono quelli veri
@@ -19,19 +19,19 @@ vi.mock("../../src/services/legheApi", () => ({
 const registrato: User = { id: "u1", name: "Anna", email: "anna@example.it", guest: false };
 
 /** La card con l'hook della tappa vero, come nella pagina */
-function Carta({ s, omonima }: { s: SquadraTappa; omonima?: boolean }) {
+function Carta({ s, omonima, avviso }: { s: SquadraTappa; omonima?: boolean; avviso?: string }) {
   const h = useTappa("t1");
-  return <SquadraCard s={s} index={0} h={h} omonima={omonima} />;
+  return <SquadraCard s={s} index={0} h={h} omonima={omonima} avviso={avviso} />;
 }
 
 /** Mostra la squadra `s` nella tappa t1, insieme a un'altra squadra */
-function apri(s: SquadraTappa, omonima?: boolean) {
+function apri(s: SquadraTappa, omonima?: boolean, avviso?: string) {
   const tappa: Tappa = {
     id: "t1", nome: "Roma Open", luogo: "", data: "", nGironi: 1, regole: { ...DEFAULT_RULES },
     squadre: [s, { id: "s2", nome: "Torino", giocatori: [], rank: "" }], gironi: null, partite: [], video: [],
   };
   useAppStore.setState({ user: registrato, legaId: "l1", leghe: [{ id: "l1", nome: "Lega", ts: 1, nTappe: 1 }], tappe: [tappa] });
-  render(<Carta s={s} omonima={omonima} />);
+  render(<Carta s={s} omonima={omonima} avviso={avviso} />);
 }
 
 /** Una squadra «Roma» con il roster dato */
@@ -68,5 +68,17 @@ describe("SquadraCard: squadra omonima in tappa", () => {
   it("senza omonima non compare", () => {
     apri(roma([]));
     expect(screen.queryByText(AVVISO_SQUADRA_OMONIMA)).toBeNull();
+  });
+});
+
+describe("SquadraCard: la voce dell'anagrafe eliminata, sotto il nome", () => {
+  it("con la squadra non collegata l'avviso compare come testo sotto il nome", () => {
+    apri(roma([]), undefined, AVVISO_VOCE_ELIMINATA("Roma"));
+    expect(screen.getByText(AVVISO_VOCE_ELIMINATA("Roma"))).toBeTruthy();
+  });
+
+  it("con la squadra collegata non compare: il collegamento c'è", () => {
+    apri({ ...roma([]), regId: "r1" }, undefined, AVVISO_VOCE_ELIMINATA("Roma"));
+    expect(screen.queryByText(AVVISO_VOCE_ELIMINATA("Roma"))).toBeNull();
   });
 });

@@ -7,7 +7,8 @@ import {
 } from "../../src/utils/testi";
 import type { LegaMeta, RegGiocatore, RegSquadra } from "../../src/types";
 import {
-  AVVISO_GIOCATORE_RIPETUTO, AVVISO_NUOVA_OMONIMA, AVVISO_SQUADRA_OMONIMA, AVVISO_TAPPA_OMONIMA, AVVISO_VOCE_OMONIMA, TITOLO_SCELTA_SQUADRA,
+  AVVISO_GIOCATORE_RIPETUTO, AVVISO_NUOVA_OMONIMA, AVVISO_SQUADRA_OMONIMA, AVVISO_TAPPA_OMONIMA, AVVISO_VOCE_ELIMINATA, AVVISO_VOCE_OMONIMA,
+  TITOLO_OMONIMI, TITOLO_SCELTA_SQUADRA,
 } from "../../src/utils/testi";
 
 describe("conteggio: il numero con il nome al singolare o al plurale", () => {
@@ -219,19 +220,25 @@ describe("messaggioDubbi: il messaggio con cui il Coach si apre dopo l'import da
 describe("avvisi sui doppioni: il nome c'è già, ma si può creare lo stesso", () => {
   it("tappa: dice quale tappa è, con data e luogo, o che mancano", () => {
     expect(AVVISO_TAPPA_OMONIMA({ nome: "Roma Open", data: "2026-06-01", luogo: "Roma" })).toBe(
-      "Esiste già una tappa «Roma Open» (2026-06-01, Roma). Il nome può ripetersi: le tappe si distinguono per data e luogo.",
+      "Esiste già una tappa «Roma Open» (01/06/2026, Roma): il nome può ripetersi, contano data e luogo.",
     );
     expect(AVVISO_TAPPA_OMONIMA({ nome: "Finale", data: "", luogo: "" })).toBe(
-      "Esiste già una tappa «Finale» (senza data, senza luogo). Il nome può ripetersi: le tappe si distinguono per data e luogo.",
+      "Esiste già una tappa «Finale» (senza data, senza luogo): il nome può ripetersi, contano data e luogo.",
     );
   });
 
   it("squadra e giocatori di una rosa: dicono che cosa cambia nelle statistiche", () => {
     expect(AVVISO_SQUADRA_OMONIMA).toBe(
-      "Un'altra squadra di questa tappa si chiama così: il Coach le distingue per girone o città; nelle statistiche contano i collegamenti all'anagrafe.",
+      "Nome già usato in questa tappa: per distinguerle collega le squadre all'anagrafe; il Coach usa girone o città.",
     );
     expect(AVVISO_GIOCATORE_RIPETUTO).toBe(
-      "Due giocatori con lo stesso nome: nelle statistiche saranno sommati, a meno che la squadra sia collegata all'anagrafe con entrambi registrati.",
+      "Due giocatori con lo stesso nome: le statistiche li sommano, a meno che siano entrambi registrati in anagrafe.",
+    );
+  });
+
+  it("omonimi nella stessa squadra, non in anagrafe: il titolo dice che le gare si sommano e come separarli", () => {
+    expect(TITOLO_OMONIMI).toBe(
+      "Due omonimi nella stessa squadra, non registrati in anagrafe: le gare sono sommate. Registra entrambi e collega la squadra.",
     );
   });
 
@@ -247,6 +254,12 @@ describe("avvisi sui doppioni: il nome c'è già, ma si può creare lo stesso", 
     );
     expect(AVVISO_VOCE_OMONIMA("Mario Rossi (senza squadra)", "giocatore")).toBe(
       "Esiste già Mario Rossi (senza squadra). Premi di nuovo Salva per registrarne un altro.",
+    );
+  });
+
+  it("voce eliminata: la squadra scollegata lo dice e dice come ricollegarla", () => {
+    expect(AVVISO_VOCE_ELIMINATA("Alfa")).toBe(
+      "La voce dell'anagrafe di «Alfa» non esiste più: squadra scollegata. Riscrivi il nome per ricollegarla.",
     );
   });
 });

@@ -60,14 +60,14 @@ L'elenco completo, schermata per schermata, è in [`FUNZIONALITA.txt`](FUNZIONAL
 
 Il server gira sul piano gratuito di Render: dopo 15 minuti senza visite si spegne. La prima apertura può aspettare il risveglio, anche più di un minuto.
 
-### I numeri, al 19 ottobre 2026
+### I numeri, al 20 ottobre 2026
 
-Misurati il 19 ottobre 2026, tutti senza fallimenti; i test di integrazione del backend richiedono un database di prova. I test del frontend comprendono il test di guardia di questo README (`tests/unit/readme.test.ts`).
+Misurati il 20 ottobre 2026 con `npm run check` e `npx playwright test`, senza fallimenti. I test con il backend vero si contano con la lista (`--list`), senza eseguirli; i numeri del backend sono quelli del 19 ottobre, che questa fase non tocca. I test di integrazione del backend richiedono un database di prova. I test del frontend comprendono il test di guardia di questo README (`tests/unit/readme.test.ts`).
 
 | Che cosa | Quanti | Come si misura |
 |---|---|---|
-| Test unitari e di componenti del frontend | 2.082, in 112 file | `npm test` |
-| Test end-to-end del frontend, con il server finto | 81 | `npx playwright test` |
+| Test unitari e di componenti del frontend | 2.239, in 118 file | `npm test` |
+| Test end-to-end del frontend, con il server finto | 84 | `npx playwright test` |
 | Test end-to-end con il backend vero | 6 | `npm run test:e2e:backend` (nella CI, l'integrazione continua di GitHub) |
 | Test unitari del backend, compreso il test di guardia del suo README | 997 | `./mvnw test` |
 | Test di integrazione del backend, su PostgreSQL | 298 | `./mvnw verify -Pintegrazione` |
@@ -365,7 +365,7 @@ Se il proprietario elimina la tappa o la lega, il database toglie anche la pubbl
 2. **Il prompt.** `src/hooks/useCoachAI.ts` scrive il prompt di sistema: chi è il Coach, le regole FIBA 3x3, come usare gli strumenti. Aggiunge i dati della lega aperta, preparati da `src/utils/buildCoachContext.ts` dentro il blocco `<dati_lega>`. Insieme vanno gli ultimi 30 messaggi della chat.
 3. **Il proxy.** `src/services/aiService.ts` manda tutto a `POST /api/coach/chat`, con le definizioni dei quattordici strumenti (`src/coach/toolDefs.ts`). Il backend controlla i limiti (20 richieste al minuto e 300 al giorno per utente, 60 messaggi, 100.000 caratteri, solo strumenti del Coach), aggiunge la sua regola del contesto e chiama il fornitore scelto con la chiave che tiene lui.
 4. **Gli strumenti.** Se il modello chiede uno strumento, per esempio `registra_risultato`, la risposta torna al browser. `src/coach/toolHandlers.ts` lo esegue con le stesse funzioni dell'interfaccia (`src/domain/tappaOps.ts`, lo store), e il risultato torna al modello.
-5. **Le conferme.** Sorteggiare su una tappa con risultati, annullare un risultato, concludere una tappa e inventare i risultati mancanti (`simula_risultati`) chiedono «Conferma» o «Annulla» nella chat, prima di toccare qualcosa.
+5. **Le conferme.** Sorteggiare su una tappa con risultati, annullare un risultato, concludere una tappa e inventare i risultati mancanti (`simula_risultati`) chiedono «Conferma» o «Annulla» nella chat, prima di toccare qualcosa. Per `crea_tappa`, `crea_tappa_simulata`, `registra_squadra` e `registra_giocatore` la conferma c'è solo davanti a un omonimo: una tappa o una voce dell'anagrafe con lo stesso nome.
 6. **Il ciclo.** Domanda, strumento, risultato e nuova chiamata si ripetono al massimo 8 volte per domanda. Poi il Coach risponde con il testo, e i badge sotto la risposta dicono quali azioni ha fatto.
 7. **Fuori tema.** Se la domanda non riguarda il basket né l'app, il modello risponde con un marcatore e il server lo sostituisce con una frase fissa: «Sono il Coach di HOOP 3X3: posso aiutarti con il basket, le tue leghe e tappe, squadre, giocatori e regole del torneo. Chiedimi qualcosa su questo.»
 
@@ -502,6 +502,10 @@ Il progetto nasce a giugno 2026 con il frontend; il repository del backend parte
 | 14 ottobre | Fase 7: il Coach resta nel suo contesto, statistiche di stagione per tutti, video a tutta larghezza | Hoops-3x3#33; hoop3x3-backend#25 |
 | 14 ottobre | Fase 8: il README con le tecnologie e le scelte spiegate | Hoops-3x3#34 |
 | 17 ottobre | Fase 9: «Importa file» legge la foto di un foglio di tappa, con la finestra dei dubbi; il Coach corregge le squadre | Hoops-3x3#35; hoop3x3-backend#27 |
+| 19 ottobre | Fase 10: il Coach costruisce una tappa completa (tappa di prova, simulazione, registrazione in blocco) | Hoops-3x3#42; hoop3x3-backend#31 |
+| 20 ottobre | Fase 11a: omonimi, identità per id, statistiche e avvisi sui doppioni | Hoops-3x3#43; hoop3x3-backend#32 |
+| 20 ottobre | Fase 11b: collegamento con scelta tra squadre omonime, Coach con il dettaglio tra parentesi | Hoops-3x3#44 |
+| 20 ottobre | Fase 11c: i rilievi rimandati (Coach: ripetizioni, «Tappa N» e limite di tappe; voce eliminata; testi degli avvisi; documenti) | questa pull request |
 
 ## Riferimento
 
@@ -533,7 +537,7 @@ L'elenco completo, schermata per schermata, è in [`FUNZIONALITA.txt`](FUNZIONAL
 - **Anagrafe.** Un archivio condiviso di giocatori e squadre che le tappe riutilizzano.
   - Una squadra ha logo e sito web cliccabile, e un roster fino a 6 giocatori (`MAX_ROSTER_ANAGRAFE`), diverso dai 4 di una squadra di tappa (`MAX_ROSTER`).
   - Logo, sito, Instagram e link dei video sono vuoti oppure indirizzi `http(s)://` o percorsi del sito come `/logos/nome.svg`, fino a 2048 caratteri, come vuole il server. I moduli lo controllano prima dell'invio (`erroreUrl` in `src/utils/safeUrl.ts`).
-  - Scrivendo il nome di una squadra di tappa, questa si collega alla voce dell'anagrafe (nome, logo, ranking e sito; il roster non si copia) o ne crea una, solo se all'arrivo della risposta la squadra ha ancora quel nome. Una squadra già collegata resta collegata alla sua voce, anche se la cache non la conosce ancora: non si ricollega mai per nome. Per nome si collegano solo le squadre senza collegamento. Con due squadre omonime in anagrafe la pagina non sceglie la prima: chiede quale collegare (`src/components/squadra/SceltaSquadraDialog.tsx`).
+  - Scrivendo il nome di una squadra di tappa, questa si collega alla voce dell'anagrafe (nome, logo, ranking e sito; il roster non si copia) o ne crea una, solo se all'arrivo della risposta la squadra ha ancora quel nome. Una squadra già collegata resta collegata alla sua voce, anche se la cache non la conosce ancora: finché la voce c'è non si ricollega mai per nome. Per nome si collegano solo le squadre senza collegamento. Con due squadre omonime in anagrafe la pagina non sceglie la prima: chiede quale collegare (`src/components/squadra/SceltaSquadraDialog.tsx`). Se la voce di una squadra collegata viene eliminata dalla pagina Anagrafe, all'apertura della tappa la squadra si scollega (tiene nome, logo e ranking) e la card lo dice sotto il nome (`AVVISO_VOCE_ELIMINATA`, che sparisce quando si scrive un nome nuovo). Se in anagrafe resta una sola squadra con quel nome, la squadra si ricollega a quella nello stesso giro, senza avviso.
   - «Scollega» toglie il collegamento e rende di nuovo modificabile il nome. Serve a cambiarlo, e resta anche alla riapertura della tappa: per ricollegarla si scrive di nuovo il nome.
   - Modifica ed eliminazione solo per l'autore o un ADMIN.
   - I dati personali li vede solo chi ha un account: del giocatore data di nascita, città, nazionalità, altezza, peso, esperienza, note e autore; della squadra referente e autore.
@@ -548,7 +552,7 @@ L'elenco completo, schermata per schermata, è in [`FUNZIONALITA.txt`](FUNZIONAL
 
 - **Coach AI.** Un assistente che conosce le regole FIBA 3x3 e i dati della lega aperta.
   - Agisce nell'app con 14 strumenti: crea lega e tappa, crea una tappa di prova con le squadre dell'anagrafe, sorteggia, registra e annulla risultati (anche più di uno in un colpo), inventa i risultati mancanti di una tappa, genera le fasi dirette, conclude la tappa, scrive nell'anagrafe, corregge nomi e giocatori di una squadra (per esempio dopo la lettura di una foto).
-  - Chiede conferma prima di sorteggiare su una tappa con risultati, di annullare un risultato, di concludere una tappa e di inventare i risultati mancanti.
+  - Chiede conferma prima di sorteggiare su una tappa con risultati, di annullare un risultato, di concludere una tappa e di inventare i risultati mancanti; `crea_tappa`, `crea_tappa_simulata`, `registra_squadra` e `registra_giocatore` la chiedono solo davanti a un omonimo.
   - Solo per i registrati, attraverso il backend: vedi [Coach AI (facoltativo)](#coach-ai-facoltativo) e [`docs/coach-ai-tool-calling.md`](docs/coach-ai-tool-calling.md).
 - **Campetti.** I campi da streetball del circuito, letti dal server senza account (vedi [Campetti](#campetti)).
   - All'apertura quelli intorno a Roma; con «Usa la mia posizione» quelli intorno a chi guarda, con le distanze e in ordine di distanza. La casella di ricerca cerca per nome o città su tutta l'Italia.

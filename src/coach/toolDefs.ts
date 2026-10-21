@@ -32,13 +32,13 @@ export const COACH_TOOLS: ToolDef[] = [
       parameters: {
         type: "object",
         properties: {
-          nome:    { type: "string", description: "Nome della tappa (es. 'Tappa 1 Roma')" },
+          nome:    { type: "string", description: "Nome della tappa (es. 'Tappa 1 Roma'). Facoltativo: senza, la tappa si chiama «Tappa N» con il primo numero libero" },
           luogo:   { type: "string", description: "Luogo dove si svolge la tappa" },
           data:    { type: "string", description: "Data in formato YYYY-MM-DD" },
           squadre: { type: "array",  description: `Array con i nomi di TUTTE le squadre partecipanti, da ${MIN_SQUADRE} a ${MAX_SQUADRE}. Esempio: ['Ballers Roma', 'Street Kings', 'Wildcats']. ${DETTAGLIO_SQUADRA_ANAGRAFE}`, items: { type: "string" } },
           nGironi: { type: "number", description: "Numero di gironi: intero da 1 a metà delle squadre (default 2, oppure 1 con meno di 4 squadre)" },
         },
-        required: ["nome", "squadre"],
+        required: ["squadre"],
       },
     },
   },
@@ -101,7 +101,7 @@ export const COACH_TOOLS: ToolDef[] = [
     type: "function",
     function: {
       name: "registra_squadra",
-      description: "Registra una nuova squadra nell'anagrafe condivisa del circuito. Usalo solo se l'utente chiede esplicitamente di aggiungere o registrare una squadra.",
+      description: "Registra una nuova squadra nell'anagrafe condivisa del circuito. Usalo solo se l'utente chiede esplicitamente di aggiungere o registrare una squadra. Chiamalo una sola volta per ogni squadra: la stessa squadra registrata due volte nella stessa richiesta è un errore.",
       parameters: {
         type: "object",
         properties: {
@@ -123,7 +123,7 @@ export const COACH_TOOLS: ToolDef[] = [
     type: "function",
     function: {
       name: "registra_giocatore",
-      description: "Registra un nuovo giocatore nell'anagrafe condivisa del circuito. Usalo solo se l'utente chiede esplicitamente di aggiungere o registrare un giocatore.",
+      description: "Registra un nuovo giocatore nell'anagrafe condivisa del circuito. Usalo solo se l'utente chiede esplicitamente di aggiungere o registrare un giocatore. Chiamalo una sola volta per ogni giocatore: lo stesso giocatore registrato due volte nella stessa richiesta è un errore.",
       parameters: {
         type: "object",
         properties: {
@@ -216,7 +216,7 @@ export const COACH_TOOLS: ToolDef[] = [
       parameters: {
         type: "object",
         properties: {
-          nome:       { type: "string", description: "Nome della tappa di prova (es. 'Demo Roma')" },
+          nome:       { type: "string", description: "Nome della tappa di prova (es. 'Demo Roma'). Facoltativo: senza, la tappa si chiama «Tappa N» con il primo numero libero" },
           nSquadre:   { type: "number", description: `Quante squadre, da ${MIN_SQUADRE} a ${MAX_SQUADRE} (default 8)` },
           nGironi:    { type: "number", description: "Numero di gironi: intero da 1 a metà delle squadre (default 2, oppure 1 con meno di 4 squadre)" },
           scelta:     { type: "string", enum: ["casuale", "ranking", "citta"], description: "Come scegliere le squadre: 'casuale' (default), 'ranking' (quelle con più punti ranking) oppure 'citta' (solo quelle della città indicata)" },
@@ -228,7 +228,7 @@ export const COACH_TOOLS: ToolDef[] = [
           fino_a:     { type: "string", enum: ["finale", "gironi"], description: "'finale' (default): gioca anche tabellone e finale; 'gironi': si fermano ai gironi" },
           tabellini:  { type: "boolean", description: "Se generare i tabellini dei giocatori (default true)" },
         },
-        required: ["nome"],
+        required: [],
       },
     },
   },

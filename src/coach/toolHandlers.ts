@@ -10,21 +10,21 @@
 import { useAppStore, tappaCorrente } from "../stores/useAppStore";
 import { useAnagrafeStore } from "../stores/useAnagrafeStore";
 import { testoErrore } from "../services/api";
-import { MAX_ROSTER } from "../constants/rules";
+import { MAX_ROSTER, MAX_TAPPE_LEGA, nomeTappaPredefinito } from "../constants/rules";
 import { pulisci, senzaTag } from "../utils/buildCoachContext";
 import {
-  annullaRisultato, concludi, correggiSquadra, creaTappa, erroreLimitiTappa, generaFasiDirette, perditaRisultati, sorteggia,
+  annullaRisultato, concludi, correggiSquadra, creaTappa, erroreLimitiTappa, generaFasiDirette, perditaRisultati, primoNomeLibero, sorteggia,
   type CorrezioneSquadra, type Esito, type ModoSorteggio,
 } from "../domain/tappaOps";
 import type { RegSquadra, SquadraTappa, Tappa } from "../types";
 import { squadraDi } from "../utils/tappaInfo";
 import { puoModificare } from "../utils/permessi";
 import { normalizza } from "../utils/identita";
-import { separaDettaglio } from "../utils/ricercaPerNome";
+import { dettagliSquadraAnagrafe, separaDettaglio } from "../utils/ricercaPerNome";
 import { eseguiCreaTappaSimulata, eseguiRegistraRisultati, eseguiSimulaRisultati } from "./toolHandlersSimulazione";
 import {
-  applica, confermaTappaOmonima, confermata, CONFERMA_VOCE_OMONIMA, ERRORE_NESSUNA_LEGA, erroreTappaDuplicata, etichettaSquadra,
-  etichettaTappa, fermaSeCancellata, fetchGiocatori, fetchSquadre, gironiRichiesti, nomiRoster, nomiSquadre, obbligatorio, presente,
+  applica, chiaveCreato, confermaTappaOmonima, confermata, CONFERMA_VOCE_OMONIMA, ERRORE_NESSUNA_LEGA, erroreGiocatoreRipetuto,
+  erroreLimiteTappe, erroreSquadraRipetuta, erroreTappaDuplicata, etichettaSquadra, etichettaTappa, fermaSeCancellata, fetchGiocatori, fetchSquadre, gironiRichiesti, nomiRoster, nomiSquadre, obbligatorio, presente,
   prova, qualificateRichieste, registraUnaRiga, squadraDellaPartita, squadraRichiesta, squadraRipetuta, squadraTappaDaAnagrafe,
   squadreRichieste, stessaCoppia, str, tappaRichiesta, trovaPerNome, type Argomenti, type ContestoStrumenti,
 } from "./strumentiComuni";
@@ -49,11 +49,8 @@ function modoSorteggio(args: Argomenti): ModoSorteggio {
 
 
 
-/** Come si distingue una squadra da un'omonima: città e autore (scritti da altri utenti: passano da pulisci) */
-function descrizione(s: RegSquadra): string {
-  const citta = pulisci(s.citta) || "città non indicata";
-  return `"${pulisci(s.nome)}" (${citta}, di ${pulisci(s.autore)})`;
-}
+/** Come si distingue una squadra da un'omonima: città e autore. È la stessa frase della simulazione (dettagliSquadraAnagrafe) */
+const descrizione = dettagliSquadraAnagrafe.descrivi;
 
 /** L'errore per più squadre dallo stesso nome esatto: le elenca per città e autore e dice che fare */
 function erroreOmonime(omonime: RegSquadra[], cosaFare: string): Error {
@@ -93,7 +90,11 @@ function findSquadra(squadre: RegSquadra[], nome: string, traLeOmonime: (omonime
   if (dettaglio !== null && !literale) {
     const cercato = normalizza(dettaglio);
     const omonimeDiBase = squadre.filter((s) => normalizza(s.nome) === normalizza(base));
-    const scelte = omonimeDiBase.filter((s) => [s.citta, `di ${s.autore}`, s.autore].some((d) => normalizza(d).includes(cercato)));
+    const conDettaglio = (corrisponde: (d: string) => boolean) =>
+      omonimeDiBase.filter((s) => dettagliSquadraAnagrafe.descrittori(s).some((d) => corrisponde(normalizza(d))));
+    // Prima il descrittore uguale al dettaglio («Bari» non prende «Bari Vecchia», «di Anna» non prende «di Annalisa»), poi la parte
+    let scelte = conDettaglio((d) => d === cercato);
+    if (scelte.length === 0) scelte = conDettaglio((d) => d.includes(cercato));
     if (scelte.length === 1) return scelte[0];
     if (scelte.length > 1) return traLeOmonime(scelte);
     // Ci sono omonime ma il dettaglio non ne sceglie nessuna: non si registra una squadra nuova con lo stesso nome, si elencano le opzioni
@@ -104,7 +105,7 @@ function findSquadra(squadre: RegSquadra[], nome: string, traLeOmonime: (omonime
     // Nessuna squadra con quel nome: un nome nuovo, come lo era prima del dettaglio (crea_tappa la registra)
     return null;
   }
-  const omonime = squadre.filter((s) => s.nome.toLowerCase() === nome.toLowerCase());
+  const omonime = squadre.filter((s) => normalizza(s.nome) === normalizza(nome));
   if (omonime.length > 1) return traLeOmonime(omonime);
   return trovaPerNome(squadre, nome, (s) => s.nome, "squadre in anagrafe");
 }
@@ -124,10 +125,13 @@ async function eseguiCreaTappa(args: Argomenti, ctx: ContestoStrumenti): Promise
   // Lega e tappe di adesso: comprendono la lega e le tappe create dagli strumenti precedenti della richiesta
   const { legaId, tappe } = useAppStore.getState();
   if (!legaId) throw new Error(ERRORE_NESSUNA_LEGA);
+  // Il limite del server si controlla prima di toccare l'anagrafe: una tappa rifiutata non lascia squadre registrate
+  if (tappe.length >= MAX_TAPPE_LEGA) throw new Error(erroreLimiteTappe());
 
-  const nomeTappa = obbligatorio(args, "nome", "il nome della tappa");
+  // Senza nome, «Tappa N» con il primo numero libero: la stessa regola del form della lega
+  const nomeTappa = str(args, "nome") || primoNomeLibero(tappe.map((t) => t.nome), nomeTappaPredefinito);
   // Guard: evita che il modello crei duplicati chiamando il tool più volte nella stessa richiesta
-  if (ctx.creati?.has(normalizza(nomeTappa))) throw new Error(erroreTappaDuplicata(nomeTappa));
+  if (ctx.creati?.has(chiaveCreato("tappa", nomeTappa))) throw new Error(erroreTappaDuplicata(nomeTappa));
   const luogo = str(args, "luogo");
   const data  = str(args, "data");
   // Squadre e gironi con i limiti dell'interfaccia (tappaOps), controllati prima di toccare l'anagrafe: una tappa
@@ -164,6 +168,8 @@ async function eseguiCreaTappa(args: Argomenti, ctx: ContestoStrumenti): Promise
           roster: [],
         });
         autoRegistrate.push(nomeRichiesto);
+        // Anche questa squadra è registrata in questa richiesta: registra_squadra non la registra di nuovo
+        ctx.creati?.add(chiaveCreato("squadra", nomeRichiesto));
       }
 
       // Oltre il tetto restano fuori (dopo i primi dell'anagrafe): lo strumento ne dice i nomi, perché chi gioca lo decide
@@ -190,7 +196,7 @@ async function eseguiCreaTappa(args: Argomenti, ctx: ContestoStrumenti): Promise
   const esito = creaTappa({ nome: nomeTappa, luogo, data, nGironi, squadre: squadreTappa });
   if (!esito.ok) throw new Error(esito.errore);
   useAppStore.getState().addTappa(esito.tappa);
-  ctx.creati?.add(normalizza(nomeTappa));
+  ctx.creati?.add(chiaveCreato("tappa", nomeTappa));
   ctx.vai(`/lega/tappa/${esito.tappa.id}`);
 
   const trovate = squadreTappa.length - autoRegistrate.length;
@@ -209,12 +215,15 @@ async function eseguiCreaTappa(args: Argomenti, ctx: ContestoStrumenti): Promise
   return msg;
 }
 
-/** Stesso nome, maiuscole e spazi ai lati a parte: per riconoscere un doppione nell'anagrafe condivisa */
-const stessoNome = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+/** Stesso nome per il doppione nell'anagrafe condivisa: maiuscole, accenti e spazi non contano (la stessa regola di `creati`) */
+const stessoNome = (a: string, b: string) => normalizza(a) === normalizza(b);
 
 async function eseguiRegistraSquadra(args: Argomenti, ctx: ContestoStrumenti): Promise<string> {
   // L'anagrafe è condivisa: senza nome niente «Nuova squadra» visibile a tutti
   const nome = obbligatorio(args, "nome", "il nome della squadra");
+  // Già registrata in questa richiesta (anche con altre maiuscole): è il modello che la ripete, e si ferma prima di leggere l'anagrafe
+  // o chiedere conferma, perché la conferma è per un omonimo di altri, non per una ripetizione
+  if (ctx.creati?.has(chiaveCreato("squadra", nome))) throw new Error(erroreSquadraRipetuta(nome));
   // Un modello che ripete la chiamata, o una squadra già registrata da altri, farebbe un doppione visibile a tutti: non si registra
   const omonime = (await fetchSquadre()).filter((s) => stessoNome(s.nome, nome));
   fermaSeCancellata(ctx.segnale);
@@ -236,12 +245,15 @@ async function eseguiRegistraSquadra(args: Argomenti, ctx: ContestoStrumenti): P
     note:      str(args, "note"),
     roster: [],
   });
+  ctx.creati?.add(chiaveCreato("squadra", nome));
   return `Squadra "${nome}" registrata nell'anagrafe.`;
 }
 
 async function eseguiRegistraGiocatore(args: Argomenti, ctx: ContestoStrumenti): Promise<string> {
   const nome    = obbligatorio(args, "nome", "il nome del giocatore");
   const cognome = obbligatorio(args, "cognome", "il cognome del giocatore");
+  // Come per le squadre: già registrato in questa richiesta è un errore, prima di leggere l'anagrafe o chiedere conferma
+  if (ctx.creati?.has(chiaveCreato("giocatore", `${nome} ${cognome}`))) throw new Error(erroreGiocatoreRipetuto(nome, cognome));
   // Come per le squadre: niente doppioni nell'anagrafe condivisa. Un omonimo vero (un'altra persona) si registra dalla pagina Anagrafe
   const omonimi = (await fetchGiocatori()).filter((g) => stessoNome(g.nome, nome) && stessoNome(g.cognome, cognome));
   fermaSeCancellata(ctx.segnale);
@@ -264,6 +276,7 @@ async function eseguiRegistraGiocatore(args: Argomenti, ctx: ContestoStrumenti):
     esperienza:  str(args, "esperienza"),
     note:        str(args, "note"),
   });
+  ctx.creati?.add(chiaveCreato("giocatore", `${nome} ${cognome}`));
   return `Giocatore "${nome} ${cognome}" registrato nell'anagrafe.`;
 }
 

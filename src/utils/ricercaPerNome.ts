@@ -4,6 +4,7 @@
  *  normalizza (identita) e pulisci (buildCoachContext), che non dipendono né dallo store né dal Coach. */
 import { normalizza } from "./identita";
 import { pulisci } from "./buildCoachContext";
+import type { RegSquadra } from "../types";
 
 /** Come si distingue un elemento dalle sue omonime: `descrittori` sono i valori con cui un dettaglio tra parentesi può
  *  corrispondere (data, luogo, girone…), `descrivi` è la frase che li elenca quando la scelta è ambigua. Le parti che
@@ -12,6 +13,14 @@ export interface Dettagli<T> {
   descrittori: (e: T) => string[];
   descrivi: (e: T) => string;
 }
+
+/** I dettagli con cui si sceglie tra squadre omonime dell'anagrafe: la città o l'autore («Roma (Torino)», «Roma (di Anna)»);
+ *  la descrizione è «"Nome" (città, di autore)». La usano il Coach (findSquadra) e la simulazione (scegliSquadre), così che
+ *  le due frasi d'errore dicano la stessa cosa */
+export const dettagliSquadraAnagrafe: Dettagli<RegSquadra> = {
+  descrittori: (s) => [s.citta, `di ${s.autore}`, s.autore].filter((d) => d.trim()),
+  descrivi: (s) => `"${pulisci(s.nome)}" (${pulisci(s.citta) || "città non indicata"}, di ${pulisci(s.autore)})`,
+};
 
 /** Il nome con il dettaglio tra parentesi in fondo («Roma Open (26/06/2026)»): la parte prima e il dettaglio. Senza parentesi, o con
  *  parentesi vuote, il dettaglio è null e il nome resta intero (un nome può contenere parentesi, come «Roma (Torino)» in anagrafe) */
