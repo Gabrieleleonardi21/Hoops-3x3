@@ -1,6 +1,6 @@
 HOOP 3X3 — Gestionale per circuiti di basket 3x3
 =================================================
-Documento aggiornato il 20/10/2026
+Documento aggiornato il 22/10/2026
 
 Il perché di ogni tecnologia e di ogni scelta è nel README.md, parte 1.
 
