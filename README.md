@@ -60,13 +60,13 @@ L'elenco completo, schermata per schermata, è in [`FUNZIONALITA.txt`](FUNZIONAL
 
 Il server gira sul piano gratuito di Render: dopo 15 minuti senza visite si spegne. La prima apertura può aspettare il risveglio, anche più di un minuto.
 
-### I numeri, al 20 ottobre 2026
+### I numeri, al 22 ottobre 2026
 
-Misurati il 20 ottobre 2026 con `npm run check` e `npx playwright test`, senza fallimenti. I test con il backend vero si contano con la lista (`--list`), senza eseguirli; i numeri del backend sono quelli del 19 ottobre, che questa fase non tocca. I test di integrazione del backend richiedono un database di prova. I test del frontend comprendono il test di guardia di questo README (`tests/unit/readme.test.ts`).
+Misurati il 22 ottobre 2026 con `npm run check` e `npx playwright test`, senza fallimenti. I test con il backend vero si contano con la lista (`--list`), senza eseguirli. I numeri del backend non sono stati ricontati in questa fase: sono quelli del 19 ottobre, e la pull request hoop3x3-backend#33 può cambiarli. I test di integrazione del backend richiedono un database di prova. I test del frontend comprendono il test di guardia di questo README (`tests/unit/readme.test.ts`).
 
 | Che cosa | Quanti | Come si misura |
 |---|---|---|
-| Test unitari e di componenti del frontend | 2.239, in 118 file | `npm test` |
+| Test unitari e di componenti del frontend | 2.275, in 120 file | `npm test` |
 | Test end-to-end del frontend, con il server finto | 84 | `npx playwright test` |
 | Test end-to-end con il backend vero | 6 | `npm run test:e2e:backend` (nella CI, l'integrazione continua di GitHub) |
 | Test unitari del backend, compreso il test di guardia del suo README | 997 | `./mvnw test` |
@@ -505,7 +505,8 @@ Il progetto nasce a giugno 2026 con il frontend; il repository del backend parte
 | 19 ottobre | Fase 10: il Coach costruisce una tappa completa (tappa di prova, simulazione, registrazione in blocco) | Hoops-3x3#42; hoop3x3-backend#31 |
 | 20 ottobre | Fase 11a: omonimi, identità per id, statistiche e avvisi sui doppioni | Hoops-3x3#43; hoop3x3-backend#32 |
 | 20 ottobre | Fase 11b: collegamento con scelta tra squadre omonime, Coach con il dettaglio tra parentesi | Hoops-3x3#44 |
-| 20 ottobre | Fase 11c: i rilievi rimandati (Coach: ripetizioni, «Tappa N» e limite di tappe; voce eliminata; testi degli avvisi; documenti) | questa pull request |
+| 20 ottobre | Fase 11c: i rilievi rimandati (Coach: ripetizioni, «Tappa N» e limite di tappe; voce eliminata; testi degli avvisi; documenti) | Hoops-3x3#45 |
+| 22 ottobre | Fase 12: Coach (rilievi della fase 10), ospite senza allineamento, squadra del giocatore dal roster, archivio per lega con «Ritira» | questa pull request; Gabrieleleonardi21/hoop3x3-backend#33 |
 
 ## Riferimento
 
