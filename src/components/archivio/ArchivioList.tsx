@@ -7,7 +7,7 @@ import { Button } from "../ui/Button";
 import { useConfermaPerdita } from "../../hooks/useConfermaPerdita";
 import { raggruppaPerLega } from "../../utils/archivio";
 import { puoModificare } from "../../utils/permessi";
-import { conteggio, LEGA_SENZA_NOME, perditaRitiroArchivio, TITOLO_RITIRO_ARCHIVIO } from "../../utils/testi";
+import { conteggio, ELENCO_NON_AGGIORNATO, LEGA_SENZA_NOME, perditaRitiroArchivio, TITOLO_RITIRO_ARCHIVIO } from "../../utils/testi";
 import type { PubTappaMeta, User } from "../../types";
 
 /** `pubs` null = non ancora caricato: il caricamento, oppure l'errore con «Riprova» se `errore` c'è (mai «archivio vuoto»).
@@ -55,6 +55,8 @@ export function ArchivioList({ pubs, errore, onRiprova, onOpen, user, erroreRiti
       <h1 className="font-display text-4xl mb-4">Archivio <span className="text-court">circuito</span></h1>
       <Section title="Tappe concluse" kicker="Visibili a tutti gli utenti">
         {erroreRitiro && <p role="alert" className="m-0 mb-3 text-[13px] font-semibold text-loss">{erroreRitiro}</p>}
+        {/* Un aggiornamento fallito con l'elenco già visibile (per esempio la ricarica dopo «Ritira»): l'errore si vede lo stesso */}
+        {errore && <p role="alert" className="m-0 mb-3 text-[13px] font-semibold text-loss">{ELENCO_NON_AGGIORNATO(errore)}</p>}
         {!pubs.length ? (
           <p className="text-[15px] text-chalk-muted">L'archivio è vuoto: nessuna tappa è ancora stata conclusa e pubblicata.</p>
         ) : (

@@ -93,6 +93,8 @@ export function perditaRitiroArchivio(autore: string, altrui: boolean): string {
 
 /** Il titolo di un gruppo dell'archivio quando la lega non ha nome (una voce senza lega) */
 export const LEGA_SENZA_NOME = "Senza lega";
+/** L'elenco è quello di prima, ma l'ultimo aggiornamento non è riuscito (per esempio dopo un «Ritira»): lo dice, con il motivo */
+export const ELENCO_NON_AGGIORNATO = (motivo: string) => `L'elenco non si è aggiornato: ${motivo}`;
 
 /** Avviso sulla pagina di una tappa conclusa che non è (o non è aggiornata) nell'Archivio circuito, con la via d'uscita: per
  *  ripubblicare la tappa va riaperta e conclusa di nuovo. `motivo` è il perché della pubblicazione non riuscita; null = nessun
