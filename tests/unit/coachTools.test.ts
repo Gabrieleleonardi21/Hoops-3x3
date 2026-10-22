@@ -19,7 +19,7 @@ import { tappaModificataAltrove } from "../../src/utils/testi";
 import { askCoachWithTools, type ToolCall } from "../../src/services/aiService";
 import type { Partita, RegGiocatore, RegSquadra, SquadraTappa, StatSheet, Tappa, User } from "../../src/types";
 import { creaTappa, registraRisultato, sorteggia, type Esito } from "../../src/domain/tappaOps";
-import { generaTabellino } from "../../src/domain/simulazione";
+import { generaTabellino, simulaTappa } from "../../src/domain/simulazione";
 import { squadraDi } from "../../src/utils/tappaInfo";
 
 // Rete finta per leghe, anagrafe e archivio; store, coda dei salvataggi, tappaOps, aiService e hook sono quelli veri.
@@ -113,6 +113,14 @@ async function chiediEConferma(c: Coach, messaggio: string, conferma: boolean) {
   act(() => { richiesta.rispondi(conferma); });
   await act(async () => { await invio; });
   return richiesta;
+}
+/** Scrive al Coach e, mentre la richiesta di conferma aspetta, cambia lo store come farebbe la pagina; poi conferma */
+async function confermaDopo(c: Coach, messaggio: string, nelFrattempo: () => void) {
+  const invio = inviaSenzaAspettare(c, messaggio);
+  await waitFor(() => expect(c.current.conferma).toBeTruthy());
+  act(nelFrattempo);
+  act(() => { c.current.conferma!.rispondi(true); });
+  await act(async () => { await invio; });
 }
 /** Esce come farebbe «Esci» nell'intestazione */
 async function esci() {
@@ -1000,15 +1008,6 @@ describe("Coach AI: conferma nel pannello prima delle azioni distruttive (D4)", 
     expect(esiti(richieste)[0]).toMatch(/Mancano ancora 2 partite/);
     expect(store().tappe[0]).toBe(prima);
   });
-
-  /** Scrive al Coach e, mentre la richiesta di conferma aspetta, cambia lo store come farebbe la pagina; poi conferma */
-  async function confermaDopo(c: Coach, messaggio: string, nelFrattempo: () => void) {
-    const invio = inviaSenzaAspettare(c, messaggio);
-    await waitFor(() => expect(c.current.conferma).toBeTruthy());
-    act(nelFrattempo);
-    act(() => { c.current.conferma!.rispondi(true); });
-    await act(async () => { await invio; });
-  }
 
   it("dopo la conferma l'azione parte dalla tappa di adesso: un risultato registrato nel frattempo resta", async () => {
     modello(strumenti(["annulla_risultato", { squadra_a: "Alfa", squadra_b: "Beta" }]), testo("Risultato annullato."));
@@ -2057,6 +2056,35 @@ describe("Coach AI: simula_risultati, i risultati mancanti di una tappa, con con
     expect(dopo.bracket?.every((m) => m.done)).toBe(true);
     await vi.waitFor(() => expect(legheApi.putTappa).toHaveBeenCalledTimes(1), { timeout: 2000 });
     expect(c.current.msgs.at(-1)?.tools).toEqual(["simula_risultati"]);
+  });
+
+  it("dopo «Conferma» si salva la simulazione provata prima: una sola estrazione", async () => {
+    // L'attesa si calcola prima della conversazione, sulla tappa dello store, con il seme con cui parte Math.random (lcg(7))
+    const attesa = ottieni(simulaTappa(store().tappe[0], { fase: "tutto", tabellini: true, qualificate: 2 }, lcg(7)));
+    modello(strumenti(["simula_risultati", { tappa_nome: "Vera" }]), testo("Simulate."));
+    await chiediEConferma(coach(), "Simula i risultati mancanti di Vera", true);
+    // Si confrontano punteggi e tabellini: gli id delle gare e il momento di registrazione cambiano a ogni esecuzione
+    const esitiGare = (t: Tappa) => ({
+      gironi: t.partite.map((m) => [m.sa, m.sb, m.pa, m.pb]),
+      tabellone: (t.bracket ?? []).map((m) => [m.squadraA, m.squadraB, m.pA, m.pB]),
+    });
+    expect(esitiGare(store().tappe[0])).toEqual(esitiGare(attesa));
+  });
+
+  it("se nell'attesa la tappa cambia, si rigioca su quella di adesso e il risultato registrato nel frattempo resta", async () => {
+    modello(strumenti(["simula_risultati", { tappa_nome: "Vera" }]), testo("Simulate."));
+    const c = coach();
+    // Una delle due gare dei gironi ancora da giocare: la prende la pagina mentre la conferma aspetta
+    const daRegistrare = store().tappe[0].partite.find((m) => !m.done);
+    if (!daRegistrare) throw new Error("La tappa di prova dovrebbe avere gare da giocare");
+    await confermaDopo(c, "Simula i risultati mancanti di Vera", () => {
+      const registrata = (x: Tappa) => ottieni(registraRisultato(x, daRegistrare.id, { sa: 21, sb: 15 }));
+      useAppStore.getState().updateTappa(store().tappe[0].id, registrata);
+    });
+    const dopo = store().tappe[0];
+    expect(dopo.partite.find((m) => m.id === daRegistrare.id)).toMatchObject({ sa: 21, sb: 15, done: true });
+    expect(dopo.partite.every((m) => m.done)).toBe(true);
+    expect(dopo.bracket?.every((m) => m.done)).toBe(true);
   });
 
   it("con «fase: finale» e gironi ancora aperti: errore con il numero di partite mancanti, senza chiedere conferma", async () => {
