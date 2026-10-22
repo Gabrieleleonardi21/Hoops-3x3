@@ -3,8 +3,8 @@ import {
   bloccaApiNonPreviste, json, rispondiAlRisveglio, salvaPrimaPartitaAperta, salvaPrimoMatchDelTabellone, tappaConDuePartite,
 } from "./helpers";
 
-/** Il server finto dell'Ospite: tutto resta nel browser, ma la pagina della tappa scarica l'anagrafe (in sola lettura) e la risposta la
- *  decide il test. Ogni altra chiamata a /api è un errore.
+/** Il server finto dell'Ospite: tutto resta nel browser, ma la pagina della tappa scarica l'anagrafe pubblica (in sola lettura, senza
+ *  allineare la tappa dell'Ospite) e la risposta la decide il test. Ogni altra chiamata a /api è un errore.
  *  @returns le chiamate non previste, che a fine test devono essere nessuna */
 async function serverFinto(page: Page) {
   const nonPreviste = await bloccaApiNonPreviste(page);

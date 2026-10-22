@@ -163,7 +163,8 @@ Profilo dell'utente (/profilo)
 - Modifica dei dati della tappa in qualsiasi momento prima della conclusione.
 - Eliminazione tappa con conferma: la finestra dice che cosa si perde (le squadre,
   il sorteggio, i risultati).
-- Collegamento all'anagrafe (solo registrati): quando si scrive il nome di una
+- Collegamento all'anagrafe (solo registrati; per l'Ospite la tappa non cambia
+  all'apertura): quando si scrive il nome di una
   squadra e si esce dal campo, l'app lo cerca in anagrafe (prima nella cache,
   poi sul server) e, se lo trova, collega la squadra alla voce e ne copia
   nome, logo, ranking e sito. Il roster non si copia: i giocatori di una
@@ -204,7 +205,8 @@ Profilo dell'utente (/profilo)
   collegata resta collegata alla sua voce, anche se la cache non la conosce
   ancora: la chiede al server, e non si ricollega a un'omonima per nome. Per
   nome si collegano solo le squadre senza collegamento. Le tappe concluse non
-  vengono toccate.
+  vengono toccate. Per l'Ospite la tappa non cambia all'apertura: niente
+  collegamenti per nome, niente richieste al server, niente scritture nel browser.
 - Regole di gara personalizzabili per tappa:
     • Punteggio target (default 21)
     • Durata massima in minuti (default 10)
