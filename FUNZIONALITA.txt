@@ -711,7 +711,8 @@ registra_giocatore chiedono conferma solo davanti a un omonimo; gli altri
 strumenti non chiedono conferma.
 
 Limiti del ciclo: in una richiesta il Coach concatena al massimo 8 giri di
-strumenti, poi risponde; una chiamata identica a una già fatta non si ripete.
+strumenti, poi risponde; una chiamata con gli stessi argomenti già fatta non si ripete,
+anche se scritta in un altro ordine o con altri spazi.
 Una tappa, una squadra o un giocatore creati in questa richiesta non si creano
 due volte: la seconda volta è un errore, senza conferma.
 Uno strumento che fallisce non ferma gli altri: il motivo arriva al modello e

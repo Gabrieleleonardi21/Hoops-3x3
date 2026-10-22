@@ -54,7 +54,9 @@ abilita i flussi multi-step in un solo messaggio (es. *"crea la tappa e sorteggi
   (`neiLimiti` in `aiService.ts`) si tolgono i messaggi più vecchi della cronologia, mai il preambolo, la domanda di adesso né
   gli scambi con gli strumenti della richiesta. Se nemmeno così la richiesta ci sta, il ciclo si chiude senza chiamare il
   modello, con «Ho eseguito le azioni indicate qui sotto, ma la conversazione è diventata troppo lunga…» e i badge delle azioni.
-- **Guardia anti-stallo.** La firma di una chiamata è «nome dello strumento + argomenti» (il testo JSON del modello). Una
+- **Guardia anti-stallo.** La firma di una chiamata è «nome dello strumento + argomenti letti come JSON con le chiavi in ordine»:
+  spazi e ordine delle chiavi non contano, gli elenchi sì (`["Alfa","Beta"]` e `["Beta","Alfa"]` sono chiamate diverse). Argomenti
+  che non sono JSON valido restano il testo com'è. Una
   chiamata con la stessa firma di una già fatta nella richiesta, riuscita o no, **non viene rieseguita**: il modello riceve
   `Azione "<nome dello strumento>" già chiamata con gli stessi argomenti in questa richiesta (vedi il suo risultato): non
   ripeterla, rispondi all'utente.` (il testo non dice «eseguita», perché la prima chiamata può essere fallita). Se un round è fatto **solo** di ricicli il ciclo si interrompe e parte
