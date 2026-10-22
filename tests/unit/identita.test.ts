@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  normalizza, identitaSquadra, nomeCompleto, stessoNomeGiocatore, perId, risolviGiocatore, squadraDelGiocatore, doppioniDelRoster,
+  normalizza, identitaSquadra, nomeCompleto, stessoNomeGiocatore, perId, risolviGiocatore, squadraDelGiocatore, doppioniDelRoster, nomeSquadraDi,
 } from "../../src/utils/identita";
 import { normalizza as normalizzaDaStat } from "../../src/utils/statGiocatori";
 import type { GiocatoreRoster, RegGiocatore, RegSquadra } from "../../src/types";
@@ -123,6 +123,27 @@ describe("squadraDelGiocatore", () => {
 
   it("un giocatore senza squadra scritta non ha squadra", () => {
     expect(squadraDelGiocatore(giocatore("g9", "Mario", "Rossi", ""), [roma1])).toBeUndefined();
+  });
+});
+
+describe("nomeSquadraDi: nei testi vince la squadra del roster", () => {
+  const roma = squadraReg("sq1", "Roma", ["g1"]);
+  const milano = squadraReg("sq2", "Milano", ["g1"]);
+
+  it("il giocatore nel roster di «Roma» con il testo «Ballers» è di «Roma»", () => {
+    expect(nomeSquadraDi(giocatore("g1", "Mario", "Rossi", "Ballers"), [roma])).toBe("Roma");
+  });
+
+  it("fuori da ogni roster resta il testo della scheda, che è il caso dello svincolato", () => {
+    expect(nomeSquadraDi(giocatore("g9", "Mario", "Rossi", "Ballers"), [roma])).toBe("Ballers");
+  });
+
+  it("in due roster vince il primo", () => {
+    expect(nomeSquadraDi(giocatore("g1", "Mario", "Rossi", "Ballers"), [roma, milano])).toBe("Roma");
+  });
+
+  it("senza testo e senza roster il nome è vuoto", () => {
+    expect(nomeSquadraDi(giocatore("g9", "Mario", "Rossi", ""), [roma])).toBe("");
   });
 });
 

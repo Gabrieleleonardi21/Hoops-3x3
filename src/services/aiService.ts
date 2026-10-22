@@ -1,6 +1,7 @@
 /** Chiamata al modello per Coach AI tramite il backend (POST /api/coach/chat), che inoltra
  *  a Groq con la chiave tenuta sul server. Serve un account registrato (endpoint autenticato). */
 import { api, ApiError } from "./api";
+import { chiaviInOrdine } from "../utils/chiaviInOrdine";
 export interface ChatMsg {
   role: "user" | "assistant";
   content: string;
@@ -136,6 +137,16 @@ function leggiArgomenti(testo: string): Record<string, unknown> | null {
   return null;
 }
 
+/** La firma di una chiamata per la guardia anti-stallo: nome più argomenti letti come JSON e riscritti con le chiavi in ordine, così
+ *  spazi, ordine delle chiavi e formato dei numeri non contano («{"nome":"Delta","citta":"Roma"}» e «{ "citta": "Roma", "nome": "Delta" }»
+ *  sono la stessa chiamata). Gli elenchi restano nell'ordine dato (["Alfa","Beta"] e ["Beta","Alfa"] sono chiamate diverse: le ferma
+ *  `creati`). Argomenti che non sono JSON valido restano il testo com'è */
+function firmaChiamata(tc: ToolCall): string {
+  const args = leggiArgomenti(tc.function.arguments);
+  if (!args) return `${tc.function.name}:${tc.function.arguments}`;
+  return `${tc.function.name}:${JSON.stringify(chiaviInOrdine(args))}`;
+}
+
 /** Richiesta abbandonata (chat cancellata, logout): niente altre chiamate al modello né altri strumenti. Le chiamate
  *  consumerebbero il limite di richieste e, dopo un nuovo accesso, partirebbero con il token di un altro utente */
 function fermaSeAbbandonata(segnale?: AbortSignal) {
@@ -157,6 +168,10 @@ async function eseguiProtetto(onToolCall: OnToolCall, name: string, argomenti: s
   }
 }
 
+/** Il preambolo (messaggio system) di ogni chiamata al modello: una funzione, perché il blocco <dati_lega> si ricostruisce
+ *  a ogni giro dallo stato di adesso: una tappa creata al giro prima è già nei dati del giro dopo */
+export type Preambolo = () => string;
+
 /**
  * Chiamata con tool calling in loop agentico. Finché l'AI invoca strumenti:
  * 1. registra il turno assistant che li richiede
@@ -175,26 +190,27 @@ async function eseguiProtetto(onToolCall: OnToolCall, name: string, argomenti: s
  * strumenti superano i 60 messaggi che il server accetta. Se un errore (rete, 429, server) interrompe il ciclo a metà, l'AiError
  * porta in `calledTools` gli strumenti già eseguiti: le loro azioni sono avvenute.
  *
+ * @param preambolo - vedi Preambolo: si rilegge prima di ogni chiamata al modello, non solo la prima
  * @param onToolCall - vedi OnToolCall: un errore lanciato diventa il risultato dello strumento
  * @param segnale - interrompe la richiesta: prima di ogni chiamata al modello e di ogni strumento si controlla, e se è
  *   interrotta la promessa è rifiutata con il motivo del segnale
  * @returns testo finale da mostrare in chat + nomi degli strumenti eseguiti (non quelli falliti o non partiti)
  */
 export async function askCoachWithTools(
-  preamble: string,
+  preambolo: Preambolo,
   history: ChatMsg[],
   tools: ToolDef[],
   onToolCall: OnToolCall,
   segnale?: AbortSignal,
 ): Promise<{ text: string; calledTools: string[] }> {
   const messages: ApiMsg[] = [
-    { role: "system", content: preamble },
+    { role: "system", content: preambolo() },
     ...history.map((m) => ({ role: m.role, content: m.content })),
   ];
 
   const calledTools: string[] = [];
   try {
-    return await ciclo(messages, history.length, tools, onToolCall, calledTools, segnale);
+    return await ciclo(messages, history.length, tools, onToolCall, calledTools, preambolo, segnale);
   } catch (e) {
     if (e instanceof AiError) e.calledTools = [...calledTools];
     throw e;
@@ -208,9 +224,12 @@ async function ciclo(
   tools: ToolDef[],
   onToolCall: OnToolCall,
   calledTools: string[],
+  preambolo: Preambolo,
   segnale?: AbortSignal,
 ): Promise<{ text: string; calledTools: string[] }> {
   let cronologia = nCronologia;
+  /** Il preambolo si riscrive prima di ogni chiamata: gli strumenti leggono lo stato di adesso, e il modello deve vederlo anche lui */
+  const aggiornaPreambolo = () => { messages[0] = { role: "system", content: preambolo() }; };
   /** Prepara la prossima chiamata nei limiti del server; false se non ci sta */
   const ciSta = () => {
     const esito = neiLimiti(messages, cronologia);
@@ -226,6 +245,8 @@ async function ciclo(
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     fermaSeAbbandonata(segnale);
+    // Il preambolo prima dei limiti: il suo testo conta nei caratteri del server
+    aggiornaPreambolo();
     // Un altro giro non entra nei limiti del server: si passa alla chiusura
     if (!ciSta()) break;
     const res = await chiamaCoach(messages, tools);
@@ -242,9 +263,10 @@ async function ciclo(
     let eseguitoQualcosa = false; // false se il round contiene SOLO ricicli → si esce
     for (const tc of res.tool_calls) {
       fermaSeAbbandonata(segnale);
-      // Guardia anti-stallo: stesso tool con gli stessi argomenti già chiamato → non ripetere. Il testo non dice
-      // «eseguita»: la prima chiamata può essere fallita, e il modello direbbe all'utente che è fatta
-      const firma = `${tc.function.name}:${tc.function.arguments}`;
+      // Guardia anti-stallo: stesso tool con gli stessi argomenti (letti come JSON, chiavi in ordine: vedi firmaChiamata) già
+      // chiamato → non ripetere. Il testo non dice «eseguita»: la prima chiamata può essere fallita, e il modello direbbe
+      // all'utente che è fatta
+      const firma = firmaChiamata(tc);
       if (seen.has(firma)) {
         messages.push({ role: "tool", tool_call_id: tc.id, content: `Azione "${tc.function.name}" già chiamata con gli stessi argomenti in questa richiesta (vedi il suo risultato): non ripeterla, rispondi all'utente.` });
         continue;
@@ -263,6 +285,7 @@ async function ciclo(
 
   // Cap raggiunto o loop interrotto: una chiamata finale senza tool forza la risposta di chiusura.
   fermaSeAbbandonata(segnale);
+  aggiornaPreambolo();
   if (!ciSta()) {
     if (calledTools.length === 0) return { text: TROPPO_LUNGA_SENZA_AZIONI, calledTools };
     return { text: TROPPO_LUNGA, calledTools };

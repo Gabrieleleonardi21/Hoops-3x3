@@ -57,6 +57,15 @@ describe("GiocatoreForm: un giocatore con lo stesso nome e cognome avvisa e si r
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
   });
 
+  it("l'avviso dice la squadra del roster, non il testo della scheda («Roma Kings»)", () => {
+    const romaDelRoster: RegSquadra = { ...roma, id: "sr", nome: "Roma", roster: ["g1"] };
+    render(<GiocatoreForm squadre={[romaDelRoster]} giocatori={[mario]} onSave={vi.fn(async () => {})} />);
+    fireEvent.change(screen.getByLabelText("Nome *"), { target: { value: "Mario" } });
+    fireEvent.change(screen.getByLabelText("Cognome *"), { target: { value: "Rossi" } });
+    fireEvent.click(salva());
+    expect(screen.getByRole("status").textContent).toBe(AVVISO_VOCE_OMONIMA("Mario Rossi (Roma)", "giocatore"));
+  });
+
   it("cambiare il cognome azzera l'avviso", () => {
     render(<GiocatoreForm squadre={[]} giocatori={[mario]} onSave={vi.fn(async () => {})} />);
     fireEvent.change(screen.getByLabelText("Nome *"), { target: { value: "Mario" } });
@@ -65,5 +74,13 @@ describe("GiocatoreForm: un giocatore con lo stesso nome e cognome avvisa e si r
     expect(screen.getByRole("status")).toBeTruthy();
     fireEvent.change(screen.getByLabelText("Cognome *"), { target: { value: "Rossini" } });
     expect(screen.queryByRole("status")).toBeNull();
+  });
+});
+
+describe("SquadraAnagrafeForm: il roster mostra la squadra del roster accanto al giocatore (fase 12)", () => {
+  it("la scelta del giocatore dice «Roma» se è nel roster di Roma, anche con «Roma Kings» scritto nella scheda", () => {
+    const romaDelRoster: RegSquadra = { ...roma, id: "sr", nome: "Roma", roster: ["g1"] };
+    render(<SquadraAnagrafeForm giocatori={[mario]} squadre={[romaDelRoster]} onSave={vi.fn(async () => {})} />);
+    expect(screen.getByRole("option", { name: "Mario Rossi (Roma)" })).toBeTruthy();
   });
 });

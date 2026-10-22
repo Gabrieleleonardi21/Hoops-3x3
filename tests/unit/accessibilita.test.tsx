@@ -57,7 +57,7 @@ describe("ArchivioList: chiavi stabili", () => {
   const voce = (tappaId: string, nome: string): PubTappaMeta => ({
     tappaId, nome, luogo: "Roma", data: "2025-09-13", nSquadre: 2, lega: "Estate", autore: "Anna", ts: 1,
   });
-  const lista = (pubs: PubTappaMeta[]) => <ArchivioList pubs={pubs} errore={null} onRiprova={() => {}} onOpen={() => {}} />;
+  const lista = (pubs: PubTappaMeta[]) => <ArchivioList pubs={pubs} errore={null} onRiprova={() => {}} onOpen={() => {}} user={null} erroreRitiro={null} onRitira={() => {}} />;
   /** La riga di una tappa, trovata dal suo nome */
   const riga = (nome: string) => screen.getByText(nome).closest("button")!;
 
@@ -74,7 +74,7 @@ describe("ArchivioList: chiavi stabili", () => {
   it("il clic su una riga apre proprio quella tappa", () => {
     const onOpen = vi.fn();
     const voci = [voce("a", "Tappa A"), voce("b", "Tappa B")];
-    render(<ArchivioList pubs={voci} errore={null} onRiprova={() => {}} onOpen={onOpen} />);
+    render(<ArchivioList pubs={voci} errore={null} onRiprova={() => {}} onOpen={onOpen} user={null} erroreRitiro={null} onRitira={() => {}} />);
     fireEvent.click(within(riga("Tappa B")).getByText("Tappa B"));
     expect(onOpen).toHaveBeenCalledExactlyOnceWith(voci[1]);
   });

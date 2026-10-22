@@ -60,17 +60,17 @@ L'elenco completo, schermata per schermata, è in [`FUNZIONALITA.txt`](FUNZIONAL
 
 Il server gira sul piano gratuito di Render: dopo 15 minuti senza visite si spegne. La prima apertura può aspettare il risveglio, anche più di un minuto.
 
-### I numeri, al 20 ottobre 2026
+### I numeri, al 22 ottobre 2026
 
-Misurati il 20 ottobre 2026 con `npm run check` e `npx playwright test`, senza fallimenti. I test con il backend vero si contano con la lista (`--list`), senza eseguirli; i numeri del backend sono quelli del 19 ottobre, che questa fase non tocca. I test di integrazione del backend richiedono un database di prova. I test del frontend comprendono il test di guardia di questo README (`tests/unit/readme.test.ts`).
+Misurati il 22 ottobre 2026 con `npm run check` e `npx playwright test`, senza fallimenti. I test con il backend vero si contano con la lista (`--list`), senza eseguirli. I numeri del backend non sono stati ricontati in questa fase: il test di integrazione viene dal README del backend del 22 ottobre (hoop3x3-backend#33, ora unita), gli altri dal 19 ottobre. I test di integrazione del backend richiedono un database di prova. I test del frontend comprendono il test di guardia di questo README (`tests/unit/readme.test.ts`).
 
 | Che cosa | Quanti | Come si misura |
 |---|---|---|
-| Test unitari e di componenti del frontend | 2.239, in 118 file | `npm test` |
+| Test unitari e di componenti del frontend | 2.279, in 120 file | `npm test` |
 | Test end-to-end del frontend, con il server finto | 84 | `npx playwright test` |
 | Test end-to-end con il backend vero | 6 | `npm run test:e2e:backend` (nella CI, l'integrazione continua di GitHub) |
 | Test unitari del backend, compreso il test di guardia del suo README | 997 | `./mvnw test` |
-| Test di integrazione del backend, su PostgreSQL | 298 | `./mvnw verify -Pintegrazione` |
+| Test di integrazione del backend, su PostgreSQL | 300 | `./mvnw verify -Pintegrazione` |
 | Endpoint dell'API | 42, più 2 controlli di salute | le mappature dei controller del backend |
 | Migrazioni del database | 11 (da V1 a V11), per 12 tabelle | i file di `hoop3x3-backend/src/main/resources/db/migration` |
 
@@ -354,7 +354,7 @@ Cinque percorsi raccontati dall'inizio alla fine, con i file in cui succede ogni
 1. **La conclusione.** L'organizzatore conclude la tappa: `concludi` di `src/domain/tappaOps.ts` la segna conclusa.
 2. **Prima il salvataggio.** `pubblica` dello store aspetta che la coda dei salvataggi si svuoti: la copia pubblica deve partire dalla tappa che il server ha davvero.
 3. **Solo l'id.** Il client chiama `PUT /api/archivio/{tappaId}` senza corpo. Il server (`ArchivioService`) costruisce la copia pubblica, lo **snapshot**, dalla tappa salvata; se la tappa non è conclusa risponde 409.
-4. **L'elenco.** Alla pubblicazione il server scrive anche nome, luogo, data e numero di squadre in colonne normali (migrazione V6). `GET /api/archivio` legge solo quelle, senza aprire i blocchi JSONB.
+4. **L'elenco.** Alla pubblicazione il server scrive anche nome, luogo, data e numero di squadre in colonne normali (migrazione V6). `GET /api/archivio` legge solo quelle, senza aprire i blocchi JSONB. Con i campi `legaId` e `autoreId` (il server della fase 12 li legge con un join, senza migrazioni) l'elenco si raggruppa per lega, e «Ritira» si mostra solo a chi può: l'autore o l'ADMIN. Il frontend accetta anche il server di prima, che non li manda.
 5. **La pagina pubblica.** Chiunque apre `/tappa/<id>` (`src/pages/TappaViewPage.tsx`): la pagina legge `GET /api/archivio/{tappaId}`, senza account, e offre «Stampa / PDF».
 
 Se il proprietario elimina la tappa o la lega, il database toglie anche la pubblicazione, con la cascata della migrazione V2.
@@ -362,7 +362,7 @@ Se il proprietario elimina la tappa o la lega, il database toglie anche la pubbl
 ### Il Coach
 
 1. **La domanda.** Il registrato scrive nel pannello (`src/components/coach/CoachPanel.tsx`). Un Ospite riceve l'invito a creare un account, e non parte nessuna chiamata.
-2. **Il prompt.** `src/hooks/useCoachAI.ts` scrive il prompt di sistema: chi è il Coach, le regole FIBA 3x3, come usare gli strumenti. Aggiunge i dati della lega aperta, preparati da `src/utils/buildCoachContext.ts` dentro il blocco `<dati_lega>`. Insieme vanno gli ultimi 30 messaggi della chat.
+2. **Il prompt.** `src/hooks/useCoachAI.ts` scrive il prompt di sistema: chi è il Coach, le regole FIBA 3x3, come usare gli strumenti. Aggiunge i dati della lega aperta, preparati da `src/utils/buildCoachContext.ts` dentro il blocco `<dati_lega>`; il blocco si ricostruisce a ogni giro di strumenti, così vede anche le tappe appena create. Insieme vanno gli ultimi 30 messaggi della chat.
 3. **Il proxy.** `src/services/aiService.ts` manda tutto a `POST /api/coach/chat`, con le definizioni dei quattordici strumenti (`src/coach/toolDefs.ts`). Il backend controlla i limiti (20 richieste al minuto e 300 al giorno per utente, 60 messaggi, 100.000 caratteri, solo strumenti del Coach), aggiunge la sua regola del contesto e chiama il fornitore scelto con la chiave che tiene lui.
 4. **Gli strumenti.** Se il modello chiede uno strumento, per esempio `registra_risultato`, la risposta torna al browser. `src/coach/toolHandlers.ts` lo esegue con le stesse funzioni dell'interfaccia (`src/domain/tappaOps.ts`, lo store), e il risultato torna al modello.
 5. **Le conferme.** Sorteggiare su una tappa con risultati, annullare un risultato, concludere una tappa e inventare i risultati mancanti (`simula_risultati`) chiedono «Conferma» o «Annulla» nella chat, prima di toccare qualcosa. Per `crea_tappa`, `crea_tappa_simulata`, `registra_squadra` e `registra_giocatore` la conferma c'è solo davanti a un omonimo: una tappa o una voce dell'anagrafe con lo stesso nome.
@@ -505,7 +505,8 @@ Il progetto nasce a giugno 2026 con il frontend; il repository del backend parte
 | 19 ottobre | Fase 10: il Coach costruisce una tappa completa (tappa di prova, simulazione, registrazione in blocco) | Hoops-3x3#42; hoop3x3-backend#31 |
 | 20 ottobre | Fase 11a: omonimi, identità per id, statistiche e avvisi sui doppioni | Hoops-3x3#43; hoop3x3-backend#32 |
 | 20 ottobre | Fase 11b: collegamento con scelta tra squadre omonime, Coach con il dettaglio tra parentesi | Hoops-3x3#44 |
-| 20 ottobre | Fase 11c: i rilievi rimandati (Coach: ripetizioni, «Tappa N» e limite di tappe; voce eliminata; testi degli avvisi; documenti) | questa pull request |
+| 20 ottobre | Fase 11c: i rilievi rimandati (Coach: ripetizioni, «Tappa N» e limite di tappe; voce eliminata; testi degli avvisi; documenti) | Hoops-3x3#45 |
+| 22 ottobre | Fase 12: Coach (rilievi della fase 10), ospite senza allineamento, squadra del giocatore dal roster, archivio per lega con «Ritira» | questa pull request; Gabrieleleonardi21/hoop3x3-backend#33 |
 
 ## Riferimento
 
@@ -537,11 +538,12 @@ L'elenco completo, schermata per schermata, è in [`FUNZIONALITA.txt`](FUNZIONAL
 - **Anagrafe.** Un archivio condiviso di giocatori e squadre che le tappe riutilizzano.
   - Una squadra ha logo e sito web cliccabile, e un roster fino a 6 giocatori (`MAX_ROSTER_ANAGRAFE`), diverso dai 4 di una squadra di tappa (`MAX_ROSTER`).
   - Logo, sito, Instagram e link dei video sono vuoti oppure indirizzi `http(s)://` o percorsi del sito come `/logos/nome.svg`, fino a 2048 caratteri, come vuole il server. I moduli lo controllano prima dell'invio (`erroreUrl` in `src/utils/safeUrl.ts`).
-  - Scrivendo il nome di una squadra di tappa, questa si collega alla voce dell'anagrafe (nome, logo, ranking e sito; il roster non si copia) o ne crea una, solo se all'arrivo della risposta la squadra ha ancora quel nome. Una squadra già collegata resta collegata alla sua voce, anche se la cache non la conosce ancora: finché la voce c'è non si ricollega mai per nome. Per nome si collegano solo le squadre senza collegamento. Con due squadre omonime in anagrafe la pagina non sceglie la prima: chiede quale collegare (`src/components/squadra/SceltaSquadraDialog.tsx`). Se la voce di una squadra collegata viene eliminata dalla pagina Anagrafe, all'apertura della tappa la squadra si scollega (tiene nome, logo e ranking) e la card lo dice sotto il nome (`AVVISO_VOCE_ELIMINATA`, che sparisce quando si scrive un nome nuovo). Se in anagrafe resta una sola squadra con quel nome, la squadra si ricollega a quella nello stesso giro, senza avviso.
+  - Scrivendo il nome di una squadra di tappa, questa si collega alla voce dell'anagrafe (nome, logo, ranking e sito; il roster non si copia) o ne crea una, solo se all'arrivo della risposta la squadra ha ancora quel nome. Una squadra già collegata resta collegata alla sua voce, anche se la cache non la conosce ancora: finché la voce c'è non si ricollega mai per nome. Per nome si collegano solo le squadre senza collegamento. Con due squadre omonime in anagrafe la pagina non sceglie la prima: chiede quale collegare (`src/components/squadra/SceltaSquadraDialog.tsx`). Se la voce di una squadra collegata viene eliminata dalla pagina Anagrafe, all'apertura della tappa la squadra si scollega (tiene nome, logo e ranking) e la card lo dice sotto il nome (`AVVISO_VOCE_ELIMINATA`, che sparisce quando si scrive un nome nuovo). Se in anagrafe resta una sola squadra con quel nome, la squadra si ricollega a quella nello stesso giro, senza avviso. L'Ospite non si collega: `syncFromAnagrafe` (`src/hooks/useTappa.ts`) esce subito per lui, senza richieste al server e senza scritture nel browser, e la tappa non cambia all'apertura.
   - «Scollega» toglie il collegamento e rende di nuovo modificabile il nome. Serve a cambiarlo, e resta anche alla riapertura della tappa: per ricollegarla si scrive di nuovo il nome.
   - Modifica ed eliminazione solo per l'autore o un ADMIN.
   - I dati personali li vede solo chi ha un account: del giocatore data di nascita, città, nazionalità, altezza, peso, esperienza, note e autore; della squadra referente e autore.
-- **Archivio.** Le tappe concluse e pubblicate (pubblicano solo i registrati), consultabili senza account in `/archivio` e `/tappa/:id`.
+  - Nei testi (scheda, card, avviso di omonimia, ricerca) la squadra di un giocatore è quella del roster in cui sta, e il testo scritto nella scheda vale solo per chi non è in nessun roster (`nomeSquadraDi` in `src/utils/identita.ts`). Il logo segue lo stesso roster (`squadraDelGiocatore`): senza roster, il ripiego per nome vale solo se la squadra si chiama così una volta sola.
+- **Archivio.** Le tappe concluse e pubblicate (pubblicano solo i registrati), consultabili senza account in `/archivio` e `/tappa/:id`. L'elenco è raggruppato per lega; l'autore e l'ADMIN possono ritirare una pubblicazione dall'elenco, con conferma (non dalla pagina della tappa).
   - Squadre e roster, risultati, classifiche dei gironi, tabellone, leader e video, con «Stampa / PDF».
   - Il link pubblico di una tappa conclusa si copia dalla sua pagina.
 - **Video.** Link video per tappa, che si aggiungono e si tolgono anche a tappa conclusa: ogni cambio ripubblica la copia nell'archivio.

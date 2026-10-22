@@ -4,7 +4,7 @@
 import { Link } from "react-router-dom";
 import { useConfermaPerdita } from "../../hooks/useConfermaPerdita";
 import { eta } from "../../utils/eta";
-import { squadraDelGiocatore } from "../../utils/identita";
+import { nomeSquadraDi, squadraDelGiocatore } from "../../utils/identita";
 import { puoModificare } from "../../utils/permessi";
 import { perditaGiocatore } from "../../utils/testi";
 import { Icon } from "../ui/Icon";
@@ -19,6 +19,8 @@ export function GiocatoreCard({ g, user, squadre, onRemove, onOpen, disabled = f
   // Il logo della squadra in cui gioca: quella il cui roster lo contiene, o l'unica che si chiama come lui. Con due «Roma» senza
   // roster, il nome non dice quale: nessun logo (squadraDelGiocatore)
   const squadraLogo = squadraDelGiocatore(g, squadre ?? [])?.logo ?? null;
+  // Nei testi vince la squadra del roster, altrimenti quella scritta nella scheda (nomeSquadraDi)
+  const squadraNome = nomeSquadraDi(g, squadre ?? []);
   const age = eta(g.nascita);
   const dettagli = [
     g.nascita ? `Nato il ${g.nascita}${age !== null ? ` (${age} anni)` : ""}${g.citta ? ` a ${g.citta}` : ""}` : g.citta,
@@ -44,7 +46,7 @@ export function GiocatoreCard({ g, user, squadre, onRemove, onOpen, disabled = f
       </div>
       {g.soprannome && <div className="text-xs font-semibold text-court">"{g.soprannome}"</div>}
       <div className="mt-1.5 text-xs leading-relaxed text-chalk-muted">
-        <strong className="text-chalk">{g.ruolo}</strong>{g.squadra ? ` · ${g.squadra}` : ""}
+        <strong className="text-chalk">{g.ruolo}</strong>{squadraNome && ` · ${squadraNome}`}
         {dettagli.map((d) => <span key={d} className="block">{d}</span>)}
       </div>
       {g.note && <p className="mt-1.5 text-[13px] text-chalk-muted">{g.note}</p>}

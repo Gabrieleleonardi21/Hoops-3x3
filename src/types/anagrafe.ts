@@ -64,4 +64,7 @@ export interface PubTappaMeta {
   lega: string;     // nome della lega al momento della pubblicazione
   autore: string;   // nome visualizzato dell'autore (non è unico)
   ts: number;       // pubblicazione, ms dall'epoca
+  /** Facoltativi: il backend della fase 12 li manda; con il server di prima sono assenti. */
+  legaId?: string | null; // id della lega della tappa; null per una pubblicazione di prima della V2 rimasta senza tappa
+  autoreId?: string | null; // id dell'autore (per «Ritira» e per il raggruppamento); assente con il server di prima
 }

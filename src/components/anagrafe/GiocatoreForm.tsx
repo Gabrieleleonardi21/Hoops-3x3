@@ -7,7 +7,7 @@ import { Card } from "../ui/Card";
 import { CampiGiocatore } from "./CampiAnagrafe";
 import type { GiocatoreInput } from "../../services/anagrafeApi";
 import type { RegGiocatore, RegSquadra } from "../../types";
-import { nomeCompleto, stessoNomeGiocatore } from "../../utils/identita";
+import { nomeCompleto, nomeSquadraDi, stessoNomeGiocatore } from "../../utils/identita";
 import { AVVISO_VOCE_OMONIMA } from "../../utils/testi";
 
 /** I campi che il server fa scrivere (senza id, autore, autoreId e ts) */
@@ -42,7 +42,7 @@ export function GiocatoreForm({ squadre, giocatori = [], onSave }: {
     // Vale «nome cognome» e «cognome nome»: chi scrive i due campi nell'ordine opposto è la stessa persona
     const omonimo = giocatori.find((g) => stessoNomeGiocatore(`${d.nome} ${d.cognome}`, g));
     if (omonimo && !confermato) {
-      setAvviso(AVVISO_VOCE_OMONIMA(`${nomeCompleto(omonimo)} (${omonimo.squadra || "senza squadra"})`, "giocatore"));
+      setAvviso(AVVISO_VOCE_OMONIMA(`${nomeCompleto(omonimo)} (${nomeSquadraDi(omonimo, squadre) || "senza squadra"})`, "giocatore"));
       setConfermato(true);
       return;
     }

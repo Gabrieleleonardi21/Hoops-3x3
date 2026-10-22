@@ -249,6 +249,20 @@ describe("TappaPage: il collegamento all'anagrafe vale solo per il nome per cui 
   });
 });
 
+describe("TappaPage: da ospite la squadra non si collega per nome (T12.4)", () => {
+  it("niente «Scollega», nome modificabile e store senza regId, anche con «Alfa» in anagrafe", async () => {
+    useAppStore.setState({
+      user: ospite,
+      tappe: [{ ...tappa(), squadre: [{ id: "s1", nome: "Alfa", giocatori: [], rank: "" }, tappa().squadre[1]] }],
+    });
+    apriPagina({ squadre: [regAlfa] });
+    await act(async () => {}); // la sincronizzazione all'apertura è asincrona: lascia girare l'effetto
+    expect(screen.queryByRole("button", { name: "Scollega" })).toBeNull();
+    expect(campiNome()[0].readOnly).toBe(false);
+    expect(store().tappe[0].squadre[0].regId).toBeUndefined();
+  });
+});
+
 describe("TappaPage: una squadra collegata a una voce eliminata dall'anagrafe torna modificabile (FS-9)", () => {
   const collegata = (): Tappa => ({
     ...tappa(),

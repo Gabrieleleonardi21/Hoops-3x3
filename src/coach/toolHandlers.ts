@@ -10,10 +10,10 @@
 import { useAppStore, tappaCorrente } from "../stores/useAppStore";
 import { useAnagrafeStore } from "../stores/useAnagrafeStore";
 import { testoErrore } from "../services/api";
-import { MAX_ROSTER, MAX_TAPPE_LEGA, nomeTappaPredefinito } from "../constants/rules";
+import { MAX_ROSTER, MAX_TAPPE_LEGA } from "../constants/rules";
 import { pulisci, senzaTag } from "../utils/buildCoachContext";
 import {
-  annullaRisultato, concludi, correggiSquadra, creaTappa, erroreLimitiTappa, generaFasiDirette, perditaRisultati, primoNomeLibero, sorteggia,
+  annullaRisultato, concludi, correggiSquadra, creaTappa, erroreLimitiTappa, generaFasiDirette, nomeTappaLibero, perditaRisultati, sorteggia,
   type CorrezioneSquadra, type Esito, type ModoSorteggio,
 } from "../domain/tappaOps";
 import type { RegSquadra, SquadraTappa, Tappa } from "../types";
@@ -129,7 +129,7 @@ async function eseguiCreaTappa(args: Argomenti, ctx: ContestoStrumenti): Promise
   if (tappe.length >= MAX_TAPPE_LEGA) throw new Error(erroreLimiteTappe());
 
   // Senza nome, «Tappa N» con il primo numero libero: la stessa regola del form della lega
-  const nomeTappa = str(args, "nome") || primoNomeLibero(tappe.map((t) => t.nome), nomeTappaPredefinito);
+  const nomeTappa = str(args, "nome") || nomeTappaLibero(tappe);
   // Guard: evita che il modello crei duplicati chiamando il tool più volte nella stessa richiesta
   if (ctx.creati?.has(chiaveCreato("tappa", nomeTappa))) throw new Error(erroreTappaDuplicata(nomeTappa));
   const luogo = str(args, "luogo");

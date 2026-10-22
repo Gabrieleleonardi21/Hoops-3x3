@@ -16,10 +16,10 @@ import { archivioApi } from "../../src/services/archivioApi";
 import { ApiError } from "../../src/services/api";
 import { DEFAULT_RULES, MAX_ROSTER } from "../../src/constants/rules";
 import { tappaModificataAltrove } from "../../src/utils/testi";
-import { askCoachWithTools, type ToolCall } from "../../src/services/aiService";
+import { askCoachWithTools, type ChatMsg, type ToolCall } from "../../src/services/aiService";
 import type { Partita, RegGiocatore, RegSquadra, SquadraTappa, StatSheet, Tappa, User } from "../../src/types";
 import { creaTappa, registraRisultato, sorteggia, type Esito } from "../../src/domain/tappaOps";
-import { generaTabellino } from "../../src/domain/simulazione";
+import { generaTabellino, simulaTappa } from "../../src/domain/simulazione";
 import { squadraDi } from "../../src/utils/tappaInfo";
 
 // Rete finta per leghe, anagrafe e archivio; store, coda dei salvataggi, tappaOps, aiService e hook sono quelli veri.
@@ -113,6 +113,16 @@ async function chiediEConferma(c: Coach, messaggio: string, conferma: boolean) {
   act(() => { richiesta.rispondi(conferma); });
   await act(async () => { await invio; });
   return richiesta;
+}
+/** Scrive al Coach e, mentre la richiesta di conferma aspetta, cambia lo store come farebbe la pagina; poi conferma */
+async function confermaDopo(c: Coach, messaggio: string, nelFrattempo: () => void) {
+  const invio = inviaSenzaAspettare(c, messaggio);
+  await waitFor(() => expect(c.current.conferma).toBeTruthy());
+  act(nelFrattempo);
+  // Il waitFor sopra garantisce che la richiesta ci sia: il ?. serve solo a non usare l'asserzione !
+  const richiesta = c.current.conferma;
+  act(() => { richiesta?.rispondi(true); });
+  await act(async () => { await invio; });
 }
 /** Esce come farebbe «Esci» nell'intestazione */
 async function esci() {
@@ -226,6 +236,22 @@ describe("Coach AI: gli strumenti leggono lega, tappe e utente al momento dell'e
     await chiedi(c, "Crea la Tappa 2 con Alfa e Beta");
     expect(store().tappe.map((t) => t.nome)).toEqual(["Roma Open", "Tappa 2"]);
     expect(esiti(richieste)[1]).toMatch(/esiste già/);
+  });
+
+  it("FC-1: dopo crea_tappa il giro dopo il modello vede la tappa nuova nei dati della lega", async () => {
+    // Lo store è quello del beforeEach (lega «Circuito» con «Roma Open»), non quello del primo FC-1
+    const richieste = modello(
+      strumenti(["crea_tappa", { nome: "Tappa Nuova", squadre: ["Alfa", "Beta", "Gamma"] }]),
+      testo("Creata."),
+    );
+    await chiedi(coach(), "Crea la Tappa Nuova con Alfa, Beta e Gamma");
+    const system = (i: number) => richieste[i].find((m) => m.role === "system")?.content ?? "";
+    expect(system(0)).toContain("Roma Open");
+    expect(system(0)).not.toContain("Tappa Nuova");
+    expect(system(1)).toContain("Roma Open");
+    expect(system(1)).toContain("Tappa Nuova");
+    // Cambia solo il preambolo: la cronologia della richiesta resta quella di prima
+    expect(richieste[1].slice(1, richieste[0].length)).toEqual(richieste[0].slice(1));
   });
 
   it("crea_tappa: se durante l'attesa dell'anagrafe si apre un'altra lega, la tappa non finisce lì e il modello lo sa", async () => {
@@ -985,15 +1011,6 @@ describe("Coach AI: conferma nel pannello prima delle azioni distruttive (D4)", 
     expect(store().tappe[0]).toBe(prima);
   });
 
-  /** Scrive al Coach e, mentre la richiesta di conferma aspetta, cambia lo store come farebbe la pagina; poi conferma */
-  async function confermaDopo(c: Coach, messaggio: string, nelFrattempo: () => void) {
-    const invio = inviaSenzaAspettare(c, messaggio);
-    await waitFor(() => expect(c.current.conferma).toBeTruthy());
-    act(nelFrattempo);
-    act(() => { c.current.conferma!.rispondi(true); });
-    await act(async () => { await invio; });
-  }
-
   it("dopo la conferma l'azione parte dalla tappa di adesso: un risultato registrato nel frattempo resta", async () => {
     modello(strumenti(["annulla_risultato", { squadra_a: "Alfa", squadra_b: "Beta" }]), testo("Risultato annullato."));
     const c = coach();
@@ -1075,6 +1092,19 @@ describe("Coach AI: uno strumento che fallisce non interrompe la richiesta", () 
     await chiedi(c, "Registra la squadra Delta");
     expect(anagrafeApi.createSquadra).toHaveBeenCalledTimes(1);
     expect(esiti(richieste)[1]).not.toContain("eseguita");
+  });
+
+  // La firma della guardia legge gli argomenti come JSON: la stessa chiamata con le chiavi in un altro ordine e con altri spazi
+  // è ferma dalla guardia, non arriva allo strumento
+  it("la stessa chiamata con le chiavi in un altro ordine e con altri spazi non si ripete", async () => {
+    const richieste = modello(
+      strumenti(["registra_squadra", '{"nome":"Delta","citta":"Roma"}']),
+      strumenti(["registra_squadra", '{ "citta": "Roma", "nome": "Delta" }']),
+      testo("Ho registrato Delta una volta sola."),
+    );
+    await chiedi(coach(), "Registra la squadra Delta di Roma");
+    expect(anagrafeApi.createSquadra).toHaveBeenCalledTimes(1);
+    expect(esiti(richieste)[1]).toContain("già chiamata con gli stessi argomenti");
   });
 
   it.each([
@@ -1573,7 +1603,7 @@ describe("Coach AI: errore a metà del ciclo e limiti del server", () => {
       ["registra_risultato", { giro: g, n: 1 }], ["registra_risultato", { giro: g, n: 2 }], ["registra_risultato", { giro: g, n: 3 }],
     ));
     const richieste = modello(...giri, testo("Fatto."));
-    const esito = await askCoachWithTools("preambolo", cronologia, [], async () => "ok");
+    const esito = await askCoachWithTools(() => "preambolo", cronologia, [], async () => "ok");
     expect(Math.max(...richieste.map((r) => r.length))).toBeLessThanOrEqual(60);
     expect(esito.calledTools).toHaveLength(24);
     // La domanda di adesso (l'ultima della cronologia) arriva sempre al modello
@@ -1585,10 +1615,43 @@ describe("Coach AI: errore a metà del ciclo e limiti del server", () => {
     const richieste = modello(
       strumenti(["registra_risultato", { n: 1 }], ["registra_risultato", { n: 2 }], ["registra_risultato", { n: 3 }]),
     );
-    const esito = await askCoachWithTools("preambolo", [{ role: "user", content: "fai" }], [], async () => enorme);
+    const esito = await askCoachWithTools(() => "preambolo", [{ role: "user", content: "fai" }], [], async () => enorme);
     expect(richieste).toHaveLength(1); // la chiamata finale non parte: il server la rifiuterebbe (oltre 100.000 caratteri)
     expect(esito.text).toMatch(/^Ho eseguito le azioni indicate qui sotto/);
     expect(esito.calledTools).toHaveLength(3);
+  });
+
+  // Copertura dell'ordine del preambolo: si rilegge prima di ogni chiamata, e prima dei limiti (il suo testo conta nei caratteri)
+  it("un preambolo che al secondo giro pesa 99.000 caratteri: nessuna richiesta supera i 100.000 e il preambolo vecchio sparisce", async () => {
+    let preambolo = "preambolo vecchio";
+    const pesante = "p".repeat(99_000);
+    // Cinque messaggi da 3.000 caratteri in cronologia: con il preambolo pesante da soli non ci starebbero più
+    const cronologia: ChatMsg[] = [
+      ...Array.from({ length: 5 }, (_, i) => ({ role: "user" as const, content: `c${i} ${"x".repeat(3_000)}` })),
+      { role: "user", content: "domanda di adesso" },
+    ];
+    const richieste = modello(strumenti(["registra_risultato", { n: 1 }]), testo("Fatto."));
+    await askCoachWithTools(() => preambolo, cronologia, [], async () => { preambolo = pesante; return "ok"; });
+    expect(Math.max(...richieste.map((r) => JSON.stringify(r).length))).toBeLessThanOrEqual(100_000);
+    // Dal secondo giro c'è un solo messaggio di sistema, quello nuovo: il vecchio non si accoda né resta in testa
+    expect(richieste[1].filter((m) => m.role === "system")).toEqual([{ role: "system", content: pesante }]);
+    expect(richieste[1].some((m) => m.content === "domanda di adesso")).toBe(true);
+  });
+
+  it("otto giri di strumenti e un preambolo che cambia dopo l'ultimo strumento: la richiesta finale ha il preambolo nuovo", async () => {
+    let stato = "preambolo prima";
+    // Ogni giro chiede uno strumento con argomenti diversi (la guardia anti-stallo non lo ferma)
+    const giri = Array.from({ length: 8 }, (_, g) => strumenti(["registra_risultato", { giro: g }]));
+    const richieste = modello(...giri, testo("Fatto."));
+    await askCoachWithTools(() => stato, [{ role: "user", content: "fai" }], [], async (_nome, args) => {
+      // Il preambolo cambia solo con l'ottavo strumento: il nuovo deve arrivare nella chiamata finale, dopo il cap dei giri
+      if (args.giro === 7) stato = "preambolo dopo";
+      return "ok";
+    });
+    expect(richieste).toHaveLength(9);
+    expect(richieste[7][0].content).toBe("preambolo prima");
+    const ultima = richieste[richieste.length - 1];
+    expect(ultima[0]).toEqual({ role: "system", content: "preambolo dopo" });
   });
 });
 
@@ -2028,6 +2091,35 @@ describe("Coach AI: simula_risultati, i risultati mancanti di una tappa, con con
     expect(dopo.bracket?.every((m) => m.done)).toBe(true);
     await vi.waitFor(() => expect(legheApi.putTappa).toHaveBeenCalledTimes(1), { timeout: 2000 });
     expect(c.current.msgs.at(-1)?.tools).toEqual(["simula_risultati"]);
+  });
+
+  it("dopo «Conferma» si salva la simulazione provata prima: una sola estrazione", async () => {
+    // L'attesa si calcola prima della conversazione, sulla tappa dello store, con il seme con cui parte Math.random (lcg(7))
+    const attesa = ottieni(simulaTappa(store().tappe[0], { fase: "tutto", tabellini: true, qualificate: 2 }, lcg(7)));
+    modello(strumenti(["simula_risultati", { tappa_nome: "Vera" }]), testo("Simulate."));
+    await chiediEConferma(coach(), "Simula i risultati mancanti di Vera", true);
+    // Si confrontano punteggi e tabellini: gli id delle gare e il momento di registrazione cambiano a ogni esecuzione
+    const esitiGare = (t: Tappa) => ({
+      gironi: t.partite.map((m) => [m.sa, m.sb, m.pa, m.pb]),
+      tabellone: (t.bracket ?? []).map((m) => [m.squadraA, m.squadraB, m.pA, m.pB]),
+    });
+    expect(esitiGare(store().tappe[0])).toEqual(esitiGare(attesa));
+  });
+
+  it("se nell'attesa la tappa cambia, si rigioca su quella di adesso e il risultato registrato nel frattempo resta", async () => {
+    modello(strumenti(["simula_risultati", { tappa_nome: "Vera" }]), testo("Simulate."));
+    const c = coach();
+    // Una delle due gare dei gironi ancora da giocare: la prende la pagina mentre la conferma aspetta
+    const daRegistrare = store().tappe[0].partite.find((m) => !m.done);
+    if (!daRegistrare) throw new Error("La tappa di prova dovrebbe avere gare da giocare");
+    await confermaDopo(c, "Simula i risultati mancanti di Vera", () => {
+      const registrata = (x: Tappa) => ottieni(registraRisultato(x, daRegistrare.id, { sa: 21, sb: 15 }));
+      useAppStore.getState().updateTappa(store().tappe[0].id, registrata);
+    });
+    const dopo = store().tappe[0];
+    expect(dopo.partite.find((m) => m.id === daRegistrare.id)).toMatchObject({ sa: 21, sb: 15, done: true });
+    expect(dopo.partite.every((m) => m.done)).toBe(true);
+    expect(dopo.bracket?.every((m) => m.done)).toBe(true);
   });
 
   it("con «fase: finale» e gironi ancora aperti: errore con il numero di partite mancanti, senza chiedere conferma", async () => {

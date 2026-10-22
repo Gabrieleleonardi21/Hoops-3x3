@@ -82,6 +82,18 @@ export const PERDITA_RIAPERTURA =
   "La tappa uscirà dall'Archivio circuito e il suo link pubblico smetterà di funzionare finché non la concluderai di nuovo. "
   + "Sorteggio e risultati restano.";
 
+/** «Ritira» nell'elenco dell'archivio: la tappa esce dall'Archivio circuito e il link pubblico smette di funzionare. Resta nella lega di
+ *  chi l'ha pubblicata. `altrui` = la pubblicazione è di un altro (la ritira l'ADMIN): lo si dice con il nome dell'autore */
+export const TITOLO_RITIRO_ARCHIVIO = "Ritirare la tappa dall'archivio?";
+export function perditaRitiroArchivio(autore: string, altrui: boolean): string {
+  const testo = "La tappa esce dall'archivio pubblico: chi ha il link non la vedrà più. Resta nella lega di chi l'ha pubblicata.";
+  if (!altrui) return testo;
+  return `${testo} Pubblicata da ${autore}.`;
+}
+
+/** Il titolo di un gruppo dell'archivio quando la lega non ha nome (una voce senza lega) */
+export const LEGA_SENZA_NOME = "Senza lega";
+
 /** Avviso sulla pagina di una tappa conclusa che non è (o non è aggiornata) nell'Archivio circuito, con la via d'uscita: per
  *  ripubblicare la tappa va riaperta e conclusa di nuovo. `motivo` è il perché della pubblicazione non riuscita; null = nessun
  *  tentativo fallito, è la verifica con l'archivio a non averla trovata. */

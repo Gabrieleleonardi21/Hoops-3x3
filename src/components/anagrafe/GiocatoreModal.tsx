@@ -8,7 +8,7 @@ import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
 import { CampiGiocatore } from "./CampiAnagrafe";
 import { eta } from "../../utils/eta";
-import { squadraDelGiocatore } from "../../utils/identita";
+import { nomeSquadraDi, squadraDelGiocatore } from "../../utils/identita";
 import { puoModificare } from "../../utils/permessi";
 import { perditaGiocatore } from "../../utils/testi";
 import { ApiError } from "../../services/api";
@@ -89,6 +89,8 @@ export function GiocatoreModal({
   const age = eta(g.nascita);
   // Il logo della squadra in cui gioca: quella il cui roster lo contiene, o l'unica che si chiama come lui (squadraDelGiocatore)
   const squadraLogo = squadraDelGiocatore(g, squadre ?? [])?.logo ?? null;
+  // Nei testi vince la squadra del roster, altrimenti quella scritta nella scheda (nomeSquadraDi)
+  const squadraNome = nomeSquadraDi(g, squadre ?? []);
 
   const row = (label: string, value: React.ReactNode) => (
     <div className="flex gap-2 text-[13.5px]"><span className="w-28 shrink-0 text-chalk-muted">{label}</span><span className="font-semibold text-chalk">{value}</span></div>
@@ -111,7 +113,7 @@ export function GiocatoreModal({
           del focus resta (con la tastiera è l'unico indicatore): col mouse il focus dato da codice non lo mostra */}
       {!editing && (
         <div tabIndex={-1} data-focus-iniziale className="mb-4 flex flex-col gap-1.5">
-          {row("Ruolo", <>{g.ruolo}{g.squadra ? ` · ${g.squadra}` : ""}</>)}
+          {row("Ruolo", <>{g.ruolo}{squadraNome && ` · ${squadraNome}`}</>)}
           {g.nascita && row("Nato il", <>{g.nascita}{age !== null ? ` (${age} anni)` : ""}{g.citta ? ` a ${g.citta}` : ""}</>)}
           {!g.nascita && g.citta && row("Città", g.citta)}
           {g.nazionalita && row("Nazionalità", g.nazionalita)}

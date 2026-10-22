@@ -3,11 +3,11 @@
  *  domain/simulazione: il modello non li vede mai. Le squadre si leggono dall'anagrafe e non vi si scrive niente.
  *  Le funzioni condivise con gli altri strumenti stanno in strumentiComuni.ts (non in toolHandlers.ts, per non creare un ciclo). */
 import { useAppStore } from "../stores/useAppStore";
-import { MAX_RISULTATI, MAX_TAPPE_LEGA, nomeTappaPredefinito } from "../constants/rules";
+import { MAX_RISULTATI, MAX_TAPPE_LEGA } from "../constants/rules";
 import { pulisci, senzaTag } from "../utils/buildCoachContext";
 import { conteggio } from "../utils/testi";
 import { squadraDi } from "../utils/tappaInfo";
-import { creaTappa, primoNomeLibero, sorteggia, type ModoSorteggio } from "../domain/tappaOps";
+import { creaTappa, nomeTappaLibero, sorteggia, type ModoSorteggio } from "../domain/tappaOps";
 import {
   riepilogoSimulazione, scegliSquadre, simulaTappa, type OpzioniSimulazione,
 } from "../domain/simulazione";
@@ -99,7 +99,7 @@ export async function eseguiCreaTappaSimulata(args: Argomenti, ctx: ContestoStru
   if (tappe.length >= MAX_TAPPE_LEGA) throw new Error(erroreLimiteTappe());
 
   // Senza nome, «Tappa N» con il primo numero libero, come in crea_tappa
-  const nome = str(args, "nome") || primoNomeLibero(tappe.map((t) => t.nome), nomeTappaPredefinito);
+  const nome = str(args, "nome") || nomeTappaLibero(tappe);
   if (ctx.creati?.has(chiaveCreato("tappa", nome))) throw new Error(erroreTappaDuplicata(nome));
   const luogo = str(args, "luogo");
   const data = str(args, "data");
@@ -151,7 +151,8 @@ export async function eseguiCreaTappaSimulata(args: Argomenti, ctx: ContestoStru
 
 /** simula_risultati: inventa i risultati delle gare mancanti di una tappa, con conferma. La conferma c'è sempre (D4), anche per una
  *  tappa di prova: un «registra i risultati» capito male non deve riempire di numeri finti una tappa vera. Prima si prova (errori e
- *  numero di gare), poi la conferma, poi si gioca sulla tappa letta dallo store: una sola replaceTappa */
+ *  numero di gare), poi la conferma, poi si salva la prova se la tappa non è cambiata nell'attesa, altrimenti si rigioca sulla tappa
+ *  letta dallo store: una sola replaceTappa */
 export async function eseguiSimulaRisultati(args: Argomenti, ctx: ContestoStrumenti): Promise<string> {
   const tappa = tappaRichiesta(args);
   const opzioni: OpzioniSimulazione = {
@@ -166,9 +167,13 @@ export async function eseguiSimulaRisultati(args: Argomenti, ctx: ContestoStrume
 
   let testo = "";
   applica(tappa, (t) => {
-    const simulata = simulaTappa(t, opzioni);
+    // La tappa è ancora quella provata (stesso oggetto nello store: ogni modifica, locale o arrivata dal server, ne crea uno nuovo):
+    // si salva la simulazione già provata, così i numeri salvati sono quelli della prova e l'estrazione è una sola. Se nell'attesa la
+    // tappa è cambiata (un risultato registrato da un altro dispositivo), si rigioca su quella di adesso
+    let simulata: ReturnType<typeof simulaTappa> = provata;
+    if (t !== tappa) simulata = simulaTappa(t, opzioni);
     if (!simulata.ok) return simulata;
-    testo = riepilogoSimulazione(pulisci(tappa.nome), simulata.rapporto, { nuova: false, tabellini: opzioni.tabellini });
+    testo = riepilogoSimulazione(pulisci(t.nome), simulata.rapporto, { nuova: false, tabellini: opzioni.tabellini });
     return simulata;
   });
   ctx.vai(`/lega/tappa/${tappa.id}`);

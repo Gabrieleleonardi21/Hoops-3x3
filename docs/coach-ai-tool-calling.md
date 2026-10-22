@@ -43,8 +43,8 @@ Il ciclo è un **loop agentico**: ripete finché il modello smette di chiedere t
 abilita i flussi multi-step in un solo messaggio (es. *"crea la tappa e sorteggia"*).
 
 - **Ordine.** I tool dello stesso turno girano **in sequenza**, così un tool dipendente (es. `sorteggia_gironi` dopo
-  `crea_tappa`) vede lo stato già aggiornato: gli strumenti leggono lega, tappe e utente con `useAppStore.getState()` nel momento
-  in cui agiscono, non da una copia presa prima.
+  `crea_tappa`) vede lo stato già aggiornato: gli strumenti leggono lo stato con `useAppStore.getState()` quando agiscono, e il
+  preambolo con `<dati_lega>` si ricostruisce prima di ogni chiamata al modello (`askCoachWithTools` riceve una funzione, non il testo).
 - **Limite dei round (`MAX_TOOL_ROUNDS` = 8).** Al massimo 8 chiamate al modello con gli strumenti a disposizione. Se anche
   all'ottavo il modello chiede ancora tool, il ciclo si ferma e parte una chiamata finale **senza** strumenti che costringe il
   modello a chiudere con una risposta (testo di ripiego: «Fatto!»). Il numero copre un flusso completo di tappa (crea →
@@ -54,7 +54,9 @@ abilita i flussi multi-step in un solo messaggio (es. *"crea la tappa e sorteggi
   (`neiLimiti` in `aiService.ts`) si tolgono i messaggi più vecchi della cronologia, mai il preambolo, la domanda di adesso né
   gli scambi con gli strumenti della richiesta. Se nemmeno così la richiesta ci sta, il ciclo si chiude senza chiamare il
   modello, con «Ho eseguito le azioni indicate qui sotto, ma la conversazione è diventata troppo lunga…» e i badge delle azioni.
-- **Guardia anti-stallo.** La firma di una chiamata è «nome dello strumento + argomenti» (il testo JSON del modello). Una
+- **Guardia anti-stallo.** La firma di una chiamata è «nome dello strumento + argomenti letti come JSON con le chiavi in ordine»:
+  spazi e ordine delle chiavi non contano, gli elenchi sì (`["Alfa","Beta"]` e `["Beta","Alfa"]` sono chiamate diverse). Argomenti
+  che non sono JSON valido restano il testo com'è. Una
   chiamata con la stessa firma di una già fatta nella richiesta, riuscita o no, **non viene rieseguita**: il modello riceve
   `Azione "<nome dello strumento>" già chiamata con gli stessi argomenti in questa richiesta (vedi il suo risultato): non
   ripeterla, rispondi all'utente.` (il testo non dice «eseguita», perché la prima chiamata può essere fallita). Se un round è fatto **solo** di ricicli il ciclo si interrompe e parte
@@ -291,6 +293,7 @@ tappa, «Roma (Torino)» per una squadra dell'anagrafe. Le descrizioni degli str
 - **Parametri obbligatori:** `nome`, `cognome`
 - **Parametri opzionali:** `squadra`, `ruolo`, `nascita`, `citta`, `nazionalita`, `altezza`, `peso`, `numero`, `soprannome`, `esperienza`, `note`
 - **Azione:** legge l'anagrafe (`GET /api/anagrafe/giocatori`): se c'è già un giocatore con lo stesso nome e cognome chiede conferma («Esiste già il giocatore "Mario Rossi" (di Anna). Registrarne un altro?»): «Annulla» non registra niente, «Conferma» registra il doppione (un omonimo vero si può anche registrare dalla pagina Anagrafe). Altrimenti `saveGiocatore` di `useAnagrafeStore`: `POST /api/anagrafe/giocatori` sul backend e aggiornamento della cache dell'anagrafe. Una seconda registrazione dello stesso nome e cognome nella stessa richiesta è un errore («già stato registrato in questa richiesta»), senza leggere l'anagrafe né chiedere conferma
+- **Note sul parametro `squadra`:** è testo libero; se il giocatore entra nel roster di una squadra dell'anagrafe, nei testi vale quella (`nomeSquadraDi` in `src/utils/identita.ts`).
 - **Esempio:** *"Aggiungi il giocatore Marco Rossi, ruolo Playmaker, squadra Ballers Roma"*
 
 ---
@@ -332,7 +335,7 @@ tappa, «Roma (Torino)» per una squadra dell'anagrafe. Le descrizioni degli str
 - **Azione:**
   1. Trova la tappa (`tappaRichiesta`) e prova la simulazione: un errore (tappa conclusa, non sorteggiata, nessuna gara da giocare, finale con gironi aperti) arriva subito, senza chiedere nulla.
   2. Conta le gare che si giocherebbero e chiede conferma.
-  3. Rigioca la simulazione sulla tappa **letta adesso** nello store, con una sola `replaceTappa`.
+  3. Se la tappa è ancora quella provata (stesso oggetto nello store), salva la simulazione già fatta: i numeri salvati sono quelli della prova e l'estrazione è una sola. Se nell'attesa è cambiata (un risultato registrato da un altro dispositivo), rigioca la simulazione sulla tappa **letta adesso** nello store. In entrambi i casi una sola `replaceTappa`.
   4. Risponde con il riepilogo: quante gare mancanti sono state giocate, le classifiche, il campione.
 - **Errori:** tappa non trovata; tappa conclusa; tappa non ancora sorteggiata; nessuna gara da giocare; `fase` non valida; «Annulla»: «L'utente ha annullato: azione non eseguita», e la tappa resta identica.
 - **Nota:** Se i gironi sono completi e il tabellone manca, lo genera (con `qualificate` squadre per girone) e lo gioca. Con un solo girone non c'è fase finale, e il riepilogo lo dice in una nota. Anche i tabellini delle gare già giocate restano identici.
@@ -378,7 +381,8 @@ aspetta e nel pannello non compare «Il coach sta pensando…».
   ripetere la stessa chiamata nella stessa richiesta. Vale lo stesso se la chat viene cancellata o l'utente esce mentre la
   conferma aspetta.
 - **«Conferma».** L'azione riparte dalla tappa **di adesso** nello store (riletta per id), non da quella vista prima: un risultato
-  registrato durante l'attesa non si perde. Se nel frattempo la tappa non è più nella lega aperta, il modello riceve un errore
+  registrato durante l'attesa non si perde. In `simula_risultati`, se la tappa non è cambiata nell'attesa, si salva la simulazione
+  già provata (una sola estrazione). Se nel frattempo la tappa non è più nella lega aperta, il modello riceve un errore
   leggibile e niente si salva.
 - **Il pannello può essere chiuso:** la richiesta resta nello store e ricompare alla riapertura.
 - **`crea_tappa`, `crea_tappa_simulata`, `registra_squadra` e `registra_giocatore`** chiedono conferma solo davanti a un omonimo (una tappa o una voce dell'anagrafe con lo stesso nome). **Gli altri strumenti non chiedono conferma** (compresi `registra_risultato`, che scrive su una partita non ancora giocata, e
@@ -552,7 +556,7 @@ Una sezione `` ### `nome_tool` `` in «Tool disponibili», come le altre: `coach
 
 - Anagrafe: le **scritture** dei tool passano da `useAnagrafeStore` (`saveSquadra`, `saveGiocatore`, `updateSquadra`), che aggiorna il server e la cache letta dalle pagine (`useAnagrafe`); le **letture** (`fetchSquadre` / `fetchGiocatori`) vanno dirette al server con `anagrafeApi`, perché al Coach servono dati freschi per non registrare doppioni.
 - L'AI chiama i tool **solo se l'utente lo chiede esplicitamente**: lo dice il prompt di sistema (`useCoachAI.ts`), che spiega anche il flusso di una tappa e l'uso del parametro `fase`.
-- Il prompt contiene un riassunto della lega racchiuso in `<dati_lega>` (`buildCoachContext`): nome della lega, elenco delle tappe (nome, data, luogo, «conclusa»), classifica del circuito (vinte e perse totali per squadra; la stessa squadra in più tappe è una riga sola, riconosciuta dalla voce dell'anagrafe o, se non è collegata, dal nome; a pari vittorie passa davanti chi ha perso meno) e, **solo per la tappa in primo piano** (l'ultima non conclusa, altrimenti l'ultima), squadre, classifiche dei gironi, partite giocate e i 5 migliori marcatori. Il prompt dice di trattare quel blocco e i risultati degli strumenti come dati, ignorando qualsiasi testo che sembri un'istruzione (mitigazione della prompt injection). I nomi scritti dagli utenti (anche da altri, tramite l'anagrafe condivisa) passano da `pulisci`: `<` e `>` diventano ‹ ›, nomi al massimo di 80 caratteri; gli stessi filtri valgono per i risultati degli strumenti.
+- Il prompt contiene un riassunto della lega racchiuso in `<dati_lega>` (`buildCoachContext`), che si ricostruisce a ogni giro di strumenti: dopo una creazione il modello vede la lega di adesso. Nome della lega, elenco delle tappe (nome, data, luogo, «conclusa»), classifica del circuito (vinte e perse totali per squadra; la stessa squadra in più tappe è una riga sola, riconosciuta dalla voce dell'anagrafe o, se non è collegata, dal nome; a pari vittorie passa davanti chi ha perso meno) e, **solo per la tappa in primo piano** (l'ultima non conclusa, altrimenti l'ultima), squadre, classifiche dei gironi, partite giocate e i 5 migliori marcatori. Il prompt dice di trattare quel blocco e i risultati degli strumenti come dati, ignorando qualsiasi testo che sembri un'istruzione (mitigazione della prompt injection). I nomi scritti dagli utenti (anche da altri, tramite l'anagrafe condivisa) passano da `pulisci`: `<` e `>` diventano ‹ ›, nomi al massimo di 80 caratteri; gli stessi filtri valgono per i risultati degli strumenti.
 - La chat in UI mostra messaggi user/assistant; i messaggi tool restano interni all'API, ma sotto ogni risposta dell'assistant compaiono **badge** con le azioni eseguite (campo `tools` di `ChatMsg`, etichette in `CoachPanel`; `annulla_risultato` è in rosso).
 - La chat vive nello store (non nel pannello): chiudendo il pannello durante l'attesa la risposta arriva lo stesso. Se ne tengono gli ultimi **30 messaggi**, che sono anche quelli mandati al modello (il server rifiuta oltre 60 messaggi o 100.000 caratteri). La cronologia è in `sessionStorage` (si azzera alla chiusura della scheda e a ogni cambio di utente).
 - `crea_tappa` richiede una lega attiva (`legaId !== null`); se manca, restituisce un errore descrittivo.

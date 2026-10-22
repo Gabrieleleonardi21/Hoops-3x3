@@ -3,6 +3,7 @@
  *  Prima si normalizzano tutte e due come le normalizza il server salvando (LegaService.applica nel backend), altrimenti un campo
  *  assente o uno spazio farebbero vedere una differenza che non c'è, e la tappa verrebbe sostituita perdendo i risultati in sospeso. */
 import type { Tappa } from "../types";
+import { chiaviInOrdine } from "./chiaviInOrdine";
 
 /** Un testo come lo salva il server: senza spazi ai lati, vuoto se manca */
 const testo = (s: unknown): string => {
@@ -29,14 +30,6 @@ function comeSulServer(t: Tappa) {
     conclusa: t.conclusa === true,
     bracket: t.bracket ?? null,
   };
-}
-
-/** Il valore con le chiavi degli oggetti in ordine alfabetico: due JSON con le stesse chiavi in un altro ordine danno lo stesso testo */
-function chiaviInOrdine(valore: unknown): unknown {
-  if (Array.isArray(valore)) return valore.map(chiaviInOrdine);
-  if (valore === null || typeof valore !== "object") return valore;
-  const oggetto = valore as Record<string, unknown>;
-  return Object.fromEntries(Object.keys(oggetto).sort().map((k) => [k, chiaviInOrdine(oggetto[k])]));
 }
 
 /** Il testo con cui si confronta una tappa: due tappe con la stessa impronta sono uguali per il server, versione esclusa. Prima passa

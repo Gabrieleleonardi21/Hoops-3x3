@@ -12,7 +12,7 @@ import { replaceById } from "../utils/replaceById";
 import { uid } from "../utils/uid";
 import { conteggio } from "../utils/testi";
 import { normalizza } from "../utils/statGiocatori";
-import { DEFAULT_RULES, MAX_ROSTER, MAX_SQUADRE, MIN_SQUADRE, nomeSegnaposto } from "../constants/rules";
+import { DEFAULT_RULES, MAX_ROSTER, MAX_SQUADRE, MIN_SQUADRE, nomeSegnaposto, nomeTappaPredefinito } from "../constants/rules";
 
 export type ModoSorteggio = "casuale" | "ranking";
 
@@ -258,6 +258,11 @@ export function primoNomeLibero(nomi: string[], candidato: (n: number) => string
     n++;
   }
   return candidato(n);
+}
+
+/** Il nome di una tappa creata senza nome, dal form della lega o dal Coach: «Tappa N» con il primo numero libero tra le tappe */
+export function nomeTappaLibero(tappe: Tappa[]): string {
+  return primoNomeLibero(tappe.map((t) => t.nome), nomeTappaPredefinito);
 }
 
 /** La tappa della lega con lo stesso nome (senza contare maiuscole, accenti e spazi), esclusa `daEscludere` (quella che si

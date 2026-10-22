@@ -129,6 +129,17 @@ describe("archivioApi.list: l'elenco sintetico", () => {
   });
 
   // GUARDIA (passa già): fissa una regola che il codice ha da quando c'è lo schema, perché non si perda con una modifica futura
+  // Con il backend della fase 12 la voce porta anche legaId (null per una pubblicazione senza tappa) e autoreId: arrivano a chi chiama
+  it("con il server nuovo la voce porta anche legaId e autoreId; con il server di prima restano assenti (facoltativi)", async () => {
+    rispondi([{ ...voce("a", 1), legaId: "l1", autoreId: "u1" }, { ...voce("b", 2), legaId: null, autoreId: null }]);
+    const [con, senzaLega] = await archivioApi.list();
+    expect(con).toStrictEqual({ ...voce("a", 1), legaId: "l1", autoreId: "u1" });
+    expect(senzaLega).toStrictEqual({ ...voce("b", 2), legaId: null, autoreId: null });
+    rispondi([voce("c", 3)]);
+    const [senza] = await archivioApi.list();
+    expect(senza).toStrictEqual(voce("c", 3));
+  });
+
   it("un campo in più nella voce (aggiunto domani dal server) non rompe l'elenco, ma non arriva a chi chiama", async () => {
     rispondi([{ ...voce("a", 1), campoNuovo: "x", annidato: { dentro: true } }]);
     const [letta] = await archivioApi.list();
