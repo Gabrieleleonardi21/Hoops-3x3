@@ -95,3 +95,12 @@ export function squadraDelGiocatore(g: RegGiocatore, squadre: RegSquadra[]): Reg
   if (altre.length > 0) return undefined;
   return unica;
 }
+
+/** Il nome della squadra di un giocatore nei testi dell'anagrafe: quella del roster che lo contiene (la prima, se sono più d'una),
+ *  altrimenti il testo scritto nella scheda, che resta per chi non è in nessun roster (svincolato, o squadra fuori dall'anagrafe).
+ *  Il logo non usa questo nome: per il logo resta squadraDelGiocatore, perché due squadre omonime non devono scegliere per nome */
+export function nomeSquadraDi(g: RegGiocatore, squadre: RegSquadra[]): string {
+  const nelRoster = squadre.find((s) => s.roster.includes(g.id));
+  if (nelRoster) return nelRoster.nome;
+  return g.squadra;
+}
