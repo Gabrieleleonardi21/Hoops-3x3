@@ -3,9 +3,11 @@
  *  righe si disegnano dagli otto campi della voce, che l'ordine è quello del server e che una risposta con la forma di prima (il
  *  frontend nuovo che parla con il backend non ancora aggiornato) dà l'errore con «Riprova»: mai una pagina bianca né righe vuote. */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useParams } from "react-router-dom";
 import { ArchivioPage } from "../../src/pages/ArchivioPage";
+import { useAppStore } from "../../src/stores/useAppStore";
+import type { User } from "../../src/types";
 
 const fetchFinto = vi.fn();
 
@@ -19,6 +21,7 @@ afterEach(() => {
   cleanup(); // senza le globali di Vitest, Testing Library non smonta da sola
   vi.unstubAllGlobals();
   localStorage.clear();
+  useAppStore.setState({ user: null }); // l'utente di un test non passa al successivo
 });
 
 /** Una voce dell'elenco, com'è nella risposta di GET /api/archivio */
@@ -70,8 +73,8 @@ describe("Elenco dell'archivio: la voce sintetica", () => {
     fetchFinto.mockResolvedValue(rispondi([voce("a", "Tappa nuda", { luogo: "", data: "" })]));
     apri();
     await screen.findByText("Tappa nuda");
-    // Il sottotitolo è proprio «Estate»: la ricerca è per testo intero, quindi un «·» in più non lo troverebbe
-    expect(screen.getByText("Estate")).toBeTruthy();
+    // Il sottotitolo della riga è proprio «Estate» (l'intestazione della lega sta fuori dalla riga): un «·» in più non lo troverebbe
+    expect(within(await screen.findByRole("button", { name: /^Tappa nuda/ })).getByText("Estate")).toBeTruthy();
   });
 
   it("l'ordine delle righe è quello del server: niente riordino lato client", async () => {
@@ -129,5 +132,99 @@ describe("Elenco dell'archivio: la forma di prima è un errore visibile (Ruling 
     expect(await screen.findByText("Finale di Roma")).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
     expect(fetchFinto).toHaveBeenCalledTimes(2);
+  });
+});
+
+/** Un utente registrato (o l'ADMIN) nello store: la pagina decide da lì chi vede «Ritira» */
+const utente = (id: string, ruolo: "USER" | "ADMIN" = "USER"): User => ({ id, name: "Anna", email: "anna@example.it", guest: false, ruolo });
+
+describe("Elenco dell'archivio: le tappe per lega", () => {
+  it("le tappe sono raggruppate per lega con il nome della lega come titolo", async () => {
+    fetchFinto.mockResolvedValue(rispondi([
+      voce("a", "Tappa A", { legaId: "l1", lega: "Estate" }),
+      voce("b", "Tappa B", { legaId: "l2", lega: "Inverno" }),
+      voce("c", "Tappa C", { legaId: "l1", lega: "Estate" }),
+    ]));
+    apri();
+    const estate = await screen.findByRole("region", { name: "Estate" });
+    expect(within(estate).getByText("Tappa A")).toBeTruthy();
+    expect(within(estate).getByText("Tappa C")).toBeTruthy();
+    expect(within(estate).queryByText("Tappa B")).toBeNull();
+    expect(within(screen.getByRole("region", { name: "Inverno" })).getByText("Tappa B")).toBeTruthy();
+  });
+});
+
+describe("Elenco dell'archivio: «Ritira» sulle proprie pubblicazioni", () => {
+  /** Un server finto con l'elenco in memoria: il DELETE toglie la voce, la GET successiva non la rimanda */
+  function serverConElenco(elenco: ReturnType<typeof voce>[]) {
+    let attuale = elenco;
+    fetchFinto.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (init?.method === "DELETE") {
+        attuale = attuale.filter((v) => `/api/archivio/${v.tappaId}` !== url);
+        return new Response(null, { status: 204 });
+      }
+      return rispondi(attuale);
+    });
+  }
+
+  it("l'autore vede «Ritira» solo sulle sue; la conferma manda DELETE e l'elenco si ricarica senza la voce", async () => {
+    useAppStore.setState({ user: utente("u1") });
+    serverConElenco([voce("a", "Tappa A", { autoreId: "u1" }), voce("b", "Tappa B", { autoreId: "u2" })]);
+    apri();
+    fireEvent.click(await screen.findByRole("button", { name: "Ritira Tappa A dall'archivio" }));
+    expect(await screen.findByText(/La tappa esce dall'archivio pubblico/)).toBeTruthy();
+    expect(fetchFinto.mock.calls.some(([, init]) => init?.method === "DELETE")).toBe(false); // prima della conferma non parte niente
+    fireEvent.click(screen.getByRole("button", { name: "Conferma" }));
+    await vi.waitFor(() => expect(screen.queryByRole("button", { name: /^Tappa A/ })).toBeNull());
+    expect(fetchFinto).toHaveBeenCalledWith("/api/archivio/a", expect.objectContaining({ method: "DELETE" }));
+    expect(screen.getByRole("button", { name: /^Tappa B/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Ritira Tappa B dall'archivio" })).toBeNull();
+  });
+
+  it("l'ADMIN lo vede su tutte, e la conferma dice di chi è la pubblicazione", async () => {
+    useAppStore.setState({ user: utente("u9", "ADMIN") });
+    serverConElenco([voce("a", "Tappa A", { autoreId: "u1", autore: "Anna" }), voce("b", "Tappa B", { autoreId: "u2", autore: "Marco" })]);
+    apri();
+    expect(await screen.findByRole("button", { name: "Ritira Tappa A dall'archivio" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Ritira Tappa B dall'archivio" }));
+    expect(await screen.findByText(/Pubblicata da Marco/)).toBeTruthy();
+  });
+
+  it("ospite o senza account: nessun «Ritira», anche sulla voce di chi si chiama come l'autore", async () => {
+    serverConElenco([voce("a", "Tappa A", { autoreId: "u1" })]);
+    useAppStore.setState({ user: { name: "Anna", guest: true } });
+    apri();
+    expect(await screen.findByRole("button", { name: /^Tappa A/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Ritira/ })).toBeNull();
+    cleanup();
+    useAppStore.setState({ user: null });
+    apri();
+    expect(await screen.findByRole("button", { name: /^Tappa A/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Ritira/ })).toBeNull();
+  });
+
+  it("se il server rifiuta (403) l'errore compare nell'avviso e l'elenco resta", async () => {
+    useAppStore.setState({ user: utente("u1") });
+    serverConElenco([voce("a", "Tappa A", { autoreId: "u1" })]);
+    fetchFinto.mockImplementation(async (_url: string, init?: RequestInit) => {
+      if (init?.method === "DELETE") return new Response(JSON.stringify({ message: "Solo l'autore può ritirarla" }), { status: 403 });
+      return rispondi([voce("a", "Tappa A", { autoreId: "u1" })]);
+    });
+    apri();
+    fireEvent.click(await screen.findByRole("button", { name: "Ritira Tappa A dall'archivio" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Conferma" }));
+    expect((await screen.findByRole("alert")).textContent).toContain("Solo l'autore può ritirarla");
+    expect(screen.getByRole("button", { name: /^Tappa A/ })).toBeTruthy();
+  });
+
+  it("con l'elenco di prima (otto campi) la pagina si disegna come oggi: righe e lega, senza «Ritira»", async () => {
+    useAppStore.setState({ user: utente("u1") });
+    fetchFinto.mockResolvedValue(rispondi([voce("a", "Tappa vecchia")]));
+    apri();
+    const riga = await screen.findByRole("button", { name: /^Tappa vecchia/ });
+    expect(riga.textContent).toContain("Estate · Roma · 2025-09-13");
+    expect(riga.textContent).toContain("8 squadre · di Admin");
+    expect(within(screen.getByRole("region", { name: "Estate" })).getByText("Tappa vecchia")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Ritira/ })).toBeNull();
   });
 });
