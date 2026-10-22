@@ -66,7 +66,7 @@ Misurati il 22 ottobre 2026 con `npm run check` e `npx playwright test`, senza f
 
 | Che cosa | Quanti | Come si misura |
 |---|---|---|
-| Test unitari e di componenti del frontend | 2.275, in 120 file | `npm test` |
+| Test unitari e di componenti del frontend | 2.279, in 120 file | `npm test` |
 | Test end-to-end del frontend, con il server finto | 84 | `npx playwright test` |
 | Test end-to-end con il backend vero | 6 | `npm run test:e2e:backend` (nella CI, l'integrazione continua di GitHub) |
 | Test unitari del backend, compreso il test di guardia del suo README | 997 | `./mvnw test` |
