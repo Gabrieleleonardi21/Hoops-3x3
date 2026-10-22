@@ -119,7 +119,9 @@ async function confermaDopo(c: Coach, messaggio: string, nelFrattempo: () => voi
   const invio = inviaSenzaAspettare(c, messaggio);
   await waitFor(() => expect(c.current.conferma).toBeTruthy());
   act(nelFrattempo);
-  act(() => { c.current.conferma!.rispondi(true); });
+  // Il waitFor sopra garantisce che la richiesta ci sia: il ?. serve solo a non usare l'asserzione !
+  const richiesta = c.current.conferma;
+  act(() => { richiesta?.rispondi(true); });
   await act(async () => { await invio; });
 }
 /** Esce come farebbe «Esci» nell'intestazione */
