@@ -10,7 +10,7 @@ import type { SquadraInput } from "../../services/anagrafeApi";
 import type { RegGiocatore, RegSquadra } from "../../types";
 import { MAX_ROSTER_ANAGRAFE } from "../../constants/rules";
 import { erroreUrlSquadra } from "../../utils/safeUrl";
-import { normalizza } from "../../utils/identita";
+import { nomeSquadraDi, normalizza } from "../../utils/identita";
 import { AVVISO_VOCE_OMONIMA } from "../../utils/testi";
 
 /** I campi che il server fa scrivere (senza id, autore, autoreId e ts) */
@@ -79,9 +79,10 @@ export function SquadraAnagrafeForm({ giocatori, squadre = [], onSave }: {
           <div className="mt-1 flex flex-wrap items-center gap-1.5">
             <select className="statin max-w-[260px]" value={pick} onChange={(e) => setPick(e.target.value)} aria-label="Scegli un giocatore" disabled={rosterPieno}>
               <option value="">— scegli un giocatore —</option>
-              {giocatori.filter((g) => !d.roster.includes(g.id)).map((g) => (
-                <option key={g.id} value={g.id}>{g.nome} {g.cognome}{g.squadra ? ` (${g.squadra})` : ""}</option>
-              ))}
+              {giocatori.filter((g) => !d.roster.includes(g.id)).map((g) => {
+                const sq = nomeSquadraDi(g, squadre);
+                return <option key={g.id} value={g.id}>{g.nome} {g.cognome}{sq && ` (${sq})`}</option>;
+              })}
             </select>
             <Button variant="outline" size="sm" onClick={addToRoster} disabled={rosterPieno}>Aggiungi</Button>
             {d.roster.map((id) => (

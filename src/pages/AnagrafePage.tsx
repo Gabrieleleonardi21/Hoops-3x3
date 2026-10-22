@@ -16,6 +16,7 @@ import { Loading } from "../components/ui/Loading";
 import { Button } from "../components/ui/Button";
 import { Icon } from "../components/ui/Icon";
 import { useUtente } from "../hooks/useUtente";
+import { nomeSquadraDi } from "../utils/identita";
 
 export function AnagrafePage() {
   const user  = useUtente();
@@ -40,14 +41,16 @@ export function AnagrafePage() {
     return { giocatori, squadre };
   }, [giocatori, squadre]);
 
-  // Filtra un array su più campi testuali con la query di ricerca
-  const filtered = <T,>(arr: T[] | null, fields: (keyof T)[]): T[] => {
+  // Filtra un elenco con la query: una voce entra se uno dei testi che `testi` ne ricava la contiene. Per il giocatore la squadra
+  // è due volte: quella del roster (quella che si legge) e quella scritta nella scheda, così la ricerca trova l'una e l'altra
+  // Un campo vuoto o mancante nella forma pubblica non si cerca: `|| ""` tiene il controllo che c'era già prima
+  const filtered = <T,>(arr: T[] | null, testi: (r: T) => (string | null | undefined)[]): T[] => {
     const q = query.trim().toLowerCase();
     if (!q) return arr || [];
-    return (arr || []).filter((r) => fields.some((f) => String(r[f] || "").toLowerCase().includes(q)));
+    return (arr || []).filter((r) => testi(r).some((t) => (t || "").toLowerCase().includes(q)));
   };
-  const gList = filtered(giocatori, ["nome", "cognome", "soprannome", "citta", "squadra", "ruolo"]);
-  const sList = filtered(squadre, ["nome", "citta", "referente"]);
+  const gList = filtered(giocatori, (g) => [g.nome, g.cognome, g.soprannome, g.citta, g.squadra, nomeSquadraDi(g, squadre ?? []), g.ruolo]);
+  const sList = filtered(squadre, (s) => [s.nome, s.citta, s.referente]);
 
   // Registrazione dai form. Le scritture sono solo per chi ha un account: l'ospite può solo consultare l'anagrafe, e il server la
   // rifiuterebbe comunque (403). Se riesce il form si chiude; se fallisce l'errore sale al form, che mostra il motivo e conserva

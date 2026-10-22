@@ -363,3 +363,50 @@ describe("il logo del giocatore è quello della squadra in cui gioca (fase 11a)"
     expect(document.querySelector("img")?.getAttribute("src")).toBe("/logos/roma-b.svg");
   });
 });
+
+describe("nei testi la squadra è quella del roster, la scheda dice solo ciò che il roster non dice (fase 12)", () => {
+  // Mario è nel roster di «Roma», ma nella scheda ha scritto «Ballers» (campo libero): nei testi vince Roma
+  const conTesto: RegGiocatore = { ...giocatore, squadra: "Ballers" };
+  const romaDelRoster: RegSquadra = { ...squadra, id: "sr", nome: "Roma", roster: ["g1"], logo: "" };
+  const luca: RegGiocatore = { ...giocatore, id: "g2", nome: "Luca", cognome: "Bianchi", squadra: "Milano", autoreId: "u1" };
+
+  afterEach(() => {
+    useAppStore.getState().reset();
+    useAnagrafeStore.setState({ giocatori: null, squadre: null, errore: null, caricata: false });
+  });
+
+  it("la card e la modale scrivono «Roma», non il testo della scheda", () => {
+    const card = render(<MemoryRouter><GiocatoreCard g={conTesto} user={autore} squadre={[romaDelRoster]} onRemove={nulla} onOpen={nulla} /></MemoryRouter>);
+    expect(card.container.textContent).toContain("Guardia · Roma");
+    expect(card.container.textContent).not.toContain("Ballers");
+    cleanup();
+    render(<MemoryRouter><GiocatoreModal g={conTesto} user={autore} squadre={[romaDelRoster]} onClose={nulla} onRemove={riuscita} onUpdate={riuscita} /></MemoryRouter>);
+    expect(screen.getByRole("dialog").textContent).toContain("Guardia · Roma");
+    expect(screen.getByRole("dialog").textContent).not.toContain("Ballers");
+  });
+
+  it("la pagina del giocatore mostra «Roma» nel badge della squadra", () => {
+    useAppStore.setState({ user: autore, tappe: [] });
+    useAnagrafeStore.setState({ giocatori: [conTesto], squadre: [romaDelRoster], errore: null, caricata: true });
+    render(
+      <MemoryRouter initialEntries={["/giocatore/g1"]}>
+        <Routes><Route path="/giocatore/:id" element={<GiocatorePage />} /></Routes>
+      </MemoryRouter>,
+    );
+    expect(screen.getByText("Roma")).toBeTruthy();
+    expect(screen.queryByText("Ballers")).toBeNull();
+  });
+
+  it("la ricerca trova il giocatore per il nome della squadra del roster, e anche per il testo della scheda", () => {
+    useAppStore.setState({ user: autore, tappe: [] });
+    useAnagrafeStore.setState({ giocatori: [conTesto, luca], squadre: [romaDelRoster], errore: null, caricata: true });
+    render(<MemoryRouter><AnagrafePage /></MemoryRouter>);
+    const cerca = screen.getByPlaceholderText("Cerca per nome, città, squadra…");
+    fireEvent.change(cerca, { target: { value: "roma" } });
+    expect(screen.getByText(/Mario Rossi/)).toBeTruthy();
+    expect(screen.queryByText(/Luca Bianchi/)).toBeNull();
+    fireEvent.change(cerca, { target: { value: "ballers" } });
+    expect(screen.getByText(/Mario Rossi/)).toBeTruthy();
+    expect(screen.queryByText(/Luca Bianchi/)).toBeNull();
+  });
+});

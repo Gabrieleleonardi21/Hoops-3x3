@@ -10,7 +10,7 @@ import { useAnagrafe } from "../hooks/useAnagrafe";
 import { useAppStore } from "../stores/useAppStore";
 import { useStatisticheCircuito } from "../hooks/useStatisticheCircuito";
 import { risolviTabellini, statGiocatori, type StatGiocatore } from "../utils/statGiocatori";
-import { nomeCompleto, squadraDelGiocatore, stessoNomeGiocatore } from "../utils/identita";
+import { nomeCompleto, nomeSquadraDi, squadraDelGiocatore, stessoNomeGiocatore } from "../utils/identita";
 import { GARE_NON_ATTRIBUITE, NOTA_SQUADRE_STAT } from "../utils/testi";
 import { eta } from "../utils/eta";
 import { Loading } from "../components/ui/Loading";
@@ -174,7 +174,7 @@ export function GiocatorePage() {
   const squadreStat = [...new Map(stagione.map((row): [string, string] => [row.squadraChiave, row.squadra])).values()];
   const avg = (v: number) => (tot.g ? `(${fmtMedia(v / tot.g)}/g)` : undefined);
   const age = eta(g.nascita);
-  const bio = [g.ruolo, g.squadra, g.citta, age !== null ? `${age} anni` : "", g.altezza ? `${g.altezza} cm` : "", g.peso ? `${g.peso} kg` : ""].filter(Boolean);
+  const bio = [g.ruolo, nomeSquadraDi(g, squadre ?? []), g.citta, age !== null ? `${age} anni` : "", g.altezza ? `${g.altezza} cm` : "", g.peso ? `${g.peso} kg` : ""].filter(Boolean);
   // Vinte e perse si contano sulle stesse partite dell'elenco; una parità non è nessuna delle due, quindi V e P possono non sommare G
   const wins = games.filter((x) => x.esito === "vinta").length;
   const losses = games.filter((x) => x.esito === "persa").length;
