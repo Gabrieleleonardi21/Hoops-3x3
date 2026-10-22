@@ -62,7 +62,7 @@ Il server gira sul piano gratuito di Render: dopo 15 minuti senza visite si speg
 
 ### I numeri, al 22 ottobre 2026
 
-Misurati il 22 ottobre 2026 con `npm run check` e `npx playwright test`, senza fallimenti. I test con il backend vero si contano con la lista (`--list`), senza eseguirli. I numeri del backend non sono stati ricontati in questa fase: sono quelli del 19 ottobre, e la pull request hoop3x3-backend#33 può cambiarli. I test di integrazione del backend richiedono un database di prova. I test del frontend comprendono il test di guardia di questo README (`tests/unit/readme.test.ts`).
+Misurati il 22 ottobre 2026 con `npm run check` e `npx playwright test`, senza fallimenti. I test con il backend vero si contano con la lista (`--list`), senza eseguirli. I numeri del backend non sono stati ricontati in questa fase: il test di integrazione viene dal README del backend del 22 ottobre (hoop3x3-backend#33, ora unita), gli altri dal 19 ottobre. I test di integrazione del backend richiedono un database di prova. I test del frontend comprendono il test di guardia di questo README (`tests/unit/readme.test.ts`).
 
 | Che cosa | Quanti | Come si misura |
 |---|---|---|
@@ -70,7 +70,7 @@ Misurati il 22 ottobre 2026 con `npm run check` e `npx playwright test`, senza f
 | Test end-to-end del frontend, con il server finto | 84 | `npx playwright test` |
 | Test end-to-end con il backend vero | 6 | `npm run test:e2e:backend` (nella CI, l'integrazione continua di GitHub) |
 | Test unitari del backend, compreso il test di guardia del suo README | 997 | `./mvnw test` |
-| Test di integrazione del backend, su PostgreSQL | 298 | `./mvnw verify -Pintegrazione` |
+| Test di integrazione del backend, su PostgreSQL | 300 | `./mvnw verify -Pintegrazione` |
 | Endpoint dell'API | 42, più 2 controlli di salute | le mappature dei controller del backend |
 | Migrazioni del database | 11 (da V1 a V11), per 12 tabelle | i file di `hoop3x3-backend/src/main/resources/db/migration` |
 
@@ -354,7 +354,7 @@ Cinque percorsi raccontati dall'inizio alla fine, con i file in cui succede ogni
 1. **La conclusione.** L'organizzatore conclude la tappa: `concludi` di `src/domain/tappaOps.ts` la segna conclusa.
 2. **Prima il salvataggio.** `pubblica` dello store aspetta che la coda dei salvataggi si svuoti: la copia pubblica deve partire dalla tappa che il server ha davvero.
 3. **Solo l'id.** Il client chiama `PUT /api/archivio/{tappaId}` senza corpo. Il server (`ArchivioService`) costruisce la copia pubblica, lo **snapshot**, dalla tappa salvata; se la tappa non è conclusa risponde 409.
-4. **L'elenco.** Alla pubblicazione il server scrive anche nome, luogo, data e numero di squadre in colonne normali (migrazione V6). `GET /api/archivio` legge solo quelle, senza aprire i blocchi JSONB. Con le colonne `legaId` e `autoreId` (il server della fase 12) l'elenco si raggruppa per lega, e «Ritira» si mostra solo a chi può: l'autore o l'ADMIN. Il frontend accetta anche il server di prima, che non li manda.
+4. **L'elenco.** Alla pubblicazione il server scrive anche nome, luogo, data e numero di squadre in colonne normali (migrazione V6). `GET /api/archivio` legge solo quelle, senza aprire i blocchi JSONB. Con i campi `legaId` e `autoreId` (il server della fase 12 li legge con un join, senza migrazioni) l'elenco si raggruppa per lega, e «Ritira» si mostra solo a chi può: l'autore o l'ADMIN. Il frontend accetta anche il server di prima, che non li manda.
 5. **La pagina pubblica.** Chiunque apre `/tappa/<id>` (`src/pages/TappaViewPage.tsx`): la pagina legge `GET /api/archivio/{tappaId}`, senza account, e offre «Stampa / PDF».
 
 Se il proprietario elimina la tappa o la lega, il database toglie anche la pubblicazione, con la cascata della migrazione V2.
