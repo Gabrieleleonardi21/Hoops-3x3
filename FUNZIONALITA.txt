@@ -718,6 +718,8 @@ Uno strumento che fallisce non ferma gli altri: il motivo arriva al modello e
 l'azione non compare tra i badge sotto la risposta.
 
 Contesto fornito al Coach AI (in un blocco <dati_lega>):
+  - Il blocco si ricostruisce prima di ogni chiamata al modello: dopo una
+    tappa creata dagli strumenti, il giro dopo vede la lega di adesso.
   - Nome della lega e, per ogni tappa, nome, data, luogo ed eventuale
     «conclusa».
   - Classifica circuito aggregata (vinte e perse totali per squadra; la

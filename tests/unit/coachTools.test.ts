@@ -228,6 +228,22 @@ describe("Coach AI: gli strumenti leggono lega, tappe e utente al momento dell'e
     expect(esiti(richieste)[1]).toMatch(/esiste già/);
   });
 
+  it("FC-1: dopo crea_tappa il giro dopo il modello vede la tappa nuova nei dati della lega", async () => {
+    // Lo store è quello del beforeEach (lega «Circuito» con «Roma Open»), non quello del primo FC-1
+    const richieste = modello(
+      strumenti(["crea_tappa", { nome: "Tappa Nuova", squadre: ["Alfa", "Beta", "Gamma"] }]),
+      testo("Creata."),
+    );
+    await chiedi(coach(), "Crea la Tappa Nuova con Alfa, Beta e Gamma");
+    const system = (i: number) => richieste[i].find((m) => m.role === "system")?.content ?? "";
+    expect(system(0)).toContain("Roma Open");
+    expect(system(0)).not.toContain("Tappa Nuova");
+    expect(system(1)).toContain("Roma Open");
+    expect(system(1)).toContain("Tappa Nuova");
+    // Cambia solo il preambolo: la cronologia della richiesta resta quella di prima
+    expect(richieste[1].slice(1, richieste[0].length)).toEqual(richieste[0].slice(1));
+  });
+
   it("crea_tappa: se durante l'attesa dell'anagrafe si apre un'altra lega, la tappa non finisce lì e il modello lo sa", async () => {
     const anagrafe = differita<RegSquadra[]>();
     vi.mocked(anagrafeApi.listSquadre).mockReturnValue(anagrafe.p);
@@ -1573,7 +1589,7 @@ describe("Coach AI: errore a metà del ciclo e limiti del server", () => {
       ["registra_risultato", { giro: g, n: 1 }], ["registra_risultato", { giro: g, n: 2 }], ["registra_risultato", { giro: g, n: 3 }],
     ));
     const richieste = modello(...giri, testo("Fatto."));
-    const esito = await askCoachWithTools("preambolo", cronologia, [], async () => "ok");
+    const esito = await askCoachWithTools(() => "preambolo", cronologia, [], async () => "ok");
     expect(Math.max(...richieste.map((r) => r.length))).toBeLessThanOrEqual(60);
     expect(esito.calledTools).toHaveLength(24);
     // La domanda di adesso (l'ultima della cronologia) arriva sempre al modello
@@ -1585,7 +1601,7 @@ describe("Coach AI: errore a metà del ciclo e limiti del server", () => {
     const richieste = modello(
       strumenti(["registra_risultato", { n: 1 }], ["registra_risultato", { n: 2 }], ["registra_risultato", { n: 3 }]),
     );
-    const esito = await askCoachWithTools("preambolo", [{ role: "user", content: "fai" }], [], async () => enorme);
+    const esito = await askCoachWithTools(() => "preambolo", [{ role: "user", content: "fai" }], [], async () => enorme);
     expect(richieste).toHaveLength(1); // la chiamata finale non parte: il server la rifiuterebbe (oltre 100.000 caratteri)
     expect(esito.text).toMatch(/^Ho eseguito le azioni indicate qui sotto/);
     expect(esito.calledTools).toHaveLength(3);
