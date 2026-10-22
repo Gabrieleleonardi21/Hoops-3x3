@@ -354,7 +354,7 @@ Cinque percorsi raccontati dall'inizio alla fine, con i file in cui succede ogni
 1. **La conclusione.** L'organizzatore conclude la tappa: `concludi` di `src/domain/tappaOps.ts` la segna conclusa.
 2. **Prima il salvataggio.** `pubblica` dello store aspetta che la coda dei salvataggi si svuoti: la copia pubblica deve partire dalla tappa che il server ha davvero.
 3. **Solo l'id.** Il client chiama `PUT /api/archivio/{tappaId}` senza corpo. Il server (`ArchivioService`) costruisce la copia pubblica, lo **snapshot**, dalla tappa salvata; se la tappa non è conclusa risponde 409.
-4. **L'elenco.** Alla pubblicazione il server scrive anche nome, luogo, data e numero di squadre in colonne normali (migrazione V6). `GET /api/archivio` legge solo quelle, senza aprire i blocchi JSONB.
+4. **L'elenco.** Alla pubblicazione il server scrive anche nome, luogo, data e numero di squadre in colonne normali (migrazione V6). `GET /api/archivio` legge solo quelle, senza aprire i blocchi JSONB. Con le colonne `legaId` e `autoreId` (il server della fase 12) l'elenco si raggruppa per lega, e «Ritira» si mostra solo a chi può: l'autore o l'ADMIN. Il frontend accetta anche il server di prima, che non li manda.
 5. **La pagina pubblica.** Chiunque apre `/tappa/<id>` (`src/pages/TappaViewPage.tsx`): la pagina legge `GET /api/archivio/{tappaId}`, senza account, e offre «Stampa / PDF».
 
 Se il proprietario elimina la tappa o la lega, il database toglie anche la pubblicazione, con la cascata della migrazione V2.
@@ -542,7 +542,7 @@ L'elenco completo, schermata per schermata, è in [`FUNZIONALITA.txt`](FUNZIONAL
   - Modifica ed eliminazione solo per l'autore o un ADMIN.
   - I dati personali li vede solo chi ha un account: del giocatore data di nascita, città, nazionalità, altezza, peso, esperienza, note e autore; della squadra referente e autore.
   - Nei testi (scheda, card, avviso di omonimia, ricerca) la squadra di un giocatore è quella del roster in cui sta, e il testo scritto nella scheda vale solo per chi non è in nessun roster (`nomeSquadraDi` in `src/utils/identita.ts`). Il logo segue lo stesso roster (`squadraDelGiocatore`): senza roster, il ripiego per nome vale solo se la squadra si chiama così una volta sola.
-- **Archivio.** Le tappe concluse e pubblicate (pubblicano solo i registrati), consultabili senza account in `/archivio` e `/tappa/:id`.
+- **Archivio.** Le tappe concluse e pubblicate (pubblicano solo i registrati), consultabili senza account in `/archivio` e `/tappa/:id`. L'elenco è raggruppato per lega; l'autore e l'ADMIN possono ritirare una pubblicazione dall'elenco, con conferma (non dalla pagina della tappa).
   - Squadre e roster, risultati, classifiche dei gironi, tabellone, leader e video, con «Stampa / PDF».
   - Il link pubblico di una tappa conclusa si copia dalla sua pagina.
 - **Video.** Link video per tappa, che si aggiungono e si tolgono anche a tappa conclusa: ogni cambio ripubblica la copia nell'archivio.

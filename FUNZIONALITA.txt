@@ -415,11 +415,18 @@ Profilo dell'utente (/profilo)
 11. ARCHIVIO CIRCUITO (PAGINA PUBBLICA)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-- Elenco di tutte le tappe concluse e pubblicate del circuito, dalla più
-  recente (l'ordine lo decide il server). Ogni riga mostra nome, lega,
-  luogo, data, numero di squadre e autore: l'elenco è sintetico e la
-  tappa intera si carica solo aprendola. Se il server risponde con una
-  forma che l'app non riconosce, compare l'errore con «Riprova».
+- Elenco di tutte le tappe concluse e pubblicate del circuito, raggruppate
+  per lega: ogni lega ha un titolo con il suo nome, e le leghe compaiono
+  nell'ordine del server (la più recente prima, così come le tappe dentro
+  ciascuna). Ogni riga mostra nome, lega, luogo, data, numero di squadre e
+  autore: l'elenco è sintetico e la tappa intera si carica solo aprendola.
+  Se il server risponde con una forma che l'app non riconosce, compare
+  l'errore con «Riprova».
+- «Ritira» toglie una tappa dall'archivio. Lo vedono solo chi l'ha
+  pubblicata e l'amministratore, previa conferma: il link pubblico della
+  tappa smette di funzionare, e la tappa resta nella lega di chi l'ha
+  pubblicata. Se il server rifiuta, l'errore compare sopra l'elenco.
+  Nella pagina della tappa «Ritira» non c'è: si fa solo dall'elenco.
 - Ogni tappa mostra: squadre e roster, risultati per girone, classifica
   finale, dettaglio statistiche e log eventi per ogni partita,
   bracket playoff (se generato), leaderboard, video.
