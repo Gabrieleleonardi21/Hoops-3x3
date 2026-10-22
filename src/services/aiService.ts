@@ -1,6 +1,7 @@
 /** Chiamata al modello per Coach AI tramite il backend (POST /api/coach/chat), che inoltra
  *  a Groq con la chiave tenuta sul server. Serve un account registrato (endpoint autenticato). */
 import { api, ApiError } from "./api";
+import { chiaviInOrdine } from "../utils/chiaviInOrdine";
 export interface ChatMsg {
   role: "user" | "assistant";
   content: string;
@@ -136,6 +137,16 @@ function leggiArgomenti(testo: string): Record<string, unknown> | null {
   return null;
 }
 
+/** La firma di una chiamata per la guardia anti-stallo: nome più argomenti letti come JSON e riscritti con le chiavi in ordine, così
+ *  spazi, ordine delle chiavi e formato dei numeri non contano («{"nome":"Delta","citta":"Roma"}» e «{ "citta": "Roma", "nome": "Delta" }»
+ *  sono la stessa chiamata). Gli elenchi restano nell'ordine dato (["Alfa","Beta"] e ["Beta","Alfa"] sono chiamate diverse: le ferma
+ *  `creati`). Argomenti che non sono JSON valido restano il testo com'è */
+function firmaChiamata(tc: ToolCall): string {
+  const args = leggiArgomenti(tc.function.arguments);
+  if (!args) return `${tc.function.name}:${tc.function.arguments}`;
+  return `${tc.function.name}:${JSON.stringify(chiaviInOrdine(args))}`;
+}
+
 /** Richiesta abbandonata (chat cancellata, logout): niente altre chiamate al modello né altri strumenti. Le chiamate
  *  consumerebbero il limite di richieste e, dopo un nuovo accesso, partirebbero con il token di un altro utente */
 function fermaSeAbbandonata(segnale?: AbortSignal) {
@@ -252,9 +263,10 @@ async function ciclo(
     let eseguitoQualcosa = false; // false se il round contiene SOLO ricicli → si esce
     for (const tc of res.tool_calls) {
       fermaSeAbbandonata(segnale);
-      // Guardia anti-stallo: stesso tool con gli stessi argomenti già chiamato → non ripetere. Il testo non dice
-      // «eseguita»: la prima chiamata può essere fallita, e il modello direbbe all'utente che è fatta
-      const firma = `${tc.function.name}:${tc.function.arguments}`;
+      // Guardia anti-stallo: stesso tool con gli stessi argomenti (letti come JSON, chiavi in ordine: vedi firmaChiamata) già
+      // chiamato → non ripetere. Il testo non dice «eseguita»: la prima chiamata può essere fallita, e il modello direbbe
+      // all'utente che è fatta
+      const firma = firmaChiamata(tc);
       if (seen.has(firma)) {
         messages.push({ role: "tool", tool_call_id: tc.id, content: `Azione "${tc.function.name}" già chiamata con gli stessi argomenti in questa richiesta (vedi il suo risultato): non ripeterla, rispondi all'utente.` });
         continue;

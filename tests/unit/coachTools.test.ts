@@ -1093,6 +1093,19 @@ describe("Coach AI: uno strumento che fallisce non interrompe la richiesta", () 
     expect(esiti(richieste)[1]).not.toContain("eseguita");
   });
 
+  // La firma della guardia legge gli argomenti come JSON: la stessa chiamata con le chiavi in un altro ordine e con altri spazi
+  // è ferma dalla guardia, non arriva allo strumento
+  it("la stessa chiamata con le chiavi in un altro ordine e con altri spazi non si ripete", async () => {
+    const richieste = modello(
+      strumenti(["registra_squadra", '{"nome":"Delta","citta":"Roma"}']),
+      strumenti(["registra_squadra", '{ "citta": "Roma", "nome": "Delta" }']),
+      testo("Ho registrato Delta una volta sola."),
+    );
+    await chiedi(coach(), "Registra la squadra Delta di Roma");
+    expect(anagrafeApi.createSquadra).toHaveBeenCalledTimes(1);
+    expect(esiti(richieste)[1]).toContain("già chiamata con gli stessi argomenti");
+  });
+
   it.each([
     ["JSON interrotto", '{"tappa_nome": "Roma'],
     ["null", "null"],
