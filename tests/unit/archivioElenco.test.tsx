@@ -255,6 +255,25 @@ describe("Elenco dell'archivio: «Ritira» sulle proprie pubblicazioni", () => {
     expect(screen.getByRole("button", { name: /^Tappa B/ })).toBeTruthy();
   });
 
+  it("la DELETE riesce ma il ricaricamento dopo fallisce: l'errore compare nella pagina, anche se l'elenco c'è ancora", async () => {
+    useAppStore.setState({ user: utente("u1") });
+    let ritirata = false;
+    fetchFinto.mockImplementation(async (_url: string, init?: RequestInit) => {
+      if (init?.method === "DELETE") {
+        ritirata = true;
+        return new Response(null, { status: 204 });
+      }
+      if (ritirata) return new Response(JSON.stringify({ message: "Errore interno" }), { status: 500 });
+      return rispondi([voce("a", "Tappa A", { autoreId: "u1" }), voce("b", "Tappa B", { autoreId: "u2" })]);
+    });
+    apri();
+    fireEvent.click(await screen.findByRole("button", { name: "Ritira Tappa A dall'archivio" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Conferma" }));
+    // L'avviso dice che l'elenco non si è aggiornato e perché: senza, l'utente non sa se la voce è davvero tolta
+    expect((await screen.findByRole("alert")).textContent).toContain("Errore interno");
+    expect(screen.queryByRole("button", { name: /^Tappa A/ })).toBeNull();
+  });
+
   it("con l'elenco di prima (otto campi) la pagina si disegna come oggi: righe e lega, senza «Ritira»", async () => {
     useAppStore.setState({ user: utente("u1") });
     fetchFinto.mockResolvedValue(rispondi([voce("a", "Tappa vecchia")]));
