@@ -16,7 +16,7 @@ import { archivioApi } from "../../src/services/archivioApi";
 import { ApiError } from "../../src/services/api";
 import { DEFAULT_RULES, MAX_ROSTER } from "../../src/constants/rules";
 import { tappaModificataAltrove } from "../../src/utils/testi";
-import { askCoachWithTools, type ToolCall } from "../../src/services/aiService";
+import { askCoachWithTools, type ChatMsg, type ToolCall } from "../../src/services/aiService";
 import type { Partita, RegGiocatore, RegSquadra, SquadraTappa, StatSheet, Tappa, User } from "../../src/types";
 import { creaTappa, registraRisultato, sorteggia, type Esito } from "../../src/domain/tappaOps";
 import { generaTabellino, simulaTappa } from "../../src/domain/simulazione";
@@ -1619,6 +1619,39 @@ describe("Coach AI: errore a metà del ciclo e limiti del server", () => {
     expect(richieste).toHaveLength(1); // la chiamata finale non parte: il server la rifiuterebbe (oltre 100.000 caratteri)
     expect(esito.text).toMatch(/^Ho eseguito le azioni indicate qui sotto/);
     expect(esito.calledTools).toHaveLength(3);
+  });
+
+  // Copertura dell'ordine del preambolo: si rilegge prima di ogni chiamata, e prima dei limiti (il suo testo conta nei caratteri)
+  it("un preambolo che al secondo giro pesa 99.000 caratteri: nessuna richiesta supera i 100.000 e il preambolo vecchio sparisce", async () => {
+    let preambolo = "preambolo vecchio";
+    const pesante = "p".repeat(99_000);
+    // Cinque messaggi da 3.000 caratteri in cronologia: con il preambolo pesante da soli non ci starebbero più
+    const cronologia: ChatMsg[] = [
+      ...Array.from({ length: 5 }, (_, i) => ({ role: "user" as const, content: `c${i} ${"x".repeat(3_000)}` })),
+      { role: "user", content: "domanda di adesso" },
+    ];
+    const richieste = modello(strumenti(["registra_risultato", { n: 1 }]), testo("Fatto."));
+    await askCoachWithTools(() => preambolo, cronologia, [], async () => { preambolo = pesante; return "ok"; });
+    expect(Math.max(...richieste.map((r) => JSON.stringify(r).length))).toBeLessThanOrEqual(100_000);
+    // Dal secondo giro c'è un solo messaggio di sistema, quello nuovo: il vecchio non si accoda né resta in testa
+    expect(richieste[1].filter((m) => m.role === "system")).toEqual([{ role: "system", content: pesante }]);
+    expect(richieste[1].some((m) => m.content === "domanda di adesso")).toBe(true);
+  });
+
+  it("otto giri di strumenti e un preambolo che cambia dopo l'ultimo strumento: la richiesta finale ha il preambolo nuovo", async () => {
+    let stato = "preambolo prima";
+    // Ogni giro chiede uno strumento con argomenti diversi (la guardia anti-stallo non lo ferma)
+    const giri = Array.from({ length: 8 }, (_, g) => strumenti(["registra_risultato", { giro: g }]));
+    const richieste = modello(...giri, testo("Fatto."));
+    await askCoachWithTools(() => stato, [{ role: "user", content: "fai" }], [], async (_nome, args) => {
+      // Il preambolo cambia solo con l'ottavo strumento: il nuovo deve arrivare nella chiamata finale, dopo il cap dei giri
+      if (args.giro === 7) stato = "preambolo dopo";
+      return "ok";
+    });
+    expect(richieste).toHaveLength(9);
+    expect(richieste[7][0].content).toBe("preambolo prima");
+    const ultima = richieste[richieste.length - 1];
+    expect(ultima[0]).toEqual({ role: "system", content: "preambolo dopo" });
   });
 });
 
