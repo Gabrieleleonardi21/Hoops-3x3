@@ -32,6 +32,8 @@ export function useArchivio() {
         return;
       }
     }
+    // La voce esce subito dall'elenco: se il ricaricamento qui sotto fallisce, non resta in lista con «Ritira»
+    setPubs((attuali) => attuali?.filter((v) => v.tappaId !== tappaId) ?? null);
     await reload();
   };
 
