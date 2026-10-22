@@ -263,7 +263,9 @@ export function useTappa(id: string | undefined) {
    *  Restituisce le squadre che questo giro ha scollegato perché la voce non c'è più e che nessuna omonima sola ha ripreso: la pagina
    *  lo dice sotto il nome. `[]` in ogni altra uscita. */
   const syncFromAnagrafe = async (regs: RegSquadra[], giocatori: RegGiocatore[] = []): Promise<SquadraTappa[]> => {
-    if (!tappa) return [];
+    // Il collegamento all'anagrafe è dei registrati: per l'ospite la tappa resta com'è, senza scritture nel suo browser e senza
+    // richieste al server. Le squadre con regId arrivate da un file importato restano come sono
+    if (!tappa || !user || user.guest) return [];
     // Se alla tappa vista non manca niente non si salva: altrimenti ne partirebbe uno a ogni apertura della pagina
     if (allineaConAnagrafe(tappa, regs, giocatori) !== tappa) aggiorna((t) => allineaConAnagrafe(t, regs, giocatori));
     const prima = tappaCorrente(id);
