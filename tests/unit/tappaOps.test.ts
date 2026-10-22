@@ -4,7 +4,7 @@ import {
   aggiungiSquadra, rimuoviSquadra, impostaNumeroGironi, perditaRisultati, annullaRisultato, rinominaTappa,
   erroreLimitiTappa, erroreTestiTappa, creaTappa,
   perditaTappa, perditaTabellone, perditaSquadra, eSegnaposto, annullaRisultatoBracket, perditaGiocatore, correggiSquadra,
-  primoNomeLibero, tappaOmonima,
+  primoNomeLibero, tappaOmonima, nomeTappaLibero,
 } from "../../src/domain/tappaOps";
 import type { Esito } from "../../src/domain/tappaOps";
 import { nomeSegnaposto } from "../../src/constants/rules";
@@ -492,6 +492,16 @@ describe("primoNomeLibero: i nomi predefiniti non si ripetono dopo una cancellaz
   it("aggiungiSquadra dopo aver tolto la «Squadra 1» usa il numero rimasto libero, non di nuovo «Squadra 3»", () => {
     const t = nuova(aggiungiSquadra(conSquadre(["Squadra 2", "Squadra 3"])));
     expect(t.squadre.map((s) => s.nome)).toEqual(["Squadra 2", "Squadra 3", "Squadra 1"]);
+  });
+});
+
+describe("nomeTappaLibero: «Tappa N» con il primo numero libero tra le tappe", () => {
+  it("salta i numeri in uso, anche se non sono in ordine", () => {
+    expect(nomeTappaLibero([{ ...tappaNuova(), nome: "Tappa 1" }, { ...tappaNuova(), nome: "Tappa 3" }])).toBe("Tappa 2");
+  });
+
+  it("senza tappe, «Tappa 1»", () => {
+    expect(nomeTappaLibero([])).toBe("Tappa 1");
   });
 });
 

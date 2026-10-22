@@ -3,11 +3,11 @@
  *  domain/simulazione: il modello non li vede mai. Le squadre si leggono dall'anagrafe e non vi si scrive niente.
  *  Le funzioni condivise con gli altri strumenti stanno in strumentiComuni.ts (non in toolHandlers.ts, per non creare un ciclo). */
 import { useAppStore } from "../stores/useAppStore";
-import { MAX_RISULTATI, MAX_TAPPE_LEGA, nomeTappaPredefinito } from "../constants/rules";
+import { MAX_RISULTATI, MAX_TAPPE_LEGA } from "../constants/rules";
 import { pulisci, senzaTag } from "../utils/buildCoachContext";
 import { conteggio } from "../utils/testi";
 import { squadraDi } from "../utils/tappaInfo";
-import { creaTappa, primoNomeLibero, sorteggia, type ModoSorteggio } from "../domain/tappaOps";
+import { creaTappa, nomeTappaLibero, sorteggia, type ModoSorteggio } from "../domain/tappaOps";
 import {
   riepilogoSimulazione, scegliSquadre, simulaTappa, type OpzioniSimulazione,
 } from "../domain/simulazione";
@@ -99,7 +99,7 @@ export async function eseguiCreaTappaSimulata(args: Argomenti, ctx: ContestoStru
   if (tappe.length >= MAX_TAPPE_LEGA) throw new Error(erroreLimiteTappe());
 
   // Senza nome, «Tappa N» con il primo numero libero, come in crea_tappa
-  const nome = str(args, "nome") || primoNomeLibero(tappe.map((t) => t.nome), nomeTappaPredefinito);
+  const nome = str(args, "nome") || nomeTappaLibero(tappe);
   if (ctx.creati?.has(chiaveCreato("tappa", nome))) throw new Error(erroreTappaDuplicata(nome));
   const luogo = str(args, "luogo");
   const data = str(args, "data");
