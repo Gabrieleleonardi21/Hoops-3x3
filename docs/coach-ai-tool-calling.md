@@ -334,7 +334,7 @@ tappa, «Roma (Torino)» per una squadra dell'anagrafe. Le descrizioni degli str
 - **Azione:**
   1. Trova la tappa (`tappaRichiesta`) e prova la simulazione: un errore (tappa conclusa, non sorteggiata, nessuna gara da giocare, finale con gironi aperti) arriva subito, senza chiedere nulla.
   2. Conta le gare che si giocherebbero e chiede conferma.
-  3. Rigioca la simulazione sulla tappa **letta adesso** nello store, con una sola `replaceTappa`.
+  3. Se la tappa è ancora quella provata (stesso oggetto nello store), salva la simulazione già fatta: i numeri salvati sono quelli della prova e l'estrazione è una sola. Se nell'attesa è cambiata (un risultato registrato da un altro dispositivo), rigioca la simulazione sulla tappa **letta adesso** nello store. In entrambi i casi una sola `replaceTappa`.
   4. Risponde con il riepilogo: quante gare mancanti sono state giocate, le classifiche, il campione.
 - **Errori:** tappa non trovata; tappa conclusa; tappa non ancora sorteggiata; nessuna gara da giocare; `fase` non valida; «Annulla»: «L'utente ha annullato: azione non eseguita», e la tappa resta identica.
 - **Nota:** Se i gironi sono completi e il tabellone manca, lo genera (con `qualificate` squadre per girone) e lo gioca. Con un solo girone non c'è fase finale, e il riepilogo lo dice in una nota. Anche i tabellini delle gare già giocate restano identici.
@@ -380,7 +380,8 @@ aspetta e nel pannello non compare «Il coach sta pensando…».
   ripetere la stessa chiamata nella stessa richiesta. Vale lo stesso se la chat viene cancellata o l'utente esce mentre la
   conferma aspetta.
 - **«Conferma».** L'azione riparte dalla tappa **di adesso** nello store (riletta per id), non da quella vista prima: un risultato
-  registrato durante l'attesa non si perde. Se nel frattempo la tappa non è più nella lega aperta, il modello riceve un errore
+  registrato durante l'attesa non si perde. In `simula_risultati`, se la tappa non è cambiata nell'attesa, si salva la simulazione
+  già provata (una sola estrazione). Se nel frattempo la tappa non è più nella lega aperta, il modello riceve un errore
   leggibile e niente si salva.
 - **Il pannello può essere chiuso:** la richiesta resta nello store e ricompare alla riapertura.
 - **`crea_tappa`, `crea_tappa_simulata`, `registra_squadra` e `registra_giocatore`** chiedono conferma solo davanti a un omonimo (una tappa o una voce dell'anagrafe con lo stesso nome). **Gli altri strumenti non chiedono conferma** (compresi `registra_risultato`, che scrive su una partita non ancora giocata, e

@@ -658,6 +658,8 @@ esplicitamente:
                       tabellini. Simulato: le gare già registrate non si
                       toccano e i numeri sono di prova. Chiede sempre
                       conferma, che dice quante gare saranno inventate.
+                      La simulazione provata per la conferma è quella che
+                      si salva, se nell'attesa la tappa non è cambiata.
   annulla_risultato   Annulla un risultato di girone già inserito (riporta la
                       partita a "non disputata", i punteggi restano come
                       bozza). Chiede sempre conferma.
