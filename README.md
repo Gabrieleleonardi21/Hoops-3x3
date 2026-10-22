@@ -541,6 +541,7 @@ L'elenco completo, schermata per schermata, è in [`FUNZIONALITA.txt`](FUNZIONAL
   - «Scollega» toglie il collegamento e rende di nuovo modificabile il nome. Serve a cambiarlo, e resta anche alla riapertura della tappa: per ricollegarla si scrive di nuovo il nome.
   - Modifica ed eliminazione solo per l'autore o un ADMIN.
   - I dati personali li vede solo chi ha un account: del giocatore data di nascita, città, nazionalità, altezza, peso, esperienza, note e autore; della squadra referente e autore.
+  - Nei testi (scheda, card, avviso di omonimia, ricerca) la squadra di un giocatore è quella del roster in cui sta, e il testo scritto nella scheda vale solo per chi non è in nessun roster (`nomeSquadraDi` in `src/utils/identita.ts`). Il logo segue lo stesso roster (`squadraDelGiocatore`): senza roster, il ripiego per nome vale solo se la squadra si chiama così una volta sola.
 - **Archivio.** Le tappe concluse e pubblicate (pubblicano solo i registrati), consultabili senza account in `/archivio` e `/tappa/:id`.
   - Squadre e roster, risultati, classifiche dei gironi, tabellone, leader e video, con «Stampa / PDF».
   - Il link pubblico di una tappa conclusa si copia dalla sua pagina.

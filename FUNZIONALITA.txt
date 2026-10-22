@@ -457,7 +457,12 @@ Scheda GIOCATORE
     numero di maglia.
   - Dati sportivi: ruolo (Playmaker / Ala / Centro / ecc.), anni di
     esperienza nel 3x3, squadra di appartenenza, note libere.
-  - Ricerca per nome, cognome, soprannome, città, squadra, ruolo.
+  - Ricerca per nome, cognome, soprannome, città, squadra, ruolo: la squadra
+    si cerca sia quella del roster sia quella scritta nella scheda.
+  - Squadra nei testi (scheda, card, avviso di omonimia, scelta nel roster):
+    vale la squadra del roster in cui il giocatore sta (la prima, se in più
+    d'una); il testo scritto nella scheda resta per chi non è in nessun roster.
+    Il logo segue il roster; senza roster, due squadre omonime non danno un logo.
   - Modifica e cancellazione solo per l'autore o un ADMIN; la cancellazione
     chiede conferma.
 

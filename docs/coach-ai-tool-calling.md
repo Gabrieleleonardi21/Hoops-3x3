@@ -293,6 +293,7 @@ tappa, «Roma (Torino)» per una squadra dell'anagrafe. Le descrizioni degli str
 - **Parametri obbligatori:** `nome`, `cognome`
 - **Parametri opzionali:** `squadra`, `ruolo`, `nascita`, `citta`, `nazionalita`, `altezza`, `peso`, `numero`, `soprannome`, `esperienza`, `note`
 - **Azione:** legge l'anagrafe (`GET /api/anagrafe/giocatori`): se c'è già un giocatore con lo stesso nome e cognome chiede conferma («Esiste già il giocatore "Mario Rossi" (di Anna). Registrarne un altro?»): «Annulla» non registra niente, «Conferma» registra il doppione (un omonimo vero si può anche registrare dalla pagina Anagrafe). Altrimenti `saveGiocatore` di `useAnagrafeStore`: `POST /api/anagrafe/giocatori` sul backend e aggiornamento della cache dell'anagrafe. Una seconda registrazione dello stesso nome e cognome nella stessa richiesta è un errore («già stato registrato in questa richiesta»), senza leggere l'anagrafe né chiedere conferma
+- **Note sul parametro `squadra`:** è testo libero; se il giocatore entra nel roster di una squadra dell'anagrafe, nei testi vale quella (`nomeSquadraDi` in `src/utils/identita.ts`).
 - **Esempio:** *"Aggiungi il giocatore Marco Rossi, ruolo Playmaker, squadra Ballers Roma"*
 
 ---
