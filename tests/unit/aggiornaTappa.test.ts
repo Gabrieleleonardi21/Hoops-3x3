@@ -301,6 +301,38 @@ describe("useTappa: le modifiche partono dalla tappa com'è adesso, non da quell
       expect(api.putTappa).not.toHaveBeenCalled();
     });
 
+    describe("da ospite la tappa non si allinea all'anagrafe: il collegamento è dei registrati (T12.4)", () => {
+      beforeEach(() => {
+        useAppStore.setState({ user: ospite });
+      });
+
+      it("non collega per nome, non chiede al server e non scrive: la tappa e il localStorage restano com'erano", async () => {
+        useAppStore.setState({ tappe: [{ ...tappa(), squadre: [squadra("s1", "Alfa"), squadra("s2", "Squadra 2")] }] });
+        const prima = store().tappe[0];
+        const lsPrima = localStorage.getItem("hoop3x3_lega_l1");
+        const { result } = renderHook(() => useTappa("t1"));
+        let scollegate: SquadraTappa[] = [];
+        await act(async () => { scollegate = await result.current.syncFromAnagrafe([regAlfa]); });
+        await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+        expect(squadre()[0].regId).toBeUndefined();
+        expect(scollegate).toEqual([]);
+        expect(store().tappe[0]).toBe(prima);
+        expect(anagrafe.listSquadre).not.toHaveBeenCalled();
+        expect(localStorage.getItem("hoop3x3_lega_l1")).toBe(lsPrima);
+      });
+
+      it("una squadra con un regId che la cache non ha resta collegata, senza chiedere il server né avvisare", async () => {
+        useAppStore.setState({ tappe: [{ ...tappa(), squadre: [{ ...squadra("s1", "Alfa"), regId: "r-eliminata" }, squadra("s2", "Squadra 2")] }] });
+        anagrafe.listSquadre.mockResolvedValue([]);
+        const { result } = renderHook(() => useTappa("t1"));
+        let scollegate: SquadraTappa[] = [];
+        await act(async () => { scollegate = await result.current.syncFromAnagrafe([]); });
+        expect(scollegate).toEqual([]);
+        expect(squadre()[0].regId).toBe("r-eliminata");
+        expect(anagrafe.listSquadre).not.toHaveBeenCalled();
+      });
+    });
+
     describe("una squadra collegata a una voce che la cache non ha (FS-9)", () => {
       // La cache dell'anagrafe non vede le voci create da altri dopo il suo caricamento: prima di scollegare una squadra si chiede
       // la lista fresca al server, e si scollega solo se la voce manca anche lì
