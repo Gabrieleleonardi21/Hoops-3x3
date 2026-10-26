@@ -479,6 +479,15 @@ L'idea è un canale WebSocket dal backend, con una connessione per tappa: a ogni
 
 Un'alternativa più semplice, se basta il flusso dal server al browser, sono gli eventi inviati dal server (Server-Sent Events).
 
+### Lettura di PDF e Word in «Importa file» (da progettare)
+
+Oggi «Importa file» accetta il JSON di una lega e le foto JPEG, PNG o WebP di un foglio di tappa. Un PDF o un documento Word non si caricano: il selettore li filtra. Accettarli è una funzione nuova, da progettare. Decisioni ancora aperte:
+
+- la lettura avviene sul server: il file va al backend, come la foto, e la bozza torna al browser nello stesso formato;
+- un Word ha il testo già pronto: si estrae dal file, senza librerie esterne, e può andare al modello come testo, non come immagine;
+- un PDF può avere testo oppure essere una scansione: il testo si estrae con una libreria dedicata, la scansione va trasformata in immagini, una per pagina; serve quindi una nuova dipendenza nel backend;
+- limiti da fissare: numero massimo di pagine, dimensione massima del file, e tempo massimo della lettura.
+
 ## Com'è cresciuto il progetto
 
 Il progetto nasce a giugno 2026 con il frontend; il repository del backend parte a settembre. Da ottobre il lavoro procede per fasi: ognuna ha un piano scritto, una pull request per repository e una revisione prima dell'unione. I numeri delle pull request sono quelli di GitHub: `Hoops-3x3#N` per il frontend, `hoop3x3-backend#N` per il backend.
