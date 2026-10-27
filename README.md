@@ -486,7 +486,8 @@ Oggi «Importa file» accetta il JSON di una lega e le foto JPEG, PNG o WebP di 
 - la lettura avviene sul server: il file va al backend, come la foto, e la bozza torna al browser nello stesso formato;
 - un Word ha il testo già pronto: si estrae dal file, senza librerie esterne, e può andare al modello come testo, non come immagine;
 - un PDF può avere testo oppure essere una scansione: il testo si estrae con una libreria dedicata, la scansione va trasformata in immagini, una per pagina; serve quindi una nuova dipendenza nel backend;
-- limiti da fissare: numero massimo di pagine, dimensione massima del file, e tempo massimo della lettura.
+- limiti da fissare: numero massimo di pagine, dimensione massima del file, e tempo massimo della lettura;
+- i punti dei giocatori: oggi il lettore legge solo i nomi dei giocatori nelle squadre e i punteggi delle partite. In futuro leggerà anche i punti di ciascun giocatore dal foglio, così il tabellino delle gare importate sarà compilato e non solo i risultati.
 
 ## Com'è cresciuto il progetto
 
